@@ -1,0 +1,144 @@
+// Partner app domain types. These mirror the shared QuickPress backend contracts
+// consumed by both customer-frontend and partner-frontend.
+
+export type PartnerAuthStep = "phone" | "otp" | "registration" | "ready";
+
+export type PartnerSession = {
+  partnerId: string;
+  phone: string;
+  businessName: string;
+  isVerified: boolean;
+  isOnboarded: boolean;
+};
+
+export type BusinessCategory = "laundry" | "dry-clean" | "premium" | "shoe-care";
+
+export type BusinessRegistrationPayload = {
+  businessName: string;
+  ownerName: string;
+  category: BusinessCategory;
+  gstin: string;
+  address: string;
+  city: string;
+  pincode: string;
+  openingTime: string;
+  closingTime: string;
+};
+
+export type PartnerOrderStatus =
+  | "new"
+  | "accepted"
+  | "picked"
+  | "processing"
+  | "ready"
+  | "delivered"
+  | "cancelled";
+
+export type PartnerOrderItem = {
+  id: string;
+  name: string;
+  qty: number;
+  price: number;
+};
+
+export type PartnerOrder = {
+  id: string;
+  code: string;
+  customerName: string;
+  customerPhone: string;
+  status: PartnerOrderStatus;
+  placedAt: string;
+  slot: string;
+  address: string;
+  itemCount: number;
+  amount: number;
+  paymentMode: "online" | "cod";
+  serviceLabel: string;
+  items: PartnerOrderItem[];
+  timeline: { id: string; label: string; time: string; done: boolean }[];
+};
+
+export type PartnerServiceRate = {
+  id: string;
+  name: string;
+  unit: string;
+  price: number;
+  turnaroundHours: number;
+  enabled: boolean;
+  category: BusinessCategory;
+};
+
+export type EarningsPoint = {
+  label: string;
+  amount: number;
+};
+
+export type EarningsSummary = {
+  today: number;
+  week: number;
+  month: number;
+  pendingPayout: number;
+  completedOrders: number;
+  avgOrderValue: number;
+  trend: EarningsPoint[];
+  payouts: {
+    id: string;
+    date: string;
+    amount: number;
+    status: "paid" | "processing" | "failed";
+    utr: string;
+  }[];
+};
+
+export type PartnerWalletSummary = {
+  availableBalance: number;
+  onHold: number;
+  lifetimeEarned: number;
+  bankLast4: string;
+  autoPayout: boolean;
+};
+
+export type PartnerWalletTransaction = {
+  id: string;
+  title: string;
+  date: string;
+  amount: number;
+  direction: "credit" | "debit";
+  status: "success" | "pending" | "failed";
+  kind: "order-payout" | "settlement" | "penalty" | "incentive" | "withdrawal";
+};
+
+export type PartnerProfile = {
+  partnerId: string;
+  businessName: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  city: string;
+  rating: number;
+  totalOrders: number;
+  joinedOn: string;
+  onTimeRate: number;
+  tier: "Bronze" | "Silver" | "Gold" | "Platinum";
+};
+
+export type BusinessSettings = {
+  isStoreOpen: boolean;
+  acceptingNewOrders: boolean;
+  autoAcceptOrders: boolean;
+  expressDelivery: boolean;
+  pickupRadiusKm: number;
+  openingTime: string;
+  closingTime: string;
+  weeklyOff: string;
+  dailyOrderCap: number;
+};
+
+export type PartnerNotification = {
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  read: boolean;
+  kind: "order" | "payout" | "alert" | "promo";
+};

@@ -1,0 +1,20 @@
+import { createFileRoute } from "@tanstack/react-router";
+
+import { RiderProvider } from "../context/RiderContext";
+import { PerformanceScreen } from "../screens/history/PerformanceScreen";
+
+export const Route = createFileRoute("/performance")({
+  head: () => ({
+    meta: [
+      { title: "Performance · QuickPress Rider" },
+      { name: "description", content: "Ratings, on-time percentage, streaks and achievements." },
+      { property: "og:title", content: "Performance · QuickPress Rider" },
+      { property: "og:description", content: "Ratings, on-time percentage, streaks and achievements." },
+    ],
+  }),
+  component: () => (
+    <RiderProvider>
+      <PerformanceScreen />
+    </RiderProvider>
+  ),
+});

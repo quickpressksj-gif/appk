@@ -1,0 +1,581 @@
+"""Admin API — Sprint 5.2 (MongoDB integration).
+
+Every list endpoint supports pagination + search/filters via `database.paginate`.
+All mutating actions write an `admin_audit_logs` entry. Reads fall back to the
+seeded demo data (ADMIN_SEED) applied on startup, so the admin panel is never
+blank even against a brand new database.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from app.core.deps import current_user, require_roles
+from app.models.admin import (
+    AssignRiderPayload,
+    BroadcastPayload,
+    CancelOrderPayload,
+    CityPayload,
+    CouponPayload,
+    ServicePayload,
+    SettingsUpdatePayload,
+    StaffPayload,
+    SupportReplyPayload,
+)
+from app.models.user import Role, User
+from app.db.admin_repositories import (
+    admin_customer_repository,
+    admin_dashboard_repository,
+    admin_order_repository,
+    admin_partner_repository,
+    admin_rider_repository,
+    admin_settings_repository,
+    admin_wallet_repository,
+    analytics_repository,
+    area_repository,
+    audit_repository,
+    category_repository,
+    city_repository,
+    coupon_repository,
+    notification_repository,
+    service_repository,
+    staff_repository,
+    support_repository,
+)
+
+# Every /api/admin/* endpoint is admin-only. The guard lives on the router so a
+# new handler cannot accidentally ship with authentication but no authorization.
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_roles(Role.admin))],
+)
+
+
+async def _actor(user: Optional[User]) -> str:
+    return user.display_name or user.id if user else "admin"
+
+
+# ---------------------------------------------------------------- dashboard
+@router.get("/dashboard")
+async def dashboard(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.summary()
+
+
+@router.get("/dashboard/activity")
+async def dashboard_activity(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.activity()
+
+
+@router.get("/dashboard/latest-orders")
+async def dashboard_latest_orders(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.latest_orders()
+
+
+@router.get("/dashboard/revenue-series")
+async def dashboard_revenue_series(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.revenue_series()
+
+
+@router.get("/dashboard/orders-series")
+async def dashboard_orders_series(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.orders_series()
+
+
+# -------------------------------------------------------------------- orders
+@router.get("/orders")
+async def list_orders(status_filter: Optional[str] = Query(default=None, alias="status"), user: User = Depends(current_user)):
+    return await admin_order_repository.list(status_filter)
+
+
+@router.get("/orders/{order_id}")
+async def get_order(order_id: str, user: User = Depends(current_user)):
+    order = await admin_order_repository.find(order_id)
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Order {order_id} does not exist")
+    # Admin sees the canonical order plus its full audit trail.
+    return {
+        **{k: v for k, v in order.items() if k != "_id"},
+        "id": str(order["_id"]),
+        "auditTrail": await admin_order_repository.events(str(order["_id"])),
+    }
+
+
+@router.get("/orders/{order_id}/events")
+async def order_events(order_id: str, user: User = Depends(current_user)):
+    order = await admin_order_repository.find(order_id)
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Order {order_id} does not exist")
+    return await admin_order_repository.events(str(order["_id"]))
+
+
+@router.post("/orders/{order_id}/assign-rider")
+async def assign_rider(order_id: str, payload: AssignRiderPayload, user: User = Depends(current_user)):
+    try:
+        row = await admin_order_repository.assign_rider(order_id, payload.riderId)
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    await audit_repository.log(await _actor(user), "order.assign_rider", order_id, {"riderId": payload.riderId})
+    return row
+
+
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str, payload: CancelOrderPayload, user: User = Depends(current_user)):
+    try:
+        row = await admin_order_repository.cancel(order_id, payload.reason or "Cancelled by admin")
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    await audit_repository.log(await _actor(user), "order.cancel", order_id, {"reason": payload.reason})
+    return row
+
+
+# ----------------------------------------------------------------- customers
+@router.get("/customers")
+async def list_customers(
+    page: int = Query(default=1, ge=1),
+    pageSize: int = Query(default=20, ge=1, le=100),
+    q: Optional[str] = None,
+    city: Optional[str] = None,
+    user: User = Depends(current_user),
+):
+    return await admin_customer_repository.list(page, pageSize, q=q, city=city)
+
+
+@router.get("/customers/{customer_id}")
+async def get_customer(customer_id: str, user: User = Depends(current_user)):
+    customer = await admin_customer_repository.detail(customer_id)
+    if customer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    return customer
+
+
+@router.post("/customers/{customer_id}/block")
+async def block_customer(customer_id: str, user: User = Depends(current_user)):
+    await admin_customer_repository.set_blocked(customer_id, True)
+    await audit_repository.log(await _actor(user), "customer.block", customer_id)
+    return {"ok": True, "id": customer_id, "blocked": True}
+
+
+@router.post("/customers/{customer_id}/unblock")
+async def unblock_customer(customer_id: str, user: User = Depends(current_user)):
+    await admin_customer_repository.set_blocked(customer_id, False)
+    await audit_repository.log(await _actor(user), "customer.unblock", customer_id)
+    return {"ok": True, "id": customer_id, "blocked": False}
+
+
+# ------------------------------------------------------------------ partners
+@router.get("/partners")
+async def list_partners(
+    page: int = Query(default=1, ge=1),
+    pageSize: int = Query(default=20, ge=1, le=100),
+    q: Optional[str] = None,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    city: Optional[str] = None,
+    user: User = Depends(current_user),
+):
+    return await admin_partner_repository.list(page, pageSize, q=q, status=status_filter, city=city)
+
+
+@router.get("/partners/{partner_id}")
+async def get_partner(partner_id: str, user: User = Depends(current_user)):
+    partner = await admin_partner_repository.detail(partner_id)
+    if partner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+    return partner
+
+
+async def _partner_transition(partner_id: str, new_status: str, action: str, user: User):
+    partner = await admin_partner_repository.set_status(partner_id, new_status)
+    if partner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+    await audit_repository.log(await _actor(user), f"partner.{action}", partner_id)
+    return partner
+
+
+@router.post("/partners/{partner_id}/approve")
+async def approve_partner(partner_id: str, user: User = Depends(current_user)):
+    return await _partner_transition(partner_id, "active", "approve", user)
+
+
+@router.post("/partners/{partner_id}/suspend")
+async def suspend_partner(partner_id: str, user: User = Depends(current_user)):
+    return await _partner_transition(partner_id, "suspended", "suspend", user)
+
+
+@router.post("/partners/{partner_id}/activate")
+async def activate_partner(partner_id: str, user: User = Depends(current_user)):
+    return await _partner_transition(partner_id, "active", "activate", user)
+
+
+@router.post("/partners/{partner_id}/reject")
+async def reject_partner(partner_id: str, user: User = Depends(current_user)):
+    return await _partner_transition(partner_id, "suspended", "reject", user)
+
+
+# -------------------------------------------------------------------- riders
+@router.get("/riders")
+async def list_riders(
+    page: int = Query(default=1, ge=1),
+    pageSize: int = Query(default=20, ge=1, le=100),
+    q: Optional[str] = None,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    city: Optional[str] = None,
+    user: User = Depends(current_user),
+):
+    return await admin_rider_repository.list(page, pageSize, q=q, status=status_filter, city=city)
+
+
+@router.get("/riders/{rider_id}")
+async def get_rider(rider_id: str, user: User = Depends(current_user)):
+    rider = await admin_rider_repository.detail(rider_id)
+    if rider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rider not found")
+    return rider
+
+
+async def _rider_transition(rider_id: str, new_status: str, action: str, user: User):
+    rider = await admin_rider_repository.set_status(rider_id, new_status)
+    if rider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rider not found")
+    await audit_repository.log(await _actor(user), f"rider.{action}", rider_id)
+    return rider
+
+
+@router.post("/riders/{rider_id}/approve")
+async def approve_rider(rider_id: str, user: User = Depends(current_user)):
+    return await _rider_transition(rider_id, "active", "approve", user)
+
+
+@router.post("/riders/{rider_id}/suspend")
+async def suspend_rider(rider_id: str, user: User = Depends(current_user)):
+    return await _rider_transition(rider_id, "suspended", "suspend", user)
+
+
+@router.post("/riders/{rider_id}/activate")
+async def activate_rider(rider_id: str, user: User = Depends(current_user)):
+    return await _rider_transition(rider_id, "active", "activate", user)
+
+
+@router.post("/riders/{rider_id}/reject")
+async def reject_rider(rider_id: str, user: User = Depends(current_user)):
+    return await _rider_transition(rider_id, "suspended", "reject", user)
+
+
+# ----------------------------------------------------------------- analytics
+@router.get("/analytics")
+async def analytics(user: User = Depends(current_user)):
+    return await analytics_repository.summary()
+
+
+# --------------------------------------------------------------------- cities
+@router.get("/cities")
+async def list_cities(user: User = Depends(current_user)):
+    return await city_repository.list()
+
+
+@router.post("/cities", status_code=status.HTTP_201_CREATED)
+async def create_city(payload: CityPayload, user: User = Depends(current_user)):
+    city = await city_repository.create(
+        {
+            "city": payload.city or "New City",
+            "state": payload.state or "",
+            "areas": payload.areas or 0,
+            "partners": 0,
+            "riders": 0,
+            "pickupRadius": payload.pickupRadius or "5 km",
+            "status": payload.status or "Pilot",
+        }
+    )
+    await audit_repository.log(await _actor(user), "city.create", city["_id"])
+    return city
+
+
+@router.put("/cities/{city_id}")
+async def update_city(city_id: str, payload: CityPayload, user: User = Depends(current_user)):
+    city = await city_repository.update(city_id, payload.model_dump(exclude_unset=True))
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.update", city_id)
+    return city
+
+
+@router.get("/cities/{city_id}/areas")
+async def city_areas(city_id: str, user: User = Depends(current_user)):
+    areas = await area_repository.areas_for_city(city_id)
+    if areas is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    return areas
+
+
+# ------------------------------------------------------------------- services
+@router.get("/services")
+async def list_services(user: User = Depends(current_user)):
+    return await service_repository.list()
+
+
+@router.get("/services/categories")
+async def list_categories(user: User = Depends(current_user)):
+    return await category_repository.list()
+
+
+@router.get("/services/pricing")
+async def services_pricing(user: User = Depends(current_user)):
+    services = await service_repository.list()
+    settings_doc = await admin_settings_repository.get()
+    return [
+        {
+            "id": s["_id"],
+            "item": s.get("name"),
+            "service": s.get("name"),
+            "city": settings_doc.get("defaultCity", ""),
+            "price": s.get("price"),
+            "commission": settings_doc.get("defaultCommission", ""),
+        }
+        for s in services
+    ]
+
+
+@router.post("/services", status_code=status.HTTP_201_CREATED)
+async def create_service(payload: ServicePayload, user: User = Depends(current_user)):
+    categories = await category_repository.list()
+    service = await service_repository.create(
+        {
+            "name": payload.name or "New Service",
+            "categoryId": payload.categoryId or (categories[0]["_id"] if categories else ""),
+            "unit": payload.unit or "per item",
+            "price": payload.price or 0,
+            "image": payload.image or "",
+            "description": payload.description or "",
+            "badge": None,
+            "popular": False,
+        }
+    )
+    await audit_repository.log(await _actor(user), "service.create", service["_id"])
+    return service
+
+
+@router.put("/services/{service_id}")
+async def update_service(service_id: str, payload: ServicePayload, user: User = Depends(current_user)):
+    service = await service_repository.update(service_id, payload.model_dump(exclude_unset=True))
+    if service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+    await audit_repository.log(await _actor(user), "service.update", service_id)
+    return service
+
+
+# -------------------------------------------------------------------- coupons
+@router.get("/coupons")
+async def list_coupons(user: User = Depends(current_user)):
+    return await coupon_repository.list()
+
+
+@router.post("/coupons", status_code=status.HTTP_201_CREATED)
+async def create_coupon(payload: CouponPayload, user: User = Depends(current_user)):
+    coupon = await coupon_repository.create(
+        {
+            "code": payload.code or "NEWCODE",
+            "discount": payload.discount or "10% OFF",
+            "description": payload.description or "",
+            "expiry": payload.expiry or "",
+            "minOrder": payload.minOrder or 0,
+            "status": payload.status or "Active",
+        }
+    )
+    await audit_repository.log(await _actor(user), "coupon.create", coupon["_id"])
+    return coupon
+
+
+@router.put("/coupons/{coupon_id}")
+async def update_coupon(coupon_id: str, payload: CouponPayload, user: User = Depends(current_user)):
+    coupon = await coupon_repository.update(coupon_id, payload.model_dump(exclude_unset=True))
+    if coupon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    await audit_repository.log(await _actor(user), "coupon.update", coupon_id)
+    return coupon
+
+
+@router.delete("/coupons/{coupon_id}")
+async def delete_coupon(coupon_id: str, user: User = Depends(current_user)):
+    removed = await coupon_repository.delete(coupon_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    await audit_repository.log(await _actor(user), "coupon.delete", coupon_id)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------- staff
+@router.get("/staff")
+async def list_staff(user: User = Depends(current_user)):
+    return await staff_repository.list()
+
+
+@router.post("/staff", status_code=status.HTTP_201_CREATED)
+async def create_staff(payload: StaffPayload, user: User = Depends(current_user)):
+    member = await staff_repository.create(
+        {
+            "name": payload.name or "New Member",
+            "email": payload.email or "",
+            "role": payload.role or "Ops manager",
+            "scope": payload.scope or "All cities",
+            "lastActive": "—",
+            "status": "Invited",
+        }
+    )
+    await audit_repository.log(await _actor(user), "staff.create", member["_id"])
+    return member
+
+
+@router.put("/staff/{staff_id}")
+async def update_staff(staff_id: str, payload: StaffPayload, user: User = Depends(current_user)):
+    member = await staff_repository.update(staff_id, payload.model_dump(exclude_unset=True))
+    if member is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
+    await audit_repository.log(await _actor(user), "staff.update", staff_id)
+    return member
+
+
+@router.get("/staff/roles")
+async def staff_roles(user: User = Depends(current_user)):
+    members = await staff_repository.list()
+    roles = list({m.get("role") for m in members if m.get("role")})
+    return [
+        {
+            "id": f"RO-{index + 1}",
+            "name": role,
+            "members": sum(1 for m in members if m.get("role") == role),
+            "permissions": ["orders:read"],
+        }
+        for index, role in enumerate(roles)
+    ]
+
+
+@router.get("/staff/logs")
+async def staff_logs(user: User = Depends(current_user)):
+    from app.db.client import database
+
+    logs = await database.find_sorted("admin_audit_logs", sort=[("createdAt", -1)], limit=20)
+    return [
+        {"id": log["_id"], "actor": log.get("actor"), "action": log.get("action"), "target": log.get("target"), "at": log.get("at")}
+        for log in logs
+    ]
+
+
+# -------------------------------------------------------------------- support
+@router.get("/support")
+async def list_support(user: User = Depends(current_user)):
+    return await support_repository.list()
+
+
+@router.get("/support/{ticket_id}")
+async def get_support(ticket_id: str, user: User = Depends(current_user)):
+    ticket = await support_repository.get(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    return ticket
+
+
+@router.post("/support/{ticket_id}/reply")
+async def reply_support(ticket_id: str, payload: SupportReplyPayload, user: User = Depends(current_user)):
+    result = await support_repository.reply(ticket_id, payload.body or "")
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    await audit_repository.log(await _actor(user), "support.reply", ticket_id)
+    return result
+
+
+@router.post("/support/{ticket_id}/close")
+async def close_support(ticket_id: str, user: User = Depends(current_user)):
+    ticket = await support_repository.close(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    await audit_repository.log(await _actor(user), "support.close", ticket_id)
+    return ticket
+
+
+# ------------------------------------------------------------------- settings
+@router.get("/settings")
+async def get_settings_(user: User = Depends(current_user)):
+    return await admin_settings_repository.get()
+
+
+@router.put("/settings")
+async def update_settings(payload: SettingsUpdatePayload, user: User = Depends(current_user)):
+    settings_doc = await admin_settings_repository.update(payload.model_dump(exclude_unset=True))
+    await audit_repository.log(await _actor(user), "settings.update", "platform")
+    return settings_doc
+
+
+# --------------------------------------------------------------------- wallet
+@router.get("/wallet")
+async def wallet(user: User = Depends(current_user)):
+    return await admin_wallet_repository.wallet()
+
+
+@router.get("/wallet/kpis")
+async def wallet_kpis(user: User = Depends(current_user)):
+    return await admin_wallet_repository.kpis()
+
+
+@router.get("/wallet/revenue-split")
+async def wallet_revenue_split(user: User = Depends(current_user)):
+    return await admin_wallet_repository.revenue_split()
+
+
+@router.get("/wallet/partner-earnings")
+async def wallet_partner_earnings(user: User = Depends(current_user)):
+    return await admin_wallet_repository.partner_earnings()
+
+
+@router.get("/wallet/rider-earnings")
+async def wallet_rider_earnings(user: User = Depends(current_user)):
+    return await admin_wallet_repository.rider_earnings()
+
+
+@router.get("/wallet/withdrawals")
+async def wallet_withdrawals(user: User = Depends(current_user)):
+    return await admin_wallet_repository.withdrawals()
+
+
+@router.get("/wallet/refunds")
+async def wallet_refunds(user: User = Depends(current_user)):
+    return await admin_wallet_repository.refunds()
+
+
+@router.get("/wallet/transactions")
+async def wallet_transactions(user: User = Depends(current_user)):
+    return await admin_wallet_repository.transactions()
+
+
+@router.post("/wallet/withdrawals/{withdrawal_id}/approve")
+async def approve_withdrawal(withdrawal_id: str, user: User = Depends(current_user)):
+    result = await admin_wallet_repository.set_withdrawal_status(withdrawal_id, "Approved")
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
+    await audit_repository.log(await _actor(user), "wallet.withdrawal.approve", withdrawal_id)
+    return {"ok": True, "id": withdrawal_id, "action": "approve"}
+
+
+@router.post("/wallet/withdrawals/{withdrawal_id}/reject")
+async def reject_withdrawal(withdrawal_id: str, user: User = Depends(current_user)):
+    result = await admin_wallet_repository.set_withdrawal_status(withdrawal_id, "Rejected")
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
+    await audit_repository.log(await _actor(user), "wallet.withdrawal.reject", withdrawal_id)
+    return {"ok": True, "id": withdrawal_id, "action": "reject"}
+
+
+# -------------------------------------------------------------- notifications
+@router.get("/notifications")
+async def list_notifications(user: User = Depends(current_user)):
+    return await notification_repository.list()
+
+
+@router.post("/notifications/broadcast")
+async def broadcast_notification(payload: BroadcastPayload, user: User = Depends(current_user)):
+    result = await notification_repository.broadcast(payload.audience or "All", payload.title or "Announcement", payload.message or "")
+    await audit_repository.log(await _actor(user), "notifications.broadcast", payload.audience or "All", {"title": payload.title})
+    return result

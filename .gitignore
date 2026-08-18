@@ -1,0 +1,32 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Build output
+.output/
+.wrangler/
+dist/
+build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+venv/
+node_modules/
+.env

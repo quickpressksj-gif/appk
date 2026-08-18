@@ -1,0 +1,53 @@
+import {
+  BarChart3,
+  Bell,
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  LifeBuoy,
+  MapPin,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  TicketPercent,
+  Truck,
+  Users,
+  Wallet,
+} from "lucide-react";
+
+/** Central route map for the QuickPress Admin console. */
+export const adminRoutes = {
+  auth: "/auth",
+  forgotPassword: "/forgot-password",
+  dashboard: "/dashboard",
+  orders: "/orders",
+  customers: "/customers",
+  partners: "/partners",
+  riders: "/riders",
+  services: "/services",
+  cities: "/cities",
+  wallet: "/wallet",
+  coupons: "/coupons",
+  notifications: "/notifications",
+  analytics: "/analytics",
+  support: "/support",
+  staff: "/staff",
+  settings: "/settings",
+} as const;
+
+export const adminNavItems = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, to: adminRoutes.dashboard },
+  { id: "orders", label: "Orders", icon: ClipboardList, to: adminRoutes.orders },
+  { id: "customers", label: "Customers", icon: Users, to: adminRoutes.customers },
+  { id: "partners", label: "Partners", icon: Building2, to: adminRoutes.partners },
+  { id: "riders", label: "Riders", icon: Truck, to: adminRoutes.riders },
+  { id: "services", label: "Services", icon: Sparkles, to: adminRoutes.services },
+  { id: "cities", label: "Cities", icon: MapPin, to: adminRoutes.cities },
+  { id: "wallet", label: "Wallet", icon: Wallet, to: adminRoutes.wallet },
+  { id: "coupons", label: "Coupons", icon: TicketPercent, to: adminRoutes.coupons },
+  { id: "notifications", label: "Notifications", icon: Bell, to: adminRoutes.notifications },
+  { id: "analytics", label: "Analytics", icon: BarChart3, to: adminRoutes.analytics },
+  { id: "support", label: "Support", icon: LifeBuoy, to: adminRoutes.support },
+  { id: "staff", label: "Staff", icon: ShieldCheck, to: adminRoutes.staff },
+  { id: "settings", label: "Settings", icon: Settings2, to: adminRoutes.settings },
+] as const;

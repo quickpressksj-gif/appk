@@ -1,0 +1,609 @@
+"""Membership repository — Sprint 2.9.
+
+Collections
+-----------
+`membership_plans`         catalogue of Free / Silver / Gold / Premium plans.
+
+    {
+      "_id": "free" | "silver" | "gold" | "premium",
+      "name": "Gold",
+      "tagline": "…",
+      "monthly_price": 199,
+      "yearly_price": 1990,
+      "validity_days": 30,
+      "yearly_validity_days": 365,
+      "benefit_ids": ["free-pickup", "free-delivery", …],
+      "order": 3,
+      "popular": true
+    }
+
+`membership_benefits`      catalogue of benefits and the plans that unlock them.
+
+    {
+      "_id": "free-delivery",
+      "title": "Free delivery above ₹299",
+      "description": "…",
+      "icon": "truck",
+      "plans": ["silver", "gold", "premium"]
+    }
+
+`memberships`              exactly one document per customer (the active one).
+
+    {
+      "_id": "mbs-<user_id>",
+      "user_id": "<users._id>",
+      "plan_id": "gold",
+      "status": "active" | "expired" | "cancelled" | "none",
+      "billing_cycle": "monthly" | "yearly",
+      "amount_paid": 199,
+      "started_at": "…", "expires_at": "…", "cancelled_at": null,
+      "auto_renew": true
+    }
+
+`membership_transactions`  append-only ledger of subscribe / renew / upgrade /
+                           cancel / expire events with a payment status.
+
+Business rules enforced here
+----------------------------
+* Only one active membership per customer (single `memberships` document).
+* Duplicate subscriptions to the same active plan are rejected (409).
+* Expiry is evaluated on every read; expired memberships fall back to Free and
+  write an `expire` ledger entry exactly once.
+* Paid plans record `payment_status="paid"` today; the `payment_reference`
+  field and `pending` status are already wired for a real gateway later.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import timedelta
+from typing import Any, Dict, List, Optional
+
+from app.db.client import database
+from app.models.membership import (
+    CancelResponse,
+    MembershipBenefit,
+    MembershipBenefitsResponse,
+    MembershipHistoryResponse,
+    MembershipPlan,
+    MembershipPlansResponse,
+    MembershipResponse,
+    MembershipTransaction,
+    SubscribeResponse,
+)
+from app.models.user import User, utcnow
+
+MEMBERSHIPS = "memberships"
+PLANS = "membership_plans"
+TRANSACTIONS = "membership_transactions"
+BENEFITS = "membership_benefits"
+
+FREE_PLAN_ID = "free"
+
+
+class MembershipConflict(Exception):
+    """Raised for business-rule violations (duplicate / unknown plan / no plan)."""
+
+    def __init__(self, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+# --------------------------------------------------------------------- seed
+
+BENEFIT_SEED: List[Dict[str, Any]] = [
+    {
+        "_id": "free-pickup",
+        "title": "Free pickup",
+        "description": "Doorstep pickup at no extra cost on every order.",
+        "icon": "truck",
+        "plans": ["silver", "gold", "premium"],
+        "order": 1,
+    },
+    {
+        "_id": "free-delivery",
+        "title": "Free delivery above ₹299",
+        "description": "Delivery charges waived on orders over the plan threshold.",
+        "icon": "package",
+        "plans": ["silver", "gold", "premium"],
+        "order": 2,
+    },
+    {
+        "_id": "extra-discount",
+        "title": "Extra discounts",
+        "description": "Member-only savings applied automatically at checkout.",
+        "icon": "percent",
+        "plans": ["silver", "gold", "premium"],
+        "order": 3,
+    },
+    {
+        "_id": "priority-processing",
+        "title": "Priority processing",
+        "description": "Your laundry jumps the queue at the partner store.",
+        "icon": "zap",
+        "plans": ["gold", "premium"],
+        "order": 4,
+    },
+    {
+        "_id": "priority-support",
+        "title": "Priority customer support",
+        "description": "Dedicated chat line with faster response times.",
+        "icon": "headphones",
+        "plans": ["gold", "premium"],
+        "order": 5,
+    },
+    {
+        "_id": "exclusive-offers",
+        "title": "Exclusive offers",
+        "description": "Early access to seasonal deals and member coupons.",
+        "icon": "gift",
+        "plans": ["premium"],
+        "order": 6,
+    },
+    {
+        "_id": "standard-slots",
+        "title": "Standard pickup slots",
+        "description": "Book any regular pickup slot available near you.",
+        "icon": "clock",
+        "plans": ["free", "silver", "gold", "premium"],
+        "order": 7,
+    },
+]
+
+PLAN_SEED: List[Dict[str, Any]] = [
+    {
+        "_id": "free",
+        "name": "Free",
+        "tagline": "Everyday laundry, pay as you go",
+        "monthly_price": 0,
+        "yearly_price": 0,
+        "validity_days": 30,
+        "yearly_validity_days": 365,
+        "benefit_ids": ["standard-slots"],
+        "order": 1,
+        "popular": False,
+    },
+    {
+        "_id": "silver",
+        "name": "Silver",
+        "tagline": "Free pickup and delivery every month",
+        "monthly_price": 99,
+        "yearly_price": 999,
+        "validity_days": 30,
+        "yearly_validity_days": 365,
+        "benefit_ids": ["standard-slots", "free-pickup", "free-delivery", "extra-discount"],
+        "order": 2,
+        "popular": False,
+    },
+    {
+        "_id": "gold",
+        "name": "Gold",
+        "tagline": "Faster turnaround with priority support",
+        "monthly_price": 199,
+        "yearly_price": 1990,
+        "validity_days": 30,
+        "yearly_validity_days": 365,
+        "benefit_ids": [
+            "standard-slots",
+            "free-pickup",
+            "free-delivery",
+            "extra-discount",
+            "priority-processing",
+            "priority-support",
+        ],
+        "order": 3,
+        "popular": True,
+    },
+    {
+        "_id": "premium",
+        "name": "Premium",
+        "tagline": "Everything QuickPress has to offer",
+        "monthly_price": 349,
+        "yearly_price": 3490,
+        "validity_days": 30,
+        "yearly_validity_days": 365,
+        "benefit_ids": [
+            "standard-slots",
+            "free-pickup",
+            "free-delivery",
+            "extra-discount",
+            "priority-processing",
+            "priority-support",
+            "exclusive-offers",
+        ],
+        "order": 4,
+        "popular": False,
+    },
+]
+
+#: Consumed by the FastAPI lifespan seed loop in `app.main`.
+MEMBERSHIP_SEED: Dict[str, List[Dict[str, Any]]] = {
+    BENEFITS: BENEFIT_SEED,
+    PLANS: PLAN_SEED,
+}
+
+
+# -------------------------------------------------------------------- utils
+
+
+def _iso(value: Any) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value or utcnow().isoformat())
+
+
+def _parse(value: Any):
+    from datetime import datetime, timezone
+
+    if value is None:
+        return None
+    if hasattr(value, "isoformat") and not isinstance(value, str):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+class MembershipRepository:
+    # ------------------------------------------------------------- catalogue
+
+    async def _benefit_documents(self) -> List[Dict[str, Any]]:
+        documents = await database.find_many(BENEFITS, {})
+        if not documents:
+            documents = [dict(item) for item in BENEFIT_SEED]
+        documents.sort(key=lambda doc: int(doc.get("order") or 0))
+        return documents
+
+    async def _plan_documents(self) -> List[Dict[str, Any]]:
+        documents = await database.find_many(PLANS, {})
+        if not documents:
+            documents = [dict(item) for item in PLAN_SEED]
+        documents.sort(key=lambda doc: int(doc.get("order") or 0))
+        return documents
+
+    def _benefit_model(self, document: Dict[str, Any]) -> MembershipBenefit:
+        return MembershipBenefit(
+            id=str(document.get("_id")),
+            title=str(document.get("title") or "Member benefit"),
+            description=str(document.get("description") or ""),
+            icon=str(document.get("icon") or "sparkles"),
+            plans=[str(plan) for plan in (document.get("plans") or [])],
+        )
+
+    def _plan_model(
+        self, document: Dict[str, Any], benefits: List[Dict[str, Any]]
+    ) -> MembershipPlan:
+        plan_id = str(document.get("_id"))
+        benefit_ids = [str(item) for item in (document.get("benefit_ids") or [])]
+        matched = [
+            self._benefit_model(benefit)
+            for benefit in benefits
+            if str(benefit.get("_id")) in benefit_ids or plan_id in (benefit.get("plans") or [])
+        ]
+        seen: set[str] = set()
+        unique: List[MembershipBenefit] = []
+        for benefit in matched:
+            if benefit.id in seen:
+                continue
+            seen.add(benefit.id)
+            unique.append(benefit)
+
+        monthly = int(document.get("monthly_price") or 0)
+        yearly = int(document.get("yearly_price") or 0)
+        savings = max(monthly * 12 - yearly, 0)
+        return MembershipPlan(
+            id=plan_id,  # type: ignore[arg-type]
+            name=str(document.get("name") or plan_id.title()),
+            tagline=str(document.get("tagline") or ""),
+            monthlyPrice=monthly,
+            yearlyPrice=yearly,
+            yearlySavings=savings,
+            savingsLabel=(f"Save ₹{savings} a year" if savings > 0 else "Always free"),
+            validityDays=int(document.get("validity_days") or 30),
+            yearlyValidityDays=int(document.get("yearly_validity_days") or 365),
+            popular=bool(document.get("popular")),
+            order=int(document.get("order") or 0),
+            benefits=unique,
+        )
+
+    async def plans(self, user: User) -> MembershipPlansResponse:
+        benefits = await self._benefit_documents()
+        plans = [self._plan_model(doc, benefits) for doc in await self._plan_documents()]
+        membership = await self.current(user)
+        return MembershipPlansResponse(plans=plans, currentPlanId=membership.planId)
+
+    async def benefits(self, user: User) -> MembershipBenefitsResponse:
+        documents = await self._benefit_documents()
+        items = [self._benefit_model(doc) for doc in documents]
+        membership = await self.current(user)
+        active = [item for item in items if membership.planId in item.plans]
+        return MembershipBenefitsResponse(
+            items=items, activeBenefits=active, planId=membership.planId
+        )
+
+    async def _plan_by_id(self, plan_id: str) -> Optional[MembershipPlan]:
+        benefits = await self._benefit_documents()
+        for document in await self._plan_documents():
+            if str(document.get("_id")) == plan_id:
+                return self._plan_model(document, benefits)
+        return None
+
+    # ------------------------------------------------------------ membership
+
+    async def _document(self, user: User) -> Optional[Dict[str, Any]]:
+        return await database.collection(MEMBERSHIPS).find_one({"user_id": user.id})
+
+    async def _expire_if_needed(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        if str(document.get("status")) != "active":
+            return document
+        expires_at = _parse(document.get("expires_at"))
+        if expires_at is None or expires_at > utcnow():
+            return document
+
+        now = utcnow().isoformat()
+        await database.collection(MEMBERSHIPS).update_one(
+            {"_id": str(document.get("_id"))},
+            {"$set": {"status": "expired", "auto_renew": False, "expired_at": now}},
+        )
+        await self._record(
+            user_id=str(document.get("user_id")),
+            plan_id=str(document.get("plan_id") or FREE_PLAN_ID),
+            plan_name=str(document.get("plan_name") or "Membership"),
+            kind="expire",
+            billing_cycle=str(document.get("billing_cycle") or "monthly"),
+            amount=0,
+            payment_status="free",
+            expires_at=_iso(document.get("expires_at")),
+        )
+        document = {**document, "status": "expired", "auto_renew": False}
+        return document
+
+    def _remaining_days(self, document: Dict[str, Any]) -> int:
+        expires_at = _parse(document.get("expires_at"))
+        if expires_at is None:
+            return 0
+        delta = expires_at - utcnow()
+        return max(int(delta.total_seconds() // 86400) + (1 if delta.total_seconds() > 0 else 0), 0)
+
+    async def _project(self, document: Optional[Dict[str, Any]]) -> MembershipResponse:
+        if document is None:
+            free = await self._plan_by_id(FREE_PLAN_ID)
+            return MembershipResponse(
+                planId=FREE_PLAN_ID,
+                planName=free.name if free else "Free",
+                status="none",
+                active=False,
+                canRenew=True,
+                canCancel=False,
+                plan=free,
+                benefits=free.benefits if free else [],
+            )
+
+        status = str(document.get("status") or "none")
+        active = status == "active"
+        plan_id = str(document.get("plan_id") or FREE_PLAN_ID) if active else FREE_PLAN_ID
+        effective_plan = await self._plan_by_id(plan_id) or await self._plan_by_id(FREE_PLAN_ID)
+        billing = document.get("billing_cycle")
+        return MembershipResponse(
+            planId=plan_id,  # type: ignore[arg-type]
+            # Once a membership expires or is cancelled the customer is served
+            # by the Free plan, so the projection reports Free.
+            planName=(effective_plan.name if effective_plan else "Free"),
+            status=status,  # type: ignore[arg-type]
+            active=active,
+            billingCycle=billing if billing in ("monthly", "yearly") else None,
+            amountPaid=int(document.get("amount_paid") or 0),
+            startedAt=_iso(document.get("started_at")) if document.get("started_at") else None,
+            expiresAt=_iso(document.get("expires_at")) if document.get("expires_at") else None,
+            cancelledAt=(
+                _iso(document.get("cancelled_at")) if document.get("cancelled_at") else None
+            ),
+            autoRenew=bool(document.get("auto_renew")),
+            remainingDays=self._remaining_days(document) if active else 0,
+            canRenew=True,
+            canCancel=active and plan_id != FREE_PLAN_ID,
+            plan=effective_plan,
+            benefits=effective_plan.benefits if effective_plan else [],
+        )
+
+    async def current(self, user: User) -> MembershipResponse:
+        document = await self._document(user)
+        if document is not None:
+            document = await self._expire_if_needed(document)
+        return await self._project(document)
+
+    # ------------------------------------------------------------- mutations
+
+    async def _record(
+        self,
+        *,
+        user_id: str,
+        plan_id: str,
+        plan_name: str,
+        kind: str,
+        billing_cycle: str,
+        amount: int,
+        payment_status: str,
+        expires_at: Optional[str] = None,
+        payment_reference: Optional[str] = None,
+        renewal_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        document = {
+            "_id": f"mtx-{uuid.uuid4().hex[:12]}",
+            "user_id": user_id,
+            "plan_id": plan_id,
+            "plan_name": plan_name,
+            "type": kind,
+            "billing_cycle": billing_cycle,
+            "amount": amount,
+            "payment_status": payment_status,
+            "payment_reference": payment_reference,
+            "subscribed_at": utcnow().isoformat(),
+            "renewal_at": renewal_at,
+            "expires_at": expires_at,
+        }
+        await database.collection(TRANSACTIONS).insert_one(document)
+        return document
+
+    def _transaction_model(self, document: Dict[str, Any]) -> MembershipTransaction:
+        kind = str(document.get("type") or "subscribe")
+        payment_status = str(document.get("payment_status") or "paid")
+        billing = str(document.get("billing_cycle") or "monthly")
+        return MembershipTransaction(
+            id=str(document.get("_id")),
+            planId=str(document.get("plan_id") or FREE_PLAN_ID),  # type: ignore[arg-type]
+            planName=str(document.get("plan_name") or "Membership"),
+            type=kind if kind in ("subscribe", "renew", "upgrade", "cancel", "expire") else "subscribe",  # type: ignore[arg-type]
+            billingCycle=billing if billing in ("monthly", "yearly") else "monthly",  # type: ignore[arg-type]
+            amount=int(document.get("amount") or 0),
+            paymentStatus=(  # type: ignore[arg-type]
+                payment_status
+                if payment_status in ("paid", "pending", "failed", "free", "refunded")
+                else "paid"
+            ),
+            paymentReference=document.get("payment_reference"),
+            subscribedAt=_iso(document.get("subscribed_at")),
+            renewalAt=_iso(document.get("renewal_at")) if document.get("renewal_at") else None,
+            expiresAt=_iso(document.get("expires_at")) if document.get("expires_at") else None,
+        )
+
+    async def history(self, user: User) -> MembershipHistoryResponse:
+        # Settle expiry first so the ledger the customer reads is up to date.
+        await self.current(user)
+        documents = await database.find_many(TRANSACTIONS, {"user_id": user.id})
+        documents.sort(key=lambda doc: _iso(doc.get("subscribed_at")), reverse=True)
+        items = [self._transaction_model(doc) for doc in documents]
+        return MembershipHistoryResponse(items=items, total=len(items))
+
+    async def subscribe(
+        self,
+        user: User,
+        plan_id: str,
+        billing_cycle: str,
+        payment_reference: Optional[str] = None,
+    ) -> SubscribeResponse:
+        plan = await self._plan_by_id(plan_id)
+        if plan is None:
+            raise MembershipConflict("That membership plan doesn't exist.", status_code=404)
+
+        existing = await self._document(user)
+        if existing is not None:
+            existing = await self._expire_if_needed(existing)
+
+        was_active = existing is not None and str(existing.get("status")) == "active"
+        previous_plan = str(existing.get("plan_id")) if existing else None
+        previous_cycle = str(existing.get("billing_cycle") or "monthly") if existing else None
+
+        # Business rule: no duplicate subscription to the same live plan.
+        if was_active and previous_plan == plan_id and previous_cycle == billing_cycle:
+            raise MembershipConflict(
+                f"You already have an active {plan.name} membership.", status_code=409
+            )
+
+        yearly = billing_cycle == "yearly"
+        amount = plan.yearlyPrice if yearly else plan.monthlyPrice
+        days = plan.yearlyValidityDays if yearly else plan.validityDays
+        now = utcnow()
+        expires_at = now + timedelta(days=days)
+
+        kind = "subscribe"
+        if was_active and previous_plan == plan_id:
+            kind = "renew"
+        elif was_active:
+            kind = "upgrade"
+
+        document = {
+            "_id": existing.get("_id") if existing else f"mbs-{user.id}",
+            "user_id": user.id,
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "status": "active",
+            "billing_cycle": billing_cycle,
+            "amount_paid": amount,
+            "started_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "cancelled_at": None,
+            "auto_renew": amount > 0,
+            "payment_reference": payment_reference,
+            "updated_at": now.isoformat(),
+        }
+        # Only one active membership per customer: a single upserted document.
+        await database.collection(MEMBERSHIPS).update_one(
+            {"user_id": user.id},
+            {"$set": {k: v for k, v in document.items() if k != "_id"}, "$setOnInsert": {"_id": document["_id"]}},
+            upsert=True,
+        )
+
+        transaction = await self._record(
+            user_id=user.id,
+            plan_id=plan.id,
+            plan_name=plan.name,
+            kind=kind,
+            billing_cycle=billing_cycle,
+            amount=amount,
+            # Free plans need no payment; paid plans are marked paid until a
+            # real gateway flips them from `pending` in a later sprint.
+            payment_status="free" if amount == 0 else "paid",
+            expires_at=expires_at.isoformat(),
+            payment_reference=payment_reference,
+            renewal_at=now.isoformat() if kind == "renew" else None,
+        )
+
+        membership = await self.current(user)
+        message = {
+            "subscribe": f"{plan.name} membership activated.",
+            "renew": f"{plan.name} membership renewed.",
+            "upgrade": f"You're now on {plan.name}.",
+        }[kind]
+        return SubscribeResponse(
+            ok=True,
+            message=message,
+            membership=membership,
+            transaction=self._transaction_model(transaction),
+        )
+
+    async def cancel(self, user: User, reason: Optional[str] = None) -> CancelResponse:
+        existing = await self._document(user)
+        if existing is not None:
+            existing = await self._expire_if_needed(existing)
+        if existing is None or str(existing.get("status")) != "active":
+            raise MembershipConflict("You don't have an active membership to cancel.", 409)
+        if str(existing.get("plan_id")) == FREE_PLAN_ID:
+            raise MembershipConflict("The Free plan can't be cancelled.", 409)
+
+        now = utcnow().isoformat()
+        await database.collection(MEMBERSHIPS).update_one(
+            {"user_id": user.id},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "auto_renew": False,
+                    "cancelled_at": now,
+                    "cancel_reason": reason,
+                    "updated_at": now,
+                }
+            },
+        )
+        await self._record(
+            user_id=user.id,
+            plan_id=str(existing.get("plan_id") or FREE_PLAN_ID),
+            plan_name=str(existing.get("plan_name") or "Membership"),
+            kind="cancel",
+            billing_cycle=str(existing.get("billing_cycle") or "monthly"),
+            amount=0,
+            payment_status="refunded" if int(existing.get("amount_paid") or 0) > 0 else "free",
+            expires_at=_iso(existing.get("expires_at")),
+        )
+        membership = await self.current(user)
+        return CancelResponse(
+            ok=True, message="Membership cancelled. You're back on the Free plan.", membership=membership
+        )
+
+
+membership_repository = MembershipRepository()

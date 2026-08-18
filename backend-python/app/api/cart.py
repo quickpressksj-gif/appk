@@ -1,0 +1,76 @@
+"""Smart Cart API — Sprint 2.3.
+
+    GET    /api/cart               line items + live totals
+    POST   /api/cart/items         add an item (or bump its quantity)
+    PUT    /api/cart/items/{id}    update quantity (0 removes the line)
+    DELETE /api/cart/items/{id}    remove an item
+    GET    /api/cart/summary       store, items, coupons, charges, totals
+
+Every route runs against the signed-in customer's cart in the MongoDB
+collection `customer_carts`, using the existing bearer auth dependency.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from app.core.deps import current_user
+from app.db.cart_repositories import cart_repository
+from app.models.cart import (
+    CartItemPayload,
+    CartItemUpdatePayload,
+    CartLineResponse,
+    CartResponse,
+    CartSummaryResponse,
+)
+from app.models.user import User
+
+router = APIRouter(tags=["cart"])
+
+
+@router.get("/cart", response_model=CartResponse)
+async def get_cart(
+    couponDiscount: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+) -> CartResponse:
+    return await cart_repository.cart(user.id, couponDiscount)
+
+
+@router.get("/cart/summary", response_model=CartSummaryResponse)
+async def get_cart_summary(
+    couponDiscount: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+) -> CartSummaryResponse:
+    return await cart_repository.summary(user.id, couponDiscount)
+
+
+@router.post("/cart/items", response_model=CartLineResponse, status_code=status.HTTP_201_CREATED)
+async def add_cart_item(
+    payload: CartItemPayload,
+    user: User = Depends(current_user),
+) -> CartLineResponse:
+    try:
+        return await cart_repository.add_item(user.id, payload)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error))
+
+
+@router.put("/cart/items/{item_id}", response_model=CartResponse)
+async def update_cart_item(
+    item_id: str,
+    payload: CartItemUpdatePayload,
+    user: User = Depends(current_user),
+) -> CartResponse:
+    updated = await cart_repository.update_qty(user.id, item_id, payload.qty)
+    if updated is None and payload.qty > 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+    return await cart_repository.cart(user.id)
+
+
+@router.delete("/cart/items/{item_id}", response_model=CartResponse)
+async def delete_cart_item(
+    item_id: str,
+    user: User = Depends(current_user),
+) -> CartResponse:
+    await cart_repository.remove_item(user.id, item_id)
+    return await cart_repository.cart(user.id)

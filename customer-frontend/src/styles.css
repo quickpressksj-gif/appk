@@ -1,0 +1,762 @@
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "./shared/styles/theme.css";
+
+@source "../src";
+@source "./shared";
+
+@keyframes brand-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+@utility brand-sweep {
+  animation: brand-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes splash-pop {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@utility splash-pop {
+  animation: splash-pop 1.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes locate-ring {
+  0% { opacity: 0.55; transform: scale(0.72); }
+  70% { opacity: 0; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+@utility locate-ring {
+  animation: locate-ring 2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes locate-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@utility locate-bob {
+  animation: locate-bob 1.8s ease-in-out infinite;
+}
+
+@keyframes splash-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@utility splash-fade-out {
+  animation: splash-fade-out 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes splash-rise {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@utility splash-rise {
+  animation: splash-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+
+/* =====================================================================
+ * QuickPress Customer — premium motion + UX layer
+ * Scoped to the customer app stylesheet only (partner/rider/admin
+ * keep their own styling untouched). Purely presentational.
+ * ===================================================================== */
+
+/* ---------- Page transitions ---------- */
+@keyframes qpc-page-in {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes qpc-page-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(0, -6px, 0); }
+}
+
+@utility page-enter {
+  animation: qpc-page-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility page-exit {
+  animation: qpc-page-out 0.18s ease-in both;
+}
+
+/* ---------- Card / list entrance ---------- */
+@keyframes qpc-rise-in {
+  from { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@utility card-enter {
+  animation: qpc-rise-in 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Stagger every direct child of a list/grid with one class */
+@utility stagger-children {
+  & > * {
+    animation: qpc-rise-in 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  & > *:nth-child(1) { animation-delay: 0.02s; }
+  & > *:nth-child(2) { animation-delay: 0.07s; }
+  & > *:nth-child(3) { animation-delay: 0.12s; }
+  & > *:nth-child(4) { animation-delay: 0.17s; }
+  & > *:nth-child(5) { animation-delay: 0.22s; }
+  & > *:nth-child(6) { animation-delay: 0.27s; }
+  & > *:nth-child(7) { animation-delay: 0.32s; }
+  & > *:nth-child(8) { animation-delay: 0.37s; }
+  & > *:nth-child(9) { animation-delay: 0.42s; }
+  & > *:nth-child(n + 10) { animation-delay: 0.46s; }
+}
+
+/* ---------- Touch ripple (pointer-accurate, injected by RippleLayer) ---------- */
+@keyframes qpc-ripple-spread {
+  from { opacity: 0.32; transform: scale(0); }
+  to { opacity: 0; transform: scale(1); }
+}
+
+.qpc-ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-foreground) 26%, transparent) 0%,
+    color-mix(in oklab, var(--color-foreground) 6%, transparent) 70%,
+    transparent 100%
+  );
+  animation: qpc-ripple-spread 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  z-index: 40;
+}
+
+/* ---------- Button press + tap targets ---------- */
+body button,
+body [role="button"],
+body a[data-press] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease,
+    background-color 0.24s ease,
+    border-color 0.24s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+body button:active:not(:disabled),
+body [role="button"]:active {
+  transform: scale(0.965);
+}
+
+body button:disabled {
+  opacity: 0.55;
+}
+
+body button:focus-visible,
+body [role="button"]:focus-visible,
+body a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 55%, transparent);
+}
+
+/* ---------- Floating action button ---------- */
+@keyframes qpc-fab-in {
+  0% { opacity: 0; transform: translate3d(0, 26px, 0) scale(0.86); }
+  70% { opacity: 1; transform: translate3d(0, -2px, 0) scale(1.03); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes qpc-fab-glow {
+  0%, 100% { box-shadow: 0 12px 30px -12px color-mix(in oklab, var(--color-primary) 70%, transparent); }
+  50% { box-shadow: 0 18px 42px -12px color-mix(in oklab, var(--color-primary) 92%, transparent); }
+}
+
+@utility fab-motion {
+  animation:
+    qpc-fab-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    qpc-fab-glow 3.6s ease-in-out 0.6s infinite;
+}
+
+/* ---------- Inputs: focus glow + validation ---------- */
+body input,
+body textarea,
+body select {
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.28s ease,
+    background-color 0.22s ease;
+}
+
+body input:focus,
+body input:focus-visible,
+body textarea:focus,
+body select:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--color-primary) 80%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+
+@keyframes qpc-shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  15% { transform: translate3d(-7px, 0, 0); }
+  30% { transform: translate3d(6px, 0, 0); }
+  45% { transform: translate3d(-4px, 0, 0); }
+  60% { transform: translate3d(3px, 0, 0); }
+  80% { transform: translate3d(-2px, 0, 0); }
+}
+
+@utility animate-shake {
+  animation: qpc-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes qpc-valid-glow {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand-green) 55%, transparent); }
+  60% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-brand-green) 18%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@utility animate-valid {
+  animation: qpc-valid-glow 0.8s ease-out both;
+}
+
+@utility input-invalid {
+  border-color: var(--color-destructive) !important;
+  animation: qpc-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* ---------- Loading: spinner + skeleton shimmer ---------- */
+@keyframes qpc-spin {
+  to { transform: rotate(360deg); }
+}
+
+@utility spinner {
+  display: inline-block;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in oklab, var(--color-primary) 22%, transparent);
+  border-top-color: var(--color-primary);
+  animation: qpc-spin 0.7s linear infinite;
+}
+
+@keyframes qpc-skeleton-sweep {
+  0% { background-position: -160% 0; }
+  100% { background-position: 260% 0; }
+}
+
+/* Upgrade every existing skeleton to a premium sweeping shimmer */
+body .animate-pulse {
+  animation: none;
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--color-background) 82%, transparent) 42%,
+    color-mix(in oklab, var(--color-background) 96%, transparent) 50%,
+    color-mix(in oklab, var(--color-background) 82%, transparent) 58%,
+    transparent 80%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: qpc-skeleton-sweep 1.5s ease-in-out infinite;
+}
+
+/* ---------- Success ---------- */
+@keyframes qpc-success-ring {
+  0% { opacity: 0.55; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@utility animate-success-ring {
+  animation: qpc-success-ring 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes qpc-check-draw {
+  from { stroke-dashoffset: 48; }
+  to { stroke-dashoffset: 0; }
+}
+
+@utility animate-check-draw {
+  stroke-dasharray: 48;
+  animation: qpc-check-draw 0.55s cubic-bezier(0.65, 0, 0.35, 1) 0.12s both;
+}
+
+/* ---------- Sheets, dialogs, drawers, toasts ---------- */
+@keyframes qpc-sheet-in {
+  from { opacity: 0; transform: translate3d(0, 100%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes qpc-modal-in {
+  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(0.95); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes qpc-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@utility bottom-sheet-motion {
+  animation: qpc-sheet-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility modal-motion {
+  animation: qpc-modal-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility overlay-motion {
+  animation: qpc-overlay-in 0.28s ease-out both;
+}
+
+body [data-slot="dialog-overlay"],
+body [data-slot="alert-dialog-overlay"],
+body [data-slot="sheet-overlay"],
+body [data-slot="drawer-overlay"] {
+  animation: qpc-overlay-in 0.28s ease-out both;
+}
+
+body [data-slot="dialog-content"],
+body [data-slot="alert-dialog-content"] {
+  animation: qpc-modal-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+body [data-slot="drawer-content"],
+body [data-slot="sheet-content"][data-side="bottom"] {
+  animation: qpc-sheet-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes qpc-toast-in {
+  from { opacity: 0; transform: translate3d(0, -18px, 0) scale(0.96); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+body [data-sonner-toast] {
+  animation: qpc-toast-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ---------- Pull to refresh ---------- */
+@keyframes qpc-ptr-in {
+  from { opacity: 0; transform: translate3d(0, -8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.qpc-ptr {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-left: -1.25rem;
+  border-radius: 9999px;
+  background-color: var(--color-background);
+  box-shadow: 0 10px 24px -12px oklch(0 0 0 / 0.35);
+  animation: qpc-ptr-in 0.2s ease-out both;
+}
+
+/* ---------- Tabs ---------- */
+body [data-slot="tabs-content"] {
+  animation: qpc-page-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility tab-swap {
+  animation: qpc-page-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------- Scrolling + one-hand ergonomics ---------- */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
+}
+
+body [data-scroll-x] {
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+@utility tap-target {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+@utility safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+@utility content-lift {
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  body *,
+  body *::before,
+  body *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: translateY(4px) scale(0.94); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-pop {
+  animation: pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------- Docked bottom navigation ---------- */
+@keyframes qpc-nav-dock-in {
+  from { opacity: 0; transform: translate3d(0, 100%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.nav-dock {
+  animation: qpc-nav-dock-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-dock { animation: none; }
+}
+
+/* ---------- Auth hero ambience (production polish) ---------- */
+@keyframes qpc-float-up {
+  0% { transform: translate3d(0, 12%, 0) scale(0.9); opacity: 0; }
+  15% { opacity: 0.75; }
+  70% { opacity: 0.5; }
+  100% { transform: translate3d(var(--drift, 10px), -120%, 0) scale(1.15); opacity: 0; }
+}
+@utility float-bubble {
+  animation: qpc-float-up var(--dur, 9s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes qpc-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6%, -8%, 0) scale(1.12); }
+}
+@utility orb-drift {
+  animation: qpc-orb-drift var(--dur, 12s) ease-in-out infinite;
+}
+
+@keyframes qpc-shine {
+  0% { background-position: -160% 0; }
+  100% { background-position: 260% 0; }
+}
+@utility text-shine {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, white 65%, transparent) 45%,
+    transparent 65%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: qpc-shine 3.6s ease-in-out 1.2s infinite;
+}
+
+@keyframes qpc-chip-in {
+  0% { transform: translate3d(0, 14px, 0) scale(0.94); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@utility chip-in {
+  animation: qpc-chip-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0s) both;
+}
+
+@keyframes qpc-chip-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@utility chip-pulse {
+  animation: qpc-chip-pulse 3s ease-in-out var(--delay, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-bubble, .orb-drift, .text-shine, .chip-pulse { animation: none; }
+  .text-shine { -webkit-text-fill-color: currentColor; }
+}
+
+/* ---------- Blinkit-style auth collage marquee ---------- */
+@keyframes qpc-marquee-left {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes qpc-marquee-right {
+  from { transform: translate3d(-50%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@utility marquee-left {
+  animation: qpc-marquee-left var(--dur, 26s) linear infinite;
+}
+@utility marquee-right {
+  animation: qpc-marquee-right var(--dur, 26s) linear infinite;
+}
+
+/* ---------- Auto-hiding nav dock ---------- */
+@utility nav-hidden {
+  transform: translate3d(0, calc(100% + 1.5rem), 0);
+  opacity: 0;
+}
+@utility nav-shown {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-left,
+  .marquee-right {
+    animation: none !important;
+  }
+  .nav-hidden {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* =====================================================================
+ * Customer Login / OTP — premium auth motion layer (presentation only)
+ * ===================================================================== */
+@keyframes qp-auth-rise {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@utility auth-rise {
+  animation: qp-auth-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes qp-auth-card-in {
+  from { opacity: 0; transform: translate3d(0, 22px, 0) scale(0.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@utility auth-card {
+  animation: qp-auth-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes qp-logo-in {
+  0% { opacity: 0; transform: translate3d(0, -14px, 0) scale(0.82); }
+  70% { opacity: 1; transform: translate3d(0, 0, 0) scale(1.05); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@utility auth-logo-in {
+  animation: qp-logo-in 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes qp-logo-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -6px, 0); }
+}
+
+@utility auth-logo-float {
+  animation: qp-logo-float 4.2s ease-in-out 0.8s infinite;
+  will-change: transform;
+}
+
+@keyframes qp-pop-in {
+  0% { opacity: 0; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@utility auth-pop {
+  animation: qp-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Animated focus border for the phone field */
+@utility auth-field {
+  transition:
+    border-color 0.24s ease,
+    box-shadow 0.28s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  &:focus-within {
+    border-color: color-mix(in oklab, var(--color-foreground) 28%, transparent);
+    box-shadow: none;
+  }
+}
+
+/* Button ripple sheen on press */
+@keyframes qp-ripple-sheen {
+  from { opacity: 0.5; transform: scale(0); }
+  to { opacity: 0; transform: scale(2.4); }
+}
+
+@utility btn-ripple {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 60%;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--color-background) 65%, transparent);
+    opacity: 0;
+    transform: scale(0);
+    pointer-events: none;
+  }
+  &:active:not(:disabled)::after {
+    animation: qp-ripple-sheen 0.55s ease-out;
+  }
+}
+
+/* OTP success pulse */
+@keyframes qp-otp-success {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+@utility otp-success {
+  animation: qp-otp-success 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-rise,
+  .auth-card,
+  .auth-logo-in,
+  .auth-logo-float,
+  .auth-pop,
+  .otp-success {
+    animation: none !important;
+  }
+}
+
+/* =====================================================================
+ * Login wordmark — brand name replaces the logo mark
+ * ===================================================================== */
+@keyframes qp-wordmark-shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@utility auth-wordmark {
+  text-shadow: 0 18px 40px color-mix(in oklab, var(--color-primary) 18%, transparent);
+}
+
+@utility auth-wordmark-accent {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-brand-green) 0%,
+    var(--color-primary) 35%,
+    color-mix(in oklab, var(--color-brand-green) 55%, white) 50%,
+    var(--color-primary) 65%,
+    var(--color-brand-green) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: qp-wordmark-shine 3.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-wordmark-accent {
+    animation: none;
+  }
+}
+
+/* =====================================================================
+ * Login — flowing accent under the wordmark
+ * ===================================================================== */
+@keyframes qp-flow-wave {
+  0% { transform: translate3d(-50%, 0, 0); }
+  100% { transform: translate3d(0%, 0, 0); }
+}
+
+@keyframes qp-flow-bubble {
+  0% { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.6); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(0, -18px, 0) scale(1.15); }
+}
+
+@utility auth-flow-wave {
+  width: 200%;
+  animation: qp-flow-wave 7s linear infinite;
+  will-change: transform;
+}
+
+@utility auth-flow-bubble {
+  animation: qp-flow-bubble 3.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-flow-wave,
+  .auth-flow-bubble {
+    animation: none;
+  }
+}
+
+/* =====================================================================
+ * Splash screen — full-bleed brand takeover
+ * ===================================================================== */
+@keyframes qp-splash-mark {
+  0% { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.86); }
+  60% { opacity: 1; transform: translate3d(0, 0, 0) scale(1.04); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes qp-splash-rise {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes qp-splash-ring {
+  0% { opacity: 0.45; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+@keyframes qp-splash-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+@utility splash-mark {
+  animation: qp-splash-mark 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@utility splash-rise {
+  animation: qp-splash-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+  will-change: transform, opacity;
+}
+
+@utility splash-ring {
+  animation: qp-splash-ring 2.6s ease-out infinite;
+  will-change: transform, opacity;
+}
+
+@utility splash-bar {
+  animation: qp-splash-bar 1.15s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-mark,
+  .splash-rise,
+  .splash-ring,
+  .splash-bar {
+    animation: none;
+  }
+}
