@@ -177,6 +177,24 @@ class OrderRepository:
 
     async def create(self, user: User, payload: PlaceOrderPayload) -> OrderResponse:
         items = await cart_repository.lines(user.id)
+        if not items and payload.items:
+            for it in payload.items:
+                svc = await database.find_one("partner_services", {"_id": it.id}) or await database.find_one("partner_services", {"id": it.id})
+                partner_id = svc.get("partnerId") if svc else None
+                await cart_repository.add_item(
+                    user.id,
+                    CartItemPayload(
+                        id=it.id,
+                        itemId=it.id,
+                        serviceId=it.id,
+                        partnerId=partner_id,
+                        name=it.name,
+                        price=it.price,
+                        qty=max(1, it.qty),
+                    ),
+                )
+            items = await cart_repository.lines(user.id)
+
         if not items:
             raise ValueError("Your cart is empty — add an item before placing the order")
 
@@ -365,6 +383,13 @@ class OrderRepository:
 
     async def _partner(self, items: List[CartLineResponse]) -> OrderPartnerParty:
         partner_id = next((item.partnerId for item in items if item.partnerId), None)
+        if not partner_id and items:
+            for it in items:
+                svc = await database.find_one("partner_services", {"_id": it.id}) or await database.find_one("partner_services", {"id": it.id})
+                if svc and svc.get("partnerId"):
+                    partner_id = svc.get("partnerId")
+                    break
+
         document = None
         if partner_id:
             document = await database.find_one("partner_profiles", {"_id": partner_id})
