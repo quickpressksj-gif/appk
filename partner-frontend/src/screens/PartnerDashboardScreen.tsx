@@ -50,7 +50,7 @@ const STATUS_TO_LIVE: Partial<Record<PartnerOrderStatus, LiveOrder["status"]>> =
  */
 export function PartnerDashboardScreen() {
   const navigate = useNavigate();
-  const { orders, isLoading: ordersLoading, refresh: refreshOrders } = usePartnerOrders();
+  const { orders, isLoading: ordersLoading, refresh: refreshOrders, testIncomingOrderAlarm } = usePartnerOrders();
   const { handleAction, sheetNode, overlay } = useOrderActionHandler();
 
   const [shop, setShop] = useState<DashboardShop | null>(null);
@@ -177,7 +177,18 @@ export function PartnerDashboardScreen() {
               <WelcomeCard shop={shop} summary={summary} />
 
               <section>
-                <SectionHeading title="Quick Stats" />
+                <div className="flex items-center justify-between">
+                  <SectionHeading title="Quick Stats" />
+                  <button
+                    type="button"
+                    onClick={testIncomingOrderAlarm}
+                    className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-brand-dark transition-all hover:bg-primary/20 active:scale-95"
+                    title="Test Zomato-style incoming order sound & popup"
+                  >
+                    <span className="size-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                    🔔 Test Order Ringtone
+                  </button>
+                </div>
                 <div className="mt-4">
                   <QuickStatsGrid stats={quickStats} />
                 </div>

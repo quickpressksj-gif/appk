@@ -155,18 +155,23 @@ function toManagedOrder(order: PartnerOrder): ManagedOrder {
 /* Store                                                               */
 /* ------------------------------------------------------------------ */
 
+import { IncomingOrderModal } from "../components/orders/IncomingOrderModal";
+import { startOrderAlarm, stopOrderAlarm } from "../lib/order-alarm";
+
 type OrdersStore = {
   orders: ManagedOrder[];
   isLoading: boolean;
   isRefreshing: boolean;
   isOffline: boolean;
   error: string | null;
+  incomingOrder: ManagedOrder | null;
   refresh: () => Promise<void>;
   acceptOrder: (orderId: string) => Promise<void>;
   rejectOrder: (orderId: string, reason: string) => Promise<void>;
   startProcessing: (orderId: string) => Promise<void>;
   completeOrder: (orderId: string) => Promise<void>;
   counts: Record<OrderStage, number>;
+  testIncomingOrderAlarm: () => void;
 };
 
 const PartnerOrdersContext = createContext<OrdersStore | null>(null);
@@ -177,6 +182,8 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [incomingOrder, setIncomingOrder] = useState<ManagedOrder | null>(null);
+  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (opts: { refreshing?: boolean } = {}) => {
     if (opts.refreshing) setIsRefreshing(true);
@@ -184,18 +191,46 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const remote = await fetchPartnerOrders();
-      setOrders(remote.map(toManagedOrder));
+      const mapped = remote.map(toManagedOrder);
+      setOrders(mapped);
+
+      // Check for new unacknowledged orders (Zomato style order alert)
+      const unacknowledgedNew = mapped.find(
+        (o) => o.stage === "new" && !seenOrderIds.has(o.id)
+      );
+
+      if (unacknowledgedNew && !incomingOrder) {
+        setSeenOrderIds((prev) => new Set([...prev, unacknowledgedNew.id]));
+        setIncomingOrder(unacknowledgedNew);
+        startOrderAlarm(unacknowledgedNew.code);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load orders");
     } finally {
       if (opts.refreshing) setIsRefreshing(false);
       else setIsLoading(false);
     }
-  }, []);
+  }, [seenOrderIds, incomingOrder]);
 
+  // Initial load
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Background polling every 6 seconds for instantaneous order notification
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      void load({ refreshing: true });
+    }, 6000);
+    return () => clearInterval(pollInterval);
+  }, [load]);
+
+  // Stop alarm on unmount
+  useEffect(() => {
+    return () => {
+      stopOrderAlarm();
+    };
   }, []);
 
   useEffect(() => {
@@ -213,6 +248,8 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
 
   const acceptOrder = useCallback(
     async (orderId: string) => {
+      stopOrderAlarm();
+      setIncomingOrder(null);
       await acceptPartnerOrder(orderId);
       await load({ refreshing: true });
     },
@@ -221,6 +258,8 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
 
   const rejectOrder = useCallback(
     async (orderId: string, reason: string) => {
+      stopOrderAlarm();
+      setIncomingOrder(null);
       await rejectPartnerOrder(orderId, reason);
       await load({ refreshing: true });
     },
@@ -242,6 +281,43 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     },
     [load],
   );
+
+  const testIncomingOrderAlarm = useCallback(() => {
+    const mockOrder: ManagedOrder = {
+      id: `ord-test-${Date.now()}`,
+      code: `QP${Math.floor(1000 + Math.random() * 9000)}`,
+      stage: "new",
+      customerName: "Rahul Sharma (Demo)",
+      customerRating: 4.9,
+      customerPhone: "+919876543210",
+      customerOrders: 3,
+      pickupAddress: "Flat 204, Green Palms, Kasganj Main Market",
+      deliveryAddress: "Flat 204, Green Palms, Kasganj Main Market",
+      pickupTime: "Today · 8 AM – 12 PM",
+      pickupDay: "today",
+      deliveryEta: "Tomorrow · 6 PM",
+      distanceKm: 1.2,
+      services: ["Wash & Fold (2 KG)", "Steam Ironing (4 pcs)"],
+      itemCount: 6,
+      amount: 280,
+      paymentStatus: "paid",
+      paymentMode: "online",
+      placedAt: new Date().toISOString(),
+      placedMinutesAgo: 0,
+      specialInstructions: "Handle delicate fabrics with care",
+      items: [
+        { id: "1", name: "Wash & Fold", service: "Wash", qty: 2, price: 80 },
+        { id: "2", name: "Steam Ironing", service: "Iron", qty: 4, price: 30 },
+      ],
+      charges: { subtotal: 280, pickupFee: 0, taxes: 0, discount: 0, total: 280 },
+      timeline: [{ id: "1", label: "Order Placed", time: "Just now" }],
+      invoiceNo: null,
+      cancelReason: null,
+      assignedRider: null,
+    };
+    setIncomingOrder(mockOrder);
+    startOrderAlarm(mockOrder.code);
+  }, []);
 
   const counts = useMemo(() => {
     const base: Record<OrderStage, number> = {
@@ -266,12 +342,14 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       isRefreshing,
       isOffline,
       error,
+      incomingOrder,
       refresh,
       acceptOrder,
       rejectOrder,
       startProcessing,
       completeOrder,
       counts,
+      testIncomingOrderAlarm,
     }),
     [
       orders,
@@ -279,16 +357,33 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       isRefreshing,
       isOffline,
       error,
+      incomingOrder,
       refresh,
       acceptOrder,
       rejectOrder,
       startProcessing,
       completeOrder,
       counts,
+      testIncomingOrderAlarm,
     ],
   );
 
-  return <PartnerOrdersContext.Provider value={value}>{children}</PartnerOrdersContext.Provider>;
+  return (
+    <PartnerOrdersContext.Provider value={value}>
+      {children}
+      {incomingOrder ? (
+        <IncomingOrderModal
+          order={incomingOrder}
+          onAccept={acceptOrder}
+          onReject={rejectOrder}
+          onDismiss={() => {
+            stopOrderAlarm();
+            setIncomingOrder(null);
+          }}
+        />
+      ) : null}
+    </PartnerOrdersContext.Provider>
+  );
 }
 
 export function usePartnerOrders() {

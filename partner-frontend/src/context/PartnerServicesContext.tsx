@@ -93,18 +93,21 @@ export function sortServices(list: ManagedService[], sort: ServiceSortId) {
 
 const CATEGORY_TO_UI: Record<string, ServiceCategoryId> = {
   laundry: "wash",
+  wash: "wash",
   "dry-clean": "dry-clean",
+  iron: "iron",
   premium: "premium",
   "shoe-care": "shoe-care",
+  "home-care": "home-care",
 };
 
-const UI_CATEGORY_TO_BACKEND: Record<ServiceCategoryId, PartnerServiceRate["category"]> = {
+const UI_CATEGORY_TO_BACKEND: Record<ServiceCategoryId, string> = {
   wash: "laundry",
   "dry-clean": "dry-clean",
-  iron: "laundry",
+  iron: "iron",
   premium: "premium",
   "shoe-care": "shoe-care",
-  "home-care": "laundry",
+  "home-care": "home-care",
 };
 
 const CATEGORY_TO_ICON: Record<ServiceCategoryId, ServiceIconKey> = {
@@ -117,18 +120,19 @@ const CATEGORY_TO_ICON: Record<ServiceCategoryId, ServiceIconKey> = {
 };
 
 function toManagedService(rate: PartnerServiceRate): ManagedService {
-  const category = CATEGORY_TO_UI[rate.category] ?? "wash";
+  const categoryKey = String(rate.category || "wash").toLowerCase();
+  const category = CATEGORY_TO_UI[categoryKey] ?? "wash";
   return {
-    id: rate.id,
-    name: rate.name,
+    id: String(rate.id),
+    name: rate.name || "Laundry Service",
     category,
-    icon: CATEGORY_TO_ICON[category],
-    description: "",
-    price: rate.price,
-    unit: (["kg", "piece", "pair", "fixed"].includes(rate.unit) ? rate.unit : "piece") as ManagedService["unit"],
-    estimatedHours: rate.turnaroundHours,
-    minOrderValue: 0,
-    enabled: rate.enabled,
+    icon: CATEGORY_TO_ICON[category] ?? "wash",
+    description: (rate as any).description ?? "",
+    price: Number(rate.price || 0),
+    unit: (["kg", "piece", "pair", "fixed"].includes(rate.unit) ? rate.unit : "kg") as ManagedService["unit"],
+    estimatedHours: Number(rate.turnaroundHours || 24),
+    minOrderValue: (rate as any).minQuantity ? Number((rate as any).minQuantity) * Number(rate.price) : 0,
+    enabled: rate.enabled !== false,
     ordersThisMonth: 0,
     updatedMinutesAgo: 0,
     imageLabel: null,
@@ -215,7 +219,9 @@ export function PartnerServicesProvider({ children }: { children: ReactNode }) {
           price: draft.price,
           turnaroundHours: draft.estimatedHours,
           enabled: draft.enabled,
-          category: UI_CATEGORY_TO_BACKEND[draft.category],
+          category: UI_CATEGORY_TO_BACKEND[draft.category] || "laundry",
+          description: draft.description || "",
+          minQuantity: draft.minOrderValue ? Math.max(1, Math.round(draft.minOrderValue / Math.max(1, draft.price))) : 1,
         });
         await load();
         return toManagedService(raw);
@@ -227,7 +233,8 @@ export function PartnerServicesProvider({ children }: { children: ReactNode }) {
           ...(patch.price !== undefined ? { price: patch.price } : {}),
           ...(patch.estimatedHours !== undefined ? { turnaroundHours: patch.estimatedHours } : {}),
           ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-          ...(patch.category !== undefined ? { category: UI_CATEGORY_TO_BACKEND[patch.category] } : {}),
+          ...(patch.category !== undefined ? { category: UI_CATEGORY_TO_BACKEND[patch.category] || "laundry" } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
         });
         await load();
       },
