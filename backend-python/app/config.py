@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     # --- environment -------------------------------------------------
     app_env: str = "development"  # development | staging | production
     api_prefix: str = "/api"
-    cors_origins: str = "http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084"
+    # Comma-separated list of allowed frontend origins.
+    cors_origins: str = "http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,https://www.quickpress.online,https://quickpress.online,https://customer-5ys4.onrender.com"
 
     # --- MongoDB Atlas ------------------------------------------------
     mongodb_uri: str = ""            # mongodb+srv://... (empty => in-memory preview store)
@@ -65,14 +66,26 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> List[str]:
-        origins = [
+        raw_origins = [
             origin.strip().rstrip("/")
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
-        prod_customer = "https://customer-5ys4.onrender.com"
-        if prod_customer not in origins:
-            origins.append(prod_customer)
+        # In production mode, filter out localhost/127.0.0.1 origins from default string
+        if self.app_env == "production":
+            origins = [o for o in raw_origins if not ("localhost" in o or "127.0.0.1" in o or o == "*")]
+        else:
+            origins = [o for o in raw_origins if o != "*"]
+
+        # Always guarantee all primary, apex, and fallback production customer origins are allowed:
+        essential_origins = [
+            "https://www.quickpress.online",
+            "https://quickpress.online",
+            "https://customer-5ys4.onrender.com",
+        ]
+        for origin in essential_origins:
+            if origin not in origins:
+                origins.append(origin)
         return origins
 
     @property
