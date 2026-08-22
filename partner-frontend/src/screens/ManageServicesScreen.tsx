@@ -10,13 +10,17 @@ import {
   Percent,
   Plus,
   QrCode,
+  RotateCcw,
   Search,
+  Shirt,
   Sparkles,
   Tag,
   ToggleLeft,
   ToggleRight,
   UtensilsCrossed,
   WifiOff,
+  X,
+  Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -45,6 +49,16 @@ import { partnerRoutes } from "../navigation/partner-routes";
 import { fetchPartnerProfile, toggleStoreStatus } from "@/api/partner/partner-profile-api";
 import { usePartnerResource } from "../hooks/use-partner-resource";
 
+function getServiceIcon(name: string, category?: string) {
+  const text = (name + " " + (category || "")).toLowerCase();
+  if (text.includes("iron") || text.includes("press")) return "⚡";
+  if (text.includes("dry")) return "👔";
+  if (text.includes("shoe") || text.includes("sneaker")) return "👟";
+  if (text.includes("curtain") || text.includes("blanket") || text.includes("duvet")) return "🪟";
+  if (text.includes("premium") || text.includes("delicate")) return "✨";
+  return "🧺";
+}
+
 export function ManageServicesScreen() {
   const navigate = useNavigate();
   const { data: profile } = usePartnerResource(fetchPartnerProfile);
@@ -61,7 +75,7 @@ export function ManageServicesScreen() {
     addOffer,
   } = usePartnerServices();
 
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "active" | "paused" | "offers">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<ServiceFilterId[]>([]);
   const [sort, setSort] = useState<ServiceSortId>("popularity");
@@ -75,18 +89,40 @@ export function ManageServicesScreen() {
       const next = !isStoreOnline;
       setIsStoreOnline(next);
       await toggleStoreStatus(next);
-      toast.success(next ? "Store is now Online" : "Store is now Closed");
+      toast.success(next ? "Store is now Online & accepting orders" : "Store is now Closed");
     } catch {
       setIsStoreOnline(!isStoreOnline);
       toast.error("Failed to update store status");
     }
   };
 
+  const CATEGORY_TABS = [
+    { id: "all", label: `All (${services.length})` },
+    { id: "wash", label: "Wash & Fold" },
+    { id: "iron", label: "Steam Iron" },
+    { id: "dry", label: "Dry Clean" },
+    { id: "shoe", label: "Shoe Clean" },
+    { id: "offers", label: `Offers (${offers.length})` },
+    { id: "paused", label: `Paused (${services.length - activeCount})` },
+  ];
+
   const visible = useMemo(() => {
     let list = services;
-    if (categoryFilter === "active") list = list.filter((s) => s.enabled);
-    else if (categoryFilter === "paused") list = list.filter((s) => !s.enabled);
-    else if (categoryFilter === "offers") list = list.filter((s) => offersFor(s.id).length > 0);
+    if (categoryFilter === "active") {
+      list = list.filter((s) => s.enabled);
+    } else if (categoryFilter === "paused") {
+      list = list.filter((s) => !s.enabled);
+    } else if (categoryFilter === "offers") {
+      list = list.filter((s) => offersFor(s.id).length > 0);
+    } else if (categoryFilter === "wash") {
+      list = list.filter((s) => s.name.toLowerCase().includes("wash") || s.category?.toLowerCase().includes("wash"));
+    } else if (categoryFilter === "iron") {
+      list = list.filter((s) => s.name.toLowerCase().includes("iron") || s.name.toLowerCase().includes("press") || s.category?.toLowerCase().includes("iron"));
+    } else if (categoryFilter === "dry") {
+      list = list.filter((s) => s.name.toLowerCase().includes("dry") || s.category?.toLowerCase().includes("dry"));
+    } else if (categoryFilter === "shoe") {
+      list = list.filter((s) => s.name.toLowerCase().includes("shoe") || s.name.toLowerCase().includes("sneaker"));
+    }
 
     const filtered = list.filter(
       (service) =>
@@ -117,7 +153,7 @@ export function ManageServicesScreen() {
       {/* MOBILE ZOMATO MENU & SERVICES VIEW (< md)                                 */}
       {/* ========================================================================= */}
       <div className="min-h-screen bg-[#F4F5F7] pb-28 text-zinc-900 md:hidden">
-        {/* Top Header */}
+        {/* Top Header with Store name, Status & Action buttons */}
         <header className="sticky top-0 z-20 bg-white px-4 pt-3.5 pb-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
@@ -125,7 +161,7 @@ export function ManageServicesScreen() {
                 {profile?.businessName || profile?.ownerName || "QuickPress Partner"}
               </h1>
               <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">
-                {profile?.city ? `${profile.city}` : "Store Catalog"}
+                {profile?.city ? `${profile.city}` : "Catalog & Pricing"} · {activeCount} Live Services
               </p>
             </div>
 
@@ -172,18 +208,13 @@ export function ManageServicesScreen() {
 
           {/* Category Horizontal Filter Carousel */}
           <div className="no-scrollbar -mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-1">
-            {[
-              { id: "all", label: `All (${services.length})` },
-              { id: "active", label: `Active (${activeCount})` },
-              { id: "paused", label: `Paused (${services.length - activeCount})` },
-              { id: "offers", label: `Offers (${offers.length})` },
-            ].map((cat) => {
+            {CATEGORY_TABS.map((cat) => {
               const isActive = categoryFilter === cat.id;
               return (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setCategoryFilter(cat.id as any)}
+                  onClick={() => setCategoryFilter(cat.id)}
                   className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-black transition-all active:scale-95 ${
                     isActive
                       ? "bg-zinc-950 text-white shadow-sm"
@@ -206,6 +237,15 @@ export function ManageServicesScreen() {
               placeholder="Search service name, type, or price..."
               className="h-10 w-full rounded-2xl border border-zinc-200 bg-zinc-50 pl-10 pr-4 text-xs font-bold text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-400 focus:bg-white focus:outline-none"
             />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -218,9 +258,11 @@ export function ManageServicesScreen() {
               ))}
             </div>
           ) : visible.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
               <Layers className="mx-auto size-10 text-zinc-400" />
-              <h3 className="mt-3 text-sm font-black text-zinc-900">No services found</h3>
+              <h3 className="mt-3 text-sm font-black text-zinc-900">
+                {isSearching ? "No matching services" : "No services in this category"}
+              </h3>
               <p className="mt-1 text-xs text-zinc-500">
                 {isSearching ? "Try adjusting your search query." : "Add your first laundry service rate."}
               </p>
@@ -235,6 +277,7 @@ export function ManageServicesScreen() {
           ) : (
             visible.map((svc) => {
               const svcOffers = offersFor(svc.id);
+              const icon = getServiceIcon(svc.name, svc.category);
               return (
                 <div
                   key={svc.id}
@@ -244,7 +287,7 @@ export function ManageServicesScreen() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="flex size-7 items-center justify-center rounded-lg bg-amber-100 text-amber-800 text-xs font-black">
-                          🧺
+                          {icon}
                         </span>
                         <h3 className="truncate text-sm font-black text-zinc-900">{svc.name}</h3>
                       </div>
@@ -271,8 +314,8 @@ export function ManageServicesScreen() {
                       ) : null}
                     </div>
 
-                    {/* Live Toggle Switch */}
-                    <div className="flex flex-col items-end gap-2 shrink-0">
+                    {/* Live Toggle Switch & Edit */}
+                    <div className="flex flex-col items-end gap-2.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -301,9 +344,9 @@ export function ManageServicesScreen() {
                             params: { serviceId: svc.id },
                           })
                         }
-                        className="flex items-center gap-1 text-xs font-black text-zinc-700 hover:text-zinc-950 p-1"
+                        className="flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 active:scale-95"
                       >
-                        <Edit2 className="size-3.5" />
+                        <Edit2 className="size-3" />
                         <span>Edit</span>
                       </button>
                     </div>
@@ -320,103 +363,61 @@ export function ManageServicesScreen() {
       {/* ========================================================================= */}
       <div className="hidden mx-auto w-full max-w-7xl px-4 py-4 md:block md:px-8 md:py-6">
         <PullToRefresh onRefresh={refresh}>
-          {/* Header Action Banner */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-border/80 bg-card p-5 shadow-sm">
-            <div className="flex items-center gap-3.5">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark">
-                <Sparkles className="size-6" />
-              </span>
-              <div>
-                <p className="text-sm font-extrabold text-foreground">
-                  {activeCount} of {services.length} services active
-                </p>
-                <p className="text-xs text-muted-foreground font-medium">
-                  Changes made here sync live to the customer app in real-time.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setOfferSheetOpen(true)}
-                className="flex items-center gap-1.5 rounded-2xl border border-border bg-muted/40 px-4 py-2.5 text-xs font-bold text-foreground transition-all hover:bg-muted active:scale-95"
-              >
-                <Tag className="size-4" />
-                <span>Create Offer</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate({ to: partnerRoutes.serviceNew })}
-                className="flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition-all hover:brightness-105 active:scale-95"
-              >
-                <Plus className="size-4" />
-                <span>Add Service</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Filter Toolbar */}
-          <div className="mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <ServiceToolbar
               query={query}
               onQueryChange={setQuery}
               filters={filters}
-              onToggleFilter={(id) =>
+              onFilterToggle={(f) =>
                 setFilters((prev) =>
-                  prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+                  prev.includes(f) ? prev.filter((item) => item !== f) : [...prev, f],
                 )
               }
-              onClearFilters={() => setFilters([])}
               sort={sort}
               onSortChange={setSort}
-              resultCount={visible.length}
+              totalCount={services.length}
+              visibleCount={visible.length}
             />
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOfferSheetOpen(true)}
+                className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-xs font-bold tracking-tight text-foreground transition-all hover:border-primary/60 active:scale-95"
+              >
+                <Tag className="size-4 text-brand-green-dark" />
+                Add Offer ({offers.length})
+              </button>
+              <Link
+                to={partnerRoutes.serviceNew}
+                className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold tracking-tight text-brand-dark shadow-sm transition-all hover:brightness-105 active:scale-95"
+              >
+                <Plus className="size-4" />
+                Add Custom Service
+              </Link>
+            </div>
           </div>
 
-          {/* Services Grid */}
           <div className="mt-6 pb-12">
             {isLoading ? (
               <ServiceGridSkeleton />
+            ) : isOffline ? (
+              <ServiceEmptyState variant="offline" onAction={() => void refresh()} />
             ) : visible.length === 0 ? (
               <ServiceEmptyState
-                isSearching={isSearching}
-                onAction={
-                  isSearching
-                    ? resetSearch
-                    : () => navigate({ to: partnerRoutes.serviceNew })
-                }
+                variant={isSearching ? "no-results" : "no-services"}
+                onAction={isSearching ? resetSearch : () => navigate({ to: partnerRoutes.serviceNew })}
               />
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visible.map((service, index) => (
                   <ServiceCard
                     key={service.id}
                     service={service}
                     offers={offersFor(service.id)}
                     index={index}
-                    onToggle={() => {
-                      const wasEnabled = service.enabled;
-                      void toggleService(service.id)
-                        .then(() => {
-                          toast.success(
-                            `${service.name} ${wasEnabled ? "paused" : "is now live"}`,
-                          );
-                        })
-                        .catch((err) => {
-                          toast.error(
-                            err instanceof Error ? err.message : "Failed to update service",
-                          );
-                        });
-                    }}
-                    onEdit={() =>
-                      navigate({
-                        to: partnerRoutes.serviceEdit,
-                        params: { serviceId: service.id },
-                      })
-                    }
-                    onViewDetails={() => setDetailsId(service.id)}
+                    onToggleEnabled={toggleService}
+                    onOpenDetails={(s) => setDetailsId(s.id)}
                   />
                 ))}
               </div>
@@ -425,32 +426,24 @@ export function ManageServicesScreen() {
         </PullToRefresh>
       </div>
 
-      {detailsService ? (
-        <ServiceDetailsSheet
-          service={detailsService}
-          offers={offersFor(detailsService.id)}
-          onClose={() => setDetailsId(null)}
-          onEdit={() => {
-            const id = detailsService.id;
-            setDetailsId(null);
-            void navigate({ to: partnerRoutes.serviceEdit, params: { serviceId: id } });
-          }}
-        />
-      ) : null}
+      <OfferSheet
+        open={offerSheetOpen}
+        onClose={() => setOfferSheetOpen(false)}
+        services={services}
+        onCreateOffer={(serviceId, offer) => {
+          addOffer(serviceId, offer);
+          setOfferSheetOpen(false);
+          setSuccess(`Offer "${offer.title}" added to service`);
+        }}
+      />
 
-      {offerSheetOpen ? (
-        <OfferSheet
-          services={services}
-          onClose={() => setOfferSheetOpen(false)}
-          onCreate={(offer) => {
-            addOffer(offer);
-            setOfferSheetOpen(false);
-            setSuccess("Offer created for this session");
-          }}
-        />
-      ) : null}
+      <ServiceDetailsSheet
+        service={detailsService}
+        open={Boolean(detailsService)}
+        onClose={() => setDetailsId(null)}
+      />
 
-      <ServiceSuccessOverlay message={success} onDone={() => setSuccess(null)} />
+      <ServiceSuccessOverlay message={success} onDismiss={() => setSuccess(null)} />
       <Toaster />
     </PartnerLayout>
   );
