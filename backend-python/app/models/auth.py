@@ -25,7 +25,8 @@ class SendOtpResponse(BaseModel):
 
 
 class VerifyPhoneRequest(BaseModel):
-    id_token: str
+    id_token: str = ""
+    code: Optional[str] = None
     phone: Optional[str] = None
     role: Role
 

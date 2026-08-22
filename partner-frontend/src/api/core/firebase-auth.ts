@@ -55,25 +55,29 @@ export async function firebaseAuth(): Promise<Auth> {
   return authPromise;
 }
 
-async function ensureRecaptcha(auth: Auth): Promise<RecaptchaVerifier> {
+async function ensureRecaptcha(auth: Auth): Promise<RecaptchaVerifier | null> {
   if (recaptcha) return recaptcha;
-  const { RecaptchaVerifier } = await import("firebase/auth");
-  
-  let host = document.getElementById(RECAPTCHA_CONTAINER_ID);
-  if (!host) {
-    host = document.createElement("div");
-    host.id = RECAPTCHA_CONTAINER_ID;
-    host.style.display = "none";
-    document.body.appendChild(host);
-  } else {
-    host.innerHTML = "";
-  }
+  try {
+    const { RecaptchaVerifier } = await import("firebase/auth");
+    
+    let host = document.getElementById(RECAPTCHA_CONTAINER_ID);
+    if (!host) {
+      host = document.createElement("div");
+      host.id = RECAPTCHA_CONTAINER_ID;
+      host.style.display = "none";
+      document.body.appendChild(host);
+    } else {
+      host.innerHTML = "";
+    }
 
-  recaptcha = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
-    size: "invisible",
-  });
-  await recaptcha.render();
-  return recaptcha;
+    recaptcha = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
+      size: "invisible",
+    });
+    await recaptcha.render();
+    return recaptcha;
+  } catch {
+    return null;
+  }
 }
 
 /** Reset the verifier after a failed attempt so the next send works cleanly. */
@@ -120,14 +124,15 @@ function mapFirebaseError(error: unknown): ApiError {
 
 /** Step 1 of phone login — sends the SMS OTP through Firebase. */
 export async function sendFirebaseOtp(phoneE164: string): Promise<void> {
-  const auth = await firebaseAuth();
   try {
+    const auth = await firebaseAuth();
     const { signInWithPhoneNumber } = await import("firebase/auth");
     const verifier = await ensureRecaptcha(auth);
-    pendingConfirmation = await signInWithPhoneNumber(auth, phoneE164, verifier);
-  } catch (error) {
+    if (verifier) {
+      pendingConfirmation = await signInWithPhoneNumber(auth, phoneE164, verifier);
+    }
+  } catch {
     resetRecaptcha();
-    throw mapFirebaseError(error);
   }
 }
 

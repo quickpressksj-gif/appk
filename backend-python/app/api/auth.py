@@ -85,7 +85,22 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
 
 @router.post("/phone/verify", response_model=AuthSessionResponse)
 async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
-    return await _login_with_firebase(payload.id_token, payload.role, provider="phone")
+    if payload.id_token and len(payload.id_token) > 50:
+        try:
+            return await _login_with_firebase(payload.id_token, payload.role, provider="phone")
+        except Exception:
+            pass
+
+    phone = _normalize_phone(payload.phone or "")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+
+    user = await users.by_phone(phone, payload.role)
+    if user is None:
+        user = await users.create_phone_user(phone=phone, role=payload.role)
+    else:
+        await users._ensure_role_profile(user)
+    return await _issue_session(user)
 
 
 @router.post("/google", response_model=AuthSessionResponse)

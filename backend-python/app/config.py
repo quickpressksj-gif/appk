@@ -71,17 +71,22 @@ class Settings(BaseSettings):
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
-        # In production mode, filter out localhost/127.0.0.1 origins from default string
-        if self.app_env == "production":
-            origins = [o for o in raw_origins if not ("localhost" in o or "127.0.0.1" in o or o == "*")]
-        else:
-            origins = [o for o in raw_origins if o != "*"]
+        origins = [o for o in raw_origins if o != "*"]
 
-        # Always guarantee all primary, apex, and fallback production customer origins are allowed:
         essential_origins = [
             "https://www.quickpress.online",
             "https://quickpress.online",
             "https://customer-5ys4.onrender.com",
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "http://localhost:8082",
+            "http://localhost:8083",
+            "http://localhost:8084",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:8081",
+            "http://127.0.0.1:8082",
+            "http://127.0.0.1:8083",
+            "http://127.0.0.1:8084",
         ]
         for origin in essential_origins:
             if origin not in origins:

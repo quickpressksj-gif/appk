@@ -98,6 +98,22 @@ class UserRepository:
         )
         return await self.create(user)
 
+    async def create_phone_user(self, *, phone: str, role: Role) -> User:
+        existing = await self.by_phone(phone, role)
+        if existing:
+            await self._ensure_role_profile(existing)
+            return existing
+        user = User(
+            id=str(uuid.uuid4()),
+            firebase_uid=f"phone-{phone}",
+            role=role,
+            phone=phone,
+            status=UserStatus.active,
+            is_verified=True,
+            is_onboarded=True if role == Role.customer else False,
+        )
+        return await self.create(user)
+
 
 class RefreshTokenRepository:
     collection_name = "refresh_tokens"
