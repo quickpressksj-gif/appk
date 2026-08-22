@@ -409,27 +409,29 @@ function PartnerDetailScreen() {
                 {/* Map placeholder — coordinates come from GET /api/partners/{id} */}
                 <div className="card-soft mt-3 flex h-32 flex-col items-center justify-center gap-1.5 border border-dashed border-border">
                   <MapPin className="size-5 text-muted-foreground" />
-                  <p className="text-[11px] font-bold text-foreground">{data.partner.address}</p>
+                  <p className="text-[11px] font-bold text-foreground">{data.partner.address || "Store Address"}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {data.partner.latitude.toFixed(4)}, {data.partner.longitude.toFixed(4)}
+                    {(data.partner.latitude != null ? data.partner.latitude : 28.5355).toFixed(4)}, {(data.partner.longitude != null ? data.partner.longitude : 77.3910).toFixed(4)}
                   </p>
                 </div>
 
-                <div className="card-soft mt-3 divide-y divide-border border border-border">
-                  {data.partner.hours.map((slot) => (
-                    <div
-                      key={slot.day}
-                      className="flex items-center justify-between px-4 py-2.5 text-[11px]"
-                    >
-                      <span className="font-semibold text-foreground">{slot.day}</span>
-                      <span className="text-muted-foreground">
-                        {slot.closed ? "Closed" : `${slot.opensAt} – ${slot.closesAt}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {data.partner.hours && data.partner.hours.length > 0 ? (
+                  <div className="card-soft mt-3 divide-y divide-border border border-border">
+                    {data.partner.hours.map((slot) => (
+                      <div
+                        key={slot.day}
+                        className="flex items-center justify-between px-4 py-2.5 text-[11px]"
+                      >
+                        <span className="font-semibold text-foreground">{slot.day}</span>
+                        <span className="text-muted-foreground">
+                          {slot.closed ? "Closed" : `${slot.opensAt} – ${slot.closesAt}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                  {data.partner.about}
+                  {data.partner.about || "Professional laundry & dry cleaning partner store."}
                 </p>
               </section>
 

@@ -157,12 +157,65 @@ export async function fetchPartnerDetail(
   options: FetchOptions = {},
 ): Promise<PartnerDetailResult> {
   try {
-    const data = await apiGetJson<PartnerDetailData>(
+    const raw = await apiGetJson<any>(
       `/api/partners/${encodeURIComponent(partnerId)}`,
       { signal: options.signal },
     );
-    writeScopedCache("partner-detail", partnerId, data);
-    return { data, fromCache: false };
+    const partner = raw?.partner || {};
+    const normalized: PartnerDetailData = {
+      partner: {
+        ...partner,
+        id: String(partner.id || partnerId),
+        name: partner.name || partner.businessName || "QuickPress Partner",
+        cover: partner.cover || partner.bannerUrl || "store-1",
+        logo: partner.logo || partner.logoUrl || "store-1",
+        verified: partner.verified !== false,
+        rating: Number(partner.rating || 5.0),
+        reviewCount: String(partner.reviewCount || "0"),
+        reviewsCount: Number(partner.reviewsCount || 0),
+        distanceKm: Number(partner.distanceKm || 1.5),
+        pickupEta: partner.pickupEta || "30 min",
+        deliveryEta: partner.deliveryEta || "24 hrs",
+        open: partner.open !== false,
+        status: partner.status || "open",
+        ownerName: partner.ownerName || "Store Owner",
+        address: partner.address || "Local Store Address",
+        city: partner.city || "Kasganj",
+        area: partner.area || partner.address || "Local Area",
+        latitude: partner.latitude != null ? Number(partner.latitude) : 28.5355,
+        longitude: partner.longitude != null ? Number(partner.longitude) : 77.3910,
+        pickupRadius: partner.pickupRadius || "10 km",
+        deliveryRadiusKm: Number(partner.deliveryRadiusKm || 10),
+        workingHours: partner.workingHours || "08:00 – 21:00",
+        hours: Array.isArray(partner.hours) ? partner.hours : (Array.isArray(partner.openingHours) ? partner.openingHours : []),
+        phone: partner.phone || "",
+        about: partner.about || "Professional laundry and dry cleaning partner.",
+        yearsInBusiness: Number(partner.yearsInBusiness || 2),
+        tagline: partner.tagline || "Professional Laundry & Dry Cleaning",
+        offerLabel: partner.offerLabel || null,
+        minOrderValue: Number(partner.minOrderValue || 0),
+        policies: Array.isArray(partner.policies) ? partner.policies : ["Hygienic processing", "On-time delivery"],
+      },
+      services: (raw?.services || []).map((s: any) => ({
+        id: String(s.id || s._id),
+        name: s.name || "Laundry Service",
+        description: s.description || "",
+        image: s.image || "",
+        startingPrice: Number(s.startingPrice || s.finalPrice || s.basePrice || s.price || 0),
+        basePrice: Number(s.basePrice || s.price || 0),
+        unit: s.unit || "kg",
+        deliveryEta: s.deliveryEta || s.processingTime || "24 hrs",
+        available: s.available !== false && s.isActive !== false && s.enabled !== false,
+      })),
+      features: raw?.features || [],
+      reviews: raw?.reviews || [],
+      reviewSummary: raw?.reviewSummary || { average: 5.0, total: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+      gallery: raw?.gallery || [],
+      priceList: raw?.priceList || [],
+    };
+
+    writeScopedCache("partner-detail", partnerId, normalized);
+    return { data: normalized, fromCache: false };
   } catch (error) {
     const cached = readScopedCache<PartnerDetailData>("partner-detail", partnerId) ||
       readStaleScopedCache<PartnerDetailData>("partner-detail", partnerId);
