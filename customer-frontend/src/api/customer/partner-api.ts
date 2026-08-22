@@ -209,7 +209,15 @@ export async function fetchPartnerDetail(
       })),
       features: raw?.features || [],
       reviews: raw?.reviews || [],
-      reviewSummary: raw?.reviewSummary || { average: 5.0, total: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+      reviewSummary: {
+        average: Number(raw?.reviewSummary?.average || 5.0),
+        total: Number(raw?.reviewSummary?.total || 0),
+        breakdown: Array.isArray(raw?.reviewSummary?.breakdown)
+          ? raw.reviewSummary.breakdown
+          : Object.entries(raw?.reviewSummary?.breakdown || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 })
+              .map(([star, count]) => ({ star: Number(star), count: Number(count) }))
+              .sort((a, b) => b.star - a.star),
+      },
       gallery: raw?.gallery || [],
       priceList: raw?.priceList || [],
     };

@@ -499,7 +499,7 @@ function PartnerDetailScreen() {
                     </p>
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    {data.reviewSummary.breakdown.map((row) => {
+                    {(Array.isArray(data.reviewSummary?.breakdown) ? data.reviewSummary.breakdown : []).map((row) => {
                       const width = data.reviewSummary.total
                         ? Math.round((row.count / data.reviewSummary.total) * 100)
                         : 0;
@@ -519,7 +519,7 @@ function PartnerDetailScreen() {
                   </div>
                 </div>
                 <div className="stagger-children mt-4 space-y-3">
-                  {data.reviews.map((review) => (
+                  {(data.reviews || []).map((review) => (
                     <div key={review.id} className="card-soft border border-border p-4">
                       <div className="flex items-center gap-3">
                         <img
@@ -552,7 +552,7 @@ function PartnerDetailScreen() {
               <section className="mt-8">
                 <SectionHeading title="Store policies" />
                 <div className="card-soft mt-4 space-y-2.5 border border-border p-4">
-                  {data.partner.policies.map((policy) => (
+                  {(data.partner.policies || []).map((policy) => (
                     <p key={policy} className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-brand-green" />
                       {policy}
