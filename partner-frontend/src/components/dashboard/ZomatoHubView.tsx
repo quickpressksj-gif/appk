@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Package,
   Phone,
+  PhoneCall,
   Play,
   RotateCcw,
   Settings,
@@ -43,6 +44,8 @@ import { fetchEarnings } from "../../api/partner/partner-earnings-api";
 import { fetchPartnerProfile } from "../../api/partner/partner-profile-api";
 import { usePartnerOrders } from "../../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../../hooks/use-order-action-handler";
+import type { ManagedOrder } from "../../data/partner-orders-mock";
+import { STAGE_LABEL } from "../../data/partner-orders-mock";
 
 const FEED_PILLS = [
   { id: "feed", label: "My Feed" },
@@ -55,7 +58,7 @@ const FEED_PILLS = [
 export function ZomatoHubView() {
   const navigate = useNavigate();
   const { orders, counts, refresh: refreshOrders } = usePartnerOrders();
-  const { handleAction, busy } = useOrderActionHandler();
+  const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
   const [activeFeedPill, setActiveFeedPill] = useState("feed");
   const [shopName, setShopName] = useState("QuickPress Laundry Store");
@@ -65,6 +68,7 @@ export function ZomatoHubView() {
   const [todayOrdersCount, setTodayOrdersCount] = useState(0);
   const [earningsData, setEarningsData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedManageOrder, setSelectedManageOrder] = useState<ManagedOrder | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -107,7 +111,7 @@ export function ZomatoHubView() {
     }
   };
 
-  // Find incoming new orders that need instant action
+  // Find incoming new orders and active processing orders
   const newIncomingOrders = orders.filter((o) => o.stage === "new");
   const activeProcessingOrders = orders.filter(
     (o) => o.stage === "accepted" || o.stage === "picked" || o.stage === "processing" || o.stage === "ready"
@@ -308,7 +312,7 @@ export function ZomatoHubView() {
                   <p className="text-[10px] text-zinc-400">New customer bookings will appear here instantly.</p>
                 </div>
               ) : (
-                activeProcessingOrders.slice(0, 3).map((order) => (
+                activeProcessingOrders.slice(0, 4).map((order) => (
                   <div
                     key={order.id}
                     className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm"
@@ -324,7 +328,7 @@ export function ZomatoHubView() {
                         </p>
                       </div>
                       <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-black uppercase text-amber-800">
-                        {order.stage}
+                        {STAGE_LABEL[order.stage] || order.stage}
                       </span>
                     </div>
 
@@ -338,13 +342,8 @@ export function ZomatoHubView() {
                       </a>
                       <button
                         type="button"
-                        onClick={() =>
-                          navigate({
-                            to: partnerRoutes.orderDetails,
-                            params: { orderId: order.id },
-                          })
-                        }
-                        className="rounded-full bg-zinc-950 px-3.5 py-1 text-xs font-black text-white active:scale-95"
+                        onClick={() => setSelectedManageOrder(order)}
+                        className="rounded-full bg-zinc-950 px-4 py-1 text-xs font-black text-white active:scale-95 shadow-xs"
                       >
                         Manage Order →
                       </button>
@@ -485,6 +484,157 @@ export function ZomatoHubView() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 📱 QUICK MANAGE ORDER POPUP MODAL (Opens directly on Home Page!)          */}
+      {/* ========================================================================= */}
+      {selectedManageOrder ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            onClick={() => setSelectedManageOrder(null)}
+            className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs transition-opacity"
+          />
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl animate-in slide-in-from-bottom duration-300">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-black text-zinc-800">
+                    #{selectedManageOrder.code}
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+                    {STAGE_LABEL[selectedManageOrder.stage] || selectedManageOrder.stage}
+                  </span>
+                </div>
+                <h3 className="mt-1 text-base font-black text-zinc-900">
+                  {selectedManageOrder.customerName}
+                </h3>
+                <p className="text-xs text-zinc-500 font-medium">{selectedManageOrder.customerPhone}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedManageOrder(null)}
+                className="flex size-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 active:scale-95"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Booked Items Summary */}
+            <div className="mt-4 rounded-2xl bg-zinc-50 p-3.5 border border-zinc-100">
+              <p className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
+                Booked Items ({selectedManageOrder.items.length})
+              </p>
+              <div className="mt-2 divide-y divide-zinc-200/60 text-xs font-bold text-zinc-800">
+                {selectedManageOrder.items.map((item) => (
+                  <div key={item.id} className="flex justify-between py-1.5 first:pt-0 last:pb-0">
+                    <span>{item.qty}× {item.name}</span>
+                    <span>₹{item.qty * item.price}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2.5 flex justify-between border-t border-dashed border-zinc-300 pt-2 text-xs font-black text-zinc-900">
+                <span>Total Amount:</span>
+                <span className="text-emerald-700">₹{selectedManageOrder.amount}</span>
+              </div>
+            </div>
+
+            {/* Stage Action Buttons */}
+            <div className="mt-4 space-y-2">
+              {selectedManageOrder.stage === "new" ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAction(selectedManageOrder, "reject");
+                      setSelectedManageOrder(null);
+                    }}
+                    className="flex-1 rounded-2xl border border-red-200 py-3 text-xs font-black text-red-600 active:scale-95"
+                  >
+                    Reject Order
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAction(selectedManageOrder, "accept");
+                      setSelectedManageOrder(null);
+                    }}
+                    className="flex-1 rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white shadow-sm active:scale-95"
+                  >
+                    Accept Order ✓
+                  </button>
+                </div>
+              ) : selectedManageOrder.stage === "accepted" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAction(selectedManageOrder, "picked_up");
+                    setSelectedManageOrder(null);
+                  }}
+                  className="w-full rounded-2xl bg-amber-500 py-3 text-xs font-black text-zinc-950 shadow-sm active:scale-95"
+                >
+                  Mark Clothes Picked Up & Start Wash →
+                </button>
+              ) : selectedManageOrder.stage === "picked" || selectedManageOrder.stage === "processing" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAction(selectedManageOrder, "mark_ready");
+                    setSelectedManageOrder(null);
+                  }}
+                  className="w-full rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white shadow-sm active:scale-95"
+                >
+                  Mark Order Ready for Delivery ✓
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate({
+                      to: partnerRoutes.orderDetails,
+                      params: { orderId: selectedManageOrder.id },
+                    });
+                    setSelectedManageOrder(null);
+                  }}
+                  className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
+                >
+                  View Full Order Timeline →
+                </button>
+              )}
+
+              {/* Call Customer Quick Action */}
+              <div className="flex gap-2 pt-1">
+                <a
+                  href={`tel:${selectedManageOrder.customerPhone}`}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-zinc-200 bg-white py-2.5 text-xs font-bold text-zinc-800 active:scale-95"
+                >
+                  <PhoneCall className="size-3.5 text-emerald-600" />
+                  <span>Call Customer</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate({
+                      to: partnerRoutes.orderDetails,
+                      params: { orderId: selectedManageOrder.id },
+                    });
+                    setSelectedManageOrder(null);
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-zinc-200 bg-white py-2.5 text-xs font-bold text-zinc-800 active:scale-95"
+                >
+                  <span>Full Details</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Action Sheets and Overlays */}
+      {sheetNode}
+      {overlay}
     </div>
   );
 }

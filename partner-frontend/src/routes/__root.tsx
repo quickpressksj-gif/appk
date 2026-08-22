@@ -13,6 +13,7 @@ import "../styles.css";
 import { reportLovableError } from "@/shared/lib/lovable-error-reporting";
 import { configureSessionRole } from "../api/core/session-store";
 import { PartnerProvider } from "../context/PartnerContext";
+import { PartnerOrdersProvider } from "../context/PartnerOrdersContext";
 
 configureSessionRole("partner");
 
@@ -126,8 +127,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PartnerProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <PartnerOrdersProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </PartnerOrdersProvider>
       </PartnerProvider>
     </QueryClientProvider>
   );
