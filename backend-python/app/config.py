@@ -1,9 +1,12 @@
 """Environment-driven settings. Nothing is hardcoded."""
 
+import logging
 from functools import lru_cache
 from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -100,7 +103,12 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Load settings and fail loudly on an incomplete production configuration."""
+    """Load settings and warn loudly on an incomplete production configuration.
+
+    We log rather than raise so that the server process stays alive and Render
+    can route health-check / API traffic even while env-var issues are being
+    fixed in the dashboard.  The missing vars are clearly visible in Render logs.
+    """
     settings = Settings()
     if settings.app_env == "production":
         missing = []
@@ -119,8 +127,10 @@ def get_settings() -> Settings:
         ):
             missing.append("CORS_ORIGINS (explicit https frontend origins)")
         if missing:
-            raise RuntimeError(
-                "Invalid production configuration — missing/invalid: " + ", ".join(missing)
+            _log.warning(
+                "QUICKPRESS PRODUCTION CONFIG WARNING — missing/invalid env vars: %s  "
+                "Fix these in the Render dashboard → Environment tab.",
+                ", ".join(missing),
             )
     return settings
 
