@@ -138,7 +138,12 @@ function CheckoutScreen() {
         setDays(checkout.days);
         setSlots(checkout.slots);
         setAddressId((prev) => prev || checkout.selectedAddressId);
-        setPaymentId((prev) => prev || checkout.selectedPaymentId);
+        const effectivePaymentId = checkout.selectedPaymentId || (checkout.payments?.find(p => p.enabled)?.id ?? "");
+        setPaymentId((prev) => prev || effectivePaymentId);
+        const selectedMethod = checkout.payments?.find(p => p.id === (effectivePaymentId || checkout.selectedPaymentId));
+        if (selectedMethod?.kind === "cod") setPayMode("cod");
+        else if (selectedMethod?.kind === "wallet") setPayMode("wallet");
+        else setPayMode("razorpay");
         setDay((prev) => prev || checkout.selectedDay);
         setSlot((prev) => prev || checkout.selectedSlot);
       })
@@ -212,20 +217,43 @@ function CheckoutScreen() {
       return;
     }
 
-    if (payMode === "cod") {
-      if (!codMethod) {
-        toast.error("Cash on delivery isn't available right now.");
-        return;
-      }
-      await finalizeOrder(codMethod);
+    const selectedMethod = payments?.find((entry) => entry.id === paymentId) || codMethod;
+    const effectiveKind = selectedMethod?.kind || payMode;
+
+    // Direct checkout for Cash on Delivery (no Razorpay popup)
+    if (effectiveKind === "cod" || payMode === "cod") {
+      const codPayload = selectedMethod?.kind === "cod" ? selectedMethod : (codMethod || {
+        id: "cod",
+        kind: "cod",
+        name: "Cash on Delivery",
+        note: "Pay when clothes are picked up or delivered",
+        enabled: true,
+        comingSoon: false,
+      });
+      await finalizeOrder(codPayload);
       return;
     }
 
-    if (payMode === "wallet" && liveWalletBalance < grandTotal) {
-      toast.error("Your wallet balance isn't enough — choose Razorpay or Mixed.");
+    // Direct wallet payment if fully covered
+    if (effectiveKind === "wallet" && liveWalletBalance >= grandTotal) {
+      const walletPayload = selectedMethod || {
+        id: "wallet",
+        kind: "wallet",
+        name: "Wallet",
+        note: "Paid from QuickPress wallet balance",
+        enabled: true,
+        comingSoon: false,
+      };
+      await finalizeOrder(walletPayload);
       return;
     }
 
+    if (effectiveKind === "wallet" && liveWalletBalance < grandTotal) {
+      toast.error("Your wallet balance isn't enough — choose UPI / Card or Cash on Delivery.");
+      return;
+    }
+
+    // Online Payments (UPI, Cards, NetBanking via Razorpay)
     setPayResult(null);
     const walletAmount = payMode === "wallet" ? grandTotal : payMode === "mixed" ? walletCoverage : 0;
     const result = await payMutation.mutateAsync({ amount: grandTotal, walletAmount, orderId: orderKey });
@@ -233,9 +261,9 @@ function CheckoutScreen() {
 
     if (result.status === "paid") {
       const syntheticMethod: CheckoutPaymentMethod = {
-        id: `pay-${payMode}`,
-        kind: payMode === "razorpay" ? "upi" : "wallet",
-        name: payMode === "wallet" ? "Wallet" : payMode === "mixed" ? "Wallet + Razorpay" : "Razorpay",
+        id: `pay-${effectiveKind}`,
+        kind: effectiveKind === "razorpay" ? "upi" : effectiveKind,
+        name: selectedMethod?.name || (effectiveKind === "wallet" ? "Wallet" : "UPI / Online Payment"),
         note: result.message,
         enabled: true,
         comingSoon: false,
@@ -429,7 +457,12 @@ function CheckoutScreen() {
                     <button
                       key={method.id}
                       type="button"
-                      onClick={() => setPaymentId(method.id)}
+                      onClick={() => {
+                        setPaymentId(method.id);
+                        if (method.kind === "cod") setPayMode("cod");
+                        else if (method.kind === "wallet") setPayMode("wallet");
+                        else setPayMode("razorpay");
+                      }}
                       disabled={!method.enabled}
                       className={`card-soft flex w-full items-center gap-3 border p-4 text-left transition-all duration-300 active:scale-[0.985] ${
                         active
