@@ -64,10 +64,19 @@ async def geocode_address(address: str = Query(..., min_length=3, max_length=300
 
 @router.get("/reverse-geocode", response_model=GeocodeResult)
 async def reverse_geocode(
-    lat: float = Query(..., ge=-90, le=90),
-    lng: float = Query(..., ge=-180, le=180),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lng: Optional[float] = Query(None, ge=-180, le=180),
+    latitude: Optional[float] = Query(None, ge=-90, le=90),
+    longitude: Optional[float] = Query(None, ge=-180, le=180),
 ) -> GeocodeResult:
-    return GeocodeResult(**await maps.reverse_geocode(lat, lng))
+    actual_lat = lat if lat is not None else latitude
+    actual_lng = lng if lng is not None else longitude
+    if actual_lat is None or actual_lng is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="latitude and longitude (or lat and lng) are required query parameters",
+        )
+    return GeocodeResult(**await maps.reverse_geocode(actual_lat, actual_lng))
 
 
 # --------------------------------------------------------------------------
@@ -80,9 +89,13 @@ async def autocomplete(
     q: str = Query(..., min_length=2, max_length=200),
     lat: Optional[float] = Query(None, ge=-90, le=90),
     lng: Optional[float] = Query(None, ge=-180, le=180),
+    latitude: Optional[float] = Query(None, ge=-90, le=90),
+    longitude: Optional[float] = Query(None, ge=-180, le=180),
     radius: int = Query(30_000, ge=100, le=50_000),
 ) -> List[PlaceSuggestion]:
-    results = await maps.autocomplete(q.strip(), lat, lng, radius)
+    actual_lat = lat if lat is not None else latitude
+    actual_lng = lng if lng is not None else longitude
+    results = await maps.autocomplete(q.strip(), actual_lat, actual_lng, radius)
     return [PlaceSuggestion(**item) for item in results]
 
 

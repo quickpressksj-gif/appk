@@ -22,6 +22,7 @@ import {
   type Invoice,
   type InvoiceStatus,
 } from "@/api/customer/invoice-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/invoices/")({
   head: () => ({
@@ -60,6 +61,7 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 };
 
 function InvoicesScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const cached = readCachedInvoices();
   const [invoices, setInvoices] = useState<Invoice[] | null>(cached?.items ?? null);

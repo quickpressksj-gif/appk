@@ -365,18 +365,20 @@ class OrderRepository:
         partner_id = next((item.partnerId for item in items if item.partnerId), None)
         document = None
         if partner_id:
-            document = await database.collection("catalog_partners").find_one({"_id": partner_id})
+            document = await database.find_one("partner_profiles", {"_id": partner_id})
         if document is None:
-            partners = await database.find_many("catalog_partners")
+            partners = await database.find_many("partner_profiles")
             document = partners[0] if partners else None
         if document is None:
             return OrderPartnerParty(id="", name="QuickPress Partner", phone="", image="", city="")
+        image = document.get("bannerUrl") or document.get("cover") or document.get("logoUrl") or document.get("logo") or ""
+        city_area = f"{document.get('address') or document.get('area', '')}, {document.get('city', '')}".strip(", ")
         return OrderPartnerParty(
             id=str(document["_id"]),
-            name=document.get("name", ""),
+            name=document.get("businessName") or document.get("name") or "QuickPress Partner",
             phone=document.get("phone", ""),
-            image=document.get("image") or document.get("logo") or "",
-            city=f"{document.get('area', '')}, {document.get('city', '')}".strip(", "),
+            image=image,
+            city=city_area or "Bengaluru",
         )
 
 

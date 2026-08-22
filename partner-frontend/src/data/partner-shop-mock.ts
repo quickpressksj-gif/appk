@@ -133,82 +133,45 @@ export const WEEKLY_OFF_OPTIONS = [
 export const GALLERY_MAX_IMAGES = 10;
 
 export const shopProfileMock: ShopProfile = {
-  shopId: "QP-SHOP-4821",
-  name: "QuickPress Laundry Studio",
-  ownerName: "Rohan Mehta",
-  description:
-    "Premium steam press, dry clean and express wash studio serving Indiranagar since 2019. Same-day delivery on orders picked up before 11 AM.",
-  category: "Laundry & Dry Clean",
-  businessType: "Sole Proprietorship",
-  rating: 4.8,
-  reviewCount: 412,
-  verification: "verified",
-  contactNumber: "98765 43210",
-  email: "studio@quickpress.in",
-  gstNumber: "29ABCDE1234F1Z5",
+  shopId: "",
+  name: "",
+  ownerName: "",
+  description: "",
+  category: "",
+  businessType: "",
+  rating: 0,
+  reviewCount: 0,
+  verification: "pending",
+  contactNumber: "",
+  email: "",
+  gstNumber: "",
   logoTint: "from-primary/35 to-secondary/25",
   bannerTint: "from-primary/30 via-secondary/20 to-primary/10",
 };
 
-export const galleryMock: GalleryImage[] = [
-  {
-    id: "img-1",
-    title: "Storefront",
-    tag: "Exterior",
-    tint: "from-primary/35 to-primary/10",
-    uploadedOn: "12 Jul 2026",
-  },
-  {
-    id: "img-2",
-    title: "Press Counter",
-    tag: "Interior",
-    tint: "from-secondary/30 to-secondary/10",
-    uploadedOn: "12 Jul 2026",
-  },
-  {
-    id: "img-3",
-    title: "Steam Station",
-    tag: "Equipment",
-    tint: "from-primary/25 to-secondary/20",
-    uploadedOn: "18 Jul 2026",
-  },
-  {
-    id: "img-4",
-    title: "Packing Desk",
-    tag: "Interior",
-    tint: "from-secondary/25 to-primary/15",
-    uploadedOn: "02 Aug 2026",
-  },
-  {
-    id: "img-5",
-    title: "Delivery Bay",
-    tag: "Exterior",
-    tint: "from-primary/20 to-secondary/25",
-    uploadedOn: "04 Aug 2026",
-  },
-];
+export const galleryMock: GalleryImage[] = [];
 
 export const businessHoursMock: BusinessHours = {
-  openingTime: "08:00",
-  closingTime: "21:00",
-  weeklyOff: "Sunday",
+  openingTime: "",
+  closingTime: "",
+  weeklyOff: "None",
   holidayMode: false,
   temporarilyClosed: false,
 };
 
 export const serviceAreaMock: ServiceArea = {
-  city: "Bengaluru",
-  area: "Indiranagar · 100ft Road",
-  pickupRadiusKm: 5,
-  deliveryRadiusKm: 8,
+  city: "",
+  area: "",
+  pickupRadiusKm: 0,
+  deliveryRadiusKm: 0,
 };
 
 export const shopStatisticsMock: ShopStatistics = {
-  totalOrders: 2148,
-  completedOrders: 2039,
-  activeCustomers: 386,
-  averageRating: 4.8,
-  revenue: 486500,
+  totalOrders: 0,
+  completedOrders: 0,
+  activeCustomers: 0,
+  averageRating: 0,
+  revenue: 0,
 };
 
 export function formatTimeLabel(value: string) {

@@ -1,15 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, MessageSquareLock, RotateCcw } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-
-import { Toaster } from "@/shared/ui/sonner";
-
-import { RiderTopBar } from "../components/RiderTopBar";
-import { useRiderContext } from "../context/RiderContext";
-import { useOtpCountdown } from "../hooks/use-otp-countdown";
-import { riderRoutes } from "../navigation/rider-routes";
-import { requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
+import { useEffect, useRef, useState } from "react";
 
 export function RiderOtpScreen() {
   const navigate = useNavigate();
@@ -17,8 +8,29 @@ export function RiderOtpScreen() {
   const { remaining, canResend, restart } = useOtpCountdown(45);
   const [digits, setDigits] = useState("");
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const targetPhone =
+    phone ||
+    (typeof window !== "undefined"
+      ? window.sessionStorage.getItem("qp.rider.pendingPhone") ||
+        window.localStorage.getItem("qp.rider.pendingPhone") ||
+        ""
+      : "");
+
+  const displayPhone = () => {
+    const digitsOnly = targetPhone.replace(/\D/g, "");
+    if (!digitsOnly) return "+91 98765 43210";
+    const last10 = digitsOnly.slice(-10);
+    return `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+  };
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleVerify = async () => {
+    if (busy) return;
     if (digits.length !== 6) {
       toast("Enter the 6-digit code");
       return;
@@ -27,10 +39,11 @@ export function RiderOtpScreen() {
     // POST /api/auth/phone/verify — Firebase ID token → QuickPress JWT pair.
     let session;
     try {
-      session = await verifyOtp(phone || "9876543210", digits);
+      session = await verifyOtp(targetPhone || "9876543210", digits);
     } catch (cause) {
       setBusy(false);
       setDigits("");
+      inputRef.current?.focus();
       toast.error(
         cause instanceof Error ? cause.message : "That OTP is incorrect. Please try again.",
       );
@@ -39,18 +52,28 @@ export function RiderOtpScreen() {
     setBusy(false);
     signIn(session);
 
-    if (session.isOnboarded) {
+    if (!session.isOnboarded) {
+      toast.success("Mobile number verified");
+      navigate({ to: riderRoutes.registration });
+    } else if (!session.isVerified) {
+      toast.success("Mobile number verified");
+      navigate({ to: riderRoutes.registrationSubmitted });
+    } else {
       toast.success(`Welcome back, ${session.fullName}`);
       navigate({ to: riderRoutes.dashboard });
-      return;
     }
-    toast.success("Mobile number verified");
-    navigate({ to: riderRoutes.registration });
   };
+
+  // Auto-submit on 6 digits
+  useEffect(() => {
+    if (digits.length === 6 && !busy) {
+      void handleVerify();
+    }
+  }, [digits, busy]);
 
   const handleResend = async () => {
     try {
-      await requestOtp(phone);
+      await requestOtp(targetPhone);
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Could not resend the OTP. Please try again.",
@@ -58,6 +81,8 @@ export function RiderOtpScreen() {
       return;
     }
     restart();
+    setDigits("");
+    inputRef.current?.focus();
     toast.success("OTP sent again");
   };
 

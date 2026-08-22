@@ -42,27 +42,27 @@ BANNERS: List[Dict[str, Any]] = [
 ]
 
 CATEGORIES: List[Dict[str, Any]] = [
-    {"_id": "c1", "title": "Wash & Fold", "description": "Everyday laundry", "icon": "washing-machine", "sortOrder": 1},
-    {"_id": "c2", "title": "Dry Cleaning", "description": "Delicate fabrics", "icon": "shirt", "sortOrder": 2},
-    {"_id": "c3", "title": "Steam Iron", "description": "Crisp finish", "icon": "flame", "sortOrder": 3},
-    {"_id": "c4", "title": "Premium Laundry", "description": "Hand finished", "icon": "sparkles", "sortOrder": 4},
-    {"_id": "c5", "title": "Shoe Cleaning", "description": "Deep restore", "icon": "footprints", "sortOrder": 5},
-    {"_id": "c6", "title": "Curtain Cleaning", "description": "Home fabrics", "icon": "blinds", "sortOrder": 6},
-    {"_id": "c7", "title": "Blanket Cleaning", "description": "Bulky care", "icon": "bed-double", "sortOrder": 7},
-    {"_id": "c8", "title": "Carpet Cleaning", "description": "Fibre deep wash", "icon": "layout-grid", "sortOrder": 8},
-    {"_id": "c9", "title": "Express Laundry", "description": "Same day back", "icon": "zap", "sortOrder": 9},
+    {"_id": "c1", "title": "Wash & Fold", "description": "Everyday laundry", "icon": "washing-machine", "image": "/images/services/wash-fold.jpg", "sortOrder": 1},
+    {"_id": "c2", "title": "Dry Cleaning", "description": "Delicate fabrics", "icon": "shirt", "image": "/images/services/dry-cleaning.jpg", "sortOrder": 2},
+    {"_id": "c3", "title": "Steam Iron", "description": "Crisp finish", "icon": "flame", "image": "/images/services/steam-iron.jpg", "sortOrder": 3},
+    {"_id": "c4", "title": "Premium Laundry", "description": "Hand finished", "icon": "sparkles", "image": "/images/services/premium-laundry.jpg", "sortOrder": 4},
+    {"_id": "c5", "title": "Shoe Cleaning", "description": "Deep restore", "icon": "footprints", "image": "/images/services/shoe-cleaning.jpg", "sortOrder": 5},
+    {"_id": "c6", "title": "Curtain Cleaning", "description": "Home fabrics", "icon": "blinds", "image": "/images/services/curtain-cleaning.jpg", "sortOrder": 6},
+    {"_id": "c7", "title": "Blanket Cleaning", "description": "Bulky care", "icon": "bed-double", "image": "/images/services/blanket-cleaning.jpg", "sortOrder": 7},
+    {"_id": "c8", "title": "Carpet Cleaning", "description": "Fibre deep wash", "icon": "layout-grid", "image": "/images/services/carpet-cleaning.jpg", "sortOrder": 8},
+    {"_id": "c9", "title": "Express Laundry", "description": "Same day back", "icon": "zap", "image": "/images/services/express-laundry.jpg", "sortOrder": 9},
 ]
 
 SERVICES: List[Dict[str, Any]] = [
-    {"_id": "s1", "name": "Wash & Iron", "categoryId": "c1", "unit": "per kg", "price": 79, "description": "Everyday laundry washed, dried and neatly folded.", "badge": "Trending", "popular": True, "discountPercent": 20, "processingTime": "24 hrs"},
-    {"_id": "s2", "name": "Shirt Dry Clean", "categoryId": "c2", "unit": "per piece", "price": 99, "description": "Solvent care for shirts and delicate fabrics.", "badge": "Best Seller", "popular": True, "discountPercent": 15, "processingTime": "36 hrs"},
-    {"_id": "s3", "name": "Saree Care", "categoryId": "c4", "unit": "per piece", "price": 249, "description": "Hand finished care for fine sarees.", "badge": None, "popular": True, "discountPercent": 10, "processingTime": "48 hrs"},
-    {"_id": "s4", "name": "Sneaker Spa", "categoryId": "c5", "unit": "per pair", "price": 299, "description": "Deep restore for sneakers, leather and suede.", "badge": "Trending", "popular": True, "discountPercent": 25, "processingTime": "48 hrs"},
-    {"_id": "s5", "name": "Blanket Wash", "categoryId": "c7", "unit": "per piece", "price": 349, "description": "Bulky quilts and blankets washed and sun dried.", "badge": None, "popular": True, "discountPercent": 0, "processingTime": "48 hrs"},
-    {"_id": "s6", "name": "Curtain Cleaning", "categoryId": "c6", "unit": "per panel", "price": 229, "description": "Dust free home fabrics with shrink safe washing.", "badge": None, "popular": False, "discountPercent": 10, "processingTime": "36 hrs"},
-    {"_id": "s7", "name": "Carpet Shampoo", "categoryId": "c8", "unit": "per carpet", "price": 449, "description": "Fibre deep shampoo wash with odour removal.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "48 hrs"},
-    {"_id": "s8", "name": "Express Laundry", "categoryId": "c9", "unit": "per kg", "price": 129, "description": "Same day turnaround for urgent wardrobe rescues.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "12 hrs"},
-    {"_id": "s9", "name": "Steam Iron", "categoryId": "c3", "unit": "per piece", "price": 15, "description": "Crisp, wrinkle free finish with industrial steam presses.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "12 hrs"},
+    {"_id": "s1", "name": "Wash & Iron", "categoryId": "c1", "unit": "per kg", "price": 79, "image": "/images/services/wash-fold.jpg", "description": "Everyday laundry washed, dried and neatly folded.", "badge": "Trending", "popular": True, "discountPercent": 20, "processingTime": "24 hrs"},
+    {"_id": "s2", "name": "Shirt Dry Clean", "categoryId": "c2", "unit": "per piece", "price": 99, "image": "/images/services/dry-cleaning.jpg", "description": "Solvent care for shirts and delicate fabrics.", "badge": "Best Seller", "popular": True, "discountPercent": 15, "processingTime": "36 hrs"},
+    {"_id": "s3", "name": "Saree Care", "categoryId": "c4", "unit": "per piece", "price": 249, "image": "/images/services/premium-laundry.jpg", "description": "Hand finished care for fine sarees.", "badge": None, "popular": True, "discountPercent": 10, "processingTime": "48 hrs"},
+    {"_id": "s4", "name": "Sneaker Spa", "categoryId": "c5", "unit": "per pair", "price": 299, "image": "/images/services/shoe-cleaning.jpg", "description": "Deep restore for sneakers, leather and suede.", "badge": "Trending", "popular": True, "discountPercent": 25, "processingTime": "48 hrs"},
+    {"_id": "s5", "name": "Blanket Wash", "categoryId": "c7", "unit": "per piece", "price": 349, "image": "/images/services/blanket-cleaning.jpg", "description": "Bulky quilts and blankets washed and sun dried.", "badge": None, "popular": True, "discountPercent": 0, "processingTime": "48 hrs"},
+    {"_id": "s6", "name": "Curtain Cleaning", "categoryId": "c6", "unit": "per panel", "price": 229, "image": "/images/services/curtain-cleaning.jpg", "description": "Dust free home fabrics with shrink safe washing.", "badge": None, "popular": False, "discountPercent": 10, "processingTime": "36 hrs"},
+    {"_id": "s7", "name": "Carpet Shampoo", "categoryId": "c8", "unit": "per carpet", "price": 449, "image": "/images/services/carpet-cleaning.jpg", "description": "Fibre deep shampoo wash with odour removal.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "48 hrs"},
+    {"_id": "s8", "name": "Express Laundry", "categoryId": "c9", "unit": "per kg", "price": 129, "image": "/images/services/express-laundry.jpg", "description": "Same day turnaround for urgent wardrobe rescues.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "12 hrs"},
+    {"_id": "s9", "name": "Steam Iron", "categoryId": "c3", "unit": "per piece", "price": 15, "image": "/images/services/steam-iron.jpg", "description": "Crisp, wrinkle free finish with industrial steam presses.", "badge": None, "popular": False, "discountPercent": 0, "processingTime": "12 hrs"},
 ]
 
 PARTNERS: List[Dict[str, Any]] = [

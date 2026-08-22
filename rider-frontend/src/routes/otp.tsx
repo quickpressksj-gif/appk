@@ -12,9 +12,5 @@ export const Route = createFileRoute("/otp")({
       { property: "og:description", content: "Verify your mobile number to access the rider dashboard." },
     ],
   }),
-  component: () => (
-    <RiderProvider>
-      <RiderOtpScreen />
-    </RiderProvider>
-  ),
+  component: RiderOtpScreen,
 });

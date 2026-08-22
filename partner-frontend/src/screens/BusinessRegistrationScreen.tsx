@@ -31,7 +31,7 @@ import {
   UserRound,
   Wind,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
@@ -128,17 +128,19 @@ type Uploads = { logo: string; banner: string; gallery: string[] };
 
 export function BusinessRegistrationScreen() {
   const navigate = useNavigate();
-  const { signIn, phone } = usePartnerContext();
+  const { session, signIn, phone, hydrating } = usePartnerContext();
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const [form, setForm] = useState({
+  const isGoogleAuth = Boolean(session?.email);
+
+  const [form, setForm] = useState(() => ({
     shopName: "",
-    ownerName: "",
-    mobile: phone ?? "",
-    email: "",
+    ownerName: session?.businessName || "",
+    mobile: phone || session?.phone || "",
+    email: session?.email || "",
     shopAddress: "",
     gstin: "",
     pan: "",
@@ -156,7 +158,36 @@ export function BusinessRegistrationScreen() {
     bankName: "",
     accountNumber: "",
     ifsc: "",
-  });
+  }));
+
+  // Route protection: ensure already onboarded / unauthenticated users are guided properly
+  useEffect(() => {
+    if (hydrating) return;
+    if (!session) {
+      navigate({ to: partnerRoutes.auth });
+      return;
+    }
+    if (session.isOnboarded && !session.isVerified) {
+      navigate({ to: partnerRoutes.registrationSubmitted });
+      return;
+    }
+    if (session.isOnboarded && session.isVerified) {
+      navigate({ to: partnerRoutes.dashboard });
+      return;
+    }
+  }, [hydrating, session, navigate]);
+
+  // Sync email/phone if hydrated late
+  useEffect(() => {
+    if (session) {
+      setForm((prev) => ({
+        ...prev,
+        ownerName: prev.ownerName || session.businessName || "",
+        email: prev.email || session.email || "",
+        mobile: prev.mobile || phone || session.phone || "",
+      }));
+    }
+  }, [session, phone]);
 
   const [services, setServices] = useState<string[]>([]);
   const [weeklyOff, setWeeklyOff] = useState<string[]>(["Sun"]);
@@ -266,10 +297,7 @@ export function BusinessRegistrationScreen() {
   };
 
   const goBack = () => {
-    if (step === 0) {
-      navigate({ to: partnerRoutes.otp });
-      return;
-    }
+    if (step === 0) return;
     setErrors({});
     setStep((s) => s - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -297,22 +325,27 @@ export function BusinessRegistrationScreen() {
       BUSINESS_TYPES.find((type) => type.id === form.businessType)?.category ??
       ("laundry" as BusinessCategory);
 
-    // TODO: replace with POST /api/partner/onboarding (documents + media upload)
-    const session = await registerBusiness({
-      businessName: form.shopName,
-      ownerName: form.ownerName,
-      gstin: form.gstin,
-      address: form.shopAddress,
-      city: form.city,
-      pincode: "",
-      openingTime: form.openingTime,
-      closingTime: form.closingTime,
-      category,
-    });
+    try {
+      const updatedSession = await registerBusiness({
+        businessName: form.shopName,
+        ownerName: form.ownerName,
+        gstin: form.gstin,
+        address: form.shopAddress,
+        city: form.city,
+        pincode: "",
+        openingTime: form.openingTime,
+        closingTime: form.closingTime,
+        category,
+      });
 
-    setBusy(false);
-    signIn({ ...session, isOnboarded: false });
-    navigate({ to: partnerRoutes.registrationSubmitted });
+      signIn({ ...updatedSession, isOnboarded: true, isVerified: true });
+      toast.success("Business registered & approved! You can now configure your services.");
+      navigate({ to: partnerRoutes.services });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Registration failed. Please check your details and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   /* -------------------------------- render ------------------------------ */
@@ -322,7 +355,7 @@ export function BusinessRegistrationScreen() {
       <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
 
       <div className="relative mx-auto w-full max-w-md">
-        <PartnerTopBar title="Partner Registration" onBack={goBack} />
+        <PartnerTopBar title="Partner Registration" showBack={step > 0} onBack={goBack} />
 
         <div className="px-5 pt-4">
           <PartnerAuthHeader />
@@ -376,6 +409,14 @@ export function BusinessRegistrationScreen() {
                 placeholder="owner@sparklelaundry.in"
                 value={form.email}
                 onChange={text("email")}
+                readOnly={isGoogleAuth}
+                rightAddon={
+                  isGoogleAuth ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-600 dark:text-emerald-400">
+                      <Check className="size-3" /> Google verified
+                    </span>
+                  ) : null
+                }
                 error={errors['email']}
               />
               <TextAreaField
@@ -781,14 +822,16 @@ export function BusinessRegistrationScreen() {
         {/* Sticky step navigation */}
         <div className="glass-panel fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              className="ripple focus-key flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-soft active:scale-[0.95]"
-              aria-label="Previous step"
-            >
-              <ChevronLeft className="size-5" />
-            </button>
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={goBack}
+                className="ripple focus-key flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-soft active:scale-[0.95]"
+                aria-label="Previous step"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+            ) : null}
 
             {step < STEPS.length - 1 ? (
               <button

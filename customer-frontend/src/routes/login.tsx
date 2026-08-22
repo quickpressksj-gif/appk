@@ -24,6 +24,9 @@ import {
 import { verifyCustomerOtp } from "@/lib/customer-auth";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "QuickPress — Sign in with your mobile number" },
@@ -108,6 +111,8 @@ function AuthScreen() {
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const redirectTarget = search?.redirect && search.redirect !== "/login" ? search.redirect : undefined;
 
   // GET /api/countries
   useEffect(() => {
@@ -152,6 +157,7 @@ function AuthScreen() {
                 phone={phone}
                 setPhone={setPhone}
                 sending={sending}
+                redirectTarget={redirectTarget}
                 onContinue={() => {
                   setSending(true);
                   // POST /api/auth/request-otp
@@ -167,6 +173,7 @@ function AuthScreen() {
               <OtpStep
                 phone={`${country.code}${phone}`}
                 fullNumber={`${country.code} ${phone}`}
+                redirectTarget={redirectTarget}
                 onEdit={() => setStep("phone")}
               />
             )}
@@ -189,6 +196,7 @@ function PhoneStep({
   phone,
   setPhone,
   sending,
+  redirectTarget,
   onContinue,
 }: {
   countries: Country[];
@@ -197,6 +205,7 @@ function PhoneStep({
   phone: string;
   setPhone: (v: string) => void;
   sending: boolean;
+  redirectTarget?: string;
   onContinue: () => void;
 }) {
   const valid = phone.length === country.digits;
@@ -206,18 +215,24 @@ function PhoneStep({
   const [touched, setTouched] = useState(false);
   const invalid = touched && phone.length > 0 && !valid;
 
-  // Auto login: Firebase user + stored QuickPress JWT → straight to home.
+  // Auto login: Firebase user + stored QuickPress JWT → straight to home or redirect target.
   useEffect(() => {
     let active = true;
     void restoreCustomerSession()
       .then((restored) => {
-        if (active && restored) void navigate({ to: "/home" });
+        if (active && restored) {
+          if (redirectTarget) {
+            void navigate({ to: redirectTarget as any });
+          } else {
+            void navigate({ to: "/home" });
+          }
+        }
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [navigate]);
+  }, [navigate, redirectTarget]);
 
   /** Firebase social sign in → FastAPI exchange → QuickPress JWT session. */
   const signInWithProvider = async (provider: "google" | "apple") => {
@@ -227,8 +242,11 @@ function PhoneStep({
     try {
       rememberCustomerLogin(true);
       await (provider === "google" ? loginWithGoogle() : loginWithApple());
-      // Post-login: run the real GPS + reverse-geocoding screen before home.
-      void navigate({ to: "/location" });
+      if (redirectTarget) {
+        void navigate({ to: redirectTarget as any });
+      } else {
+        void navigate({ to: "/location" });
+      }
     } catch (cause) {
       setSocialError(
         cause instanceof Error && cause.message
@@ -409,10 +427,12 @@ function PhoneStep({
 function OtpStep({
   phone,
   fullNumber,
+  redirectTarget,
   onEdit,
 }: {
   phone: string;
   fullNumber: string;
+  redirectTarget?: string;
   onEdit: () => void;
 }) {
   const navigate = useNavigate();
@@ -462,7 +482,13 @@ function OtpStep({
     ])
       .then(() => {
         setVerified(true);
-        window.setTimeout(() => void navigate({ to: "/location" }), 550);
+        window.setTimeout(() => {
+          if (redirectTarget) {
+            void navigate({ to: redirectTarget as any });
+          } else {
+            void navigate({ to: "/location" });
+          }
+        }, 550);
       })
       .catch((cause: unknown) => {
         setVerifying(false);

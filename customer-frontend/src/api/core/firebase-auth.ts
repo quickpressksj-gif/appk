@@ -58,18 +58,25 @@ export async function firebaseAuth(): Promise<Auth> {
 async function ensureRecaptcha(auth: Auth): Promise<RecaptchaVerifier> {
   if (recaptcha) return recaptcha;
   const { RecaptchaVerifier } = await import("firebase/auth");
-  if (!document.getElementById(RECAPTCHA_CONTAINER_ID)) {
-    const host = document.createElement("div");
+  
+  let host = document.getElementById(RECAPTCHA_CONTAINER_ID);
+  if (!host) {
+    host = document.createElement("div");
     host.id = RECAPTCHA_CONTAINER_ID;
     host.style.display = "none";
     document.body.appendChild(host);
+  } else {
+    host.innerHTML = "";
   }
-  recaptcha = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, { size: "invisible" });
+
+  recaptcha = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
+    size: "invisible",
+  });
   await recaptcha.render();
   return recaptcha;
 }
 
-/** Reset the verifier after a failed attempt so the next send works. */
+/** Reset the verifier after a failed attempt so the next send works cleanly. */
 export function resetRecaptcha(): void {
   try {
     recaptcha?.clear();
@@ -77,6 +84,14 @@ export function resetRecaptcha(): void {
     /* ignore */
   }
   recaptcha = null;
+  const host = document.getElementById(RECAPTCHA_CONTAINER_ID);
+  if (host) {
+    host.innerHTML = "";
+  }
+}
+
+export function hasPendingOtp(): boolean {
+  return pendingConfirmation !== null;
 }
 
 function mapFirebaseError(error: unknown): ApiError {

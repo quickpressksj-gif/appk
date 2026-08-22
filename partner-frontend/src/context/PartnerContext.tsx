@@ -25,12 +25,37 @@ type PartnerContextValue = {
   signOut: () => void;
 };
 
+const PENDING_PHONE_KEY = "qp.partner.pendingPhone";
+
+function getStoredPhone(): string {
+  if (typeof window === "undefined") return "";
+  return (
+    window.sessionStorage.getItem(PENDING_PHONE_KEY) ||
+    window.localStorage.getItem(PENDING_PHONE_KEY) ||
+    window.localStorage.getItem("qp.partner.rememberedPhone") ||
+    ""
+  );
+}
+
 const PartnerContext = createContext<PartnerContextValue | null>(null);
 
 export function PartnerProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PartnerSession | null>(null);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhoneState] = useState(getStoredPhone);
   const [hydrating, setHydrating] = useState(true);
+
+  const setPhone = useCallback((newPhone: string) => {
+    setPhoneState(newPhone);
+    if (typeof window !== "undefined") {
+      if (newPhone) {
+        window.sessionStorage.setItem(PENDING_PHONE_KEY, newPhone);
+        window.localStorage.setItem(PENDING_PHONE_KEY, newPhone);
+      } else {
+        window.sessionStorage.removeItem(PENDING_PHONE_KEY);
+        window.localStorage.removeItem(PENDING_PHONE_KEY);
+      }
+    }
+  }, []);
 
   // Auto login: stored QuickPress JWT + live Firebase user → signed in.
   useEffect(() => {

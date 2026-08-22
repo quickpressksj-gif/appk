@@ -1,7 +1,9 @@
-import { useNavigate } from "@tanstack/react-router";
-import { BadgeCheck, Clock3, FileSearch, LifeBuoy, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { riderRoutes } from "../navigation/rider-routes";
+import { checkRiderVerificationStatus } from "@/api/rider/rider-auth-api";
+import { useRiderContext } from "../context/RiderContext";
 
 const TIMELINE = [
   { icon: BadgeCheck, title: "Application received", body: "Your details are safely submitted.", done: true },
@@ -12,6 +14,22 @@ const TIMELINE = [
 
 export function RiderRegistrationSubmittedScreen() {
   const navigate = useNavigate();
+  const { signIn } = useRiderContext();
+  const [approved, setApproved] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void checkRiderVerificationStatus().then((res) => {
+      if (!active) return;
+      if (res.isVerified) {
+        setApproved(true);
+        toast.success("Congratulations! Your rider account is active.");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-background">

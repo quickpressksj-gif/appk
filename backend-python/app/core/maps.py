@@ -120,32 +120,134 @@ def _map_geocode_result(result: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-async def geocode(address: str) -> Dict[str, Any]:
-    key = _require_key()
-    query = urllib.parse.urlencode({"address": address, "key": key})
-    data = await _call(f"{GEOCODE_URL}?{query}")
-    results = data.get("results", [])
-    if data.get("status") not in {"OK", "ZERO_RESULTS"}:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Geocoding failed: {data.get('status')} {data.get('error_message', '')}".strip(),
+async def _fallback_reverse_geocode(latitude: float, longitude: float) -> Dict[str, Any]:
+    # 1. Try BigDataCloud reverse geocoding
+    try:
+        url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={latitude}&longitude={longitude}&localityLanguage=en"
+        data = await _call(url, headers={"User-Agent": "QuickPress/1.0"})
+        area = data.get("locality") or data.get("city") or ""
+        city = data.get("city") or data.get("principalSubdivision") or ""
+        state = data.get("principalSubdivision") or ""
+        pincode = data.get("postcode") or ""
+        country = data.get("countryName") or "India"
+        formatted_parts = [p for p in [area, city, state, pincode, country] if p]
+        formatted = ", ".join(formatted_parts) if formatted_parts else f"{latitude:.4f}, {longitude:.4f}"
+        return {
+            "formattedAddress": formatted,
+            "placeId": data.get("plusCode") or f"loc_{latitude:.4f}_{longitude:.4f}",
+            "latitude": latitude,
+            "longitude": longitude,
+            "area": area or city or "Current Location",
+            "city": city,
+            "state": state,
+            "pincode": pincode,
+            "country": country,
+        }
+    except Exception:
+        pass
+
+    # 2. Try OpenStreetMap Nominatim
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={latitude}&lon={longitude}"
+        data = await _call(url, headers={"User-Agent": "QuickPress/1.0"})
+        addr = data.get("address", {})
+        area = (
+            addr.get("suburb")
+            or addr.get("neighbourhood")
+            or addr.get("road")
+            or addr.get("village")
+            or addr.get("city_district")
+            or ""
         )
-    if not results:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
-    return _map_geocode_result(results[0])
+        city = addr.get("city") or addr.get("town") or addr.get("county") or ""
+        state = addr.get("state") or ""
+        pincode = addr.get("postcode") or ""
+        country = addr.get("country") or "India"
+        return {
+            "formattedAddress": data.get("display_name", f"{latitude:.4f}, {longitude:.4f}"),
+            "placeId": str(data.get("place_id", f"osm_{latitude}_{longitude}")),
+            "latitude": latitude,
+            "longitude": longitude,
+            "area": area or city or "Current Location",
+            "city": city or state,
+            "state": state,
+            "pincode": pincode,
+            "country": country,
+        }
+    except Exception:
+        pass
+
+    # 3. Safe coordinate baseline
+    return {
+        "formattedAddress": f"Selected Location ({latitude:.4f}, {longitude:.4f})",
+        "placeId": f"coord_{latitude}_{longitude}",
+        "latitude": latitude,
+        "longitude": longitude,
+        "area": "Current Location",
+        "city": "Detected Area",
+        "state": "",
+        "pincode": "",
+        "country": "India",
+    }
+
+
+async def geocode(address: str) -> Dict[str, Any]:
+    key = get_settings().maps_server_key
+    if key:
+        try:
+            query = urllib.parse.urlencode({"address": address, "key": key})
+            data = await _call(f"{GEOCODE_URL}?{query}")
+            if data.get("status") == "OK" and data.get("results"):
+                return _map_geocode_result(data["results"][0])
+        except Exception:
+            pass
+
+    # Fallback to Photon geocoding
+    try:
+        url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(address)}&limit=1"
+        data = await _call(url, headers={"User-Agent": "QuickPress/1.0"})
+        features = data.get("features", [])
+        if features:
+            f = features[0]
+            props = f.get("properties", {})
+            coords = f.get("geometry", {}).get("coordinates", [0, 0])
+            name = props.get("name") or props.get("street") or address
+            city = props.get("city") or props.get("district") or props.get("county") or ""
+            state = props.get("state") or ""
+            pincode = props.get("postcode") or ""
+            country = props.get("country") or "India"
+            formatted = ", ".join([x for x in [name, city, state, pincode, country] if x])
+            return {
+                "formattedAddress": formatted,
+                "placeId": f"geo:{coords[1]}:{coords[0]}:{props.get('osm_id', '')}",
+                "latitude": coords[1],
+                "longitude": coords[0],
+                "area": name,
+                "city": city,
+                "state": state,
+                "pincode": pincode,
+                "country": country,
+            }
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
 
 
 async def reverse_geocode(latitude: float, longitude: float) -> Dict[str, Any]:
-    key = _require_key()
-    query = urllib.parse.urlencode({"latlng": f"{latitude},{longitude}", "key": key})
-    data = await _call(f"{GEOCODE_URL}?{query}")
-    results = data.get("results", [])
-    if not results:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No address for coordinates")
-    mapped = _map_geocode_result(results[0])
-    mapped["latitude"] = latitude
-    mapped["longitude"] = longitude
-    return mapped
+    key = get_settings().maps_server_key
+    if key:
+        try:
+            query = urllib.parse.urlencode({"latlng": f"{latitude},{longitude}", "key": key})
+            data = await _call(f"{GEOCODE_URL}?{query}")
+            if data.get("status") == "OK" and data.get("results"):
+                mapped = _map_geocode_result(data["results"][0])
+                mapped["latitude"] = latitude
+                mapped["longitude"] = longitude
+                return mapped
+        except Exception:
+            pass
+    return await _fallback_reverse_geocode(latitude, longitude)
 
 
 # --------------------------------------------------------------------------
@@ -159,64 +261,142 @@ async def autocomplete(
     longitude: Optional[float] = None,
     radius_meters: int = 30_000,
 ) -> List[Dict[str, Any]]:
-    key = _require_key()
-    body: Dict[str, Any] = {"input": query}
-    if latitude is not None and longitude is not None:
-        body["locationBias"] = {
-            "circle": {
-                "center": {"latitude": latitude, "longitude": longitude},
-                "radius": float(radius_meters),
-            }
-        }
-    data = await _call(
-        PLACES_AUTOCOMPLETE_URL,
-        method="POST",
-        body=body,
-        headers={"X-Goog-Api-Key": key},
-    )
-    suggestions: List[Dict[str, Any]] = []
-    for item in data.get("suggestions", []):
-        place = item.get("placePrediction")
-        if not place:
-            continue
-        suggestions.append(
-            {
-                "placeId": place.get("placeId", ""),
-                "primaryText": place.get("structuredFormat", {}).get("mainText", {}).get("text", ""),
-                "secondaryText": place.get("structuredFormat", {})
-                .get("secondaryText", {})
-                .get("text", ""),
-                "description": place.get("text", {}).get("text", ""),
-            }
-        )
-    return suggestions
+    key = get_settings().maps_server_key
+    if key:
+        try:
+            body: Dict[str, Any] = {"input": query}
+            if latitude is not None and longitude is not None:
+                body["locationBias"] = {
+                    "circle": {
+                        "center": {"latitude": latitude, "longitude": longitude},
+                        "radius": float(radius_meters),
+                    }
+                }
+            data = await _call(
+                PLACES_AUTOCOMPLETE_URL,
+                method="POST",
+                body=body,
+                headers={"X-Goog-Api-Key": key},
+            )
+            suggestions: List[Dict[str, Any]] = []
+            for item in data.get("suggestions", []):
+                place = item.get("placePrediction")
+                if not place:
+                    continue
+                suggestions.append(
+                    {
+                        "placeId": place.get("placeId", ""),
+                        "primaryText": place.get("structuredFormat", {}).get("mainText", {}).get("text", ""),
+                        "secondaryText": place.get("structuredFormat", {})
+                        .get("secondaryText", {})
+                        .get("text", ""),
+                        "description": place.get("text", {}).get("text", ""),
+                    }
+                )
+            if suggestions:
+                return suggestions
+        except Exception:
+            pass
+
+    # Fallback to Photon geocoding search
+    try:
+        url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(query)}&limit=8"
+        if latitude is not None and longitude is not None:
+            url += f"&lat={latitude}&lon={longitude}"
+        data = await _call(url, headers={"User-Agent": "QuickPress/1.0"})
+        suggestions = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+            name = props.get("name") or props.get("street") or query
+            city = props.get("city") or props.get("district") or props.get("county") or ""
+            state = props.get("state") or ""
+            pincode = props.get("postcode") or ""
+            sec = ", ".join([x for x in [city, state, pincode] if x])
+            desc = f"{name}, {sec}".strip(", ")
+            place_id = f"geo:{coords[1]}:{coords[0]}:{props.get('osm_id', '')}"
+            suggestions.append(
+                {
+                    "placeId": place_id,
+                    "primaryText": name,
+                    "secondaryText": sec,
+                    "description": desc,
+                }
+            )
+        if suggestions:
+            return suggestions
+    except Exception:
+        pass
+
+    return []
 
 
 async def place_details(place_id: str) -> Dict[str, Any]:
-    key = _require_key()
-    data = await _call(
-        f"{PLACES_DETAILS_URL}{urllib.parse.quote(place_id)}",
-        headers={
-            "X-Goog-Api-Key": key,
-            "X-Goog-FieldMask": "id,displayName,formattedAddress,location,addressComponents",
-        },
-    )
-    location = data.get("location", {})
-    components = [
-        {"long_name": c.get("longText", ""), "types": c.get("types", [])}
-        for c in data.get("addressComponents", [])
-    ]
-    return {
-        "placeId": data.get("id", place_id),
-        "name": data.get("displayName", {}).get("text", ""),
-        "formattedAddress": data.get("formattedAddress", ""),
-        "latitude": location.get("latitude", 0.0),
-        "longitude": location.get("longitude", 0.0),
-        "area": _component(components, "sublocality_level_1", "sublocality", "neighborhood", "route"),
-        "city": _component(components, "locality", "administrative_area_level_3"),
-        "state": _component(components, "administrative_area_level_1"),
-        "pincode": _component(components, "postal_code"),
-    }
+    if place_id.startswith("geo:"):
+        parts = place_id.split(":")
+        if len(parts) >= 3:
+            try:
+                lat = float(parts[1])
+                lng = float(parts[2])
+                reversed_addr = await reverse_geocode(lat, lng)
+                return {
+                    "placeId": place_id,
+                    "name": reversed_addr.get("area") or reversed_addr.get("city") or "Selected Location",
+                    "formattedAddress": reversed_addr.get("formattedAddress", ""),
+                    "latitude": lat,
+                    "longitude": lng,
+                    "area": reversed_addr.get("area", ""),
+                    "city": reversed_addr.get("city", ""),
+                    "state": reversed_addr.get("state", ""),
+                    "pincode": reversed_addr.get("pincode", ""),
+                }
+            except Exception:
+                pass
+
+    key = get_settings().maps_server_key
+    if key:
+        try:
+            data = await _call(
+                f"{PLACES_DETAILS_URL}{urllib.parse.quote(place_id)}",
+                headers={
+                    "X-Goog-Api-Key": key,
+                    "X-Goog-FieldMask": "id,displayName,formattedAddress,location,addressComponents",
+                },
+            )
+            location = data.get("location", {})
+            components = [
+                {"long_name": c.get("longText", ""), "types": c.get("types", [])}
+                for c in data.get("addressComponents", [])
+            ]
+            return {
+                "placeId": data.get("id", place_id),
+                "name": data.get("displayName", {}).get("text", ""),
+                "formattedAddress": data.get("formattedAddress", ""),
+                "latitude": location.get("latitude", 0.0),
+                "longitude": location.get("longitude", 0.0),
+                "area": _component(components, "sublocality_level_1", "sublocality", "neighborhood", "route"),
+                "city": _component(components, "locality", "administrative_area_level_3"),
+                "state": _component(components, "administrative_area_level_1"),
+                "pincode": _component(components, "postal_code"),
+            }
+        except Exception:
+            pass
+
+    # Fallback to geocode
+    try:
+        return await geocode(place_id)
+    except Exception:
+        return {
+            "placeId": place_id,
+            "name": place_id,
+            "formattedAddress": place_id,
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "area": "",
+            "city": "",
+            "state": "",
+            "pincode": "",
+        }
 
 
 # --------------------------------------------------------------------------

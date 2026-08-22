@@ -13,23 +13,36 @@ type Props = {
  * image so long lists stay smooth on mid-range phones.
  */
 export const PartnerCard = memo(function PartnerCard({ partner, onOpen }: Props) {
+  const coverSrc =
+    partner.cover && (partner.cover.startsWith("http") || partner.cover.startsWith("/"))
+      ? partner.cover
+      : partner.image && (partner.image.startsWith("http") || partner.image.startsWith("/"))
+        ? partner.image
+        : null;
+
   return (
     <button
       type="button"
       onClick={() => onOpen(partner.id)}
       className="card-soft ripple animate-pop w-full overflow-hidden border border-border text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.99]"
     >
-      <div className="relative">
-        <img
-          src={partner.cover || partner.image}
-          alt={`${partner.name} store`}
-          width={800}
-          height={480}
-          loading="lazy"
-          decoding="async"
-          className="h-36 w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/65 via-transparent to-transparent" />
+      <div className="relative h-36 w-full overflow-hidden bg-gradient-to-br from-primary/20 via-card to-muted">
+        {coverSrc ? (
+          <img
+            src={coverSrc}
+            alt={`${partner.name} store`}
+            width={800}
+            height={480}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-tr from-primary/25 via-background to-secondary/15">
+            <span className="text-xl font-black tracking-tight text-foreground/40">{partner.name}</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/70 via-transparent to-transparent" />
         <span
           className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold ${
             partner.open
@@ -44,7 +57,7 @@ export const PartnerCard = memo(function PartnerCard({ partner, onOpen }: Props)
             <Tag className="size-3" /> {partner.offerLabel}
           </span>
         ) : null}
-        {partner.logo ? (
+        {partner.logo && (partner.logo.startsWith("http") || partner.logo.startsWith("/")) ? (
           <img
             src={partner.logo}
             alt={`${partner.name} logo`}
@@ -52,7 +65,7 @@ export const PartnerCard = memo(function PartnerCard({ partner, onOpen }: Props)
             height={96}
             loading="lazy"
             decoding="async"
-            className="absolute bottom-3 right-3 size-11 rounded-2xl border-2 border-card object-cover shadow-cta"
+            className="absolute bottom-3 right-3 size-11 rounded-2xl border-2 border-card object-cover shadow-cta bg-card"
           />
         ) : null}
       </div>

@@ -18,7 +18,7 @@ import type { AuthSession } from "@/shared/types";
 const KEY_PREFIX = "quickpress.session.";
 const REMEMBER_PREFIX = "quickpress.remember.";
 
-let activeRole: string = "customer";
+let activeRole: string = "partner";
 const memory = new Map<string, AuthSession>();
 const listeners = new Set<() => void>();
 

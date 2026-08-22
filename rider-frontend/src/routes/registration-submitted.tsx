@@ -18,9 +18,5 @@ export const Route = createFileRoute("/registration-submitted")({
       },
     ],
   }),
-  component: () => (
-    <RiderProvider>
-      <RiderRegistrationSubmittedScreen />
-    </RiderProvider>
-  ),
+  component: RiderRegistrationSubmittedScreen,
 });

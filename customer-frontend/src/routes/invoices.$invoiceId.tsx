@@ -12,6 +12,7 @@ import {
   shareInvoice,
   type Invoice,
 } from "@/api/customer/invoice-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({
@@ -52,6 +53,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 function InvoiceDetailScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const { invoiceId } = useParams({ from: "/invoices/$invoiceId" });
   const [invoice, setInvoice] = useState<Invoice | null>(null);

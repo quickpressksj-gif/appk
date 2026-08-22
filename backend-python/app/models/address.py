@@ -35,6 +35,8 @@ class AddressPayload(BaseModel):
     contactName: str = ""
     phone: str = ""
     isDefault: Optional[bool] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class AddressResponse(BaseModel):
@@ -52,5 +54,8 @@ class AddressResponse(BaseModel):
     contactName: str = ""
     phone: str = ""
     isDefault: bool = False
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     line: str = Field(default="", description="Formatted single line, ready to render")
     cityLine: str = Field(default="", description="Area, city and pincode")
+

@@ -39,6 +39,7 @@ import {
   type PaymentRecord,
   type RefundRecord,
 } from "@/api/customer/payments-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/wallet")({
   head: () => ({
@@ -97,6 +98,7 @@ function statusTone(status: string) {
 }
 
 function WalletScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[] | null>(null);

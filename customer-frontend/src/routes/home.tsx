@@ -38,6 +38,7 @@ import {
   readRecentSearches,
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
 } from "@/api/customer/services/search-service";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/home")({
   head: () => ({
@@ -75,6 +76,7 @@ const ICONS: Record<string, LucideIcon> = {
 
 
 function HomeScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const {
     sections,
@@ -330,9 +332,9 @@ function HomeScreen() {
                       onClick={() =>
                         navigate({ to: "/services/$serviceId", params: { serviceId: category.id } })
                       }
-                      className="card-soft flex flex-col items-center gap-2 border border-border px-2 py-4 text-center transition-all duration-300 hover:border-primary/60 active:scale-[0.94]"
+                      className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.94]"
                     >
-                      <span className="flex size-12 items-center justify-center overflow-hidden rounded-2xl bg-secondary/10 text-brand-green">
+                      <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
                         {category.image ? (
                           <img
                             src={category.image}
@@ -340,17 +342,17 @@ function HomeScreen() {
                             loading="lazy"
                             width={512}
                             height={512}
-                            className="size-full object-cover"
+                            className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
                             decoding="async"
                           />
                         ) : (
-                          <Icon className="size-6" />
+                          <Icon className="size-7 text-brand-green" />
                         )}
-                      </span>
-                      <span className="text-[11px] font-bold leading-tight text-foreground">
+                      </div>
+                      <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-primary transition-colors">
                         {category.title}
                       </span>
-                      <span className="text-[10px] leading-tight text-muted-foreground">
+                      <span className="text-[10px] font-medium leading-tight text-muted-foreground">
                         {category.description}
                       </span>
                     </button>
@@ -381,26 +383,26 @@ function HomeScreen() {
                           params: { serviceId: service.categoryId ?? service.id },
                         })
                       }
-                      className="card-soft w-60 shrink-0 border border-border p-4 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
+                      className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.97]"
                     >
-                      <div className="flex items-start gap-3">
-                        <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-secondary/10 text-brand-green">
+                      <div className="flex items-start gap-3.5">
+                        <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
                           {service.image ? (
                             <img
                               src={service.image}
                               alt={service.title}
-                              width={128}
-                              height={128}
+                              width={256}
+                              height={256}
                               loading="lazy"
                               decoding="async"
-                              className="size-full object-cover"
+                              className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
                             />
                           ) : (
-                            <Icon className="size-5" />
+                            <Icon className="size-6 text-brand-green" />
                           )}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-foreground">
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-foreground group-hover:text-primary transition-colors">
                             {service.title}
                           </p>
                           <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">

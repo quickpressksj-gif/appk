@@ -23,6 +23,7 @@ import { DeliveryAnimation } from "@/components/DeliveryAnimation";
 import { OrderSuccessSkeleton } from "@/components/order/OrderSkeleton";
 import { fetchOrder, type OrderSummary } from "@/api/customer/order-api";
 import { fetchInvoiceForOrder } from "@/api/customer/invoice-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 
 export const Route = createFileRoute("/order-success/$orderId")({
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/order-success/$orderId")({
 });
 
 function OrderSuccessScreen() {
+  useAuthGuard();
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState<OrderSummary | null>(null);

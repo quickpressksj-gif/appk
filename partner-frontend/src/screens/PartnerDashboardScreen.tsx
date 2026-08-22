@@ -70,6 +70,10 @@ export function PartnerDashboardScreen() {
         fetchDashboardSummary(),
         fetchEarnings().catch(() => null),
       ]);
+      if (!profile.isVerified && profile.status !== "active") {
+        navigate({ to: partnerRoutes.registrationSubmitted });
+        return;
+      }
       setShop({
         shopName: profile.businessName,
         partnerName: profile.ownerName,

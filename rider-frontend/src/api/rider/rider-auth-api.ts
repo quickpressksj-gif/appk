@@ -54,8 +54,87 @@ export async function logout(): Promise<void> {
   return logoutSession(ROLE);
 }
 
-export async function submitRiderRegistration(payload: unknown) {
-  return apiPostJson<{ ok: true; payload: unknown }>("/api/rider/auth/registration", { payload });
+import { readSession, writeSession } from "../core/session-store";
+
+export async function submitRiderRegistration(payload: unknown): Promise<RiderSession> {
+  const res = await apiPostJson<{
+    ok: true;
+    riderId: string;
+    phone: string;
+    fullName: string;
+    isVerified: boolean;
+    isOnboarded: boolean;
+  }>("/api/rider/onboarding", { payload });
+
+  const currentSession = readSession(ROLE);
+  if (currentSession && currentSession.account) {
+    const updatedSession = {
+      ...currentSession,
+      account: {
+        ...currentSession.account,
+        name: res.fullName || currentSession.account.name,
+        linkedId: res.riderId,
+        isVerified: res.isVerified,
+        isOnboarded: res.isOnboarded,
+      },
+    };
+    writeSession(updatedSession, ROLE);
+  }
+
+  return {
+    riderId: res.riderId,
+    phone: res.phone,
+    fullName: res.fullName,
+    isVerified: res.isVerified,
+    isOnboarded: res.isOnboarded,
+    isNewRider: !res.isOnboarded,
+  };
+}
+
+export async function checkRiderVerificationStatus(): Promise<{
+  isVerified: boolean;
+  status: string;
+  fullName: string;
+  riderId: string;
+}> {
+  try {
+    const profile = await apiGetJson<{
+      riderId?: string;
+      fullName?: string;
+      name?: string;
+      isVerified?: boolean;
+      status?: string;
+    }>("/api/rider/profile");
+
+    const isVerified = Boolean(profile.isVerified || profile.status === "active");
+    const currentSession = readSession(ROLE);
+    if (currentSession && currentSession.account) {
+      const updatedSession = {
+        ...currentSession,
+        account: {
+          ...currentSession.account,
+          isVerified,
+          isOnboarded: true,
+          name: profile.fullName || profile.name || currentSession.account.name,
+        },
+      };
+      writeSession(updatedSession, ROLE);
+    }
+
+    return {
+      isVerified,
+      status: profile.status || (isVerified ? "active" : "pending"),
+      fullName: profile.fullName || profile.name || "Delivery Partner",
+      riderId: profile.riderId || "",
+    };
+  } catch {
+    return {
+      isVerified: false,
+      status: "pending",
+      fullName: "",
+      riderId: "",
+    };
+  }
 }
 
 export async function fetchExistingRiderNumbers(): Promise<string[]> {

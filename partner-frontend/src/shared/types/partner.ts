@@ -6,6 +6,7 @@ export type PartnerAuthStep = "phone" | "otp" | "registration" | "ready";
 export type PartnerSession = {
   partnerId: string;
   phone: string;
+  email?: string | null;
   businessName: string;
   isVerified: boolean;
   isOnboarded: boolean;

@@ -12,9 +12,5 @@ export const Route = createFileRoute("/registration")({
       { property: "og:description", content: "Add your profile, vehicle, documents and bank details." },
     ],
   }),
-  component: () => (
-    <RiderProvider>
-      <RiderRegistrationScreen />
-    </RiderProvider>
-  ),
+  component: RiderRegistrationScreen,
 });

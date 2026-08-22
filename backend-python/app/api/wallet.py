@@ -31,6 +31,15 @@ async def wallet_history(
     return await wallet_repository.history(user, limit=limit)
 
 
+@router.get("/wallet/transactions")
+async def wallet_transactions(
+    limit: int = Query(default=20, ge=1, le=100), user: User = Depends(current_user)
+) -> list:
+    history = await wallet_repository.history(user, limit=limit)
+    return history.transactions if hasattr(history, "transactions") else []
+
+
+
 @router.get("/wallet", response_model=WalletResponse)
 async def wallet(user: User = Depends(current_user)) -> WalletResponse:
     return await wallet_repository.wallet(user)

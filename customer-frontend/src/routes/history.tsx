@@ -21,6 +21,7 @@ import {
   type OrderStatus,
 } from "@/api/customer/history-api";
 import { fetchInvoiceForOrder } from "@/api/customer/invoice-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -58,6 +59,7 @@ const STATUS_META: Record<OrderStatus, { label: string; icon: typeof Clock; tone
 };
 
 function HistoryScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderRecord[] | null>(() => readCachedOrderHistory());
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");

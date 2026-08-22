@@ -43,6 +43,7 @@ import {
   type NotificationGroup,
   type NotificationKind,
 } from "@/api/customer/notifications-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({
@@ -92,6 +93,7 @@ const GROUPS: { id: NotificationGroup; label: string }[] = [
 ];
 
 function NotificationsScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
 
   const [items, setItems] = useState<AppNotification[] | null>(null);

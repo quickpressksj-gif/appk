@@ -260,7 +260,14 @@ class AdminAccountRepository:
         doc = await database.find_one(self.collection, {"_id": entity_id})
         if doc is None:
             return None
-        return await database.update(self.collection, {"_id": entity_id}, {"status": status})
+        is_active = status == "active"
+        changes = {"status": status, "isVerified": is_active}
+        updated = await database.update(self.collection, {"_id": entity_id}, changes)
+        # Also sync user document if present
+        user_id = doc.get("userId") or doc.get("user_id")
+        if user_id:
+            await database.update("users", {"_id": user_id}, {"is_verified": is_active})
+        return updated
 
 
 admin_partner_repository = AdminAccountRepository("partner_profiles")

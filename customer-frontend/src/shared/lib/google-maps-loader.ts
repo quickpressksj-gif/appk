@@ -44,10 +44,13 @@ export function loadGoogleMaps(): Promise<boolean> {
     const script = document.createElement("script");
     script.src =
       `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}` +
-      `&loading=async&libraries=places&callback=${callbackName}`;
+      `&loading=async&libraries=places,marker&callback=${callbackName}`;
     script.async = true;
     script.defer = true;
-    script.onerror = () => resolve(false);
+    script.onerror = () => {
+      loadPromise = null;
+      resolve(false);
+    };
     document.head.appendChild(script);
   });
 

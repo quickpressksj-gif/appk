@@ -62,7 +62,13 @@ export function PartnerAuthScreen() {
   // Auto login: a restored Firebase + JWT session skips the auth screen.
   useEffect(() => {
     if (hydrating || !session) return;
-    navigate({ to: session.isOnboarded ? partnerRoutes.dashboard : partnerRoutes.registration });
+    if (!session.isOnboarded) {
+      navigate({ to: partnerRoutes.registration });
+    } else if (!session.isVerified) {
+      navigate({ to: partnerRoutes.registrationSubmitted });
+    } else {
+      navigate({ to: partnerRoutes.dashboard });
+    }
   }, [hydrating, session, navigate]);
 
   // Restore the remembered number after hydration (client-only storage read).
@@ -119,9 +125,17 @@ export function PartnerAuthScreen() {
       const session = await loginWithGoogle();
       signIn(session);
       toast.success("Signed in with Google");
-      navigate({ to: session.isOnboarded ? partnerRoutes.dashboard : partnerRoutes.registration });
-    } catch {
-      toast("Google Sign In will activate once the partner account is linked");
+      if (!session.isOnboarded) {
+        navigate({ to: partnerRoutes.registration });
+      } else if (!session.isVerified) {
+        navigate({ to: partnerRoutes.registrationSubmitted });
+      } else {
+        navigate({ to: partnerRoutes.dashboard });
+      }
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error ? cause.message : "Google Sign In was cancelled or failed",
+      );
     } finally {
       setGoogleBusy(false);
     }

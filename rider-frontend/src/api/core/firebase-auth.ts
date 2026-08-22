@@ -58,18 +58,33 @@ export async function firebaseAuth(): Promise<Auth> {
 async function ensureRecaptcha(auth: Auth): Promise<RecaptchaVerifier> {
   if (recaptcha) return recaptcha;
   const { RecaptchaVerifier } = await import("firebase/auth");
-  if (!document.getElementById(RECAPTCHA_CONTAINER_ID)) {
-    const host = document.createElement("div");
-    host.id = RECAPTCHA_CONTAINER_ID;
-    host.style.display = "none";
-    document.body.appendChild(host);
+  
+  // Clean up any existing container from prior renders to avoid "reCAPTCHA has already been rendered" error
+  const existing = document.getElementById(RECAPTCHA_CONTAINER_ID);
+  if (existing) {
+    try {
+      existing.remove();
+    } catch {
+      /* ignore */
+    }
   }
-  recaptcha = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, { size: "invisible" });
+
+  const host = document.createElement("div");
+  host.id = RECAPTCHA_CONTAINER_ID;
+  host.style.display = "none";
+  document.body.appendChild(host);
+
+  recaptcha = new RecaptchaVerifier(auth, host, {
+    size: "invisible",
+    "expired-callback": () => {
+      resetRecaptcha();
+    },
+  });
   await recaptcha.render();
   return recaptcha;
 }
 
-/** Reset the verifier after a failed attempt so the next send works. */
+/** Reset the verifier and clear its DOM element after each attempt so subsequent OTP sends always work cleanly. */
 export function resetRecaptcha(): void {
   try {
     recaptcha?.clear();
@@ -77,6 +92,15 @@ export function resetRecaptcha(): void {
     /* ignore */
   }
   recaptcha = null;
+
+  const existing = document.getElementById(RECAPTCHA_CONTAINER_ID);
+  if (existing) {
+    try {
+      existing.remove();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function mapFirebaseError(error: unknown): ApiError {

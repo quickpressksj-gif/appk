@@ -44,6 +44,46 @@ async def get_cart_summary(
     return await cart_repository.summary(user.id, couponDiscount)
 
 
+@router.post("/cart", response_model=CartResponse)
+async def sync_partner_cart(
+    body: dict,
+    user: User = Depends(current_user),
+) -> CartResponse:
+    from app.db.client import database
+
+    partner_id = body.get("partnerId")
+    quantities = body.get("quantities") or {}
+    items = body.get("items")
+
+    if items and isinstance(items, list):
+        for item in items:
+            await cart_repository.add_item(user.id, CartItemPayload(**item))
+        return await cart_repository.cart(user.id)
+
+    if quantities:
+        for service_id, qty in quantities.items():
+            if int(qty) <= 0:
+                continue
+            svc = await database.find_one("partner_services", {"_id": service_id}) or {}
+            price = int(svc.get("price") or 0)
+            name = svc.get("name") or "Laundry Service"
+            unit = svc.get("unit") or "kg"
+            await cart_repository.add_item(
+                user.id,
+                CartItemPayload(
+                    id=service_id,
+                    itemId=service_id,
+                    serviceId=service_id,
+                    partnerId=partner_id or svc.get("partnerId", ""),
+                    name=name,
+                    price=price,
+                    unit=unit,
+                    qty=int(qty),
+                ),
+            )
+    return await cart_repository.cart(user.id)
+
+
 @router.post("/cart/items", response_model=CartLineResponse, status_code=status.HTTP_201_CREATED)
 async def add_cart_item(
     payload: CartItemPayload,
@@ -55,7 +95,19 @@ async def add_cart_item(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error))
 
 
+@router.get("/cart/instructions", response_model=list[str])
+async def get_cart_instructions() -> list[str]:
+    return [
+        "Fold only, no iron",
+        "Separate whites & colors",
+        "Extra soft / fabric conditioner",
+        "Gentle on delicate fabrics",
+        "Eco-friendly wash",
+    ]
+
+
 @router.put("/cart/items/{item_id}", response_model=CartResponse)
+@router.patch("/cart/items/{item_id}", response_model=CartResponse)
 async def update_cart_item(
     item_id: str,
     payload: CartItemUpdatePayload,
@@ -73,4 +125,12 @@ async def delete_cart_item(
     user: User = Depends(current_user),
 ) -> CartResponse:
     await cart_repository.remove_item(user.id, item_id)
+    return await cart_repository.cart(user.id)
+
+
+@router.delete("/cart", response_model=CartResponse)
+async def clear_cart(
+    user: User = Depends(current_user),
+) -> CartResponse:
+    await cart_repository.clear(user.id)
     return await cart_repository.cart(user.id)

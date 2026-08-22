@@ -45,11 +45,11 @@ const MOCK_ENDPOINTS = {
   verifyOtp: "/api/auth/verify-otp",
 } as const;
 
-export type AuthMode = "mock" | "firebase";
+export type AuthMode = "firebase";
 
 /** Real authentication runs only when both Firebase and the API are configured. */
 export function authMode(): AuthMode {
-  return isFirebaseConfigured() && isApiConfigured() ? "firebase" : "mock";
+  return "firebase";
 }
 
 function role(explicit?: AccountRole): AccountRole {
@@ -68,14 +68,6 @@ export async function sendPhoneOtp(
   phone: string,
   explicitRole?: AccountRole,
 ): Promise<RequestOtpResult> {
-  if (authMode() === "mock") {
-    return apiPostJson<RequestOtpResult>(
-      MOCK_ENDPOINTS.requestOtp,
-      { phone, role: role(explicitRole) },
-      { anonymous: true },
-    );
-  }
-
   const audit = await apiPostJson<{ ok: true; expiresInSeconds: number; isNewAccount: boolean }>(
     AUTH_ENDPOINTS.sendOtp,
     { phone, role: role(explicitRole) },
@@ -96,16 +88,6 @@ export async function verifyPhoneOtp(
   code: string,
   explicitRole?: AccountRole,
 ): Promise<AuthSession> {
-  if (authMode() === "mock") {
-    return persist(
-      await apiPostJson<AuthSession>(
-        MOCK_ENDPOINTS.verifyOtp,
-        { phone, otp: code, role: role(explicitRole) },
-        { anonymous: true },
-      ),
-    );
-  }
-
   const idToken = await confirmFirebaseOtp(code);
   return persist(
     await apiPostJson<AuthSession>(

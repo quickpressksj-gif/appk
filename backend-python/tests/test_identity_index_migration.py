@@ -517,7 +517,12 @@ async def test_real_mongodb_all_registered_identity_indexes():
             for legacy in spec.legacy:
                 assert legacy not in info, (spec, legacy)
     finally:
-        await client.drop_database(db.name)
+        try:
+            for spec in IDENTITY_INDEXES:
+                await db[spec.collection].drop()
+            await client.drop_database(db.name)
+        except Exception:
+            pass
         client.close()
 
 
@@ -545,6 +550,11 @@ async def test_real_mongodb_duplicate_valid_ids_abort_migration():
         # no data was touched
         assert await coll.count_documents({}) == 2
     finally:
-        await client.drop_database(db.name)
+        try:
+            await coll.drop()
+            await client.drop_database(db.name)
+        except Exception:
+            pass
         client.close()
+
 

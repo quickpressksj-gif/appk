@@ -14,7 +14,14 @@ from __future__ import annotations
 
 import os
 
-_real_uri = os.environ.pop("MONGODB_URI", "").strip()
+_real_uri = os.environ.pop("MONGODB_URI", "").strip() or os.getenv("REAL_MONGODB_URI", "")
+if not _real_uri:
+    # also check if .env has MONGODB_URI
+    from dotenv import dotenv_values
+    _env_dict = dotenv_values(".env")
+    _real_uri = (_env_dict.get("MONGODB_URI") or "").strip()
+
+os.environ["MONGODB_URI"] = ""
 if _real_uri:
     os.environ["REAL_MONGODB_URI"] = _real_uri
 

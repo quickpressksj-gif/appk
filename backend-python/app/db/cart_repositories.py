@@ -200,40 +200,45 @@ class CartRepository:
         partner_id = next((item.partnerId for item in items if item.partnerId), None)
         document = None
         if partner_id:
-            document = await database.collection("catalog_partners").find_one({"_id": partner_id})
+            document = await database.find_one("partner_profiles", {"_id": partner_id})
         if document is None:
-            partners = await database.find_many("catalog_partners")
-            document = partners[0] if partners else None
+            approved = await database.find_many("partner_profiles")
+            document = approved[0] if approved else None
         if document is None:
             return None
-        reviews_count = int(document.get("reviewsCount") or 0)
-        pickup = int(document.get("pickupMinutes") or 30)
+        reviews_count = int(document.get("totalOrders") or document.get("reviewsCount") or 0)
+        pickup = 30
+        image = document.get("bannerUrl") or document.get("cover") or document.get("logoUrl") or document.get("logo") or "store-1"
         return CartStoreResponse(
-            id=document["_id"],
-            name=document.get("name", ""),
-            image=document.get("image") or document.get("logo") or "",
-            rating=float(document.get("rating") or 0),
+            id=str(document["_id"]),
+            name=document.get("businessName") or document.get("name") or "QuickPress Partner",
+            image=image,
+            rating=float(document.get("rating") or 5.0),
             reviews=f"{reviews_count / 1000:.1f}k" if reviews_count >= 1000 else str(reviews_count),
             pickupEta=f"{pickup} min",
-            deliveryEta=document.get("deliveryTime", "24 hrs"),
+            deliveryEta="24 hrs",
         )
 
     async def _catalog_defaults(self, item_id: str, payload: CartItemPayload) -> Dict[str, Any]:
-        """Fill missing price/name/image from the catalog so the cart is trustworthy."""
-        if payload.partnerId:
-            partner = await database.collection("catalog_partners").find_one({"_id": payload.partnerId})
-            for item in (partner or {}).get("serviceItems") or []:
-                if str(item.get("id", "")).lower() == item_id or slugify(item.get("name", "")) == item_id:
-                    return {
-                        "partnerId": payload.partnerId,
-                        "name": item.get("name", ""),
-                        "description": item.get("description", ""),
-                        "image": item.get("image", ""),
-                        "unit": item.get("unit", ""),
-                        "price": int(item.get("price") or 0),
-                        "discountPercent": int(item.get("discountPercent") or 0),
-                        "processingTime": item.get("processingTime", ""),
-                    }
+        """Fill missing price/name/image from partner_services or catalog."""
+        # 1. Check partner_services directly
+        svc = await database.find_one("partner_services", {"_id": item_id})
+        if not svc and payload.partnerId:
+            svc = await database.find_one("partner_services", {"_id": item_id, "partnerId": payload.partnerId})
+        if not svc:
+            svc = await database.find_one("partner_services", {"name": {"$regex": f"^{item_id}$", "$options": "i"}})
+        if svc:
+            turnaround = svc.get("turnaroundHours") or 24
+            return {
+                "partnerId": svc.get("partnerId") or payload.partnerId or "",
+                "name": svc.get("name", "Laundry Service"),
+                "description": svc.get("description", ""),
+                "image": svc.get("image", ""),
+                "unit": svc.get("unit", "kg"),
+                "price": int(svc.get("price") or 0),
+                "discountPercent": int(svc.get("discountPercent") or 0),
+                "processingTime": f"{turnaround} hrs",
+            }
 
         detail = await services_repository.resolve(item_id)
         if detail is None:

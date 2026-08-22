@@ -62,6 +62,7 @@ import {
 import { isOnline, onNetworkChange } from "@/api/customer/api/network";
 import type { NotificationPreferences, ThemeMode } from "@/api/customer/settings-api";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const THEME_OPTIONS: { id: ThemeMode; label: string; icon: LucideIcon }[] = [
   { id: "light", label: "Light", icon: Sun },
@@ -206,6 +207,7 @@ function RowList({ rows }: { rows: Row[] }) {
 }
 
 function ProfileScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const [data, setData] = useState<ProfileData | null>(null);
   const [editing, setEditing] = useState(false);
@@ -302,9 +304,19 @@ function ProfileScreen() {
     }
   };
 
+  const changeLanguage = async (code: string) => {
+    try {
+      await settings.setLanguage(code);
+      toast.success(code.startsWith("hi") ? "भाषा हिन्दी में सेट की गई" : "Language set to English");
+    } catch {
+      toast.error("Couldn't save language preference");
+    }
+  };
+
   const toggleNotification = async (key: keyof NotificationPreferences) => {
     try {
       await settings.toggleNotification(key);
+      toast.success("Notification preference updated");
     } catch {
       toast.error("Couldn't save that preference");
     }
@@ -491,28 +503,28 @@ function ProfileScreen() {
                 {
                   id: "orders",
                   label: "Total Orders",
-                  value: String(data.stats.totalOrders),
+                  value: String(data.stats?.totalOrders ?? 0),
                   icon: Package,
                   action: () => navigate({ to: "/history" }),
                 },
                 {
                   id: "points",
                   label: "Reward Points",
-                  value: data.stats.rewardPoints.toLocaleString("en-IN"),
+                  value: (data.stats?.rewardPoints ?? 0).toLocaleString("en-IN"),
                   icon: Star,
                   action: () => soon("Rewards"),
                 },
                 {
                   id: "wallet",
                   label: "Wallet Balance",
-                  value: `₹${data.stats.walletBalance.toLocaleString("en-IN")}`,
+                  value: `₹${(data.stats?.walletBalance ?? 0).toLocaleString("en-IN")}`,
                   icon: Wallet,
                   action: () => soon("Wallet"),
                 },
                 {
                   id: "addresses",
                   label: "Saved Addresses",
-                  value: String(data.stats.savedAddresses),
+                  value: String(data.stats?.savedAddresses ?? 0),
                   icon: MapPin,
                   action: () => navigate({ to: "/addresses" }),
                 },
@@ -600,155 +612,6 @@ function ProfileScreen() {
                   },
                 ]}
               />
-            </section>
-
-            {/* Wallet — GET /api/wallet */}
-            <section id="wallet" className="mt-8 scroll-mt-20">
-              <SectionHeading title="QuickPress Wallet" action="View all" />
-
-              <div className="card-soft mt-4 overflow-hidden border border-border">
-                <div className="relative overflow-hidden bg-gradient-to-br from-brand-dark to-brand-green p-5">
-                  <div className="pointer-events-none absolute -bottom-14 -right-10 size-40 rounded-full bg-primary/30 blur-2xl" />
-                  <p className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
-                    Wallet Balance
-                  </p>
-                  <p className="animate-pop relative mt-1 text-3xl font-black tracking-tight text-background">
-                    ₹{data.wallet.balance.toLocaleString("en-IN")}
-                  </p>
-                  <div className="relative mt-4 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => soon("Add money")}
-                      className="ripple flex h-10 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-xs font-bold text-primary-foreground transition-transform duration-300 active:scale-[0.96]"
-                    >
-                      <Plus className="size-4" />
-                      Add Money
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => soon("Cashback rewards")}
-                      className="ripple flex h-10 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-background/15 text-xs font-bold text-background backdrop-blur transition-transform duration-300 active:scale-[0.96]"
-                    >
-                      <Gift className="size-4" />
-                      Cashback ₹{data.wallet.cashbackEarned}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="px-4 pb-2 pt-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    Transaction History
-                  </p>
-                </div>
-                {data.wallet.transactions.map((txn, index) => (
-                  <div
-                    key={txn.id}
-                    className={`flex items-center gap-3 px-4 py-3 ${
-                      index > 0 ? "border-t border-border" : ""
-                    }`}
-                  >
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-2xl ${
-                        txn.kind === "credit"
-                          ? "bg-secondary/10 text-brand-green"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {txn.kind === "credit" ? (
-                        <ArrowDownLeft className="size-4" />
-                      ) : (
-                        <ArrowUpRight className="size-4" />
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-foreground">
-                        {txn.title}
-                      </span>
-                      <span className="block text-[11px] text-muted-foreground">{txn.note}</span>
-                    </span>
-                    <span
-                      className={`shrink-0 text-sm font-bold ${
-                        txn.kind === "credit" ? "text-brand-green" : "text-foreground"
-                      }`}
-                    >
-                      {txn.kind === "credit" ? "+" : "−"}₹{txn.amount}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Membership — GET /api/membership */}
-            <section className="mt-8">
-              <SectionHeading title="Membership" />
-              <div className="card-soft mt-4 border border-primary/40 bg-gradient-to-br from-primary/20 via-card to-card p-5">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-dark text-primary">
-                    <Crown className="size-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-foreground">
-                      {data.membership.plan}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Renews on {data.membership.renewsOn}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
-                      data.membership.active
-                        ? "bg-secondary/15 text-brand-green"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {data.membership.active ? "Active" : "Expired"}
-                  </span>
-                </div>
-
-                <div className="mt-4">
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-brand-green to-primary transition-all duration-700"
-                      style={{
-                        width: `${Math.round(
-                          (data.membership.daysLeft / data.membership.totalDays) * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
-                    {data.membership.daysLeft} days left · saved ₹
-                    {data.membership.savedThisYear.toLocaleString("en-IN")} this year
-                  </p>
-                </div>
-
-                <div className="mt-4 grid gap-2">
-                  {[
-                    { id: "pickup", label: "Priority Pickup", icon: Truck },
-                    { id: "discount", label: "Exclusive Discounts", icon: Gift },
-                    { id: "delivery", label: "Free Delivery", icon: Sparkles },
-                  ].map((benefit) => (
-                    <div
-                      key={benefit.id}
-                      className="flex items-center gap-2.5 rounded-2xl bg-card/70 px-3 py-2"
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-brand-green">
-                        <benefit.icon className="size-4" />
-                      </span>
-                      <span className="text-xs font-bold text-foreground">{benefit.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => soon("Membership renewal")}
-                  className="ripple mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-3xl bg-brand-dark text-sm font-bold text-primary transition-all duration-300 active:scale-[0.97]"
-                >
-                  <Crown className="size-4" />
-                  Renew Membership
-                </button>
-              </div>
             </section>
 
             {/* Support */}
@@ -883,19 +746,19 @@ function ProfileScreen() {
         ) : null}
       </div>
 
-      {/* Edit profile sheet — PUT /api/profile */}
+      {/* Edit profile / Personal Information sheet — PUT /api/profile */}
       {editing && data ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
             onClick={() => setEditing(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/45 backdrop-blur-sm"
+            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
-          <div className="animate-sheet-up relative w-full max-w-md rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
+          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-10 pt-4 shadow-soft">
             <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
             <div className="mt-4 flex items-center justify-between">
-              <h2 className="text-base font-bold tracking-tight text-foreground">Edit Profile</h2>
+              <h2 className="text-base font-bold tracking-tight text-foreground">Personal Information</h2>
               <button
                 type="button"
                 aria-label="Close"
@@ -996,27 +859,29 @@ function ProfileScreen() {
               {data.user.phone} · verified, cannot be changed here
             </p>
 
-            <button
-              type="button"
-              disabled={saving || !form.name.trim()}
-              onClick={handleSave}
-              className="ripple mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save Changes
-            </button>
+            <div className="sticky bottom-0 -mx-5 -mb-10 mt-6 bg-card/95 px-5 pb-8 pt-3 backdrop-blur-md">
+              <button
+                type="button"
+                disabled={saving || !form.name.trim()}
+                onClick={handleSave}
+                className="ripple flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {/* Logout confirmation sheet */}
       {logoutOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
             onClick={() => setLogoutOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/45 backdrop-blur-sm"
+            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
           <div className="animate-sheet-up relative w-full max-w-md rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
             <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
@@ -1055,12 +920,12 @@ function ProfileScreen() {
 
       {/* Settings sheet — GET/PUT /api/me/settings */}
       {settingsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
             onClick={() => setSettingsOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/45 backdrop-blur-sm"
+            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
           <div className="animate-sheet-up relative max-h-[86vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
             <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
@@ -1163,7 +1028,7 @@ function ProfileScreen() {
                     type="button"
                     aria-pressed={active}
                     disabled={settings.saving}
-                    onClick={() => void settings.setLanguage(language.id).catch(() => {})}
+                    onClick={() => void changeLanguage(language.id)}
                     className={`rounded-3xl border p-3 text-xs font-bold transition-all duration-300 active:scale-[0.96] disabled:opacity-60 ${
                       active
                         ? "border-primary bg-primary/15 text-foreground"

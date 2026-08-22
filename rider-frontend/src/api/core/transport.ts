@@ -31,32 +31,10 @@ export type RequestOptions = {
   anonymous?: boolean | undefined;
 };
 
-export type TransportMode = "mock" | "http";
+export type TransportMode = "http";
 
 export function transportMode(): TransportMode {
-  if (isApiConfigured()) return "http";
-  // Production must never silently fall back to fixtures: a production build
-  // without VITE_API_BASE_URL is a configuration error, not a demo mode.
-  if (appEnvironment() === "production") {
-    throw new ApiError(
-      "unconfigured",
-      "VITE_API_BASE_URL is not configured for this production build",
-    );
-  }
-  return "mock";
-}
-
-/**
- * Development fixtures are loaded lazily so no mock code is reachable from a
- * production bundle. `transportMode()` already refuses to return "mock" in
- * production, so this import can never execute there.
- */
-async function loadMockRouter() {
-  if (!import.meta.env.DEV) {
-    throw new ApiError("unconfigured", "Mock transport is not available in this build");
-  }
-  const mod = await import("../mock/server");
-  return mod.handleMockRequest;
+  return "http";
 }
 
 function withQuery(path: string, params?: QueryParams): string {
@@ -132,20 +110,11 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const mode = transportMode();
+  const mode = "http";
   const startedAt = Date.now();
   const fullPath = withQuery(path, options.params);
   try {
-    const runOnce = () =>
-      mode === "http"
-        ? httpRequest<T>(method, path, options)
-        : loadMockRouter().then((handleMockRequest) =>
-            handleMockRequest<T>(method, fullPath, {
-              body: options.body,
-              token: options.anonymous ? null : readToken(),
-              signal: options.signal ?? null,
-            }),
-          );
+    const runOnce = () => httpRequest<T>(method, path, options);
 
     let result: T;
     try {
@@ -153,7 +122,6 @@ export async function apiRequest<T>(
     } catch (error) {
       // Token expired → rotate the JWT once with the refresh token, then retry.
       const retryable =
-        mode === "http" &&
         !options.anonymous &&
         error instanceof ApiError &&
         error.kind === "unauthorized" &&

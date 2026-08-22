@@ -8,11 +8,15 @@ blank before a real rider account exists.
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import current_user, require_roles
+from app.db.client import database
+from app.db.repositories import users
 from app.db.rider_repositories import (
     RiderAccessError,
     rider_analytics_repository,
@@ -53,21 +57,203 @@ def _public(document: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Auth
+# Auth & Onboarding
 # --------------------------------------------------------------------------
 
 
 @public_router.get("/auth/existing-numbers")
 async def existing_numbers() -> list:
-    from app.db.client import database
-
     profiles = await database.find_many("rider_profiles")
     return [p.get("phone") for p in profiles if p.get("phone")]
 
 
+@router.post("/onboarding")
+async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> dict:
+    payload = body.get("payload", body)
+
+    # 1. Resolve or generate rider_id
+    account = await database.find_one("riders", {"user_id": user.id}) or {}
+    rider_id = account.get("rider_id") or account.get("riderId") or getattr(user, "linked_id", None)
+    if not rider_id:
+        existing_profile = await database.find_one("rider_profiles", {"userId": user.id})
+        if existing_profile:
+            rider_id = existing_profile.get("_id")
+    if not rider_id:
+        rider_id = f"RDR-{uuid.uuid4().hex[:8].upper()}"
+
+    rider_id_str = str(rider_id)
+    await database.update("riders", {"user_id": user.id}, {"rider_id": rider_id_str, "user_id": user.id}, upsert=True)
+
+    # 2. Extract profile fields
+    full_name = payload.get("fullName") or user.display_name or "Delivery Partner"
+    phone = payload.get("mobile") or user.phone or ""
+    email = payload.get("email") or user.email or ""
+    city = payload.get("city") or payload.get("preferredCity") or "Bengaluru"
+
+    profile_data = {
+        "_id": rider_id_str,
+        "riderId": rider_id_str,
+        "userId": user.id,
+        "fullName": full_name,
+        "name": full_name,
+        "phone": phone,
+        "email": email,
+        "dob": payload.get("dob", ""),
+        "gender": payload.get("gender", "male"),
+        "address": payload.get("address", ""),
+        "city": city,
+        "state": payload.get("state", ""),
+        "pincode": payload.get("pincode", ""),
+        "aadhaar": payload.get("aadhaar", ""),
+        "pan": payload.get("pan", ""),
+        "license": payload.get("license", ""),
+        "vehicleType": payload.get("vehicleType", "bike"),
+        "vehicleNumber": payload.get("vehicleNumber", ""),
+        "rcNumber": payload.get("rcNumber", ""),
+        "insuranceNumber": payload.get("insuranceNumber", ""),
+        "accountHolder": payload.get("accountHolder", ""),
+        "bankName": payload.get("bankName", ""),
+        "accountNumber": payload.get("accountNumber", ""),
+        "ifsc": payload.get("ifsc", ""),
+        "preferredCity": payload.get("preferredCity", city),
+        "preferredArea": payload.get("preferredArea", ""),
+        "shift": payload.get("shift", "full_time"),
+        "employmentType": payload.get("employmentType", "contract"),
+        "status": "pending",
+        "isVerified": False,
+        "isOnline": False,
+        "rating": 5.0,
+        "totalDeliveries": 0,
+        "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+    existing = await database.find_one("rider_profiles", {"_id": rider_id_str})
+    if existing is None:
+        await database.insert("rider_profiles", profile_data)
+    else:
+        await database.update("rider_profiles", {"_id": rider_id_str}, profile_data)
+
+    # 3. Initialize wallet if not present
+    existing_wallet = await database.find_one("rider_wallets", {"_id": rider_id_str})
+    if existing_wallet is None:
+        await database.insert(
+            "rider_wallets",
+            {
+                "_id": rider_id_str,
+                "riderId": rider_id_str,
+                "balance": 0.0,
+                "todayEarned": 0.0,
+                "thisWeekEarned": 0.0,
+                "cashInHand": 0.0,
+                "lifetimeEarned": 0.0,
+            },
+        )
+
+    # 4. Initialize settings if not present
+    existing_settings = await database.find_one("rider_settings", {"_id": rider_id_str})
+    if existing_settings is None:
+        await database.insert(
+            "rider_settings",
+            {
+                "_id": rider_id_str,
+                "riderId": rider_id_str,
+                "autoAccept": False,
+                "voiceNavigation": True,
+                "notificationsEnabled": True,
+                "maxActiveDeliveries": 2,
+            },
+        )
+
+    # 5. Update user state
+    await users.update(
+        user.id,
+        {
+            "is_onboarded": True,
+            "is_verified": False,
+            "display_name": full_name,
+            "city": city,
+            "linked_id": rider_id_str,
+        },
+    )
+
+    return {
+        "ok": True,
+        "riderId": rider_id_str,
+        "phone": phone,
+        "fullName": full_name,
+        "isVerified": False,
+        "isOnboarded": True,
+    }
+
+
 @public_router.post("/auth/registration")
 async def submit_registration(body: dict) -> dict:
-    return {"ok": True, "payload": body.get("payload", body)}
+    payload = body.get("payload", body)
+    rider_id = f"RDR-{uuid.uuid4().hex[:8].upper()}"
+    full_name = payload.get("fullName", "Delivery Partner")
+    phone = payload.get("mobile", "")
+    city = payload.get("city") or payload.get("preferredCity") or "Bengaluru"
+
+    profile_data = {
+        "_id": rider_id,
+        "riderId": rider_id,
+        "fullName": full_name,
+        "name": full_name,
+        "phone": phone,
+        "email": payload.get("email", ""),
+        "dob": payload.get("dob", ""),
+        "gender": payload.get("gender", "male"),
+        "address": payload.get("address", ""),
+        "city": city,
+        "state": payload.get("state", ""),
+        "pincode": payload.get("pincode", ""),
+        "aadhaar": payload.get("aadhaar", ""),
+        "pan": payload.get("pan", ""),
+        "license": payload.get("license", ""),
+        "vehicleType": payload.get("vehicleType", "bike"),
+        "vehicleNumber": payload.get("vehicleNumber", ""),
+        "rcNumber": payload.get("rcNumber", ""),
+        "insuranceNumber": payload.get("insuranceNumber", ""),
+        "accountHolder": payload.get("accountHolder", ""),
+        "bankName": payload.get("bankName", ""),
+        "accountNumber": payload.get("accountNumber", ""),
+        "ifsc": payload.get("ifsc", ""),
+        "preferredCity": payload.get("preferredCity", city),
+        "preferredArea": payload.get("preferredArea", ""),
+        "shift": payload.get("shift", "full_time"),
+        "employmentType": payload.get("employmentType", "contract"),
+        "status": "pending",
+        "isVerified": False,
+        "isOnline": False,
+        "rating": 5.0,
+        "totalDeliveries": 0,
+        "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await database.insert("rider_profiles", profile_data)
+    await database.insert(
+        "rider_wallets",
+        {
+            "_id": rider_id,
+            "riderId": rider_id,
+            "balance": 0.0,
+            "todayEarned": 0.0,
+            "thisWeekEarned": 0.0,
+            "cashInHand": 0.0,
+            "lifetimeEarned": 0.0,
+        },
+    )
+    return {
+        "ok": True,
+        "riderId": rider_id,
+        "phone": phone,
+        "fullName": full_name,
+        "isVerified": False,
+        "isOnboarded": True,
+    }
 
 
 

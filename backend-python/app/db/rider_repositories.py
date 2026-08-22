@@ -80,6 +80,14 @@ class RiderProfileRepository:
             if candidate and await self.get(candidate) is not None:
                 rider_id = candidate
         if not rider_id:
+            profile = await database.find_one(PROFILES, {"userId": getattr(user, "id", "")})
+            if profile:
+                rider_id = profile.get("_id")
+        if not rider_id:
+            linked = getattr(user, "linked_id", None)
+            if linked and await self.get(linked) is not None:
+                rider_id = linked
+        if not rider_id:
             raise RiderAccessError("Your account is not linked to a rider profile yet")
         if await self.get(rider_id) is None:
             raise RiderAccessError("The rider profile linked to your account no longer exists")

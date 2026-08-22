@@ -109,107 +109,111 @@ function ServiceListingScreen() {
   );
 
   return (
-    <div className="relative min-h-screen bg-background pb-32">
-      <header className="sticky top-0 z-30 bg-background/92 px-5 py-3 backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            aria-label="Go back"
-            onClick={() => navigate({ to: "/home" })}
-            className="ripple flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border text-foreground transition-all duration-300 active:scale-[0.94]"
-          >
-            <ArrowLeft className="size-4" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-foreground">
-              {data?.service.title ?? "Laundry partners"}
-            </h1>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {data ? `Starting at ₹${data.service.startingPrice}` : "Loading nearby stores…"}
-            </p>
-          </div>
-        </div>
-      </header>
+    <main className="relative min-h-screen overflow-x-hidden bg-background pb-32">
+      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
 
-      <div className="px-5">
-        {offline ? (
-          <div className="mb-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-[11px] text-muted-foreground">
-            <WifiOff className="size-3.5 shrink-0" />
-            You&apos;re offline — showing the last saved partner list.
+      <div className="relative mx-auto w-full max-w-md">
+        <header className="sticky top-0 z-30 mx-auto w-full max-w-md">
+          <div className="glass-panel flex items-center gap-2 px-4 py-3">
+            <button
+              type="button"
+              aria-label="Go back"
+              onClick={() => navigate({ to: "/home" })}
+              className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
+            >
+              <ArrowLeft className="size-5" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight text-foreground">
+                {data?.service.title ?? "Laundry partners"}
+              </h1>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {data ? `Starting at ₹${data.service.startingPrice}` : "Loading nearby stores…"}
+              </p>
+            </div>
           </div>
-        ) : null}
+        </header>
 
-        {!data && !error ? (
-          <ServiceListingSkeleton />
-        ) : error ? (
-          <EmptyState
-            icon={Store}
-            title="Couldn't load partners"
-            description={error}
-            actionLabel="Try again"
-            onAction={() => void load()}
-          />
-        ) : data ? (
-          <>
-            <section className="card-soft animate-pop overflow-hidden border border-border">
-              <div className="flex gap-3 p-3.5">
-                <img
-                  src={data.service.image}
-                  alt={data.service.title}
-                  width={320}
-                  height={320}
-                  className="size-20 shrink-0 rounded-2xl object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-foreground">{data.service.title}</p>
-                  <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
-                    {data.service.description}
-                  </p>
+        <div className="px-5">
+          {offline ? (
+            <div className="mb-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-[11px] text-muted-foreground">
+              <WifiOff className="size-3.5 shrink-0" />
+              You&apos;re offline — showing the last saved partner list.
+            </div>
+          ) : null}
+
+          {!data && !error ? (
+            <ServiceListingSkeleton />
+          ) : error ? (
+            <EmptyState
+              icon={Store}
+              title="Couldn't load partners"
+              description={error}
+              actionLabel="Try again"
+              onAction={() => void load()}
+            />
+          ) : data ? (
+            <>
+              <section className="card-soft animate-pop overflow-hidden border border-border">
+                <div className="flex gap-3 p-3.5">
+                  <img
+                    src={data.service.image || "/placeholder.svg"}
+                    alt={data.service.title}
+                    width={320}
+                    height={320}
+                    className="size-20 shrink-0 rounded-2xl object-cover bg-muted"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">{data.service.title}</p>
+                    <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
+                      {data.service.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <label className="mt-4 flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-3.5">
-              <Search className="size-4 shrink-0 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search stores, services or city"
-                className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </label>
+              <label className="mt-4 flex h-11 items-center gap-2 rounded-2xl border border-border bg-card px-3.5">
+                <Search className="size-4 shrink-0 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search stores, services or city"
+                  className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </label>
 
-            <ServiceFilters filters={filters} onChange={setFilters} resultCount={partners.length} />
+              <ServiceFilters filters={filters} onChange={setFilters} resultCount={partners.length} />
 
-            {refreshing ? (
-              <p className="pb-2 text-[11px] text-muted-foreground">Updating results…</p>
-            ) : null}
+              {refreshing ? (
+                <p className="pb-2 text-[11px] text-muted-foreground">Updating results…</p>
+              ) : null}
 
-            {partners.length === 0 ? (
-              <EmptyState
-                icon={Store}
-                title="No partners match these filters"
-                description="Try clearing a filter or widening the distance to see more nearby stores."
-                actionLabel="Clear filters"
-                onAction={() => {
-                  setFilters({ ...DEFAULT_LISTING_FILTERS });
-                  setQuery("");
-                }}
-              />
-            ) : (
-              <div className="stagger-children space-y-4 pb-4">
-                {partners.map((partner) => (
-                  <PartnerCard key={partner.id} partner={partner} onOpen={openPartner} />
-                ))}
-              </div>
-            )}
-          </>
-        ) : null}
+              {partners.length === 0 ? (
+                <EmptyState
+                  icon={Store}
+                  title="No partners match these filters"
+                  description="Try clearing a filter or widening the distance to see more nearby stores."
+                  actionLabel="Clear filters"
+                  onAction={() => {
+                    setFilters({ ...DEFAULT_LISTING_FILTERS });
+                    setQuery("");
+                  }}
+                />
+              ) : (
+                <div className="stagger-children space-y-4 pb-4">
+                  {partners.map((partner) => (
+                    <PartnerCard key={partner.id} partner={partner} onOpen={openPartner} />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
       </div>
 
       <FloatingCartBar />
-    </div>
+    </main>
   );
 }

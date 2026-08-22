@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { refreshCart, type CartLine } from "@/api/customer/cart-store";
 
 import { useCart } from "@/hooks/useCart";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 import { CartSkeleton } from "@/components/cart/CartSkeleton";
 import { Textarea } from "@/shared/ui/textarea";
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartScreen() {
+  const { isAuthenticated, isLoading } = useAuthGuard();
   const navigate = useNavigate();
   const cart = useCart();
   const [data, setData] = useState<CartData | null>(getCartState().data);

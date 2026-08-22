@@ -20,6 +20,7 @@ import {
 } from "@/api/customer/settings-api";
 import { isOnline, onNetworkChange } from "@/api/customer/api/network";
 import { setThemeLocally } from "@/lib/theme";
+import { setLanguageLocally } from "@/lib/i18n";
 
 export type SettingsState = {
   settings: CustomerSettings;
@@ -34,7 +35,7 @@ export type SettingsState = {
 };
 
 export function useAppSettings(): SettingsState {
-  const [settings, setSettings] = useState<CustomerSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<CustomerSettings>(readCachedSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,15 +52,16 @@ export function useAppSettings(): SettingsState {
   const load = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
-    // Paint the cached copy first — the sheet never opens empty.
     const cached = readCachedSettings();
     setSettings(cached);
     setThemeLocally(cached.theme);
+    setLanguageLocally(cached.language);
     try {
       const fresh = await fetchSettings({ forceRefresh });
       if (!mounted.current) return;
       setSettings(fresh);
       setThemeLocally(fresh.theme);
+      setLanguageLocally(fresh.language);
     } catch {
       if (!mounted.current) return;
       setError("Couldn't load your settings");
@@ -83,9 +85,21 @@ export function useAppSettings(): SettingsState {
   const persist = useCallback(
     async (patch: Partial<CustomerSettings>) => {
       const previous = settings;
-      const optimistic = { ...settings, ...patch } as CustomerSettings;
+      const optimistic = {
+        ...settings,
+        ...patch,
+        notifications: patch.notifications
+          ? { ...settings.notifications, ...patch.notifications }
+          : settings.notifications,
+        privacy: patch.privacy
+          ? { ...settings.privacy, ...patch.privacy }
+          : settings.privacy,
+      } as CustomerSettings;
+
       setSettings(optimistic);
       if (patch.theme) setThemeLocally(patch.theme);
+      if (patch.language) setLanguageLocally(patch.language);
+
       setSaving(true);
       setError(null);
       try {
@@ -93,11 +107,12 @@ export function useAppSettings(): SettingsState {
         if (!mounted.current) return;
         setSettings(saved);
         setThemeLocally(saved.theme);
+        setLanguageLocally(saved.language);
       } catch {
         if (!mounted.current) return;
-        // Roll back so the switch never lies about what was stored.
         setSettings(previous);
         setThemeLocally(previous.theme);
+        setLanguageLocally(previous.language);
         setError(isOnline() ? "Couldn't save your changes" : "You're offline — changes not saved");
         throw new Error("settings-save-failed");
       } finally {
@@ -117,6 +132,11 @@ export function useAppSettings(): SettingsState {
     setTheme: (mode) => persist({ theme: mode }),
     setLanguage: (language) => persist({ language }),
     toggleNotification: (key) =>
-      persist({ notifications: { ...settings.notifications, [key]: !settings.notifications[key] } }),
+      persist({
+        notifications: {
+          ...settings.notifications,
+          [key]: !settings.notifications[key],
+        },
+      }),
   };
 }

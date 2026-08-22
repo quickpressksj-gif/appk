@@ -36,6 +36,7 @@ import {
   type AddressType,
   type SavedAddress,
 } from "@/api/customer/addresses-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/addresses")({
   head: () => ({
@@ -82,6 +83,7 @@ const FIELDS: { key: AddressTextField; label: string; placeholder: string; half?
 ];
 
 function AddressesScreen() {
+  useAuthGuard();
   const [addresses, setAddresses] = useState<SavedAddress[] | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -157,8 +159,13 @@ function AddressesScreen() {
       }
       setSheetOpen(false);
       setErrors({});
-    } catch {
-      toast.error("Couldn't save this address. Please try again.");
+      await load();
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Couldn't save this address. Please try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -186,6 +193,7 @@ function AddressesScreen() {
     );
     try {
       await setDefaultAddress(id);
+      await load();
       toast.success("Default address updated");
     } catch {
       setAddresses(previous);
@@ -198,19 +206,18 @@ function AddressesScreen() {
   const handleCurrentLocation = async () => {
     setLocating(true);
     try {
-      // Real device GPS + reverse geocoding. Never fills fake coordinates, and
-      // never touches the saved default address.
+      // Real device GPS + reverse geocoding
       const detected = await detectCurrentLocation();
       setEditingId(null);
       setForm({ ...EMPTY_ADDRESS, ...detected });
-      setSheetOpen(true);
+      setMapOpen(true);
       toast.success("Location detected");
     } catch (cause) {
-      toast.error(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : "Couldn't detect your location",
-      );
+      setEditingId(null);
+      setMapOpen(true);
+      if (cause instanceof Error && cause.message) {
+        toast.info(cause.message);
+      }
     } finally {
       setLocating(false);
     }
@@ -404,14 +411,14 @@ function AddressesScreen() {
 
       {/* Add / edit address sheet — POST /api/addresses, PUT /api/addresses/{id} */}
       {sheetOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
             onClick={() => setSheetOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/45 backdrop-blur-sm"
+            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
-          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
+          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-10 pt-4 shadow-soft">
             <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
             <div className="mt-4 flex items-center justify-between">
               <h2 className="text-base font-bold tracking-tight text-foreground">
@@ -439,11 +446,25 @@ function AddressesScreen() {
                   <input
                     value={form[field.key]}
                     placeholder={field.placeholder}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, [field.key]: event.target.value }))
-                    }
-                    className="mt-1.5 h-12 w-full rounded-2xl border border-border bg-background px-4 text-sm font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-muted-foreground/70 focus:border-primary"
+                    onChange={(event) => {
+                      setForm((prev) => ({ ...prev, [field.key]: event.target.value }));
+                      if (errors[field.key]) {
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[field.key];
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`mt-1.5 h-12 w-full rounded-2xl border ${
+                      errors[field.key] ? "border-destructive ring-1 ring-destructive" : "border-border"
+                    } bg-background px-4 text-sm font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-muted-foreground/70 focus:border-primary`}
                   />
+                  {errors[field.key] ? (
+                    <span className="mt-1 block text-[11px] font-semibold text-destructive">
+                      {errors[field.key]}
+                    </span>
+                  ) : null}
                 </label>
               ))}
             </div>
@@ -502,15 +523,17 @@ function AddressesScreen() {
               </div>
             </div>
 
-            <button
-              type="button"
-              disabled={saving || !canSave}
-              onClick={() => void handleSave()}
-              className="ripple mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save Address
-            </button>
+            <div className="sticky bottom-0 -mx-5 -mb-10 mt-6 bg-card/95 px-5 pb-8 pt-3 backdrop-blur-md">
+              <button
+                type="button"
+                disabled={saving || !canSave}
+                onClick={() => void handleSave()}
+                className="ripple flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save Address
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

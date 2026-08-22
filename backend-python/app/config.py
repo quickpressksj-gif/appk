@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # --- OTP ------------------------------------------------------------
     otp_ttl_seconds: int = 60
-    otp_max_sends_per_hour: int = 5
+    otp_max_sends_per_hour: int = 50
 
     # --- Razorpay (Phase 5 · Sprint 5.6) ---------------------------------
     # Both the key id and the secret come from the environment. Nothing is

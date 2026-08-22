@@ -32,12 +32,16 @@ partner profile — so the partner-frontend preview is never blank.
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import current_user
+from app.db.client import database
 from app.db.notification_repositories import notification_repository
+from app.db.repositories import users
 from app.db.partner_repositories import (
     InvalidTransitionError,
     PartnerAccessError,
@@ -370,18 +374,98 @@ async def notifications(user: User = Depends(current_user)) -> List[PartnerNotif
 
 @router.post("/onboarding", response_model=OnboardingResponse)
 async def onboarding(payload: OnboardingPayload, user: User = Depends(current_user)) -> OnboardingResponse:
-    partner_id = await partner_repository.resolve_partner_id(user)
+    account = await database.find_one("partners", {"user_id": user.id}) or {}
+    partner_id = (
+        account.get("partner_id")
+        or account.get("partnerId")
+        or getattr(user, "linked_partner_id", None)
+    )
+    if not partner_id:
+        partner_id = f"PRT-{uuid.uuid4().hex[:8].upper()}"
+        await database.update(
+            "partners", {"user_id": user.id}, {"partner_id": partner_id, "user_id": user.id}, upsert=True
+        )
+
+    store_id_str = str(partner_id)
     changes = {
+        "_id": store_id_str,
+        "partnerId": store_id_str,
+        "userId": user.id,
         "businessName": payload.businessName,
         "ownerName": payload.ownerName,
+        "category": payload.category,
+        "gstin": payload.gstin,
+        "address": payload.address,
         "city": payload.city,
+        "pincode": payload.pincode,
+        "openingTime": payload.openingTime,
+        "closingTime": payload.closingTime,
+        "status": "active",
+        "isVerified": True,
     }
-    try:
-        await partner_repository.update_profile(partner_id, changes)
-    except PartnerNotFoundError:
-        pass
+    existing_profile = await database.find_one("partner_profiles", {"_id": store_id_str})
+    if existing_profile is None:
+        await database.insert(
+            "partner_profiles",
+            {
+                **changes,
+                "rating": 5.0,
+                "totalOrders": 0,
+                "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
+                "onTimeRate": 98.5,
+                "tier": "Silver",
+                "isOnline": True,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    else:
+        await partner_repository.update_profile(store_id_str, changes)
+
+    # Initialize partner store settings
+    await database.update(
+        "partner_settings",
+        {"_id": store_id_str},
+        {
+            "_id": store_id_str,
+            "partnerId": store_id_str,
+            "isStoreOpen": True,
+            "acceptingNewOrders": True,
+            "autoAcceptOrders": True,
+            "expressDelivery": True,
+            "pickupRadiusKm": 10,
+            "openingTime": payload.openingTime or "08:00",
+            "closingTime": payload.closingTime or "21:00",
+            "weeklyOff": "None",
+            "dailyOrderCap": 50,
+        },
+        upsert=True,
+    )
+
+    # Ensure partner has initial rate-card services
+    existing_services = await database.find_many("partner_services", {"partnerId": store_id_str})
+    if not existing_services:
+        sample_services = [
+            {"_id": f"svc-{store_id_str[:8]}-1", "partnerId": store_id_str, "name": "Wash & Fold", "category": "laundry", "price": 79, "unit": "kg", "turnaroundHours": 24, "isActive": True, "description": "Daily wear clothes washed, dried and neatly folded."},
+            {"_id": f"svc-{store_id_str[:8]}-2", "partnerId": store_id_str, "name": "Steam Press", "category": "iron", "price": 19, "unit": "pc", "turnaroundHours": 12, "isActive": True, "description": "Crisp wrinkle-free finish with temperature-controlled steam."},
+            {"_id": f"svc-{store_id_str[:8]}-3", "partnerId": store_id_str, "name": "Wash & Iron", "category": "laundry", "price": 99, "unit": "kg", "turnaroundHours": 24, "isActive": True, "description": "Complete wash, fabric conditioner and steam press."},
+            {"_id": f"svc-{store_id_str[:8]}-4", "partnerId": store_id_str, "name": "Dry Cleaning", "category": "dryclean", "price": 149, "unit": "pc", "turnaroundHours": 48, "isActive": True, "description": "Specialized eco-friendly dry clean for suits, blazers and silks."},
+        ]
+        for doc in sample_services:
+            await database.insert("partner_services", doc)
+
+    await users.update(
+        user.id,
+        {
+            "is_onboarded": True,
+            "is_verified": True,
+            "status": "active",
+            "display_name": payload.ownerName or payload.businessName,
+            "city": payload.city,
+        },
+    )
     return OnboardingResponse(
-        partnerId=partner_id,
+        partnerId=store_id_str,
         phone=user.phone or "",
         businessName=payload.businessName,
         isVerified=True,

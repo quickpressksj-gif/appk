@@ -14,7 +14,7 @@ screens render identically from the mock router and from FastAPI.
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -118,11 +118,25 @@ class PrivacyPreferences(BaseModel):
 
 
 class SettingsResponse(BaseModel):
-    theme: Theme = "system"
+    theme: Theme = "light"
     language: str = "en-IN"
     notifications: NotificationPreferences = NotificationPreferences()
     privacy: PrivacyPreferences = PrivacyPreferences()
     updatedAt: Optional[str] = None
+
+    @field_validator("theme", mode="before")
+    @classmethod
+    def _validate_theme(cls, value: Any) -> str:
+        if value in {"light", "dark", "system"}:
+            return str(value)
+        return "light"
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _validate_lang(cls, value: Any) -> str:
+        if value in {"en-IN", "en", "hi-IN", "hi"}:
+            return str(value)
+        return "en-IN"
 
 
 class SettingsUpdatePayload(BaseModel):
@@ -130,3 +144,21 @@ class SettingsUpdatePayload(BaseModel):
     language: Optional[str] = None
     notifications: Optional[NotificationPreferences] = None
     privacy: Optional[PrivacyPreferences] = None
+
+    @field_validator("theme")
+    @classmethod
+    def _validate_update_theme(cls, value: Optional[Theme]) -> Optional[Theme]:
+        if value is None:
+            return None
+        if value not in {"light", "dark", "system"}:
+            return "light"
+        return value
+
+    @field_validator("language")
+    @classmethod
+    def _validate_update_lang(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        if value not in {"en-IN", "en", "hi-IN", "hi"}:
+            return "en-IN"
+        return value

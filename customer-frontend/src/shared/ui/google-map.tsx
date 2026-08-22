@@ -32,6 +32,8 @@ export type GoogleMapViewProps = {
   interactive?: boolean | undefined;
   /** Fires when the user taps the map (address picker / shop location). */
   onPick?: ((point: { latitude: number; longitude: number }) => void) | undefined;
+  /** Fires when map center moves / is dragged */
+  onCenterChange?: ((point: { latitude: number; longitude: number }) => void) | undefined;
   fallback?: ReactNode | undefined;
 };
 
@@ -48,22 +50,27 @@ export function GoogleMapView({
   markers = [],
   path,
   radiusKm,
-  zoom = 14,
+  zoom = 15,
   className = "h-64",
   interactive = true,
   onPick,
+  onCenterChange,
   fallback = null,
 }: GoogleMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
+  const isDraggingRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(!isGoogleMapsConfigured());
 
   // Load the SDK and create the map once.
   useEffect(() => {
     let active = true;
-    if (!isGoogleMapsConfigured()) return;
+    if (!isGoogleMapsConfigured()) {
+      setFailed(true);
+      return;
+    }
 
     void loadGoogleMaps().then((ok) => {
       if (!active) return;
@@ -86,6 +93,7 @@ export function GoogleMapView({
         streetViewControl: false,
         mapTypeControl: false,
         fullscreenControl: false,
+        zoomControl: false,
       });
       setReady(true);
     });
@@ -96,16 +104,48 @@ export function GoogleMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the click handler in sync.
+  // Pan to new center when center prop updates
+  useEffect(() => {
+    if (!ready || !mapRef.current || !center) return;
+    const currentCenter = mapRef.current.getCenter();
+    if (!currentCenter) return;
+    const latDiff = Math.abs(currentCenter.lat() - center.latitude);
+    const lngDiff = Math.abs(currentCenter.lng() - center.longitude);
+    if (latDiff > 0.0001 || lngDiff > 0.0001) {
+      mapRef.current.panTo({ lat: center.latitude, lng: center.longitude });
+    }
+  }, [ready, center?.latitude, center?.longitude]);
+
+  // Keep click and center change listeners in sync
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const google = (window as any).google;
-    const listener = mapRef.current.addListener("click", (event: any) => {
+    const map = mapRef.current;
+
+    const clickListener = map.addListener("click", (event: any) => {
       if (!onPick || !event?.latLng) return;
       onPick({ latitude: event.latLng.lat(), longitude: event.latLng.lng() });
     });
-    return () => google?.maps?.event?.removeListener?.(listener);
-  }, [ready, onPick]);
+
+    const dragStartListener = map.addListener("dragstart", () => {
+      isDraggingRef.current = true;
+    });
+
+    const idleListener = map.addListener("idle", () => {
+      if (!onCenterChange || !isDraggingRef.current) return;
+      const c = map.getCenter();
+      if (c) {
+        onCenterChange({ latitude: c.lat(), longitude: c.lng() });
+      }
+      isDraggingRef.current = false;
+    });
+
+    return () => {
+      google?.maps?.event?.removeListener?.(clickListener);
+      google?.maps?.event?.removeListener?.(dragStartListener);
+      google?.maps?.event?.removeListener?.(idleListener);
+    };
+  }, [ready, onPick, onCenterChange]);
 
   // Redraw markers, polyline and radius whenever inputs change.
   useEffect(() => {
@@ -171,18 +211,21 @@ export function GoogleMapView({
       bounded = true;
     }
 
-    if (center) map.setCenter({ lat: center.latitude, lng: center.longitude });
     if (bounded && (markers.length > 1 || (path?.length ?? 0) > 1 || radiusKm)) {
       map.fitBounds(bounds, 48);
     }
-  }, [ready, markers, path, radiusKm, center]);
+  }, [ready, markers, path, radiusKm]);
 
   if (failed) return <>{fallback}</>;
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-3xl bg-muted ${className}`}>
+    <div className={`relative w-full overflow-hidden ${className}`}>
       <div ref={container} className="absolute inset-0 size-full" />
-      {!ready ? <div className="absolute inset-0 animate-pulse bg-muted" /> : null}
+      {!ready ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/60 animate-pulse">
+          <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      ) : null}
     </div>
   );
 }

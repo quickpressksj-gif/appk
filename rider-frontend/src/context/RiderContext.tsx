@@ -30,11 +30,32 @@ type RiderContextValue = {
 
 const RiderContext = createContext<RiderContextValue | null>(null);
 
+const PENDING_PHONE_KEY = "qp.rider.pendingPhone";
+
 export function RiderProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<RiderSession | null>(null);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhoneState] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return (
+      window.sessionStorage.getItem(PENDING_PHONE_KEY) ||
+      window.localStorage.getItem(PENDING_PHONE_KEY) ||
+      ""
+    );
+  });
   const [isOnline, setOnline] = useState(true);
   const [hydrating, setHydrating] = useState(true);
+
+  const setPhone = useCallback((value: string) => {
+    setPhoneState(value);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(PENDING_PHONE_KEY, value);
+        window.localStorage.setItem(PENDING_PHONE_KEY, value);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
 
   // Auto login: stored QuickPress JWT + live Firebase user → signed in.
   useEffect(() => {

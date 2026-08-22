@@ -29,6 +29,7 @@ import {
   type ScratchCard as ScratchCardData,
   type SpecialOffer,
 } from "@/api/customer/offers-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/offers")({
   head: () => ({
@@ -66,6 +67,7 @@ const OFFER_ICON: Record<SpecialOffer["kind"], typeof Gift> = {
 };
 
 function OffersScreen() {
+  useAuthGuard();
   const navigate = useNavigate();
   const [banners, setBanners] = useState<OfferBanner[] | null>(null);
   const [specialOffers, setSpecialOffers] = useState<SpecialOffer[]>([]);

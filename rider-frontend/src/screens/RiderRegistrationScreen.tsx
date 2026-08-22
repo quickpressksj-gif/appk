@@ -14,10 +14,11 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
+import { submitRiderRegistration } from "@/api/rider/rider-auth-api";
 
 import {
   ChoiceChips,
@@ -109,13 +110,22 @@ function validateStep(step: number, form: RiderOnboardingForm): Errors {
 
 export function RiderRegistrationScreen() {
   const navigate = useNavigate();
-  const { phone } = useRiderContext();
+  const { phone, signIn } = useRiderContext();
 
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState<RiderOnboardingForm>({ ...emptyRiderForm, mobile: phone });
+  const [form, setForm] = useState<RiderOnboardingForm>(() => ({
+    ...emptyRiderForm,
+    mobile: phone || (typeof window !== "undefined" ? window.sessionStorage.getItem("qp.rider.pendingPhone") || window.localStorage.getItem("qp.rider.pendingPhone") || "" : ""),
+  }));
   const [uploads, setUploads] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (phone && !form.mobile) {
+      setForm((prev) => ({ ...prev, mobile: phone }));
+    }
+  }, [phone, form.mobile]);
 
   const set = <K extends keyof RiderOnboardingForm>(key: K, value: RiderOnboardingForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -147,14 +157,13 @@ export function RiderRegistrationScreen() {
 
   const goBack = () => {
     if (step === 1) {
-      navigate({ to: riderRoutes.otp });
       return;
     }
     setStep(step - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     for (let i = 1; i <= 7; i += 1) {
       const stepErrors = validateStep(i, form);
       if (Object.keys(stepErrors).length) {
@@ -165,11 +174,16 @@ export function RiderRegistrationScreen() {
       }
     }
     setBusy(true);
-    // UI-only sprint — submission connects to the rider onboarding API later.
-    setTimeout(() => {
-      setBusy(false);
+    try {
+      const updatedSession = await submitRiderRegistration(form);
+      signIn(updatedSession);
+      toast.success("Rider registration submitted successfully!");
       navigate({ to: riderRoutes.registrationSubmitted });
-    }, 900);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Registration failed. Please check your details and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const jumpTo = (target: number) => {
@@ -187,6 +201,7 @@ export function RiderRegistrationScreen() {
         <RiderTopBar
           title="Rider Registration"
           subtitle={`Step ${step} of ${ONBOARDING_STEPS.length} · Onboarding`}
+          showBack={step > 1}
           onBack={goBack}
         />
 

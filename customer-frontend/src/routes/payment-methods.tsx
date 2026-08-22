@@ -30,6 +30,7 @@ import {
   type PaymentMethod,
   type PaymentProvider,
 } from "@/api/customer/payments-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/payment-methods")({
   head: () => ({
@@ -65,6 +66,7 @@ const KIND_META: Record<PaymentKind, { icon: typeof CreditCard; tone: string }> 
 const KINDS = Object.keys(PAYMENT_KIND_LABEL) as PaymentKind[];
 
 function PaymentMethodsScreen() {
+  useAuthGuard();
   const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
   const [providers, setProviders] = useState<PaymentProvider[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -239,21 +241,25 @@ function PaymentMethodsScreen() {
                           type="button"
                           disabled={busyId === method.id || method.isDefault}
                           onClick={() => void handleDefault(method.id)}
-                          className="ripple flex h-9 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary/15 text-[0.72rem] font-bold text-brand-dark transition-all duration-300 active:scale-[0.96] disabled:opacity-45"
+                          className={`ripple flex h-9 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[0.72rem] font-bold transition-all duration-300 active:scale-[0.96] disabled:opacity-50 ${
+                            method.isDefault
+                              ? "bg-secondary/15 text-brand-green"
+                              : "bg-primary/20 text-foreground hover:bg-primary/30"
+                          }`}
                         >
                           {busyId === method.id ? (
                             <Loader2 className="size-3.5 animate-spin" />
                           ) : (
                             <Star className="size-3.5" />
                           )}
-                          Default
+                          {method.isDefault ? "Default" : "Set Default"}
                         </button>
                         <button
                           type="button"
                           aria-label={`Delete ${method.name}`}
                           disabled={busyId === method.id}
                           onClick={() => void handleRemove(method.id)}
-                          className="ripple flex size-9 shrink-0 items-center justify-center rounded-2xl bg-destructive/10 text-destructive transition-all duration-300 active:scale-[0.94] disabled:opacity-45"
+                          className="ripple flex size-9 shrink-0 items-center justify-center rounded-2xl bg-destructive/10 text-destructive transition-all duration-300 hover:bg-destructive/20 active:scale-[0.94] disabled:opacity-45"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -272,7 +278,8 @@ function PaymentMethodsScreen() {
                   <button
                     key={provider.id}
                     type="button"
-                    onClick={() => handleLinkProvider(provider.name)} className="card-soft ripple flex items-center gap-3 border border-border p-4 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.96]"
+                    onClick={() => handleLinkProvider(provider.name)}
+                    className="card-soft ripple flex items-center gap-3 border border-border p-4 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.96]"
                   >
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-dark text-[0.7rem] font-black text-primary">
                       {provider.initials}
@@ -316,14 +323,14 @@ function PaymentMethodsScreen() {
 
       {/* Add / edit payment sheet — POST /api/payment-methods */}
       {sheetOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <button
             type="button"
             aria-label="Close"
             onClick={() => setSheetOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/45 backdrop-blur-sm"
+            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
-          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
+          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-10 pt-4 shadow-soft">
             <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
             <div className="mt-4 flex items-center justify-between">
               <h2 className="text-base font-bold tracking-tight text-foreground">
@@ -395,15 +402,17 @@ function PaymentMethodsScreen() {
               Encrypted and tokenised · never stored in plain text
             </p>
 
-            <button
-              type="button"
-              disabled={saving || !name.trim() || !masked.trim()}
-              onClick={() => void handleSave()}
-              className="ripple mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save Payment Method
-            </button>
+            <div className="sticky bottom-0 -mx-5 -mb-10 mt-6 bg-card/95 px-5 pb-8 pt-3 backdrop-blur-md">
+              <button
+                type="button"
+                disabled={saving || !name.trim() || !masked.trim()}
+                onClick={() => void handleSave()}
+                className="ripple flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save Payment Method
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

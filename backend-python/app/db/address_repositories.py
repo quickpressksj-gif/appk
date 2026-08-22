@@ -53,9 +53,12 @@ def to_response(document: Dict[str, Any]) -> AddressResponse:
         contactName=document.get("contactName", ""),
         phone=document.get("phone", ""),
         isDefault=bool(document.get("isDefault")),
+        latitude=document.get("latitude"),
+        longitude=document.get("longitude"),
         line=_line(document),
         cityLine=_city_line(document),
     )
+
 
 
 def validate(payload: AddressPayload) -> None:
@@ -141,10 +144,11 @@ class AddressRepository:
 
     async def delete(self, user_id: str, address_id: str) -> bool:
         """Remove an address; the oldest survivor inherits the default flag."""
-        removed = await database.collection(COLLECTION).delete_many(
+        res = await database.collection(COLLECTION).delete_many(
             {"_id": address_id, "userId": user_id}
         )
-        if not removed:
+        count = res if isinstance(res, int) else (getattr(res, "deleted_count", 0) if res is not None else 0)
+        if not count:
             return False
         remaining = await self.list(user_id)
         if remaining and not any(a.isDefault for a in remaining):

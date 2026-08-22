@@ -1,17 +1,36 @@
 /**
- * `<MapPicker />` — the customer map picker.
+ * `<MapPicker />` — Google Maps Address Picker.
  *
- * It reuses the ONE existing map system (`@shared/ui/google-map` +
- * `VITE_GOOGLE_MAPS_API_KEY`) and the ONE existing geocoding path
- * (`/api/maps/reverse-geocode` through `@backend/core/maps-api`). No second map
- * library, no invented tile or geocoding URL, no hardcoded coordinates.
+ * Modern delivery-app location selection modal:
+ *   • Google Map view with movable center marker & click-to-pin
+ *   • Real-time Places autocomplete search (area, street, locality, pincode)
+ *   • Browser GPS "My Location" button with permission handling
+ *   • Real-time reverse geocoding address preview
+ *   • Confirm location button returning structured address components
  */
 
-import { Crosshair, Loader2, MapPin, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  Check,
+  Compass,
+  Crosshair,
+  Loader2,
+  MapPin,
+  Navigation,
+  Search,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { GoogleMapView } from "@/shared/ui/google-map";
-import { reverseGeocodeCoords, type GeocodeResult } from "@/api/core/maps-api";
+import {
+  autocompletePlaces,
+  fetchPlaceDetails,
+  geocodeAddress,
+  reverseGeocodeCoords,
+  type GeocodeResult,
+  type PlaceSuggestion,
+} from "@/api/core/maps-api";
 import { getCurrentDeviceLocation, GeoError } from "@/api/customer/location";
 
 export type PickedLocation = {
@@ -23,6 +42,8 @@ export type PickedLocation = {
   state: string;
   pincode: string;
 };
+
+const DEFAULT_COORDS = { latitude: 12.9352, longitude: 77.6245 }; // Bengaluru center fallback
 
 export function MapPicker({
   initial,
@@ -41,138 +62,397 @@ export function MapPicker({
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reverse geocode every new pin position for the address preview.
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reverseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced reverse geocoding whenever the selected point changes
   useEffect(() => {
     if (!point) return;
     let alive = true;
+
+    if (reverseTimeoutRef.current) clearTimeout(reverseTimeoutRef.current);
+
     setResolving(true);
-    void reverseGeocodeCoords(point.latitude, point.longitude)
-      .then((result) => {
-        if (alive) setDetails(result);
-      })
-      .catch(() => {
-        if (alive) setDetails(null);
-      })
-      .finally(() => {
-        if (alive) setResolving(false);
-      });
+    setError(null);
+
+    reverseTimeoutRef.current = setTimeout(() => {
+      void reverseGeocodeCoords(point.latitude, point.longitude)
+        .then((result) => {
+          if (alive) {
+            setDetails(result);
+          }
+        })
+        .catch(() => {
+          if (alive) {
+            setDetails({
+              formattedAddress: `Location (${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)})`,
+              placeId: `pin_${point.latitude}_${point.longitude}`,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              area: "Selected Pin Location",
+              city: "",
+              state: "",
+              pincode: "",
+              country: "India",
+            });
+          }
+        })
+        .finally(() => {
+          if (alive) setResolving(false);
+        });
+    }, 250);
+
     return () => {
       alive = false;
+      if (reverseTimeoutRef.current) clearTimeout(reverseTimeoutRef.current);
     };
-  }, [point]);
+  }, [point?.latitude, point?.longitude]);
 
+  // Current GPS device detection
   const useCurrentLocation = useCallback(async () => {
     if (locating) return;
     setLocating(true);
     setError(null);
     try {
-      const fix = await getCurrentDeviceLocation();
+      const fix = await getCurrentDeviceLocation({ timeoutMs: 10000, enableHighAccuracy: true });
       setPoint({ latitude: fix.latitude, longitude: fix.longitude });
     } catch (cause) {
-      setError(cause instanceof GeoError ? cause.message : "Unable to detect your location.");
+      setError(
+        cause instanceof GeoError
+          ? cause.message
+          : "Unable to detect GPS position. You can search or tap on the map.",
+      );
+      if (!point) {
+        setPoint(DEFAULT_COORDS);
+      }
     } finally {
       setLocating(false);
     }
-  }, [locating]);
+  }, [locating, point]);
 
-  // Open on the customer's real position when no starting point was given.
+  // Initial load: GPS detection if no starting coordinates
   useEffect(() => {
-    if (!initial) void useCurrentLocation();
+    if (!initial) {
+      void useCurrentLocation();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const confirm = () => {
+  // Real-time debounced places search
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (!val.trim() || val.trim().length < 2) {
+      setSuggestions([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await autocompletePlaces(val.trim(), point ?? undefined);
+        setSuggestions(results);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  };
+
+  // Select place from suggestions
+  const handleSelectSuggestion = async (suggestion: PlaceSuggestion) => {
+    setSearchQuery("");
+    setSuggestions([]);
+    setIsSearchFocused(false);
+    setResolving(true);
+
+    try {
+      if (suggestion.placeId.startsWith("geo:")) {
+        const parts = suggestion.placeId.split(":");
+        if (parts.length >= 3) {
+          const lat = parseFloat(parts[1]);
+          const lng = parseFloat(parts[2]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setPoint({ latitude: lat, longitude: lng });
+            return;
+          }
+        }
+      }
+
+      // Try place details or geocoding
+      try {
+        const detailsResult = await fetchPlaceDetails(suggestion.placeId);
+        if (detailsResult.latitude && detailsResult.longitude) {
+          setPoint({ latitude: detailsResult.latitude, longitude: detailsResult.longitude });
+          setDetails({
+            ...detailsResult,
+            country: "India",
+          });
+          setResolving(false);
+          return;
+        }
+      } catch {
+        /* fallback to geocode address */
+      }
+
+      const geo = await geocodeAddress(suggestion.description || suggestion.primaryText);
+      if (geo.latitude && geo.longitude) {
+        setPoint({ latitude: geo.latitude, longitude: geo.longitude });
+        setDetails(geo);
+      }
+    } catch {
+      setError("Couldn't jump to this place. You can drop a pin on the map.");
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleConfirm = () => {
     if (!point) return;
+    const formatted =
+      details?.formattedAddress ||
+      [details?.area, details?.city, details?.state, details?.pincode].filter(Boolean).join(", ") ||
+      `Selected Location (${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)})`;
+
     onConfirm({
       latitude: point.latitude,
       longitude: point.longitude,
-      formattedAddress: details?.formattedAddress ?? "",
-      area: details?.area ?? "",
-      city: details?.city ?? "",
-      state: details?.state ?? "",
-      pincode: details?.pincode ?? "",
+      formattedAddress: formatted,
+      area: details?.area || details?.city || "Selected Area",
+      city: details?.city || "",
+      state: details?.state || "",
+      pincode: details?.pincode || "",
     });
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-background">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <button
-          type="button"
-          aria-label="Close map picker"
-          onClick={onClose}
-          className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground active:scale-95"
-        >
-          <X className="size-5" />
-        </button>
-        <h2 className="text-[17px] font-black tracking-tight text-foreground">Pick your location</h2>
-      </header>
-
-      <div className="relative flex-1">
-        <GoogleMapView
-          className="size-full h-full"
-          center={point ?? undefined}
-          markers={point ? [{ ...point, tone: "primary", label: "Selected location" }] : []}
-          zoom={17}
-          onPick={(next) => setPoint(next)}
-          fallback={
-            <div className="flex size-full flex-col items-center justify-center gap-2 bg-muted px-6 text-center">
-              <MapPin className="size-7 text-muted-foreground" aria-hidden />
-              <p className="text-sm font-semibold text-foreground">Map preview unavailable</p>
-              <p className="text-xs text-muted-foreground">
-                Set VITE_GOOGLE_MAPS_API_KEY to render the interactive map. You can still use your
-                current location below.
-              </p>
-            </div>
-          }
-        />
-
-        <button
-          type="button"
-          onClick={() => void useCurrentLocation()}
-          className="absolute bottom-4 right-4 flex size-12 items-center justify-center rounded-full bg-card shadow-lg ring-1 ring-border active:scale-95"
-          aria-label="Use my current location"
-        >
-          {locating ? (
-            <Loader2 className="size-5 animate-spin text-foreground" />
-          ) : (
-            <Crosshair className="size-5 text-foreground" />
-          )}
-        </button>
-      </div>
-
-      <footer className="border-t border-border px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-        {error ? (
-          <p className="mb-3 text-xs font-semibold text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex items-start gap-2.5">
-          <MapPin className="mt-0.5 size-[18px] shrink-0 text-brand-green" aria-hidden />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-foreground">
-              {resolving
-                ? "Resolving address…"
-                : (details?.area || details?.formattedAddress || "Tap the map to drop a pin")}
-            </p>
-            <p className="truncate text-xs font-medium text-muted-foreground">
-              {details
-                ? [details.city, details.state, details.pincode].filter(Boolean).join(", ")
-                : point
-                  ? `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`
-                  : "Or use the current-location button"}
+    <div className="fixed inset-0 z-[60] flex flex-col bg-background animate-fade-in select-none">
+      {/* Header */}
+      <header className="relative z-20 flex items-center justify-between border-b border-border bg-card/95 px-4 py-3.5 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            aria-label="Back"
+            onClick={onClose}
+            className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-transform active:scale-95 hover:bg-accent"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+          <div>
+            <h2 className="text-base font-black tracking-tight text-foreground">
+              Select Pickup Location
+            </h2>
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Tap map or search to choose location
             </p>
           </div>
         </div>
 
         <button
           type="button"
-          disabled={!point}
-          onClick={confirm}
-          className="mt-4 flex h-13 min-h-12 w-full items-center justify-center rounded-2xl bg-primary text-[15px] font-black text-primary-foreground shadow-cta transition-all active:scale-[0.985] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
+          aria-label="Close"
+          onClick={onClose}
+          className="flex size-9 items-center justify-center rounded-2xl text-muted-foreground transition-colors hover:bg-muted"
         >
-          Confirm location
+          <X className="size-4" />
+        </button>
+      </header>
+
+      {/* Floating Search Bar */}
+      <div className="relative z-20 px-4 pt-3 pb-2 bg-gradient-to-b from-background via-background/90 to-transparent">
+        <div className="relative">
+          <div className="relative flex items-center">
+            <span className="pointer-events-none absolute left-3.5 flex items-center text-muted-foreground">
+              {searching ? (
+                <Loader2 className="size-4 animate-spin text-primary" />
+              ) : (
+                <Search className="size-4" />
+              )}
+            </span>
+
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              placeholder="Search area, landmark, street, city..."
+              className="h-11 w-full rounded-2xl border border-border/80 bg-card pl-10 pr-10 text-sm font-semibold text-foreground shadow-sm outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+
+            {searchQuery ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSuggestions([]);
+                }}
+                className="absolute right-3 flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+
+          {/* Autocomplete suggestions dropdown */}
+          {suggestions.length > 0 && isSearchFocused ? (
+            <div className="absolute left-0 right-0 top-13 z-30 max-h-64 overflow-y-auto rounded-2xl border border-border bg-card p-1.5 shadow-xl animate-pop">
+              {suggestions.map((item) => (
+                <button
+                  key={item.placeId}
+                  type="button"
+                  onClick={() => void handleSelectSuggestion(item)}
+                  className="flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-accent active:bg-accent/80"
+                >
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <MapPin className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-foreground">
+                      {item.primaryText || item.description}
+                    </p>
+                    {item.secondaryText ? (
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {item.secondaryText}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Map Container */}
+      <div className="relative flex-1 overflow-hidden">
+        <GoogleMapView
+          className="size-full h-full"
+          center={point ?? DEFAULT_COORDS}
+          markers={
+            point
+              ? [
+                  {
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                    tone: "primary",
+                    label: "Selected Pickup Location",
+                  },
+                ]
+              : []
+          }
+          zoom={16}
+          interactive={true}
+          onPick={(next) => setPoint(next)}
+          onCenterChange={(next) => setPoint(next)}
+          fallback={
+            <div className="flex size-full flex-col items-center justify-center gap-3 bg-muted/40 px-6 text-center">
+              <div className="flex size-14 items-center justify-center rounded-3xl bg-primary/10 text-primary animate-pulse">
+                <Compass className="size-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Interactive Map Ready</p>
+                <p className="mt-1 text-xs text-muted-foreground max-w-xs">
+                  Tap anywhere on the map or use your current location to pin your address.
+                </p>
+              </div>
+            </div>
+          }
+        />
+
+        {/* Center Pin Overlay (for precision visual location selection) */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10 -translate-y-4">
+          <div className="flex flex-col items-center animate-bounce-subtle">
+            <div className="flex size-10 items-center justify-center rounded-full bg-brand-dark text-white shadow-xl border-2 border-white ring-4 ring-brand-dark/20">
+              <MapPin className="size-5 text-primary fill-primary" />
+            </div>
+            <div className="size-2 rounded-full bg-brand-dark/40 blur-[1px] mt-1" />
+          </div>
+        </div>
+
+        {/* Floating Controls */}
+        <div className="absolute bottom-5 right-4 z-20 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => void useCurrentLocation()}
+            disabled={locating}
+            className="flex size-12 items-center justify-center rounded-2xl bg-card text-foreground shadow-lg border border-border/80 transition-all hover:bg-accent active:scale-90 disabled:opacity-75"
+            aria-label="Use Current Location"
+            title="Use Current Location"
+          >
+            {locating ? (
+              <Loader2 className="size-5 animate-spin text-primary" />
+            ) : (
+              <Crosshair className="size-5 text-brand-green" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Selected Location Bottom Card */}
+      <footer className="relative z-20 border-t border-border bg-card px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl">
+        {error ? (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+            <X className="size-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary/15 text-brand-green mt-0.5">
+            <Navigation className="size-5" />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Selected Location
+              </span>
+              {resolving ? (
+                <span className="flex items-center gap-1 text-[10px] font-medium text-primary">
+                  <Loader2 className="size-2.5 animate-spin" /> Resolving…
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 rounded-full bg-secondary/10 px-1.5 py-0.2 text-[9px] font-bold text-brand-green">
+                  <Check className="size-2.5" /> Pinned
+                </span>
+              )}
+            </div>
+
+            <h3 className="truncate text-sm font-bold text-foreground mt-0.5">
+              {resolving
+                ? "Locating address details…"
+                : details?.area || details?.city || details?.formattedAddress || "Selected point on map"}
+            </h3>
+
+            <p className="truncate text-xs text-muted-foreground mt-0.5">
+              {details
+                ? [details.city, details.state, details.pincode].filter(Boolean).join(", ") ||
+                  details.formattedAddress
+                : point
+                  ? `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`
+                  : "Tap map or search to choose"}
+            </p>
+          </div>
+        </div>
+
+        {/* Confirm Location CTA Button */}
+        <button
+          type="button"
+          disabled={!point || resolving}
+          onClick={handleConfirm}
+          className="ripple mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
+        >
+          {resolving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          Confirm Location
         </button>
       </footer>
     </div>

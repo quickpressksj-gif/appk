@@ -29,14 +29,14 @@ const resolvePath = (relative: string) => fileURLToPath(new URL(relative, import
 
 const explicitApp = process.env["QUICKPRESS_APP"];
 const isDevServer = process.argv.includes("dev") || process.argv.includes("serve");
-const APP =
-  explicitApp === "customer" || explicitApp === "partner"
-    ? explicitApp
-    : isDevServer
-      ? "customer"
-      : "partner";
-const APP_SRC_DIR = APP === "customer" ? "customer-frontend/src" : "partner-frontend/src";
+const APP = ["customer", "partner", "rider", "admin"].includes(explicitApp ?? "")
+  ? (explicitApp as "customer" | "partner" | "rider" | "admin")
+  : isDevServer
+    ? "customer"
+    : "partner";
+const APP_SRC_DIR = `${APP}-frontend/src`;
 const PARTNER_SRC = resolvePath(`./${APP_SRC_DIR}/`);
+
 
 
 export default defineConfig({

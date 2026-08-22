@@ -39,7 +39,13 @@ export function RiderAuthScreen() {
   // Auto login: a restored Firebase + JWT session skips the auth screen.
   useEffect(() => {
     if (hydrating || !session) return;
-    navigate({ to: session.isOnboarded ? riderRoutes.dashboard : riderRoutes.registration });
+    if (!session.isOnboarded) {
+      navigate({ to: riderRoutes.registration });
+    } else if (!session.isVerified) {
+      navigate({ to: riderRoutes.registrationSubmitted });
+    } else {
+      navigate({ to: riderRoutes.dashboard });
+    }
   }, [hydrating, session, navigate]);
 
   const handleContinue = async () => {
@@ -75,7 +81,13 @@ export function RiderAuthScreen() {
       const next = await loginWithGoogle();
       signIn(next);
       toast.success("Signed in with Google");
-      navigate({ to: next.isOnboarded ? riderRoutes.dashboard : riderRoutes.registration });
+      if (!next.isOnboarded) {
+        navigate({ to: riderRoutes.registration });
+      } else if (!next.isVerified) {
+        navigate({ to: riderRoutes.registrationSubmitted });
+      } else {
+        navigate({ to: riderRoutes.dashboard });
+      }
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Google sign-in could not be completed.",

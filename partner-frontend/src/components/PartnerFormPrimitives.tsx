@@ -59,6 +59,7 @@ export function FormField({
   error,
   hint,
   prefix,
+  rightAddon,
   ...rest
 }: {
   id: string;
@@ -67,6 +68,7 @@ export function FormField({
   error?: string | undefined;
   hint?: string;
   prefix?: string;
+  rightAddon?: ReactNode;
 } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
@@ -92,8 +94,9 @@ export function FormField({
           id={id}
           aria-invalid={error ? true : undefined}
           {...rest}
-          className="min-w-0 flex-1 bg-transparent text-sm font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-75"
         />
+        {rightAddon}
       </div>
       {error ? (
         <p className="animate-soft-fade mt-1.5 text-[0.68rem] font-semibold text-destructive">

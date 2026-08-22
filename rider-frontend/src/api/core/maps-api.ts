@@ -117,13 +117,13 @@ export const fetchMapsStatus = () => apiGetJson<MapsStatus>(MAPS_API_ENDPOINTS.s
 export const geocodeAddress = (address: string) =>
   apiGetJson<GeocodeResult>(MAPS_API_ENDPOINTS.geocode, { params: { address } });
 
-/** GET /api/maps/reverse-geocode?latitude=&longitude= */
+/** GET /api/maps/reverse-geocode?lat=&lng=&latitude=&longitude= */
 export const reverseGeocodeCoords = (latitude: number, longitude: number) =>
   apiGetJson<GeocodeResult>(MAPS_API_ENDPOINTS.reverseGeocode, {
-    params: { latitude, longitude },
+    params: { lat: latitude, lng: longitude, latitude, longitude },
   });
 
-/** GET /api/maps/autocomplete?q=&latitude=&longitude= */
+/** GET /api/maps/autocomplete?q=&lat=&lng= */
 export const autocompletePlaces = (
   query: string,
   near?: LatLng,
@@ -132,6 +132,8 @@ export const autocompletePlaces = (
   apiGetJson<PlaceSuggestion[]>(MAPS_API_ENDPOINTS.autocomplete, {
     params: {
       q: query,
+      lat: near?.latitude ?? undefined,
+      lng: near?.longitude ?? undefined,
       latitude: near?.latitude ?? undefined,
       longitude: near?.longitude ?? undefined,
     },

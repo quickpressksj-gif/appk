@@ -12,9 +12,5 @@ export const Route = createFileRoute("/dashboard")({
       { property: "og:description", content: "Today's deliveries, earnings and pending pickups at a glance." },
     ],
   }),
-  component: () => (
-    <RiderProvider>
-      <RiderDashboardScreen />
-    </RiderProvider>
-  ),
+  component: RiderDashboardScreen,
 });

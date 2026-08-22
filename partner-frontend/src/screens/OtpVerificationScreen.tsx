@@ -21,10 +21,33 @@ export function OtpVerificationScreen() {
   const [verified, setVerified] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const targetPhone =
+    phone ||
+    (typeof window !== "undefined"
+      ? window.sessionStorage.getItem("qp.partner.pendingPhone") ||
+        window.localStorage.getItem("qp.partner.pendingPhone") ||
+        window.localStorage.getItem("qp.partner.rememberedPhone") ||
+        ""
+      : "");
+
+  const displayPhone = () => {
+    const digitsOnly = targetPhone.replace(/\D/g, "");
+    if (!digitsOnly) return "+91 98765 43210";
+    const last10 = digitsOnly.slice(-10);
+    return `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
+  };
+
   // Auto focus the code field so the keyboard opens immediately
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Auto-verify as soon as 6 digits are entered
+  useEffect(() => {
+    if (digits.length === 6 && !busy && !verified) {
+      void handleVerify();
+    }
+  }, [digits, busy, verified]);
 
   const handleVerify = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -37,7 +60,7 @@ export function OtpVerificationScreen() {
     // POST /api/auth/phone/verify — Firebase ID token → QuickPress JWT pair.
     let session;
     try {
-      session = await verifyOtp(phone || "+91 98765 43210", digits);
+      session = await verifyOtp(targetPhone, digits);
     } catch (cause) {
       setBusy(false);
       setDigits("");
@@ -52,13 +75,19 @@ export function OtpVerificationScreen() {
     toast.success("Mobile number verified");
     window.setTimeout(() => {
       signIn(session);
-      navigate({ to: partnerRoutes.registration });
+      if (!session.isOnboarded) {
+        navigate({ to: partnerRoutes.registration });
+      } else if (!session.isVerified) {
+        navigate({ to: partnerRoutes.registrationSubmitted });
+      } else {
+        navigate({ to: partnerRoutes.dashboard });
+      }
     }, 850);
   };
 
   const handleResend = async () => {
     try {
-      await requestOtp(phone);
+      await requestOtp(targetPhone);
     } catch (cause) {
       toast.error(
         cause instanceof Error ? cause.message : "Could not resend the OTP. Please try again.",
@@ -88,7 +117,7 @@ export function OtpVerificationScreen() {
             Enter the 6-digit code
           </h1>
           <p className="animate-slide-up stagger-2 mt-1 text-sm font-medium text-muted-foreground">
-            Sent to +91 {phone || "98765 43210"}
+            Sent to {displayPhone()}
           </p>
 
           <form onSubmit={(event) => void handleVerify(event)} className="mt-7">

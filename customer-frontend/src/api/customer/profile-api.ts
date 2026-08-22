@@ -124,29 +124,56 @@ function composeProfile(input: {
   meta: { appVersion: string; memberSince: string };
   unread: number;
 }): ProfileData {
-  const { account, wallet } = input;
+  const account = input.account || ({} as ProfileAccount);
+  const wallet = input.wallet;
+  const name = account.name || "Customer";
+  const initials = account.avatarInitials || (name.length >= 2 ? name.slice(0, 2).toUpperCase() : "QP");
+  const phone = account.phone ? (account.phone.startsWith("+") ? account.phone : `+91 ${account.phone}`) : "";
+  const orders = Array.isArray(input.orders) ? input.orders : [];
+  const addresses = Array.isArray(input.addresses) ? input.addresses : [];
+  const transactions = Array.isArray(input.transactions) ? input.transactions : [];
+
+  const rawMem = (input.membership || {}) as any;
+  let planTitle = "QuickPress Free";
+  if (typeof rawMem.plan === "string") {
+    planTitle = rawMem.plan;
+  } else if (rawMem.plan && typeof rawMem.plan.name === "string") {
+    planTitle = rawMem.plan.name;
+  } else if (typeof rawMem.planName === "string") {
+    planTitle = rawMem.planName;
+  }
+
+  const membership: Membership = {
+    plan: planTitle || "QuickPress Free",
+    active: Boolean(rawMem.active),
+    renewsOn: rawMem.renewsOn || rawMem.expiresAt || (rawMem.active ? "Next month" : "Not active"),
+    daysLeft: typeof rawMem.daysLeft === "number" ? rawMem.daysLeft : (rawMem.remainingDays ?? 0),
+    totalDays: typeof rawMem.totalDays === "number" ? rawMem.totalDays : (rawMem.plan?.validityDays ?? 30),
+    savedThisYear: typeof rawMem.savedThisYear === "number" ? rawMem.savedThisYear : (rawMem.totalSavings ?? 0),
+  };
+
   return {
     user: {
-      name: account.name,
-      initials: account.avatarInitials,
+      name,
+      initials,
       avatarUrl: account.photoUrl ?? account.avatarUrl ?? null,
-      verified: account.isVerified,
-      phone: account.phone.startsWith("+") ? account.phone : `+91 ${account.phone}`,
-      email: account.email,
+      verified: Boolean(account.isVerified),
+      phone,
+      email: account.email || "",
       city: account.city ?? "",
-      memberSince: account.memberSince || input.meta.memberSince,
-      unreadNotifications: input.unread,
+      memberSince: account.memberSince || input.meta?.memberSince || "Aug 2026",
+      unreadNotifications: input.unread || 0,
     },
     stats: {
-      totalOrders: input.orders.length,
+      totalOrders: orders.length,
       rewardPoints: wallet?.rewardPoints ?? 0,
       walletBalance: wallet?.balance ?? 0,
-      savedAddresses: input.addresses.length,
+      savedAddresses: addresses.length,
     },
     wallet: {
       balance: wallet?.balance ?? 0,
       cashbackEarned: wallet?.cashbackBalance ?? 0,
-      transactions: input.transactions.slice(0, 3).map((txn) => ({
+      transactions: transactions.slice(0, 3).map((txn) => ({
         id: txn.id,
         title: txn.title,
         note: txn.date,
@@ -154,10 +181,12 @@ function composeProfile(input: {
         kind: txn.direction,
       })),
     },
-    membership: input.membership,
-    appVersion: input.meta.appVersion,
+    membership,
+    appVersion: input.meta?.appVersion || "1.0.0",
   };
 }
+
+
 
 /**
  * GET /api/profile — plus wallet, membership, orders and addresses in parallel.

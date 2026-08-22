@@ -38,6 +38,7 @@ import {
   whatsappShareUrl,
   type ReferralDashboard,
 } from "@/api/customer/referral-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/referral")({
   head: () => ({
@@ -92,6 +93,7 @@ function StatCard({
 }
 
 function ReferralScreen() {
+  useAuthGuard();
   const [data, setData] = useState<ReferralDashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);

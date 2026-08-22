@@ -30,6 +30,7 @@ import {
   type OrderDetail,
   type TrackingData,
 } from "@/api/customer/order-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/track/$orderId")({
   head: () => ({
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/track/$orderId")({
 });
 
 function TrackOrderScreen() {
+  useAuthGuard();
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
   const [tracking, setTracking] = useState<TrackingData | null>(null);

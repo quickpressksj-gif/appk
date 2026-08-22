@@ -17,8 +17,11 @@ class UserRepository:
     def _c(self):
         return database.collection(self.collection_name)
 
-    async def by_firebase_uid(self, firebase_uid: str) -> Optional[User]:
-        doc = await self._c.find_one({"firebase_uid": firebase_uid})
+    async def by_firebase_uid(self, firebase_uid: str, role: Optional[Role] = None) -> Optional[User]:
+        query: Dict[str, Any] = {"firebase_uid": firebase_uid}
+        if role is not None:
+            query["role"] = role.value
+        doc = await self._c.find_one(query)
         return User.from_document(doc) if doc else None
 
     async def by_id(self, user_id: str) -> Optional[User]:
@@ -64,14 +67,9 @@ class UserRepository:
         display_name: Optional[str],
         photo_url: Optional[str],
     ) -> User:
-        existing = await self.by_firebase_uid(firebase_uid)
+        existing = await self.by_firebase_uid(firebase_uid, role=role)
         if existing:
-            if existing.role != role:
-                # Every authenticated user has exactly one role.
-                raise PermissionError(
-                    f"This account is registered as a {existing.role.value}, not a {role.value}."
-                )
-            changes: Dict[str, Any] = {"is_verified": True}
+            changes: Dict[str, Any] = {}
             if phone and phone != existing.phone:
                 changes["phone"] = phone
             if email and email != existing.email:
@@ -80,7 +78,8 @@ class UserRepository:
                 changes["display_name"] = display_name
             if photo_url and photo_url != existing.photo_url:
                 changes["photo_url"] = photo_url
-            await self.update(existing.id, changes)
+            if changes:
+                await self.update(existing.id, changes)
             await self._ensure_role_profile(existing)
             refreshed = await self.by_id(existing.id)
             return refreshed or existing
@@ -94,7 +93,7 @@ class UserRepository:
             display_name=display_name,
             photo_url=photo_url,
             status=UserStatus.active,
-            is_verified=True,
+            is_verified=role in (Role.customer, Role.admin),
             is_onboarded=role in (Role.customer, Role.admin),
         )
         return await self.create(user)

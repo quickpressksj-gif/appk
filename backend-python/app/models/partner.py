@@ -55,16 +55,18 @@ class RejectOrderPayload(BaseModel):
 
 class PartnerProfileResponse(BaseModel):
     partnerId: str
-    businessName: str
-    ownerName: str
-    phone: str
-    email: str
-    city: str
-    rating: float
-    totalOrders: int
-    joinedOn: str
-    onTimeRate: float
+    businessName: str = "QuickPress Partner Store"
+    ownerName: str = "Partner"
+    phone: str = ""
+    email: str = ""
+    city: str = "Bengaluru"
+    rating: float = 5.0
+    totalOrders: int = 0
+    joinedOn: str = "August 2026"
+    onTimeRate: float = 98.5
     tier: Literal["Bronze", "Silver", "Platinum", "Gold"] = "Silver"
+    isVerified: bool = False
+    status: str = "pending"
 
 
 class PartnerProfileUpdate(BaseModel):

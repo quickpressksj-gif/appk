@@ -22,24 +22,35 @@ const ROLE: AccountRole = "partner";
 function toPartnerSession(session: AuthSession): PartnerSession {
   return {
     partnerId: session.account.linkedId ?? session.account.id,
-    phone: session.account.phone,
+    phone: session.account.phone ?? "",
+    email: session.account.email,
     businessName: session.account.name ?? "",
     isVerified: session.account.isVerified,
     isOnboarded: session.account.isOnboarded,
   };
 }
 
+function toE164(phone: string): string {
+  const cleaned = phone.trim();
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (!cleaned.startsWith("+") && digits) return `+${digits}`;
+  return cleaned;
+}
+
 export async function requestOtp(phone: string) {
-  const result = await sendPhoneOtp(phone, ROLE);
-  return { ok: true as const, phone, expiresInSec: result.expiresInSeconds };
+  const e164 = toE164(phone);
+  const result = await sendPhoneOtp(e164, ROLE);
+  return { ok: true as const, phone: e164, expiresInSec: result.expiresInSeconds };
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<PartnerSession> {
+  const e164 = toE164(phone);
   if (authMode() === "mock") {
     return delay(
       {
         partnerId: "PRT-10482",
-        phone,
+        phone: e164,
         businessName: "",
         isVerified: code.length === 6,
         isOnboarded: false,
@@ -47,7 +58,7 @@ export async function verifyOtp(phone: string, code: string): Promise<PartnerSes
       700,
     );
   }
-  return toPartnerSession(await verifyPhoneOtp(phone, code, ROLE));
+  return toPartnerSession(await verifyPhoneOtp(e164, code, ROLE));
 }
 
 export async function loginWithGoogle(): Promise<PartnerSession> {
@@ -77,13 +88,67 @@ export async function registerBusiness(
         partnerId: "PRT-10482",
         phone: "+91 98765 43210",
         businessName: payload.businessName,
-        isVerified: true,
+        isVerified: false,
         isOnboarded: true,
       },
       820,
     );
   }
   return apiPostJson<PartnerSession>("/api/partner/onboarding", payload);
+}
+
+/** Check if Admin has approved the partner in backend/MongoDB. */
+export async function checkPartnerVerificationStatus(): Promise<{
+  isVerified: boolean;
+  status: string;
+  businessName: string;
+  partnerId: string;
+}> {
+  if (authMode() === "mock") {
+    return {
+      isVerified: false,
+      status: "pending",
+      businessName: "QuickPress Partner Store",
+      partnerId: "PRT-10482",
+    };
+  }
+  try {
+    const profile = await apiGetJson<{
+      partnerId: string;
+      businessName: string;
+      isVerified?: boolean;
+      status?: string;
+    }>("/api/partner/profile");
+
+    const isVerified = Boolean(profile.isVerified || profile.status === "active");
+    const currentSession = readSession(ROLE);
+    if (currentSession && currentSession.account) {
+      const updatedSession = {
+        ...currentSession,
+        account: {
+          ...currentSession.account,
+          isVerified,
+          isOnboarded: true,
+          name: profile.businessName || currentSession.account.name,
+        },
+      };
+      writeSession(updatedSession, ROLE);
+    }
+
+    return {
+      isVerified,
+      status: profile.status || (isVerified ? "active" : "pending"),
+      businessName: profile.businessName,
+      partnerId: profile.partnerId,
+    };
+  } catch {
+    return {
+      isVerified: false,
+      status: "pending",
+      businessName: "",
+      partnerId: "",
+    };
+  }
 }
 
 /** "Remember me" — keeps the partner signed in across browser restarts. */

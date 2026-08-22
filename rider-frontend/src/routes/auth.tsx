@@ -12,9 +12,5 @@ export const Route = createFileRoute("/auth")({
       { property: "og:description", content: "Sign in or sign up with your mobile number to start delivering." },
     ],
   }),
-  component: () => (
-    <RiderProvider>
-      <RiderAuthScreen />
-    </RiderProvider>
-  ),
+  component: RiderAuthScreen,
 });

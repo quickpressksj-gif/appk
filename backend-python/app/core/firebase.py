@@ -25,7 +25,14 @@ def _firebase_app() -> Optional[Any]:
     if settings.firebase_credentials_json:
         cred = credentials.Certificate(json.loads(settings.firebase_credentials_json))
     else:
-        cred = credentials.Certificate(settings.firebase_credentials_file)
+        import os
+        path = settings.firebase_credentials_file
+        if not os.path.isabs(path) and not os.path.exists(path):
+            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            alt_path = os.path.join(backend_dir, path)
+            if os.path.exists(alt_path):
+                path = alt_path
+        cred = credentials.Certificate(path)
     return firebase_admin.initialize_app(
         cred, {"projectId": settings.firebase_project_id} if settings.firebase_project_id else None
     )

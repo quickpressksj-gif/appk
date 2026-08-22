@@ -96,13 +96,43 @@ async def get_popular_services() -> list[ServiceCardResponse]:
 
 
 @router.get("/partners/nearby", response_model=list[PartnerCardResponse])
-async def get_nearby_partners(city: Optional[str] = Query(default=None)) -> list[PartnerCardResponse]:
-    return await catalog.partners(city=city)
+async def get_nearby_partners(
+    city: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    limit: int = Query(default=10),
+) -> list[PartnerCardResponse]:
+    return await catalog.partners(city=city, lat=lat, lng=lng, area=area, limit=limit)
 
 
 @router.get("/offers", response_model=list[OfferResponse])
 async def get_offers() -> list[OfferResponse]:
     return await catalog.offers()
+
+
+@router.post("/offers/{code}/apply")
+async def apply_offer(code: str) -> dict:
+    offers = await catalog.offers()
+    matched = next((o for o in offers if o.code.upper() == code.upper()), None)
+    if matched:
+        return {"ok": True, "discount": matched.discount}
+    # Check default coupons list
+    from app.db.cart_repositories import DEFAULT_COUPONS
+    coupon = next((c for c in DEFAULT_COUPONS if c["code"].upper() == code.upper()), None)
+    if coupon:
+        return {"ok": True, "discount": coupon.get("discount", 50)}
+    return {"ok": False, "discount": 0, "message": "Invalid coupon code"}
+
+
+@router.get("/app-meta")
+async def get_app_meta() -> dict:
+    return {
+        "appVersion": "1.0.0",
+        "memberSince": "Aug 2026",
+        "supportPhone": "+91 80 4000 5000",
+        "supportEmail": "support@quickpress.in",
+    }
 
 
 @router.get("/location", response_model=LocationResponse)

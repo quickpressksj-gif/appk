@@ -126,3 +126,16 @@ async def get_checkout(user: User = Depends(current_user)) -> CheckoutResponse:
         walletBalance=balance,
         deliveryEstimate=f"{delivery.date} · {delivery.slot}",
     )
+
+
+@router.get("/slots")
+async def get_slots() -> dict:
+    schedule = pickup_schedule()
+    return {"days": schedule.days, "slots": schedule.slots}
+
+
+@router.get("/payment-methods")
+async def get_payment_methods(user: User = Depends(current_user)) -> list[PaymentMethodResponse]:
+    balance = await wallet_balance(user.id)
+    return payment_methods(balance, 100)
+

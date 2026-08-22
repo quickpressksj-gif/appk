@@ -43,6 +43,7 @@ import {
   type MembershipPlanId,
   type MembershipPlans,
 } from "@/api/customer/membership-api";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/membership")({
   head: () => ({
@@ -201,6 +202,7 @@ function PlanCard({
 }
 
 function MembershipScreen() {
+  useAuthGuard();
   const [membership, setMembership] = useState<Membership | null>(null);
   const [plans, setPlans] = useState<MembershipPlans | null>(null);
   const [history, setHistory] = useState<MembershipHistory | null>(null);

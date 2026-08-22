@@ -54,18 +54,29 @@ async def _login_with_firebase(id_token: str, role: Role, provider: str | None =
     return await _issue_session(user)
 
 
+def _normalize_phone(phone: str) -> str:
+    cleaned = phone.strip()
+    digits = "".join(ch for ch in cleaned if ch.isdigit())
+    if len(digits) == 10:
+        return f"+91{digits}"
+    if not cleaned.startswith("+") and digits:
+        return f"+{digits}"
+    return cleaned
+
+
 @router.post("/phone/send-otp", response_model=SendOtpResponse)
 async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
     """Audits + rate limits the request. Firebase delivers the SMS client-side."""
     settings = get_settings()
-    recent = await otp_attempts.sends_in_last_hour(payload.phone)
+    phone = _normalize_phone(payload.phone)
+    recent = await otp_attempts.sends_in_last_hour(phone)
     if recent >= settings.otp_max_sends_per_hour:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many OTP requests. Please try again later.",
         )
-    await otp_attempts.record(payload.phone, payload.role)
-    existing = await users.by_phone(payload.phone, payload.role)
+    await otp_attempts.record(phone, payload.role)
+    existing = await users.by_phone(phone, payload.role)
     return SendOtpResponse(
         expiresInSeconds=settings.otp_ttl_seconds,
         isNewAccount=existing is None,

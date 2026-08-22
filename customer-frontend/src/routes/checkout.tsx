@@ -26,6 +26,7 @@ import { toast } from "sonner";
 
 import { CheckoutSkeleton } from "@/components/cart/CartSkeleton";
 import { Toaster } from "@/shared/ui/sonner";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import {
   getCartState,
   setCartState,
@@ -77,6 +78,7 @@ function newOrderKey() {
 }
 
 function CheckoutScreen() {
+  const { isAuthenticated, isLoading } = useAuthGuard();
   const navigate = useNavigate();
   const [data, setData] = useState<CartData | null>(getCartState().data);
   const [addresses, setAddresses] = useState<Address[] | null>(null);

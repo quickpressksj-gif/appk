@@ -11,6 +11,10 @@ import { useEffect, type ReactNode } from "react";
 
 import "../styles.css";
 import { reportLovableError } from "@/shared/lib/lovable-error-reporting";
+import { configureSessionRole } from "../api/core/session-store";
+import { PartnerProvider } from "../context/PartnerContext";
+
+configureSessionRole("partner");
 
 function NotFoundComponent() {
   return (
@@ -121,8 +125,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <PartnerProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </PartnerProvider>
     </QueryClientProvider>
   );
 }
