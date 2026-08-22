@@ -68,8 +68,14 @@ class UserRepository:
         photo_url: Optional[str],
     ) -> User:
         existing = await self.by_firebase_uid(firebase_uid, role=role)
+        if not existing:
+            existing = await self.by_firebase_uid(firebase_uid)
+            if existing and existing.role != role:
+                existing.role = role
+                await self.update(existing.id, {"role": role.value})
+
         if existing:
-            changes: Dict[str, Any] = {}
+            changes: Dict[str, Any] = {"role": role.value}
             if phone and phone != existing.phone:
                 changes["phone"] = phone
             if email and email != existing.email:
