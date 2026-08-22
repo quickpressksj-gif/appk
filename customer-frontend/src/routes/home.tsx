@@ -340,7 +340,7 @@ function HomeScreen() {
                   const Icon = ICONS[category.icon] ?? Sparkles;
                   return (
                     <button
-                      key={category.id}
+                      key={`${category.id}-${index}`}
                       type="button"
                       onClick={() =>
                         navigate({ to: "/services/$serviceId", params: { serviceId: category.id } })
@@ -384,11 +384,11 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
-                {popular.map((service) => {
+                {popular.map((service, index) => {
                   const Icon = ICONS[service.icon] ?? Sparkles;
                   return (
                     <button
-                      key={service.id}
+                      key={`${service.id}-${index}`}
                       type="button"
                       onClick={() =>
                         navigate({
@@ -461,9 +461,9 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children mt-4 space-y-4">
-                {partners.map((partner) => (
+                {partners.map((partner, index) => (
                   <button
-                    key={partner.id}
+                    key={`${partner.id}-${index}`}
                     type="button"
                     onClick={() =>
                       navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
@@ -565,12 +565,12 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
-                {offers.map((offer) => {
+                {offers.map((offer, index) => {
                   const Icon =
                     offer.kind === "cashback" ? Wallet : offer.kind === "festival" ? Percent : Gift;
                   return (
                     <button
-                      key={offer.id}
+                      key={`${offer.id}-${index}`}
                       type="button"
                       className="card-soft w-64 shrink-0 border border-dashed border-primary/50 p-4 text-left transition-all duration-300 active:scale-[0.97]"
                     >
@@ -607,8 +607,8 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children mt-4 space-y-3">
-                {recentOrders.map((order) => (
-                  <div key={order.id} className="card-soft border border-border p-4">
+                {recentOrders.map((order, index) => (
+                  <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-bold text-foreground">{order.title}</p>
