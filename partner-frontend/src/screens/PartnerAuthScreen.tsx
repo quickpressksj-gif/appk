@@ -1,17 +1,24 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   BadgeCheck,
+  BarChart3,
   Check,
   CheckCircle2,
   Coins,
   CreditCard,
+  Globe,
   Headphones,
   KeyRound,
+  Layers,
+  LineChart,
   Loader2,
   Lock,
   Phone,
+  Shield,
   ShieldCheck,
+  ShoppingBag,
+  Sliders,
   Smartphone,
   Sparkles,
   Store,
@@ -31,27 +38,32 @@ import {
   rememberPartnerLogin,
   requestOtp,
 } from "@/api/partner/partner-auth-api";
+import { partnerAssets } from "../assets/partner-assets";
 
-const BENEFITS = [
+const BENEFIT_CARDS = [
   {
-    icon: TrendingUp,
-    title: "3X More Customer Orders",
-    desc: "Direct access to thousands of daily nearby customers looking for laundry & dry cleaning.",
+    icon: ShoppingBag,
+    title: "More Orders",
+    desc: "Get customers from your local area effortlessly.",
+    color: "bg-amber-400/15 text-amber-500",
+  },
+  {
+    icon: Sliders,
+    title: "Easy Service Management",
+    desc: "Manage your laundry services, rates and active pricing.",
+    color: "bg-emerald-500/15 text-emerald-600",
   },
   {
     icon: Coins,
-    title: "Weekly Direct Settlements",
-    desc: "100% assured weekly bank payouts with detailed GST invoice breakdowns.",
+    title: "Real-time Earnings",
+    desc: "Track daily orders, gross revenue and weekly bank payouts.",
+    color: "bg-blue-500/15 text-blue-600",
   },
   {
-    icon: Truck,
-    title: "Dedicated Logistics Riders",
-    desc: "QuickPress delivery partners handle all customer pickups and doorstep drop-offs.",
-  },
-  {
-    icon: Headphones,
-    title: "24/7 Dedicated Partner Support",
-    desc: "Priority phone support and dedicated store account manager assistance.",
+    icon: BarChart3,
+    title: "Business Growth",
+    desc: "Understand your operational performance with clear analytics.",
+    color: "bg-purple-500/15 text-purple-600",
   },
 ];
 
@@ -59,7 +71,7 @@ const REMEMBER_KEY = "qp.partner.rememberedPhone";
 
 function GoogleGlyph() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className="size-4 shrink-0">
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4.5 shrink-0">
       <path
         fill="#4285F4"
         d="M23.5 12.3c0-.9-.1-1.5-.2-2.2H12v4.1h6.6a5.7 5.7 0 0 1-2.4 3.7v3h3.8c2.3-2.1 3.5-5.2 3.5-8.6Z"
@@ -80,14 +92,16 @@ function GoogleGlyph() {
 export function PartnerAuthScreen() {
   const navigate = useNavigate();
   const { setPhone, signIn, session, hydrating } = usePartnerContext();
+
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [lang, setLang] = useState<"en" | "hi">("en");
 
-  // If already authenticated, redirect away from /auth immediately
+  // Redirect if already authenticated
   useEffect(() => {
     if (hydrating || !session) return;
     if (!session.isOnboarded) {
@@ -99,7 +113,7 @@ export function PartnerAuthScreen() {
     }
   }, [hydrating, session, navigate]);
 
-  // Restore remembered number
+  // Restore remembered phone number
   useEffect(() => {
     const saved = window.localStorage.getItem(REMEMBER_KEY);
     if (saved) {
@@ -130,11 +144,11 @@ export function PartnerAuthScreen() {
       await requestOtp(digits);
       setPhone(digits);
       setSent(true);
-      toast.success("OTP sent to your mobile number");
+      toast.success("Verification code sent to your phone");
       window.setTimeout(() => navigate({ to: partnerRoutes.otp }), 600);
     } catch (cause) {
       const msg =
-        cause instanceof Error ? cause.message : "Could not send OTP. Please try again.";
+        cause instanceof Error ? cause.message : "Unable to connect to server. Please try again.";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -171,326 +185,431 @@ export function PartnerAuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7] text-zinc-900">
-      {/* ========================================================================= */}
-      {/* MOBILE ZOMATO-STYLE AUTH SCREEN (< md)                                    */}
-      {/* ========================================================================= */}
-      <div className="flex min-h-screen flex-col justify-between bg-white md:hidden">
-        {/* Top Header & Brand */}
-        <div className="p-5 pt-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-amber-400 font-black text-zinc-950 shadow-xs">
-                QP
-              </div>
-              <div>
-                <h1 className="text-base font-black tracking-tight text-zinc-900">QuickPress</h1>
-                <p className="text-[10px] font-black uppercase tracking-wider text-amber-800">
-                  Partner Console
-                </p>
-              </div>
-            </div>
-            <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700 border border-emerald-200">
-              <BadgeCheck className="size-3" />
-              <span>Verified Network</span>
-            </span>
-          </div>
-
-          {/* Hero Banner Card */}
-          <div className="mt-5 rounded-3xl bg-zinc-950 p-5 text-white shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 size-32 bg-amber-400/20 rounded-full blur-2xl" />
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-black text-amber-300">
-              <Sparkles className="size-3" />
-              <span>Grow Your Outlet</span>
-            </span>
-            <h2 className="mt-2 text-xl font-black leading-tight tracking-tight">
-              Manage Orders & Rates on Autopilot
-            </h2>
-            <p className="mt-1 text-xs text-zinc-400">
-              Join 500+ laundry stores receiving orders daily with instant weekly payouts.
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handleContinue} className="mt-6 space-y-4">
-            <div>
-              <label
-                htmlFor="mobile-input-mob"
-                className="block text-xs font-black uppercase tracking-wider text-zinc-600"
-              >
-                Enter Registered Mobile Number
-              </label>
-              <div
-                className={`mt-2 flex h-13 items-center rounded-2xl border-2 bg-zinc-50 px-3.5 transition-all ${
-                  error
-                    ? "border-red-500 bg-red-50/20"
-                    : "border-zinc-200 focus-within:border-zinc-900 focus-within:bg-white"
-                }`}
-              >
-                <span className="flex items-center gap-1.5 border-r border-zinc-300 pr-3 text-xs font-black text-zinc-800">
-                  <span>🇮🇳</span>
-                  <span>+91</span>
-                </span>
-                <input
-                  id="mobile-input-mob"
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={value}
-                  onChange={(e) => {
-                    setValue(e.target.value.replace(/\D/g, "").slice(0, 10));
-                    if (error) setError(null);
-                  }}
-                  placeholder="98765 43210"
-                  className="w-full bg-transparent pl-3 text-base font-black tracking-wider text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
-                />
-              </div>
-              {error ? <p className="mt-1 text-[11px] font-bold text-red-600">{error}</p> : null}
-            </div>
-
-            {/* Quick Demo Number Button */}
-            <div className="flex items-center justify-between text-xs text-zinc-500">
-              <span>Quick Test Number:</span>
-              <button
-                type="button"
-                onClick={() => fillDemoNumber("9876543210")}
-                className="font-bold text-amber-800 hover:underline"
-              >
-                Use 9876543210
-              </button>
-            </div>
-
-            {/* Submit OTP Button */}
-            <button
-              type="submit"
-              disabled={busy || sent || value.length < 10}
-              className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-amber-400 font-black text-xs uppercase tracking-wider text-zinc-950 shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  <span>Sending Verification Code...</span>
-                </>
-              ) : (
-                <>
-                  <span>Get OTP & Continue</span>
-                  <ArrowRight className="size-4" />
-                </>
-              )}
-            </button>
-
-            {/* Or Google Login */}
-            <div className="relative my-4 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-200" />
-              </div>
-              <span className="relative bg-white px-3 text-[11px] font-bold text-zinc-400 uppercase">
-                Or Continue With
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogle}
-              disabled={googleBusy}
-              className="flex w-full h-12 items-center justify-center gap-2.5 rounded-2xl border border-zinc-200 bg-white font-bold text-xs text-zinc-800 shadow-xs transition-all active:scale-95 hover:bg-zinc-50"
-            >
-              {googleBusy ? (
-                <Loader2 className="size-4 animate-spin text-zinc-600" />
-              ) : (
-                <>
-                  <GoogleGlyph />
-                  <span>Continue with Google</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* Bottom Terms & Security Footer */}
-        <div className="bg-zinc-50 p-4 text-center border-t border-zinc-100">
-          <p className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-zinc-500">
-            <ShieldCheck className="size-3.5 text-emerald-600" />
-            <span>End-to-End Secure Store Authentication</span>
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#FFFBF2] text-[#111827] flex flex-col justify-between font-sans selection:bg-[#F4B400]/30">
+      {/* Background Ambience / Subtle Dotted Grid */}
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-10 [background-size:24px_24px]" />
 
       {/* ========================================================================= */}
-      {/* DESKTOP SPLIT BUSINESS CONSOLE AUTH SCREEN (>= md)                        */}
+      {/* MOBILE EXPERIENCE (< 768px / < 1024px)                                    */}
       {/* ========================================================================= */}
-      <div className="hidden min-h-screen md:grid md:grid-cols-12">
-        {/* Left Column: Brand Showcase Banner (7 cols) */}
-        <div className="relative col-span-7 flex flex-col justify-between bg-zinc-950 p-12 lg:p-16 text-white overflow-hidden">
-          <div className="pointer-events-none absolute -top-24 -left-24 size-96 rounded-full bg-amber-500/15 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 right-0 size-96 rounded-full bg-emerald-500/15 blur-3xl" />
-
-          {/* Top Logo */}
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-400 font-black text-zinc-950 text-xl shadow-lg">
+      <div className="relative flex flex-col justify-between min-h-screen p-4 sm:p-6 lg:hidden">
+        {/* Top Mobile Bar */}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-[#F4B400] font-black text-[#111827] text-lg shadow-sm">
               QP
             </div>
             <div>
-              <span className="text-xl font-black tracking-tight">QuickPress</span>
-              <span className="ml-2 rounded-md bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300">
-                Partner Console
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base font-black tracking-tight text-[#111827]">QuickPress</span>
+                <span className="rounded-full bg-[#111827] px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
+                  Partner
+                </span>
+              </div>
+              <p className="text-[10px] font-semibold text-zinc-500 tracking-wide">
+                Laundry • Pickup • Delivery
+              </p>
             </div>
           </div>
 
-          {/* Center Showcase Typography & Benefits */}
-          <div className="relative z-10 max-w-xl my-auto py-12">
-            <h2 className="text-4xl font-black leading-tight tracking-tight lg:text-5xl">
-              The all-in-one operating platform for modern laundry stores.
-            </h2>
-            <p className="mt-4 text-sm font-medium text-zinc-400 leading-relaxed">
-              Accept orders, manage live rates, coordinate with logistics riders, and receive weekly direct bank settlements with zero manual paperwork.
-            </p>
-
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              {BENEFITS.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-4 backdrop-blur-sm"
-                >
-                  <div className="flex size-8 items-center justify-center rounded-xl bg-amber-400/15 text-amber-400">
-                    <item.icon className="size-4" />
-                  </div>
-                  <h3 className="mt-2.5 text-xs font-black text-white">{item.title}</h3>
-                  <p className="mt-1 text-[11px] font-medium text-zinc-400 leading-normal">
-                    {item.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom Trust & Compliance */}
-          <div className="relative z-10 flex items-center justify-between border-t border-zinc-800/80 pt-6 text-xs text-zinc-400">
-            <span>© 2026 QuickPress Technologies Inc.</span>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-emerald-400">
-                <CheckCircle2 className="size-3.5" /> 99.9% Uptime SLA
-              </span>
-              <span>256-Bit SSL Encrypted</span>
-            </div>
-          </div>
+          {/* Language Selector */}
+          <button
+            type="button"
+            onClick={() => setLang(lang === "en" ? "hi" : "en")}
+            className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-700 shadow-2xs active:scale-95"
+          >
+            <Globe className="size-3.5 text-zinc-500" />
+            <span>{lang === "en" ? "English" : "हिंदी"}</span>
+          </button>
         </div>
 
-        {/* Right Column: Authentication Card (5 cols) */}
-        <div className="col-span-5 flex flex-col justify-center bg-white p-8 lg:p-14">
-          <div className="mx-auto w-full max-w-md">
-            <div className="mb-8">
-              <h3 className="text-2xl font-black tracking-tight text-zinc-900">Partner Sign In</h3>
-              <p className="mt-1.5 text-xs font-medium text-zinc-500">
-                Enter your mobile number to access your store dashboard.
+        {/* Mobile Login Card Container */}
+        <div className="my-auto py-6">
+          <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm">
+            {/* Header */}
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-black text-amber-800 border border-amber-200/80 mb-2.5">
+                <Sparkles className="size-3" />
+                <span>PARTNER PANEL</span>
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-[#111827]">
+                Welcome Back 👋
+              </h1>
+              <p className="mt-1 text-xs font-medium text-zinc-500">
+                Manage your laundry business with QuickPress.
               </p>
             </div>
 
-            <form onSubmit={handleContinue} className="space-y-4">
+            {/* Mobile Form */}
+            <form onSubmit={handleContinue} className="mt-6 space-y-4">
               <div>
                 <label
-                  htmlFor="mobile-input-desk"
-                  className="block text-xs font-black uppercase tracking-wider text-zinc-700"
+                  htmlFor="mobile-input-mob"
+                  className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-1.5"
                 >
-                  Registered Mobile Number
+                  Mobile Number
                 </label>
                 <div
-                  className={`mt-2 flex h-13 items-center rounded-2xl border-2 bg-zinc-50 px-4 transition-all ${
+                  className={`flex h-[54px] items-center rounded-2xl border-2 bg-zinc-50/80 px-3.5 transition-all ${
                     error
                       ? "border-red-500 bg-red-50/20"
-                      : "border-zinc-200 focus-within:border-zinc-900 focus-within:bg-white"
+                      : "border-zinc-200 focus-within:border-[#111827] focus-within:bg-white"
                   }`}
                 >
-                  <span className="flex items-center gap-1.5 border-r border-zinc-300 pr-3 text-xs font-black text-zinc-800">
+                  <span className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 text-xs font-black text-[#111827]">
                     <span>🇮🇳</span>
                     <span>+91</span>
                   </span>
                   <input
-                    id="mobile-input-desk"
+                    id="mobile-input-mob"
                     type="tel"
                     inputMode="numeric"
+                    autoComplete="tel-national"
                     maxLength={10}
                     value={value}
                     onChange={(e) => {
                       setValue(e.target.value.replace(/\D/g, "").slice(0, 10));
                       if (error) setError(null);
                     }}
-                    placeholder="98765 43210"
-                    className="w-full bg-transparent pl-3.5 text-base font-black tracking-wider text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
+                    placeholder="Enter 10-digit mobile number"
+                    className="w-full bg-transparent pl-3 text-base font-black tracking-wider text-[#111827] placeholder:text-zinc-400 placeholder:font-medium placeholder:text-xs focus:outline-none"
                   />
                 </div>
-                {error ? <p className="mt-1.5 text-xs font-bold text-red-600">{error}</p> : null}
+                {error ? (
+                  <p className="mt-1.5 text-xs font-bold text-red-600 animate-in fade-in duration-200">
+                    {error}
+                  </p>
+                ) : null}
               </div>
 
-              {/* Demo Fill Helper */}
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <span>Test Store Account:</span>
+              {/* Demo Helper */}
+              <div className="flex items-center justify-between text-xs text-zinc-500 pt-0.5">
+                <span>Test Store:</span>
                 <button
                   type="button"
                   onClick={() => fillDemoNumber("9876543210")}
                   className="font-bold text-amber-800 hover:underline"
                 >
-                  Fill 98765 43210
+                  Use 9876543210
                 </button>
               </div>
 
-              {/* Submit Button */}
+              {/* Primary Action Button */}
               <button
                 type="submit"
                 disabled={busy || sent || value.length < 10}
-                className="flex w-full h-12 items-center justify-center gap-2 rounded-2xl bg-amber-400 font-black text-xs uppercase tracking-wider text-zinc-950 shadow-md transition-all hover:brightness-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                className="flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] text-[#111827] font-black text-sm uppercase tracking-wider shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
               >
                 {busy ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span>Sending Verification Code...</span>
+                    <span>Sending OTP...</span>
                   </>
                 ) : (
                   <>
-                    <span>Send OTP via SMS</span>
-                    <ArrowRight className="size-4" />
+                    <span>Continue →</span>
                   </>
                 )}
               </button>
 
-              <div className="relative my-6 text-center">
+              {/* OR Divider */}
+              <div className="relative my-4 text-center">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-zinc-200" />
                 </div>
-                <span className="relative bg-white px-3 text-xs font-bold text-zinc-400 uppercase">
-                  Or Sign In With
+                <span className="relative bg-white px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
+                  OR
                 </span>
               </div>
 
+              {/* Google Button */}
               <button
                 type="button"
                 onClick={handleGoogle}
                 disabled={googleBusy}
-                className="flex w-full h-12 items-center justify-center gap-3 rounded-2xl border border-zinc-200 bg-white font-bold text-xs text-zinc-800 shadow-xs transition-all hover:bg-zinc-50 active:scale-95 cursor-pointer"
+                className="flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-zinc-200 bg-white font-bold text-xs text-zinc-800 shadow-2xs transition-all active:scale-[0.98] hover:bg-zinc-50 cursor-pointer"
               >
                 {googleBusy ? (
                   <Loader2 className="size-4 animate-spin text-zinc-600" />
                 ) : (
                   <>
                     <GoogleGlyph />
-                    <span>Continue with Google Workspace</span>
+                    <span>Continue with Google</span>
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-8 rounded-2xl bg-zinc-50 p-4 border border-zinc-100 text-xs text-zinc-500">
-              <p className="font-semibold text-zinc-700">Need help signing into your outlet?</p>
-              <p className="mt-0.5">
-                Contact your QuickPress Partner Relationship Manager at{" "}
-                <a href="tel:18002008899" className="font-bold text-amber-800 hover:underline">
-                  1800-200-8899
-                </a>
+            {/* Registration CTA */}
+            <div className="mt-6 pt-5 border-t border-zinc-100 text-center">
+              <p className="text-xs text-zinc-500 font-medium">
+                Don't have a Partner account?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: partnerRoutes.registration })}
+                  className="font-black text-emerald-700 hover:underline block sm:inline mt-1 sm:mt-0"
+                >
+                  Become a QuickPress Partner
+                </button>
               </p>
             </div>
           </div>
         </div>
+
+        {/* Bottom Security Footer */}
+        <div className="py-2 text-center">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+            <ShieldCheck className="size-4 text-[#16A34A]" />
+            <span>Secure Partner Access · Protected by QuickPress Security</span>
+          </p>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP EXPERIENCE (>= 1024px)                                            */}
+      {/* ========================================================================= */}
+      <div className="hidden lg:flex min-h-screen w-full flex-col justify-between p-8 xl:p-12 relative z-10 max-w-7xl mx-auto">
+        {/* Top Desktop Bar */}
+        <header className="flex items-center justify-between pb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-[#F4B400] font-black text-[#111827] text-2xl shadow-md">
+              QP
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-black tracking-tight text-[#111827]">QuickPress</span>
+                <span className="rounded-full bg-[#111827] px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white uppercase">
+                  Partner Panel
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-zinc-500 tracking-wide">
+                Laundry • Pickup • Delivery
+              </p>
+            </div>
+          </div>
+
+          {/* Top Right Controls */}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setLang(lang === "en" ? "hi" : "en")}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-xs font-bold text-zinc-700 shadow-2xs hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer"
+            >
+              <Globe className="size-4 text-zinc-500" />
+              <span>Language: {lang === "en" ? "English" : "हिंदी"}</span>
+            </button>
+
+            <a
+              href="tel:18002008899"
+              className="flex items-center gap-1.5 text-xs font-bold text-zinc-600 hover:text-zinc-900"
+            >
+              <Headphones className="size-4 text-[#16A34A]" />
+              <span>Help: 1800-200-8899</span>
+            </a>
+          </div>
+        </header>
+
+        {/* Main Two-Column Split Layout */}
+        <main className="my-auto py-8 grid grid-cols-12 gap-10 xl:gap-16 items-center">
+          {/* ===================================================================== */}
+          {/* LEFT MARKETING & BRAND SECTION (~45% / 5 Cols)                        */}
+          {/* ===================================================================== */}
+          <section className="col-span-6 xl:col-span-6 pr-4 space-y-6">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-3 py-1 text-xs font-black text-amber-900 border border-amber-300/80 mb-4">
+                <Sparkles className="size-3.5 text-amber-600" />
+                <span>PARTNER PANEL</span>
+              </div>
+              <h2 className="text-4xl xl:text-5xl font-black leading-[1.15] tracking-tight text-[#111827]">
+                Grow Your Laundry Business With QuickPress
+              </h2>
+              <p className="mt-4 text-base font-medium text-zinc-600 leading-relaxed max-w-lg">
+                Manage orders, services, customers and earnings from one powerful, business-focused platform.
+              </p>
+            </div>
+
+            {/* 4 Premium Benefit Cards */}
+            <div className="grid grid-cols-2 gap-3.5 pt-2">
+              {BENEFIT_CARDS.map((card) => (
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-zinc-200/90 bg-white/90 p-4 shadow-2xs backdrop-blur-xs transition-all hover:border-zinc-300 hover:shadow-sm"
+                >
+                  <div className={`flex size-9 items-center justify-center rounded-xl ${card.color} mb-3`}>
+                    <card.icon className="size-4.5" />
+                  </div>
+                  <h3 className="text-xs font-black text-[#111827]">{card.title}</h3>
+                  <p className="mt-1 text-[11px] font-medium text-zinc-500 leading-normal">
+                    {card.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom Left Trust Guarantee */}
+            <div className="flex items-center gap-3 pt-2 border-t border-zinc-200/80">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-emerald-50 text-[#16A34A] shrink-0 border border-emerald-200">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-[#111827]">Secure & Trusted Platform</p>
+                <p className="text-[11px] font-medium text-zinc-500">
+                  Your business data is protected with 256-bit encrypted authentication.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* ===================================================================== */}
+          {/* RIGHT LOGIN CARD SECTION (~55% / 6 Cols)                              */}
+          {/* ===================================================================== */}
+          <section className="col-span-6 xl:col-span-6 flex justify-end">
+            <div className="w-full max-w-lg rounded-3xl border border-zinc-200/90 bg-white p-8 xl:p-10 shadow-lg relative">
+              {/* Card Header */}
+              <div className="mb-6">
+                <span className="text-sm font-bold text-zinc-500">Welcome Back 👋</span>
+                <h3 className="mt-1 text-2xl font-black tracking-tight text-[#111827]">
+                  Partner Login
+                </h3>
+                <p className="mt-1 text-xs font-medium text-zinc-500">
+                  Manage your laundry business with QuickPress.
+                </p>
+              </div>
+
+              {/* Login Form */}
+              <form onSubmit={handleContinue} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="mobile-input-desk"
+                    className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-2"
+                  >
+                    Mobile Number
+                  </label>
+                  <div
+                    className={`flex h-14 items-center rounded-2xl border-2 bg-zinc-50/70 px-4 transition-all ${
+                      error
+                        ? "border-red-500 bg-red-50/20"
+                        : "border-zinc-200 focus-within:border-[#111827] focus-within:bg-white"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 border-r border-zinc-200 pr-3.5 text-sm font-black text-[#111827]">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </span>
+                    <input
+                      id="mobile-input-desk"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      maxLength={10}
+                      value={value}
+                      onChange={(e) => {
+                        setValue(e.target.value.replace(/\D/g, "").slice(0, 10));
+                        if (error) setError(null);
+                      }}
+                      placeholder="Enter 10-digit mobile number"
+                      className="w-full bg-transparent pl-3.5 text-base font-black tracking-wider text-[#111827] placeholder:text-zinc-400 placeholder:font-medium placeholder:text-xs focus:outline-none"
+                    />
+                  </div>
+                  {error ? (
+                    <p className="mt-1.5 text-xs font-bold text-red-600 animate-in fade-in duration-200">
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Developer Demo Helper */}
+                <div className="flex items-center justify-between text-xs text-zinc-500 pt-0.5">
+                  <span>Test Store Account:</span>
+                  <button
+                    type="button"
+                    onClick={() => fillDemoNumber("9876543210")}
+                    className="font-bold text-amber-800 hover:underline cursor-pointer"
+                  >
+                    Use 9876543210
+                  </button>
+                </div>
+
+                {/* Primary CTA */}
+                <button
+                  type="submit"
+                  disabled={busy || sent || value.length < 10}
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] text-[#111827] font-black text-sm uppercase tracking-wider shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>Sending OTP Verification Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue →</span>
+                    </>
+                  )}
+                </button>
+
+                {/* OR Divider */}
+                <div className="relative my-4 text-center">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-zinc-200" />
+                  </div>
+                  <span className="relative bg-white px-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    OR
+                  </span>
+                </div>
+
+                {/* Google Sign In */}
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={googleBusy}
+                  className="flex h-13 w-full items-center justify-center gap-3 rounded-2xl border border-zinc-200 bg-white font-bold text-xs text-zinc-800 shadow-2xs transition-all hover:bg-zinc-50 active:scale-[0.98] cursor-pointer"
+                >
+                  {googleBusy ? (
+                    <Loader2 className="size-4 animate-spin text-zinc-600" />
+                  ) : (
+                    <>
+                      <GoogleGlyph />
+                      <span>Continue with Google</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Registration CTA */}
+              <div className="mt-8 pt-6 border-t border-zinc-100 text-center">
+                <p className="text-xs text-zinc-600 font-medium">
+                  Don't have a Partner account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: partnerRoutes.registration })}
+                    className="font-black text-emerald-700 hover:underline cursor-pointer ml-1"
+                  >
+                    Become a QuickPress Partner
+                  </button>
+                </p>
+              </div>
+
+              {/* Security Section Below Card */}
+              <div className="mt-5 pt-3 border-t border-dashed border-zinc-200/80 text-center">
+                <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+                  <ShieldCheck className="size-3.5 text-[#16A34A]" />
+                  <span>🔒 Secure Partner Access · Your business data is protected</span>
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        {/* Desktop Footer */}
+        <footer className="flex items-center justify-between border-t border-zinc-200/80 pt-6 text-xs text-zinc-500">
+          <span>© 2026 QuickPress Technologies Inc. All rights reserved.</span>
+          <div className="flex items-center gap-6">
+            <span className="hover:underline cursor-pointer">Partner Terms</span>
+            <span className="hover:underline cursor-pointer">Privacy Policy</span>
+            <span className="hover:underline cursor-pointer">Security Center</span>
+          </div>
+        </footer>
       </div>
 
       <Toaster />
