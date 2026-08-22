@@ -77,21 +77,66 @@ class PartnerRepository:
         if role_value != "partner":
             raise PartnerAccessError("This account is not a partner account")
         user_id = str(getattr(user, "id", "") or "")
+        phone = str(getattr(user, "phone", "") or "")
+        raw_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+
+        # 1. Check direct partners collection link
         account = await database.find_one("partners", {"user_id": user_id}) or {}
-        store_id = (
-            account.get("partner_id")
-            or account.get("partnerId")
-            or getattr(user, "linked_partner_id", None)
-            or getattr(user, "linked_id", None)
-            or user_id
-        )
-        if not store_id or store_id == user_id:
-            store_id = DEMO_PARTNER_ID
-            await self.link_account(user_id, store_id)
-        
-        # Ensure profile exists
+        store_id = account.get("partner_id") or account.get("partnerId")
+
+        # 2. Check partner profile by userId
+        if not store_id:
+            profile_by_user = await database.find_one(PROFILES, {"userId": user_id})
+            if profile_by_user:
+                store_id = str(profile_by_user.get("_id") or profile_by_user.get("partnerId"))
+
+        # 3. Check partner profile by matching phone or existing partner users with same phone
+        if not store_id and raw_phone:
+            profile_by_phone = await database.find_one(PROFILES, {
+                "$or": [
+                    {"phone": phone},
+                    {"phone": raw_phone},
+                    {"phone": f"+91{raw_phone}"},
+                    {"ownerPhone": phone},
+                    {"ownerPhone": raw_phone},
+                ]
+            })
+            if profile_by_phone:
+                store_id = str(profile_by_phone.get("_id") or profile_by_phone.get("partnerId"))
+            else:
+                other_users = await database.find_many("users", {
+                    "role": "partner",
+                    "$or": [{"phone": phone}, {"phone": raw_phone}, {"phone": f"+91{raw_phone}"}]
+                })
+                for ou in other_users:
+                    ou_id = str(ou.get("_id") or ou.get("id"))
+                    ou_account = await database.find_one("partners", {"user_id": ou_id}) or {}
+                    ou_partner_id = ou_account.get("partner_id") or ou_account.get("partnerId")
+                    if ou_partner_id:
+                        store_id = ou_partner_id
+                        break
+                    ou_profile = await database.find_one(PROFILES, {"userId": ou_id})
+                    if ou_profile:
+                        store_id = str(ou_profile.get("_id") or ou_profile.get("partnerId"))
+                        break
+
+        # 4. Fallback to user linked_partner_id / linked_id
+        if not store_id:
+            candidate = getattr(user, "linked_partner_id", None) or getattr(user, "linked_id", None)
+            if candidate and await database.find_one(PROFILES, {"_id": str(candidate)}):
+                store_id = str(candidate)
+
+        # 5. If still none, fallback to user_id or demo
+        if not store_id:
+            store_id = user_id
+
+        # Cache/link the resolved store_id
+        await self.link_account(user_id, str(store_id))
+
+        # Ensure profile exists in PROFILES
         if await database.find_one(PROFILES, {"_id": str(store_id)}) is None:
             await self.profile(str(store_id))
+
         return str(store_id)
 
     async def link_account(self, user_id: str, store_id: str) -> None:
@@ -176,6 +221,8 @@ class PartnerServiceRepository:
             doc["minQuantity"] = int(doc.get("minQuantity") or 1)
             doc["expressAvailable"] = bool(doc.get("expressAvailable", False))
             result.append(doc)
+        return result
+
     async def by_id(self, partner_id: str, service_id: str) -> Dict[str, Any]:
         existing = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
         if existing is None:
