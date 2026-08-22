@@ -55,9 +55,14 @@ class RejectOrderPayload(BaseModel):
 
 class PartnerProfileResponse(BaseModel):
     partnerId: str
+    id: Optional[str] = None
     businessName: str = "QuickPress Partner Store"
     ownerName: str = "Partner"
     phone: str = ""
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.id:
+            self.id = self.partnerId
     email: str = ""
     city: str = "Bengaluru"
     rating: float = 5.0

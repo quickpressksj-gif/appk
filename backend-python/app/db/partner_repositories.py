@@ -176,7 +176,24 @@ class PartnerServiceRepository:
             doc["minQuantity"] = int(doc.get("minQuantity") or 1)
             doc["expressAvailable"] = bool(doc.get("expressAvailable", False))
             result.append(doc)
-        return result
+    async def by_id(self, partner_id: str, service_id: str) -> Dict[str, Any]:
+        existing = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
+        if existing is None:
+            existing = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
+        if existing is None:
+            raise PartnerNotFoundError("Service not found or you do not have permission to access it")
+        doc = dict(existing)
+        doc["id"] = str(doc.get("_id") or doc.get("id"))
+        doc["enabled"] = bool(doc.get("enabled", doc.get("isActive", True)))
+        doc["turnaroundHours"] = int(doc.get("turnaroundHours") or 24)
+        doc["price"] = int(doc.get("price") or 0)
+        doc["unit"] = str(doc.get("unit") or "kg")
+        doc["category"] = str(doc.get("category") or "laundry")
+        doc["description"] = str(doc.get("description") or "")
+        doc["image"] = str(doc.get("image") or "")
+        doc["minQuantity"] = int(doc.get("minQuantity") or 1)
+        doc["expressAvailable"] = bool(doc.get("expressAvailable", False))
+        return doc
 
     async def create(self, partner_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         svc_id = _uid("svc")

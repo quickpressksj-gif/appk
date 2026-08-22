@@ -260,7 +260,21 @@ async def create_service(
     return _service_response(doc)
 
 
+@router.get("/services/{service_id}", response_model=PartnerServiceResponse)
+async def get_service(
+    service_id: str, partner_id: str = Depends(_partner_id)
+) -> PartnerServiceResponse:
+    try:
+        doc = await partner_service_repository.by_id(partner_id, service_id)
+    except PartnerAccessError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+    except PartnerNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    return _service_response(doc)
+
+
 @router.put("/services/{service_id}", response_model=PartnerServiceResponse)
+@router.patch("/services/{service_id}", response_model=PartnerServiceResponse)
 async def update_service(
     service_id: str, payload: PartnerServiceUpdate, partner_id: str = Depends(_partner_id)
 ) -> PartnerServiceResponse:
@@ -274,11 +288,24 @@ async def update_service(
 
 
 @router.put("/services/{service_id}/toggle", response_model=PartnerServiceResponse)
+@router.patch("/services/{service_id}/status", response_model=PartnerServiceResponse)
 async def toggle_service(
-    service_id: str, enabled: bool = Query(...), partner_id: str = Depends(_partner_id)
+    service_id: str,
+    enabled: Optional[bool] = Query(default=None),
+    status_param: Optional[str] = Query(default=None, alias="status"),
+    body: Optional[dict] = None,
+    partner_id: str = Depends(_partner_id),
 ) -> PartnerServiceResponse:
+    is_enabled = True
+    if enabled is not None:
+        is_enabled = enabled
+    elif status_param is not None:
+        is_enabled = status_param.lower() in ("active", "true", "enabled", "1")
+    elif body and ("enabled" in body or "isActive" in body or "status" in body):
+        is_enabled = bool(body.get("enabled", body.get("isActive", body.get("status") == "active")))
+
     try:
-        doc = await partner_service_repository.toggle(partner_id, service_id, enabled)
+        doc = await partner_service_repository.toggle(partner_id, service_id, is_enabled)
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
