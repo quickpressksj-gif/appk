@@ -5,10 +5,19 @@ import { toast } from "sonner";
 
 import { PartnerSidebar } from "./PartnerSidebar";
 import { PartnerDesktopTopBar } from "./PartnerDesktopTopBar";
-import { PartnerBottomNav } from "../PartnerBottomNav";
+import { ZomatoBottomNav } from "./ZomatoBottomNav";
 import { partnerRoutes, type PartnerTabId } from "../../navigation/partner-routes";
 import { fetchPartnerProfile, toggleStoreStatus } from "../../api/partner/partner-profile-api";
 import { usePartnerContext } from "../../context/PartnerContext";
+
+const TAB_MAPPING: Record<PartnerTabId, "hub" | "orders" | "growth" | "menu" | "finance"> = {
+  dashboard: "hub",
+  orders: "orders",
+  services: "menu",
+  earnings: "finance",
+  wallet: "finance",
+  profile: "hub",
+};
 
 export function PartnerLayout({
   children,
@@ -88,52 +97,14 @@ export function PartnerLayout({
           onSearchChange={onSearchChange}
         />
 
-        {/* Mobile Sticky Header */}
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border/70 bg-background/90 px-4 backdrop-blur-md md:hidden">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-brand-dark font-black text-sm shadow-sm">
-              QP
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-black text-foreground">{shopName}</p>
-              <button
-                type="button"
-                onClick={handleToggleStatus}
-                className="flex items-center gap-1.5 text-[10px] font-bold"
-              >
-                <span
-                  className={`size-2 rounded-full ${
-                    isOnline ? "bg-emerald-500 animate-ping inline-block" : "bg-zinc-400"
-                  }`}
-                />
-                <span className={isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
-                  {isOnline ? "Open" : "Closed"}
-                </span>
-                <span className="text-[9px] text-muted-foreground underline ml-0.5">Change</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              to={partnerRoutes.notifications}
-              className="flex size-9 items-center justify-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-muted"
-            >
-              <Bell className="size-4" />
-            </Link>
-          </div>
-        </header>
-
         {/* Page Content */}
         <main className="flex-1 w-full pb-20 md:pb-8">
           {children}
         </main>
 
-        {/* Mobile Bottom Navigation Bar */}
+        {/* Zomato-Style Mobile Floating Navigation Pill */}
         {activeTab ? (
-          <div className="md:hidden">
-            <PartnerBottomNav active={activeTab} />
-          </div>
+          <ZomatoBottomNav activeTab={TAB_MAPPING[activeTab] || "hub"} />
         ) : null}
       </div>
     </div>

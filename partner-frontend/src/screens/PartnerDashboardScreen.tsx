@@ -8,6 +8,7 @@ import type { EarningsSummary, PartnerOrderStatus } from "@/shared/types/partner
 
 import { SectionHeading } from "../components/PartnerPrimitives";
 import { PartnerLayout } from "../components/layout/PartnerLayout";
+import { ZomatoHubView } from "../components/dashboard/ZomatoHubView";
 import {
   OrderStatusChips,
   QuickActionsGrid,
@@ -155,7 +156,13 @@ export function PartnerDashboardScreen() {
       title="Partner Dashboard"
       subtitle={shop ? `Welcome back, ${shop.partnerName} · ${shop.shopName}` : "Store Console"}
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-4 md:px-8 md:py-6">
+      {/* Mobile Zomato Hub Experience (< md) */}
+      <div className="md:hidden">
+        <ZomatoHubView />
+      </div>
+
+      {/* Desktop Business Dashboard (>= md) */}
+      <div className="hidden mx-auto w-full max-w-7xl px-4 py-4 md:block md:px-8 md:py-6">
         <PullToRefresh onRefresh={refresh}>
           {showSkeleton ? (
             <DashboardSkeleton />
@@ -165,11 +172,6 @@ export function PartnerDashboardScreen() {
             </div>
           ) : (
             <div className="animate-soft-fade space-y-6 lg:space-y-8">
-              {/* Mobile Welcome Card */}
-              <div className="md:hidden">
-                <WelcomeCard shop={shop} summary={summary} />
-              </div>
-
               {/* Operational Metric Cards */}
               <section>
                 <div className="flex items-center justify-between">
@@ -272,6 +274,7 @@ export function PartnerDashboardScreen() {
           )}
         </PullToRefresh>
       </div>
+
       {sheetNode}
       {overlay}
       <Toaster />
