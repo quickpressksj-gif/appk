@@ -15,7 +15,10 @@ import { apiGetJson, apiPostJson } from "../core/transport";
 
 /** GET /api/partner/orders */
 export async function fetchPartnerOrders(): Promise<PartnerOrder[]> {
-  return apiGetJson<PartnerOrder[]>("/api/partner/orders");
+  const response = await apiGetJson<PartnerOrder[] | { items: PartnerOrder[]; total?: number }>("/api/partner/orders");
+  if (Array.isArray(response)) return response;
+  if (response && Array.isArray((response as any).items)) return (response as any).items;
+  return [];
 }
 
 /** GET /api/partner/orders/{id} */
