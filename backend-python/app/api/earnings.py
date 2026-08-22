@@ -10,11 +10,6 @@ from app.models.user import Role, User
 router = APIRouter(tags=["earnings"])
 
 
-@router.get("/partner/earnings")
-async def partner_earnings(user: User = Depends(require_roles(Role.partner))) -> dict:
-    return await repo.earnings_for(user, 62, 12_400)
-
-
 @router.get("/partner/settlements")
 async def partner_settlements(user: User = Depends(require_roles(Role.partner))) -> dict:
     return await repo.settlements_for(user)

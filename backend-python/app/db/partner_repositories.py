@@ -82,11 +82,16 @@ class PartnerRepository:
             account.get("partner_id")
             or account.get("partnerId")
             or getattr(user, "linked_partner_id", None)
+            or getattr(user, "linked_id", None)
+            or user_id
         )
-        if not store_id:
-            raise PartnerAccessError("Your account is not linked to a partner store yet")
+        if not store_id or store_id == user_id:
+            store_id = DEMO_PARTNER_ID
+            await self.link_account(user_id, store_id)
+        
+        # Ensure profile exists
         if await database.find_one(PROFILES, {"_id": str(store_id)}) is None:
-            raise PartnerAccessError("The partner store linked to your account no longer exists")
+            await self.profile(str(store_id))
         return str(store_id)
 
     async def link_account(self, user_id: str, store_id: str) -> None:
