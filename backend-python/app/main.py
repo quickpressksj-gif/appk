@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.addresses import router as addresses_router
+from app.api.health import router as health_router
 from app.api.admin import router as admin_router
 from app.api.admin_payments import router as admin_payments_router
 from app.api.availability import router as availability_router
@@ -103,8 +104,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )
     app.include_router(auth_router, prefix=settings.api_prefix)
     # Sprint 2.6: profile / photo / settings. Registered before the home router
@@ -155,13 +156,10 @@ def create_app() -> FastAPI:
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
 
-    @app.get("/health")
-    async def health() -> dict:
-        return {
-            "ok": True,
-            "env": settings.app_env,
-            "database": "in-memory" if database.in_memory else "mongodb-atlas",
-        }
+    # Health check + meta (countries list).
+    # Mounted TWICE so both /health (Render default) and /api/health work.
+    app.include_router(health_router)                          # → /health, /countries
+    app.include_router(health_router, prefix=settings.api_prefix)  # → /api/health, /api/countries
 
     return app
 
