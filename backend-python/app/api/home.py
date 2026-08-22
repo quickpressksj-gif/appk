@@ -168,3 +168,65 @@ async def get_home(user: Optional[User] = Depends(optional_user)) -> HomeRespons
         offers=offers,
         unreadNotifications=0,
     )
+
+
+@router.get("/recommendations")
+async def get_recommendations() -> list[dict]:
+    return [
+        {"id": "rec-1", "title": "5-Shirt Steam Iron Combo", "reason": "Based on your recent dry cleaning", "price": 199, "icon": "shirt"},
+        {"id": "rec-2", "title": "Weekend Bedding Refresh", "reason": "Popular in your neighbourhood", "price": 449, "icon": "bed"},
+        {"id": "rec-3", "title": "Express Shoe Spa", "reason": "Monsoon essential", "price": 299, "icon": "footprints"},
+        {"id": "rec-4", "title": "Curtain Deep Clean", "reason": "Special 20% off", "price": 599, "icon": "home"},
+    ]
+
+
+@router.get("/orders/recent")
+async def get_recent_orders(user: Optional[User] = Depends(optional_user)) -> list[dict]:
+    if user:
+        from app.db.order_repositories import order_repository
+        orders = await order_repository.by_customer(user.id)
+        if orders:
+            return [
+                {
+                    "id": o.get("id") or o.get("_id"),
+                    "reference": o.get("orderNumber") or (o.get("id") or o.get("_id"))[:8],
+                    "title": (o.get("partner") or {}).get("name") or "Laundry Order",
+                    "items": f"{len(o.get('items', []))} items",
+                    "placed": str(o.get("createdAt") or "Recently")[:10],
+                    "status": "Delivered" if o.get("status") in ("delivered", "completed") else "In progress",
+                    "total": float(o.get("total") or o.get("pricing", {}).get("total") or 0),
+                }
+                for o in orders[:5]
+            ]
+    return []
+
+
+DEFAULT_PLACES = [
+    {"id": "loc-1", "area": "Kasganj Main Market", "city": "Kasganj", "state": "Uttar Pradesh"},
+    {"id": "loc-2", "area": "Civil Lines", "city": "Aligarh", "state": "Uttar Pradesh"},
+    {"id": "loc-3", "area": "Koramangala 5th Block", "city": "Bengaluru", "state": "Karnataka"},
+    {"id": "loc-4", "area": "Indiranagar 100ft Road", "city": "Bengaluru", "state": "Karnataka"},
+    {"id": "loc-5", "area": "HSR Layout Sector 2", "city": "Bengaluru", "state": "Karnataka"},
+    {"id": "loc-6", "area": "Whitefield ITPL Main Rd", "city": "Bengaluru", "state": "Karnataka"},
+]
+
+
+@router.get("/locations")
+async def get_locations() -> dict:
+    return {
+        "recent": DEFAULT_PLACES[:2],
+        "saved": DEFAULT_PLACES[:1],
+        "nearby": DEFAULT_PLACES[2:5],
+        "popular": DEFAULT_PLACES,
+    }
+
+
+@router.get("/locations/search")
+async def search_locations(q: str = Query(default="")) -> list[dict]:
+    query = q.lower().strip()
+    if not query:
+        return DEFAULT_PLACES
+    return [
+        p for p in DEFAULT_PLACES
+        if query in p["area"].lower() or query in p["city"].lower() or query in p["state"].lower()
+    ]

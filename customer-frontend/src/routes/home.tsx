@@ -38,6 +38,19 @@ import {
   readRecentSearches,
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
 } from "@/api/customer/services/search-service";
+
+import store1 from "@/shared/assets/store-1.jpg";
+import store2 from "@/shared/assets/store-2.jpg";
+import store3 from "@/shared/assets/store-3.jpg";
+
+function resolvePartnerImage(img?: string | null): string {
+  if (!img) return store1;
+  if (img === "store-1" || img.includes("store-1")) return store1;
+  if (img === "store-2" || img.includes("store-2")) return store2;
+  if (img === "store-3" || img.includes("store-3")) return store3;
+  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/") || img.startsWith("data:")) return img;
+  return store1;
+}
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export const Route = createFileRoute("/home")({
@@ -459,7 +472,7 @@ function HomeScreen() {
                   >
                     <div className="relative">
                       <img
-                        src={partner.logo ?? partner.image}
+                        src={resolvePartnerImage(partner.logo ?? partner.image)}
                         alt={`${partner.name} storefront`}
                         width={800}
                         height={600}
@@ -490,9 +503,9 @@ function HomeScreen() {
                       </p>
                       {partner.services && partner.services.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {partner.services.slice(0, 3).map((service) => (
+                          {partner.services.slice(0, 3).map((service, sIdx) => (
                             <span
-                              key={service}
+                              key={`${partner.id}-${service}-${sIdx}`}
                               className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
                             >
                               {service}
