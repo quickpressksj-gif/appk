@@ -5,19 +5,10 @@ import { toast } from "sonner";
 
 import { PartnerSidebar } from "./PartnerSidebar";
 import { PartnerDesktopTopBar } from "./PartnerDesktopTopBar";
-import { ZomatoBottomNav } from "./ZomatoBottomNav";
+import { PartnerBottomNav } from "../PartnerBottomNav";
 import { partnerRoutes, type PartnerTabId } from "../../navigation/partner-routes";
 import { fetchPartnerProfile, toggleStoreStatus } from "../../api/partner/partner-profile-api";
 import { usePartnerContext } from "../../context/PartnerContext";
-
-const TAB_MAPPING: Record<PartnerTabId, "hub" | "orders" | "growth" | "menu" | "finance"> = {
-  dashboard: "hub",
-  orders: "orders",
-  services: "menu",
-  earnings: "finance",
-  wallet: "finance",
-  profile: "hub",
-};
 
 export function PartnerLayout({
   children,
@@ -76,7 +67,7 @@ export function PartnerLayout({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Desktop Left Sidebar */}
+      {/* Desktop Left Sidebar (>= md) */}
       <PartnerSidebar
         shopName={shopName}
         isOnline={isOnline}
@@ -86,7 +77,7 @@ export function PartnerLayout({
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
-        {/* Desktop Top Bar */}
+        {/* Desktop Top Bar (>= md) */}
         <PartnerDesktopTopBar
           title={title}
           subtitle={subtitle}
@@ -98,13 +89,15 @@ export function PartnerLayout({
         />
 
         {/* Page Content */}
-        <main className="flex-1 w-full pb-20 md:pb-8">
+        <main className="flex-1 w-full pb-24 md:pb-8">
           {children}
         </main>
 
-        {/* Zomato-Style Mobile Floating Navigation Pill */}
+        {/* Customer-Panel Style Glass Pill Bottom Navigation Bar (< md) */}
         {activeTab ? (
-          <ZomatoBottomNav activeTab={TAB_MAPPING[activeTab] || "hub"} />
+          <div className="md:hidden">
+            <PartnerBottomNav active={activeTab} />
+          </div>
         ) : null}
       </div>
     </div>
