@@ -83,10 +83,10 @@ export function PartnerProfileScreen() {
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-zinc-900">
-                  {profile?.businessName || "Grand Leaf Cafe & Restaurant"}
+                  {profile?.businessName || profile?.ownerName || "QuickPress Partner"}
                 </p>
                 <p className="text-[11px] font-medium text-zinc-500">
-                  {profile?.city ? `${profile.city} Locality` : "Kasganj Locality"}
+                  {profile?.city ? `${profile.city}` : "Store Settings"}
                 </p>
               </div>
             </div>

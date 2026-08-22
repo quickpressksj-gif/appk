@@ -1,9 +1,14 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { partnerRoutes } from "../navigation/partner-routes";
+import { readSession } from "../api/core/session-store";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
+    const session = readSession("partner");
+    if (session && session.token) {
+      throw redirect({ to: partnerRoutes.dashboard });
+    }
     throw redirect({ to: partnerRoutes.auth });
   },
   head: () => ({

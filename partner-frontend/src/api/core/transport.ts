@@ -14,7 +14,7 @@
 import { apiBaseUrl, apiTimeoutMs, appEnvironment, isApiConfigured } from "../customer/api/config";
 import { isOnline } from "../customer/api/network";
 import { ApiError } from "./errors";
-import { activeSessionRole, readToken } from "./session-store";
+import { activeSessionRole, clearSession, readToken } from "./session-store";
 import { recordApiCall } from "./api-inspector";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -75,7 +75,15 @@ async function httpRequest<T>(
       signal: controller.signal,
     });
 
-    if (response.status === 401) throw new ApiError("unauthorized", "Session expired", 401);
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        clearSession(activeSessionRole());
+        if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+          window.location.href = "/auth";
+        }
+      }
+      throw new ApiError("unauthorized", "Session expired", 401);
+    }
     if (response.status === 404) throw new ApiError("not-found", `${path} not found`, 404);
     if (!response.ok) {
       let message = `${method} ${path} failed with ${response.status}`;

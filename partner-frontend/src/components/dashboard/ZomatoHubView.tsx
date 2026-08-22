@@ -49,8 +49,8 @@ export function ZomatoHubView() {
   const navigate = useNavigate();
   const { orders } = usePartnerOrders();
   const [activeFeedPill, setActiveFeedPill] = useState("feed");
-  const [shopName, setShopName] = useState("QuickPress Laundry Hub");
-  const [locationName, setLocationName] = useState("Kasganj Locality");
+  const [shopName, setShopName] = useState("QuickPress Laundry Store");
+  const [locationName, setLocationName] = useState("Bengaluru");
   const [isOnline, setIsOnline] = useState(true);
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [todayOrdersCount, setTodayOrdersCount] = useState(0);
@@ -65,8 +65,8 @@ export function ZomatoHubView() {
     ]).then(([profile, summary, earnings]) => {
       if (!alive) return;
       if (profile) {
-        setShopName(profile.businessName || "Grand Leaf Cafe & Laundry");
-        setLocationName(profile.city ? `${profile.city} Locality` : "Main Market");
+        setShopName(profile.businessName || profile.ownerName || "QuickPress Laundry Store");
+        setLocationName(profile.city ? `${profile.city}` : "Store Location");
       }
       if (summary) {
         setIsOnline(summary.isStoreOpen);

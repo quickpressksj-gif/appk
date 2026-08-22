@@ -110,11 +110,11 @@ export function OrdersScreen() {
           <div className="flex items-start justify-between px-4 pt-3.5 pb-2">
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-base font-black tracking-tight text-zinc-900">
-                {profile?.businessName || "Grand Leaf Cafe & Restaurant"}
+                {profile?.businessName || profile?.ownerName || "QuickPress Partner"}
               </h1>
               <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-zinc-500">
                 <span className="size-1.5 rounded-full bg-zinc-400" />
-                <span>{profile?.city ? `${profile.city} Locality` : "Kasganj Locality"}</span>
+                <span>{profile?.city ? `${profile.city}` : "Store Queue"}</span>
               </p>
             </div>
 

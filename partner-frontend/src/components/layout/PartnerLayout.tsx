@@ -26,11 +26,19 @@ export function PartnerLayout({
   onSearchChange?: (q: string) => void;
 }) {
   const navigate = useNavigate();
-  const { signOut } = usePartnerContext();
-  const [shopName, setShopName] = useState<string>("Store Console");
+  const { session, hydrating, signOut } = usePartnerContext();
+  const [shopName, setShopName] = useState<string>("QuickPress Partner");
   const [isOnline, setIsOnline] = useState<boolean>(true);
 
+  // Strict Auth Guard: If not logged in, redirect to login screen
   useEffect(() => {
+    if (!hydrating && !session) {
+      void navigate({ to: partnerRoutes.auth });
+    }
+  }, [hydrating, session, navigate]);
+
+  useEffect(() => {
+    if (!session) return;
     let alive = true;
     fetchPartnerProfile()
       .then((p) => {
@@ -42,7 +50,7 @@ export function PartnerLayout({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [session]);
 
   const handleToggleStatus = async () => {
     try {
@@ -64,6 +72,18 @@ export function PartnerLayout({
       void navigate({ to: partnerRoutes.auth });
     }
   };
+
+  // Show loading indicator while checking authentication session
+  if (hydrating || !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-xs font-bold text-muted-foreground">Checking store session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

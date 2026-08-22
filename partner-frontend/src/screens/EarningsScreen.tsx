@@ -103,12 +103,12 @@ export function EarningsScreen() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h1 className="truncate text-base font-black tracking-tight text-zinc-900">
-                  {profile?.businessName || "Grand Leaf Cafe & Restaurant"}
+                  {profile?.businessName || profile?.ownerName || "QuickPress Partner"}
                 </h1>
                 <ChevronDown className="size-4 text-zinc-500 shrink-0" />
               </div>
               <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">
-                ID: {profile?.partnerId || "22391793"} • {profile?.city ? `${profile.city} Locality` : "Kasganj Locality, Kasganj"}
+                ID: {profile?.partnerId || "Store Account"} • {profile?.city ? `${profile.city}` : "Settlement Account"}
               </p>
             </div>
 
