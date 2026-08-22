@@ -56,7 +56,13 @@ export function OrderDetailsScreen() {
   const { orders, isLoading } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
-  const order = orders.find((item) => item.id === orderId);
+  const order = orders.find(
+    (item) =>
+      item.id === orderId ||
+      item.code === orderId ||
+      item.id.toLowerCase() === orderId?.toLowerCase() ||
+      item.code.toLowerCase() === orderId?.toLowerCase()
+  );
 
   const copyCode = () => {
     if (order?.code) {
