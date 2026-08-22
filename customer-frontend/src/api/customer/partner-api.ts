@@ -156,15 +156,6 @@ export async function fetchPartnerDetail(
   partnerId: string,
   options: FetchOptions = {},
 ): Promise<PartnerDetailResult> {
-  if (!options.forceRefresh) {
-    const cached = readScopedCache<PartnerDetailData>("partner-detail", partnerId);
-    if (cached) {
-      // Refresh in the background so the next visit is up to date.
-      void revalidatePartnerDetail(partnerId);
-      return { data: cached, fromCache: true };
-    }
-  }
-
   try {
     const data = await apiGetJson<PartnerDetailData>(
       `/api/partners/${encodeURIComponent(partnerId)}`,
@@ -173,8 +164,9 @@ export async function fetchPartnerDetail(
     writeScopedCache("partner-detail", partnerId, data);
     return { data, fromCache: false };
   } catch (error) {
-    const stale = readStaleScopedCache<PartnerDetailData>("partner-detail", partnerId);
-    if (stale) return { data: stale, fromCache: true };
+    const cached = readScopedCache<PartnerDetailData>("partner-detail", partnerId) ||
+      readStaleScopedCache<PartnerDetailData>("partner-detail", partnerId);
+    if (cached) return { data: cached, fromCache: true };
     throw error;
   }
 }

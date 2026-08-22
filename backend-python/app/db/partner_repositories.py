@@ -321,12 +321,17 @@ class PartnerOrderRepository:
     """
 
     async def _orders_for(self, partner_id: str) -> List[Dict[str, Any]]:
-        docs = await database.find_many(lifecycle.ORDERS, {"partner.id": partner_id})
-        if not docs:  # in-memory store cannot match nested keys
+        docs = await database.find_many(
+            lifecycle.ORDERS,
+            {"$or": [{"partner.id": partner_id}, {"partner_id": partner_id}, {"partnerId": partner_id}]},
+        )
+        if not docs:
             docs = [
                 d
                 for d in await database.find_many(lifecycle.ORDERS, {})
                 if (d.get("partner") or {}).get("id") == partner_id
+                or d.get("partner_id") == partner_id
+                or d.get("partnerId") == partner_id
             ]
         docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
         return docs
