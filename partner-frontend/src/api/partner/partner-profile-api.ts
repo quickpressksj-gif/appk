@@ -62,3 +62,11 @@ export async function updatePartnerProfile(
   const profile = await apiRequest<PartnerProfile>("PUT", "/api/partner/profile", { body: patch });
   return { ok: true as const, profile };
 }
+
+export async function toggleStoreStatus(isOnline: boolean): Promise<PartnerProfile> {
+  return apiRequest<PartnerProfile>("PATCH", "/api/partner/store/status", { body: { isOnline } });
+}
+
+export async function requestPartnerWithdraw(amount: number): Promise<{ balance: number }> {
+  return apiPostJson<{ balance: number }>("/api/partner/withdraw", { amount });
+}

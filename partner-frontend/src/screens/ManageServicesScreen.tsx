@@ -1,12 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Sparkles, Tag, WifiOff } from "lucide-react";
+import { Plus, Sparkles, Tag, WifiOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 
-import { PartnerBellAction, PartnerTopBar } from "../components/PartnerTopBar";
-import { PartnerBottomNav } from "../components/PartnerBottomNav";
+import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { PullToRefresh } from "../components/dashboard/PullToRefresh";
 import { SectionHeading } from "../components/PartnerPrimitives";
 import { ServiceCard } from "../components/services/ServiceCard";
@@ -66,86 +65,77 @@ export function ManageServicesScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md md:max-w-3xl lg:max-w-6xl">
-        <PartnerTopBar
-          title="Manage Services"
-          subtitle="Rate card, pricing & offers"
-          onBack={() => navigate({ to: partnerRoutes.dashboard })}
-          action={<PartnerBellAction />}
-        />
-
+    <PartnerLayout
+      activeTab="services"
+      title="Services & Rate Card"
+      subtitle={`${activeCount} of ${services.length} services live in customer catalog`}
+      searchQuery={query}
+      onSearchChange={setQuery}
+    >
+      <div className="mx-auto w-full max-w-7xl px-4 py-4 md:px-8 md:py-6">
         <PullToRefresh onRefresh={refresh}>
-          <div className="px-5 pt-4">
-            <section className="card-soft animate-soft-fade flex items-center gap-3 border border-border p-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
-                <Sparkles className="size-5" />
+          {/* Header Action Banner */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-border/80 bg-card p-5 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark">
+                <Sparkles className="size-6" />
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold tracking-tight text-foreground">
-                  {activeCount} of {services.length} services live
+              <div>
+                <p className="text-sm font-extrabold text-foreground">
+                  {activeCount} of {services.length} services active
                 </p>
-                <p className="text-[0.7rem] font-medium text-muted-foreground">
-                  {offers.length} running {offers.length === 1 ? "offer" : "offers"} · prices sync to
-                  the customer app
+                <p className="text-xs text-muted-foreground font-medium">
+                  Changes made here sync live to the customer app in real-time.
                 </p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={toggleOffline}
-                aria-pressed={isOffline}
-                className={`flex shrink-0 items-center gap-1.5 rounded-2xl border px-3 py-2 text-[0.65rem] font-bold tracking-tight transition-all duration-300 active:scale-[0.96] ${
-                  isOffline
-                    ? "border-destructive bg-destructive/10 text-destructive"
-                    : "border-border bg-card text-muted-foreground"
-                }`}
+                onClick={() => setOfferSheetOpen(true)}
+                className="flex items-center gap-1.5 rounded-2xl border border-border bg-muted/40 px-4 py-2.5 text-xs font-bold text-foreground transition-all hover:bg-muted active:scale-95"
               >
-                <WifiOff className="size-3.5" />
-                {isOffline ? "Offline" : "Online"}
+                <Tag className="size-4" />
+                <span>Create Offer</span>
               </button>
-            </section>
 
-            <div className="mt-5">
-              <SectionHeading
-                title="Your Rate Card"
-                action={
-                  <span className="flex items-center gap-1 text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                    <Tag className="size-3" />
-                    {offers.length} offers
-                  </span>
-                }
-              />
-              <div className="mt-4">
-                <ServiceToolbar
-                  query={query}
-                  onQueryChange={setQuery}
-                  filters={filters}
-                  onToggleFilter={(id) =>
-                    setFilters((prev) =>
-                      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-                    )
-                  }
-                  onClearFilters={() => setFilters([])}
-                  sort={sort}
-                  onSortChange={setSort}
-                  resultCount={visible.length}
-                  onAddService={() => navigate({ to: partnerRoutes.serviceNew })}
-                  onCreateOffer={() => setOfferSheetOpen(true)}
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.serviceNew })}
+                className="flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition-all hover:brightness-105 active:scale-95"
+              >
+                <Plus className="size-4" />
+                <span>Add Service</span>
+              </button>
             </div>
           </div>
 
-          <div className="px-5 pb-32 pt-4">
+          {/* Filter Toolbar */}
+          <div className="mt-4">
+            <ServiceToolbar
+              query={query}
+              onQueryChange={setQuery}
+              filters={filters}
+              onToggleFilter={(id) =>
+                setFilters((prev) =>
+                  prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+                )
+              }
+              onClearFilters={() => setFilters([])}
+              sort={sort}
+              onSortChange={setSort}
+              resultCount={visible.length}
+            />
+          </div>
+
+          {/* Services Grid */}
+          <div className="mt-6 pb-12">
             {isLoading ? (
               <ServiceGridSkeleton />
-            ) : isOffline ? (
-              <ServiceEmptyState variant="offline" onAction={() => void refresh()} />
             ) : visible.length === 0 ? (
               <ServiceEmptyState
-                variant={isSearching && services.length > 0 ? "no-results" : "no-services"}
+                isSearching={isSearching}
                 onAction={
                   isSearching
                     ? resetSearch
@@ -153,7 +143,7 @@ export function ManageServicesScreen() {
                 }
               />
             ) : (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map((service, index) => (
                   <ServiceCard
                     key={service.id}
@@ -187,8 +177,6 @@ export function ManageServicesScreen() {
             )}
           </div>
         </PullToRefresh>
-
-        <PartnerBottomNav active="dashboard" />
       </div>
 
       {detailsService ? (
@@ -218,6 +206,6 @@ export function ManageServicesScreen() {
 
       <ServiceSuccessOverlay message={success} onDone={() => setSuccess(null)} />
       <Toaster />
-    </main>
+    </PartnerLayout>
   );
 }

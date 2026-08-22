@@ -3,8 +3,7 @@ import { useMemo, useState } from "react";
 
 import { Toaster } from "@/shared/ui/sonner";
 
-import { PartnerBellAction, PartnerTopBar } from "../components/PartnerTopBar";
-import { PartnerBottomNav } from "../components/PartnerBottomNav";
+import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { PullToRefresh } from "../components/dashboard/PullToRefresh";
 import { OrderCard } from "../components/orders/OrderCard";
 import { OrderEmptyState } from "../components/orders/OrderEmptyState";
@@ -20,7 +19,6 @@ import {
   type OrderSortId,
 } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
-import { partnerRoutes } from "../navigation/partner-routes";
 import type { OrderStage } from "../data/partner-orders-mock";
 
 export function OrdersScreen() {
@@ -52,39 +50,40 @@ export function OrdersScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md md:max-w-3xl lg:max-w-6xl">
-        <PartnerTopBar
-          title="Orders"
-          subtitle={`${orders.length} orders in your queue`}
-          onBack={() => navigate({ to: partnerRoutes.dashboard })}
-          action={<PartnerBellAction count={counts.new} />}
-        />
-
+    <PartnerLayout
+      activeTab="orders"
+      title="Orders Management"
+      subtitle={`${orders.length} orders total in your active queue`}
+      searchQuery={query}
+      onSearchChange={setQuery}
+    >
+      <div className="mx-auto w-full max-w-7xl px-4 py-4 md:px-8 md:py-6">
         <PullToRefresh onRefresh={refresh}>
-          <div className="px-5 pt-4">
+          {/* Stage Tabs */}
+          <div className="overflow-x-auto pb-1 scrollbar-none">
             <OrderTabs active={stage} counts={counts} onChange={setStage} />
-            <div className="mt-4">
-              <OrderToolbar
-                query={query}
-                onQueryChange={setQuery}
-                filters={filters}
-                onToggleFilter={(id) =>
-                  setFilters((prev) =>
-                    prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-                  )
-                }
-                onClearFilters={() => setFilters([])}
-                sort={sort}
-                onSortChange={setSort}
-                resultCount={visible.length}
-              />
-            </div>
           </div>
 
-          <div className="px-5 pb-32 pt-4">
+          {/* Filters & Sorting Toolbar */}
+          <div className="mt-4">
+            <OrderToolbar
+              query={query}
+              onQueryChange={setQuery}
+              filters={filters}
+              onToggleFilter={(id) =>
+                setFilters((prev) =>
+                  prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+                )
+              }
+              onClearFilters={() => setFilters([])}
+              sort={sort}
+              onSortChange={setSort}
+              resultCount={visible.length}
+            />
+          </div>
+
+          {/* Orders Content View */}
+          <div className="mt-6 pb-12">
             {isLoading ? (
               <OrderListSkeleton />
             ) : isOffline ? (
@@ -95,7 +94,7 @@ export function OrdersScreen() {
                 onAction={isSearching ? resetSearch : () => void refresh()}
               />
             ) : (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map((order, index) => (
                   <OrderCard
                     key={order.id}
@@ -109,13 +108,11 @@ export function OrdersScreen() {
             )}
           </div>
         </PullToRefresh>
-
-        <PartnerBottomNav active="orders" />
       </div>
 
       {sheetNode}
       {overlay}
       <Toaster />
-    </main>
+    </PartnerLayout>
   );
 }

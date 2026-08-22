@@ -4,8 +4,7 @@ import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 
-import { PartnerTopBar } from "../components/PartnerTopBar";
-import { PartnerBottomNav } from "../components/PartnerBottomNav";
+import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { PartnerListSkeleton } from "../components/PartnerSkeletons";
 import { PartnerEmptyState } from "../components/PartnerPrimitives";
 import { usePartnerResource } from "../hooks/use-partner-resource";
@@ -29,80 +28,73 @@ export function NotificationsScreen() {
   const handleReadAll = async () => {
     if (!items) return;
     setData(items.map((item) => ({ ...item, read: true })));
-    // TODO: replace with POST /api/partner/notifications/read
     await markNotificationsRead();
     toast.success("All notifications marked read");
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md">
-        <PartnerTopBar
-          title="Notifications"
-          onBack={() => navigate({ to: partnerRoutes.dashboard })}
-          action={
-            <button
-              type="button"
-              aria-label="Mark all read"
-              onClick={() => void handleReadAll()}
-              className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
-            >
-              <CheckCheck className="size-5" />
-            </button>
-          }
-        />
+    <PartnerLayout
+      title="Notifications & Alerts"
+      subtitle="Operational updates, order bookings and payout receipts"
+    >
+      <div className="mx-auto w-full max-w-4xl px-4 py-4 md:px-8 md:py-6">
+        <div className="flex items-center justify-between pb-4">
+          <p className="text-xs font-bold text-muted-foreground">
+            {items ? `${items.filter((i) => !i.read).length} unread` : "Loading..."}
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleReadAll()}
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
+          >
+            <CheckCheck className="size-4" />
+            <span>Mark all read</span>
+          </button>
+        </div>
 
         {!items ? (
           <PartnerListSkeleton />
+        ) : items.length === 0 ? (
+          <PartnerEmptyState
+            icon={BellRing}
+            title="Nothing new"
+            body="Order, payout and incentive updates will show up here."
+          />
         ) : (
-          <div className="space-y-3 px-5 pb-32 pt-4">
-            {items.length === 0 ? (
-              <PartnerEmptyState
-                icon={BellRing}
-                title="Nothing new"
-                body="Order, payout and incentive updates will show up here."
-              />
-            ) : (
-              items.map((item, index) => {
-                const Icon = KIND_ICON[item.kind];
-                return (
-                  <div
-                    key={item.id} className={`card-soft flex gap-3 border p-4 transition-all duration-300 ${
-                      item.read ? "border-border" : "border-primary/50 bg-primary/5"
+          <div className="space-y-3 pb-12">
+            {items.map((item) => {
+              const Icon = KIND_ICON[item.kind] || BellRing;
+              return (
+                <div
+                  key={item.id}
+                  className={`flex gap-3.5 rounded-3xl border p-4 transition-all ${
+                    item.read ? "border-border bg-card" : "border-primary/50 bg-primary/5 shadow-sm"
+                  }`}
+                >
+                  <span
+                    className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${
+                      item.kind === "alert"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-primary/20 text-brand-dark"
                     }`}
                   >
-                    <span
-                      className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${
-                        item.kind === "alert"
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-primary/15 text-brand-dark"
-                      }`}
-                    >
-                      <Icon className="size-5" strokeWidth={2.1} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold tracking-tight text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="mt-0.5 text-[0.72rem] font-medium text-muted-foreground">
-                        {item.body}
-                      </p>
-                      <p className="mt-1.5 text-[0.66rem] font-bold uppercase tracking-wider text-muted-foreground">
-                        {item.time}
-                      </p>
-                    </div>
+                    <Icon className="size-5" strokeWidth={2.1} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-foreground">{item.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{item.body}</p>
+                    <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {item.time}
+                    </p>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
         )}
-
-        <PartnerBottomNav active="dashboard" />
       </div>
+
       <Toaster />
-    </main>
+    </PartnerLayout>
   );
 }

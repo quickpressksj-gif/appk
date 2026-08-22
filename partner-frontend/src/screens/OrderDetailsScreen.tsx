@@ -14,7 +14,7 @@ import {
 
 import { Toaster } from "@/shared/ui/sonner";
 
-import { PartnerTopBar } from "../components/PartnerTopBar";
+import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { SectionHeading } from "../components/PartnerPrimitives";
 import { OrderActionBar } from "../components/orders/OrderActionBar";
 import { OrderStatusBadge } from "../components/orders/OrderCard";
@@ -47,247 +47,172 @@ export function OrderDetailsScreen() {
   const order = orders.find((item) => item.id === orderId);
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md md:max-w-3xl lg:max-w-5xl">
-        <PartnerTopBar
-          title={order ? order.code : "Order Details"}
-          subtitle={order ? STAGE_LABEL[order.stage] : ""}
-          onBack={() => navigate({ to: partnerRoutes.orders })}
-        />
-
-        <div className="px-5 pb-40 pt-4">
-          {isLoading ? (
-            <OrderDetailSkeleton />
-          ) : !order ? (
-            <div className="card-soft border border-border px-6 py-12 text-center">
-              <p className="text-sm font-black tracking-tight text-foreground">Order not found</p>
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                This order may have been removed from your queue.
-              </p>
-            </div>
-          ) : (
-            <div className="animate-soft-fade grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
-              <div className="space-y-5">
-                {/* Customer information */}
-                <section className="card-soft border border-border p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-base font-black tracking-tight text-foreground">
-                          {order.customerName}
-                        </p>
-                        <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[0.62rem] font-bold text-foreground">
-                          <Star className="size-3 fill-current text-brand-green" />
-                          {order.customerRating.toFixed(1)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[0.7rem] font-semibold text-muted-foreground">
-                        {order.customerPhone} · {order.customerOrders} orders with you
+    <PartnerLayout
+      activeTab="orders"
+      title={order ? `Order #${order.code}` : "Order Details"}
+      subtitle={order ? `Status: ${STAGE_LABEL[order.stage]}` : ""}
+    >
+      <div className="mx-auto w-full max-w-6xl px-4 py-4 md:px-8 md:py-6">
+        {isLoading ? (
+          <OrderDetailSkeleton />
+        ) : !order ? (
+          <div className="rounded-3xl border border-border bg-card px-6 py-16 text-center shadow-sm">
+            <p className="text-base font-black text-foreground">Order not found</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This order may have been removed or assigned to another store.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate({ to: partnerRoutes.orders })}
+              className="mt-4 inline-flex rounded-2xl bg-primary px-4 py-2 text-xs font-bold text-brand-dark"
+            >
+              Back to Orders
+            </button>
+          </div>
+        ) : (
+          <div className="animate-soft-fade grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+            <div className="space-y-6">
+              {/* Customer information */}
+              <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-black text-foreground">
+                        {order.customerName}
                       </p>
-                      <p className="text-[0.7rem] font-semibold text-muted-foreground">
-                        Placed {order.placedAt}
-                      </p>
-                    </div>
-                    <OrderStatusBadge order={order} />
-                  </div>
-
-                  <div className="mt-4 flex gap-2">
-                    <a
-                      href={`tel:${order.customerPhone.replace(/\s/g, "")}`}
-                      className="ripple flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card py-3 text-xs font-bold tracking-tight text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
-                    >
-                      <PhoneCall className="size-4" />
-                      Call
-                    </a>
-                    <button
-                      type="button"
-                      className="ripple flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card py-3 text-xs font-bold tracking-tight text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
-                    >
-                      <Navigation className="size-4" />
-                      Navigate
-                    </button>
-                  </div>
-                </section>
-
-                {/* Addresses */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Pickup & Delivery" />
-                  <div className="mt-4 space-y-4">
-                    <div className="flex gap-3">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
-                        <MapPin className="size-4" />
+                      <span className="flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-foreground">
+                        <Star className="size-3 fill-current text-brand-green" />
+                        {order.customerRating > 0 ? order.customerRating.toFixed(1) : "5.0"}
                       </span>
-                      <div className="min-w-0">
-                        <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
-                          Pickup · {order.pickupTime}
-                        </p>
-                        <p className="mt-0.5 text-xs font-semibold text-foreground">
-                          {order.pickupAddress}
-                        </p>
-                        <p className="text-[0.68rem] font-semibold text-muted-foreground">
-                          {order.distanceKm} km from your store
-                        </p>
-                      </div>
                     </div>
-                    <div className="flex gap-3">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-brand-green-dark">
-                        <Bike className="size-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
-                          Delivery ETA · {order.deliveryEta}
-                        </p>
-                        <p className="mt-0.5 text-xs font-semibold text-foreground">
-                          {order.deliveryAddress}
-                        </p>
-                        {order.assignedRider ? (
-                          <p className="text-[0.68rem] font-semibold text-brand-green-dark">
-                            Rider assigned · {order.assignedRider}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground font-medium">
+                      {order.customerPhone} · {order.customerOrders} previous orders
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Booked at {order.placedAt}
+                    </p>
                   </div>
-                </section>
+                  <OrderStatusBadge order={order} />
+                </div>
 
-                {/* Service breakdown */}
-                <section className="card-soft border border-border">
-                  <div className="p-4 pb-0">
-                    <SectionHeading title={`Service breakdown · ${order.itemCount} items`} />
-                  </div>
-                  <div className="mt-4 divide-y divide-border">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold tracking-tight text-foreground">
-                            {item.name}
-                          </p>
-                          <p className="text-[0.68rem] font-semibold text-muted-foreground">
-                            {item.service} · Qty {item.qty}
+                <div className="mt-5 flex gap-3">
+                  <a
+                    href={`tel:${order.customerPhone.replace(/\s/g, "")}`}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-muted/40 py-3 text-xs font-bold text-foreground transition-colors hover:bg-muted active:scale-95"
+                  >
+                    <PhoneCall className="size-4 text-brand-green" />
+                    Call Customer
+                  </a>
+                </div>
+              </section>
+
+              {/* Items & Services Card */}
+              <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+                <SectionHeading title="Booked Services & Items" />
+                <div className="mt-4 space-y-3">
+                  {order.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/20 p-3.5"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-8 items-center justify-center rounded-xl bg-primary/20 text-brand-dark font-bold text-xs">
+                          <Package className="size-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">{item.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium">
+                            {item.qty} × ₹{item.price}
                           </p>
                         </div>
-                        <span className="flex shrink-0 items-center gap-0.5 text-sm font-black text-foreground">
-                          <IndianRupee className="size-3.5" />
-                          {item.price.toLocaleString("en-IN")}
-                        </span>
                       </div>
-                    ))}
-                  </div>
-                </section>
-
-                {/* Pricing summary */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Pricing summary" />
-                  <div className="mt-4 space-y-2.5">
-                    <Row label="Subtotal" value={`₹${order.charges.subtotal.toLocaleString("en-IN")}`} />
-                    <Row label="Pickup & delivery" value={`₹${order.charges.pickupFee}`} />
-                    <Row label="Taxes (5%)" value={`₹${order.charges.taxes}`} />
-                    <Row label="Discount" value={`− ₹${order.charges.discount}`} />
-                    <div className="border-t border-border pt-2.5">
-                      <Row
-                        label="Total"
-                        value={`₹${order.charges.total.toLocaleString("en-IN")}`}
-                        strong
-                      />
+                      <span className="text-xs font-extrabold text-foreground">
+                        ₹{item.qty * item.price}
+                      </span>
                     </div>
+                  ))}
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="mt-6 space-y-2.5 border-t border-dashed border-border/80 pt-4">
+                  <Row label="Item Subtotal" value={`₹${order.charges.subtotal}`} />
+                  <Row label="Pickup & Delivery" value={order.charges.pickupFee > 0 ? `₹${order.charges.pickupFee}` : "FREE"} />
+                  <Row label="Taxes & Fees" value={`₹${order.charges.taxes}`} />
+                  {order.charges.discount > 0 ? (
+                    <Row label="Discount Applied" value={`-₹${order.charges.discount}`} />
+                  ) : null}
+                  <div className="border-t border-border pt-2.5">
+                    <Row label="Total Order Value" value={`₹${order.amount}`} strong />
                   </div>
-                </section>
+                </div>
 
-                {/* Special instructions */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Special instructions" />
-                  <p className="mt-3 flex gap-2 text-xs font-medium text-muted-foreground">
-                    <MessageSquareQuote className="size-4 shrink-0" />
-                    {order.specialInstructions || "No special instructions from the customer."}
-                  </p>
-                </section>
-              </div>
-
-              <div className="space-y-5">
-                {/* Timeline */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Order timeline" />
-                  <div className="mt-4">
-                    <OrderTimeline order={order} />
+                <div className="mt-4 flex items-center justify-between rounded-2xl bg-muted/40 p-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="size-4 text-muted-foreground" />
+                    <span className="font-bold text-foreground capitalize">
+                      {order.paymentMode === "cod" ? "Cash on Delivery" : "Online / UPI Payment"}
+                    </span>
                   </div>
-                </section>
-
-                {/* Payment details */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Payment details" />
-                  <div className="mt-4 space-y-2.5">
-                    <Row
-                      label="Mode"
-                      value={order.paymentMode === "cod" ? "Cash on delivery" : "Online (UPI)"}
-                    />
-                    <Row
-                      label="Status"
-                      value={
-                        order.paymentStatus === "paid"
-                          ? "Paid"
-                          : order.paymentStatus === "refunded"
-                            ? "Refunded"
-                            : "Pending"
-                      }
-                    />
-                    <Row label="Payable to store" value={`₹${order.amount.toLocaleString("en-IN")}`} />
-                  </div>
-                  <p className="mt-3 flex items-center gap-2 text-[0.68rem] font-semibold text-muted-foreground">
-                    <CreditCard className="size-3.5" />
-                    Settlement reflects in your wallet within 24 hours of delivery.
-                  </p>
-                </section>
-
-                {/* Invoice placeholder */}
-                <section className="card-soft border border-border p-4">
-                  <SectionHeading title="Invoice" />
-                  <div className="mt-3 rounded-2xl border border-dashed border-border bg-muted/40 px-4 py-6 text-center">
-                    <FileText className="mx-auto size-6 text-muted-foreground" />
-                    <p className="mt-2 text-xs font-bold tracking-tight text-foreground">
-                      {order.invoiceNo ?? "Invoice generates after delivery"}
-                    </p>
-                    <p className="mt-1 text-[0.68rem] font-medium text-muted-foreground">
-                      Downloadable PDF arrives with the billing integration.
-                    </p>
-                  </div>
-                </section>
-
-                {/* Cancelled reason */}
-                {order.cancelReason ? (
-                  <section className="card-soft border border-destructive/25 p-4">
-                    <SectionHeading title="Cancellation reason" />
-                    <p className="mt-2 text-xs font-bold text-destructive">{order.cancelReason}</p>
-                  </section>
-                ) : null}
-
-                <p className="flex items-center gap-2 px-1 text-[0.68rem] font-semibold text-muted-foreground">
-                  <Package className="size-3.5" />
-                  {order.services.join(" · ")}
-                </p>
-              </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
+                      order.paymentStatus === "paid"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {order.paymentStatus}
+                  </span>
+                </div>
+              </section>
             </div>
-          )}
-        </div>
 
-        {order ? (
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur">
-            <div className="mx-auto w-full max-w-md px-5 py-4 md:max-w-3xl lg:max-w-5xl">
-              <OrderActionBar
-                order={order}
-                size="full"
-                onAction={(actionId) => handleAction(order, actionId)}
-                busyAction={busy?.orderId === order.id ? busy.actionId : null}
-              />
+            {/* Right Column: Actions & Order Timeline */}
+            <div className="space-y-6">
+              {/* Order Status Action Card */}
+              <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+                <SectionHeading title="Order Actions" />
+                <div className="mt-4">
+                  <OrderActionBar
+                    order={order}
+                    onAction={handleAction}
+                    busyAction={busy?.orderId === order.id ? busy.actionId : null}
+                  />
+                </div>
+              </section>
+
+              {/* Live Timeline */}
+              <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+                <SectionHeading title="Order Timeline" />
+                <div className="mt-4">
+                  <OrderTimeline timeline={order.timeline} stage={order.stage} />
+                </div>
+              </section>
+
+              {/* Assigned Delivery Rider */}
+              <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+                <SectionHeading title="Delivery Rider" />
+                <div className="mt-3.5 flex items-center gap-3.5">
+                  <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark">
+                    <Bike className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">
+                      {order.assignedRider?.name || "Rider being assigned"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {order.assignedRider ? `Vehicle: ${order.assignedRider.vehicleNumber}` : "QuickPress Logistics"}
+                    </p>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
       {sheetNode}
       {overlay}
       <Toaster />
-    </main>
+    </PartnerLayout>
   );
 }

@@ -1,14 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, LayoutGrid } from "lucide-react";
+import { ArrowRight, LayoutGrid, Plus, ShoppingBag, Sparkles, TrendingUp, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 import type { EarningsSummary, PartnerOrderStatus } from "@/shared/types/partner";
 
-import { PartnerBottomNav } from "../components/PartnerBottomNav";
 import { SectionHeading } from "../components/PartnerPrimitives";
-import { DashboardHeader } from "../components/dashboard/DashboardHeader";
+import { PartnerLayout } from "../components/layout/PartnerLayout";
 import {
   OrderStatusChips,
   QuickActionsGrid,
@@ -22,7 +21,6 @@ import {
 import { Announcements, TodayPerformance } from "../components/dashboard/DashboardInsights";
 import {
   DashboardSkeleton,
-  MaintenanceEmptyState,
   NoOrdersEmptyState,
   OfflineEmptyState,
 } from "../components/dashboard/DashboardStates";
@@ -43,11 +41,6 @@ const STATUS_TO_LIVE: Partial<Record<PartnerOrderStatus, LiveOrder["status"]>> =
   ready: "ready",
 };
 
-/**
- * Partner dashboard — wired to the real partner API. Where no backend
- * endpoint exists yet (hourly analytics, announcements), we show an honest
- * "unavailable" state instead of fabricating data.
- */
 export function PartnerDashboardScreen() {
   const navigate = useNavigate();
   const { orders, isLoading: ordersLoading, refresh: refreshOrders } = usePartnerOrders();
@@ -99,7 +92,7 @@ export function PartnerDashboardScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     void load();
@@ -157,14 +150,12 @@ export function PartnerDashboardScreen() {
   const showSkeleton = isLoading || ordersLoading || !shop || !summary;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md md:max-w-3xl lg:max-w-6xl">
-        {shop ? (
-          <DashboardHeader shop={shop} isOnline={isOnline} onToggleOnline={handleToggleOnline} />
-        ) : null}
-
+    <PartnerLayout
+      activeTab="dashboard"
+      title="Partner Dashboard"
+      subtitle={shop ? `Welcome back, ${shop.partnerName} · ${shop.shopName}` : "Store Console"}
+    >
+      <div className="mx-auto w-full max-w-7xl px-4 py-4 md:px-8 md:py-6">
         <PullToRefresh onRefresh={refresh}>
           {showSkeleton ? (
             <DashboardSkeleton />
@@ -173,60 +164,73 @@ export function PartnerDashboardScreen() {
               {error}
             </div>
           ) : (
-            <div className="animate-soft-fade space-y-7 px-4 pb-32 pt-4 md:px-6 lg:pb-16">
-              <WelcomeCard shop={shop} summary={summary} />
+            <div className="animate-soft-fade space-y-6 lg:space-y-8">
+              {/* Mobile Welcome Card */}
+              <div className="md:hidden">
+                <WelcomeCard shop={shop} summary={summary} />
+              </div>
 
+              {/* Operational Metric Cards */}
               <section>
-                <SectionHeading title="Quick Stats" />
-                <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <SectionHeading title="Operational Overview" />
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: partnerRoutes.orders })}
+                    className="flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"
+                  >
+                    View Queue <ArrowRight className="size-3.5" />
+                  </button>
+                </div>
+                <div className="mt-3.5">
                   <QuickStatsGrid stats={quickStats} />
                 </div>
               </section>
 
-              <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+              {/* Desktop Multi-column Grid: Revenue & Order Status */}
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
                 <section className="min-w-0">
-                  <SectionHeading title="Revenue" />
-                  <div className="mt-4">
+                  <SectionHeading title="Revenue Summary" />
+                  <div className="mt-3.5">
                     <RevenueCard earnings={earnings} isLoading={isLoading} />
                   </div>
                 </section>
 
                 <section className="min-w-0">
-                  <SectionHeading title="Order Status" />
-                  <div className="card-soft mt-4 border border-border p-4">
+                  <SectionHeading title="Order Status Flow" />
+                  <div className="rounded-3xl border border-border/80 bg-card p-5 shadow-sm mt-3.5">
                     <OrderStatusChips active="Washing" />
-                    <p className="mt-3 text-[0.7rem] font-medium text-muted-foreground">
-                      Live status across today's orders.
+                    <p className="mt-3 text-xs font-semibold text-muted-foreground">
+                      Real-time stage transitions across your active customer bookings.
                     </p>
                   </div>
                 </section>
               </div>
 
+              {/* Live Orders Section */}
               <section>
-                <SectionHeading
-                  title="Live Orders"
-                  action={
-                    <button
-                      type="button"
-                      onClick={() => navigate({ to: partnerRoutes.orders })}
-                      className="flex items-center gap-1 text-[0.68rem] font-bold text-brand-green"
-                    >
-                      View all <ArrowRight className="size-3.5" />
-                    </button>
-                  }
-                />
-                <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <SectionHeading title="Active Orders" />
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: partnerRoutes.orders })}
+                    className="flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"
+                  >
+                    View all ({orders.length}) <ArrowRight className="size-3.5" />
+                  </button>
+                </div>
+                <div className="mt-3.5">
                   {!isOnline ? (
                     <OfflineEmptyState onGoOnline={() => void handleToggleOnline()} />
                   ) : liveOrders.length === 0 ? (
                     <NoOrdersEmptyState />
                   ) : (
-                    <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {liveOrders.map((order, index) => (
                         <LiveOrderCard
                           key={order.id}
                           order={order}
-                          delay={index * 60}
+                          delay={index * 40}
                           onAccept={handleAccept}
                           onReject={handleReject}
                           onView={handleView}
@@ -237,38 +241,40 @@ export function PartnerDashboardScreen() {
                 </div>
               </section>
 
+              {/* Quick Actions Grid */}
               <section>
-                <SectionHeading
-                  title="Quick Actions"
-                  action={<LayoutGrid className="size-4 text-muted-foreground" />}
-                />
-                <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <SectionHeading title="Quick Shortcuts" />
+                  <LayoutGrid className="size-4 text-muted-foreground" />
+                </div>
+                <div className="mt-3.5">
                   <QuickActionsGrid />
                 </div>
               </section>
 
-              <section>
-                <SectionHeading title="Today Performance" />
-                <div className="mt-4">
-                  <TodayPerformance />
-                </div>
-              </section>
+              {/* Performance Insights */}
+              <div className="grid gap-6 md:grid-cols-2">
+                <section>
+                  <SectionHeading title="Performance Insights" />
+                  <div className="mt-3.5">
+                    <TodayPerformance />
+                  </div>
+                </section>
 
-              <section>
-                <SectionHeading title="Announcements" />
-                <div className="mt-4">
-                  <Announcements />
-                </div>
-              </section>
+                <section>
+                  <SectionHeading title="Platform Announcements" />
+                  <div className="mt-3.5">
+                    <Announcements />
+                  </div>
+                </section>
+              </div>
             </div>
           )}
         </PullToRefresh>
-
-        <PartnerBottomNav active="dashboard" />
       </div>
       {sheetNode}
       {overlay}
       <Toaster />
-    </main>
+    </PartnerLayout>
   );
 }

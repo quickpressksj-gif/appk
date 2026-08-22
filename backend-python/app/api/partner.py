@@ -46,6 +46,8 @@ from app.db.partner_repositories import (
     InvalidTransitionError,
     PartnerAccessError,
     PartnerNotFoundError,
+    partner_analytics_repository,
+    partner_customer_repository,
     partner_order_repository,
     partner_repository,
     partner_review_repository,
@@ -397,6 +399,42 @@ async def notifications(user: User = Depends(current_user)) -> List[PartnerNotif
         )
         for item in (items or [])
     ]
+
+
+@router.get("/customers")
+async def get_customers(partner_id: str = Depends(_partner_id)) -> List[dict]:
+    return await partner_customer_repository.list(partner_id)
+
+
+@router.get("/analytics")
+async def get_analytics(
+    period: str = Query("7d"), partner_id: str = Depends(_partner_id)
+) -> dict:
+    return await partner_analytics_repository.get(partner_id, period=period)
+
+
+@router.patch("/store/status")
+async def update_store_status(
+    body: dict, partner_id: str = Depends(_partner_id)
+) -> PartnerProfileResponse:
+    is_online = bool(body.get("isOnline", body.get("isOpen", True)))
+    doc = await partner_repository.toggle_status(partner_id, is_online)
+    return PartnerProfileResponse(**{k: v for k, v in doc.items() if k in PartnerProfileResponse.model_fields})
+
+
+@router.post("/withdraw")
+async def partner_withdraw(
+    payload: WithdrawPayload, partner_id: str = Depends(_partner_id)
+) -> PartnerWalletResponse:
+    try:
+        doc = await partner_wallet_repository.withdraw(partner_id, payload.amount)
+    except PartnerAccessError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+    except PartnerNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    except InvalidTransitionError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    return PartnerWalletResponse(**{k: v for k, v in doc.items() if k in PartnerWalletResponse.model_fields})
 
 
 @router.post("/onboarding", response_model=OnboardingResponse)

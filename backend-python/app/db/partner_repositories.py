@@ -203,6 +203,11 @@ class PartnerRepository:
         doc = await database.update(SETTINGS, {"_id": partner_id}, changes, upsert=True)
         return doc
 
+    async def toggle_status(self, partner_id: str, is_online: bool) -> Dict[str, Any]:
+        await database.update(PROFILES, {"_id": partner_id}, {"isOnline": is_online})
+        await database.update(SETTINGS, {"_id": partner_id}, {"isStoreOpen": is_online, "acceptingNewOrders": is_online})
+        return await self.profile(partner_id)
+
 
 class PartnerServiceRepository:
     async def list(self, partner_id: str) -> List[Dict[str, Any]]:
@@ -489,11 +494,84 @@ class PartnerReviewRepository:
         )
 
 
+    async def toggle_status(self, partner_id: str, is_online: bool) -> Dict[str, Any]:
+        await database.update("partner_profiles", {"_id": partner_id}, {"isOnline": is_online})
+        await database.update("partner_settings", {"_id": partner_id}, {"isStoreOpen": is_online, "acceptingNewOrders": is_online})
+        return await self.profile(partner_id)
+
+
+class PartnerCustomerRepository:
+    async def list(self, partner_id: str) -> List[Dict[str, Any]]:
+        orders = [lifecycle.to_partner_order(d) for d in await partner_order_repository._orders_for(partner_id)]
+        customer_map: Dict[str, Dict[str, Any]] = {}
+        for o in orders:
+            phone = o.get("customerPhone") or "No Phone"
+            name = o.get("customerName") or "Customer"
+            cid = phone
+            if cid not in customer_map:
+                customer_map[cid] = {
+                    "id": cid,
+                    "name": name,
+                    "phone": phone,
+                    "totalOrders": 0,
+                    "totalSpent": 0,
+                    "lastOrderDate": o.get("placedAt") or "",
+                    "lastOrderCode": o.get("code") or "",
+                }
+            customer_map[cid]["totalOrders"] += 1
+            customer_map[cid]["totalSpent"] += int(o.get("amount") or 0)
+        return list(customer_map.values())
+
+
+class PartnerAnalyticsRepository:
+    async def get(self, partner_id: str, period: str = "7d") -> Dict[str, Any]:
+        orders = [lifecycle.to_partner_order(d) for d in await partner_order_repository._orders_for(partner_id)]
+        total_orders = len(orders)
+        total_revenue = sum(int(o.get("amount") or 0) for o in orders)
+        total_earnings = sum(round((o.get("amount") or 0) * 0.8) for o in orders if o.get("status") == "delivered")
+        unique_customers = len(set(o.get("customerPhone") for o in orders if o.get("customerPhone")))
+
+        from collections import defaultdict
+        service_counts: Dict[str, Dict[str, Any]] = {}
+        daily_orders = defaultdict(int)
+        daily_revenue = defaultdict(int)
+
+        for o in orders:
+            for item in o.get("items") or []:
+                sname = item.get("name") or "Laundry Service"
+                if sname not in service_counts:
+                    service_counts[sname] = {"name": sname, "count": 0, "revenue": 0}
+                service_counts[sname]["count"] += int(item.get("qty") or 1)
+                service_counts[sname]["revenue"] += int(item.get("price") or 0) * int(item.get("qty") or 1)
+
+            date_str = (o.get("placedAt") or "")[:10] or "Recent"
+            daily_orders[date_str] += 1
+            daily_revenue[date_str] += int(o.get("amount") or 0)
+
+        top_services = sorted(service_counts.values(), key=lambda s: s["count"], reverse=True)[:5]
+        trend_labels = sorted(daily_orders.keys())[-7:] if daily_orders else ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        trend_orders = [daily_orders[k] for k in trend_labels] if daily_orders else [0, 0, 0, 0, 0, 0, 0]
+        trend_revenue = [daily_revenue[k] for k in trend_labels] if daily_orders else [0, 0, 0, 0, 0, 0, 0]
+
+        return {
+            "totalOrders": total_orders,
+            "totalRevenue": total_revenue,
+            "totalEarnings": total_earnings,
+            "totalCustomers": unique_customers,
+            "trendLabels": trend_labels,
+            "ordersTrend": trend_orders,
+            "revenueTrend": trend_revenue,
+            "topServices": top_services,
+        }
+
+
 partner_repository = PartnerRepository()
 partner_service_repository = PartnerServiceRepository()
 partner_order_repository = PartnerOrderRepository()
 partner_wallet_repository = PartnerWalletRepository()
 partner_review_repository = PartnerReviewRepository()
+partner_customer_repository = PartnerCustomerRepository()
+partner_analytics_repository = PartnerAnalyticsRepository()
 
 
 # ---------------------------------------------------------------------------
