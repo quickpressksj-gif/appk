@@ -210,6 +210,8 @@ class OrderRepository:
                 id=user.id, name=user.display_name or "QuickPress customer", phone=user.phone or ""
             ).model_dump(),
             "partner": partner.model_dump(),
+            "partner_id": partner.id,
+            "partnerId": partner.id,
             "rider": None,
             "serviceLabel": payload.serviceLabel or (items[0].name if items else "Laundry"),
             "items": [
