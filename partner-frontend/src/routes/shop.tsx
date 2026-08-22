@@ -1,31 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
-import { PartnerShopProvider } from "../context/PartnerShopContext";
 import { ShopManagementScreen } from "../screens/ShopManagementScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/shop")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
-      { title: "Shop Management · QuickPress Partner" },
-      {
-        name: "description",
-        content:
-          "Manage your QuickPress shop profile, gallery, business hours, service area and status.",
-      },
-      { property: "og:title", content: "Shop Management · QuickPress Partner" },
-      {
-        property: "og:description",
-        content:
-          "Manage your QuickPress shop profile, gallery, business hours, service area and status.",
-      },
+      { title: "Manage Shop · QuickPress Partner" },
+      { name: "description", content: "Update your store profile, operating hours and delivery radius." },
+      { property: "og:title", content: "Manage Shop · QuickPress Partner" },
+      { property: "og:description", content: "Update your store profile, operating hours and delivery radius." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <PartnerShopProvider>
-        <ShopManagementScreen />
-      </PartnerShopProvider>
-    </PartnerProvider>
-  ),
+  component: ShopManagementScreen,
 });

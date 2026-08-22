@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
-import { PartnerOrdersProvider } from "../context/PartnerOrdersContext";
 import { OrdersScreen } from "../screens/OrdersScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/orders/")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
       { title: "Partner Orders · QuickPress Partner" },
@@ -13,11 +13,5 @@ export const Route = createFileRoute("/orders/")({
       { property: "og:description", content: "Manage incoming, processing and ready QuickPress orders." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <PartnerOrdersProvider>
-        <OrdersScreen />
-      </PartnerOrdersProvider>
-    </PartnerProvider>
-  ),
+  component: OrdersScreen,
 });

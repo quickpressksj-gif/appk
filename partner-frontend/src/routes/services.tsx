@@ -1,15 +1,13 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { PartnerServicesProvider } from "../context/PartnerServicesContext";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/services")({
+  beforeLoad: requirePartnerAuth,
   component: () => (
-    <PartnerProvider>
-      <PartnerServicesProvider>
-        {/* Required: /services, /services/new and /services/$serviceId/edit render here. */}
-        <Outlet />
-      </PartnerServicesProvider>
-    </PartnerProvider>
+    <PartnerServicesProvider>
+      <Outlet />
+    </PartnerServicesProvider>
   ),
 });

@@ -1,20 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { BusinessSettingsScreen } from "../screens/BusinessSettingsScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/settings")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
-      { title: "Business Settings · QuickPress Partner" },
-      { name: "description", content: "Store availability, hours and operational limits." },
-      { property: "og:title", content: "Business Settings · QuickPress Partner" },
-      { property: "og:description", content: "Store availability, hours and operational limits." },
+      { title: "Store Settings · QuickPress Partner" },
+      { name: "description", content: "Configure auto-accept, order alarms and business preferences." },
+      { property: "og:title", content: "Store Settings · QuickPress Partner" },
+      { property: "og:description", content: "Configure auto-accept, order alarms and business preferences." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <BusinessSettingsScreen />
-    </PartnerProvider>
-  ),
+  component: BusinessSettingsScreen,
 });

@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { OrderDetailsScreen } from "../screens/OrderDetailsScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/orders/$orderId")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
       { title: "Order Details · QuickPress Partner" },

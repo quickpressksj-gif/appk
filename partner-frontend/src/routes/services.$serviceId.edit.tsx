@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { EditServiceScreen } from "../screens/EditServiceScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/services/$serviceId/edit")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
       { title: "Edit Service · QuickPress Partner" },

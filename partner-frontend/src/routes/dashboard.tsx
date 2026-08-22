@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
-import { PartnerOrdersProvider } from "../context/PartnerOrdersContext";
 import { PartnerDashboardScreen } from "../screens/PartnerDashboardScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
       { title: "Partner Dashboard · QuickPress Partner" },
@@ -13,11 +13,5 @@ export const Route = createFileRoute("/dashboard")({
       { property: "og:description", content: "Track live orders, capacity and earnings at a glance." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <PartnerOrdersProvider>
-        <PartnerDashboardScreen />
-      </PartnerOrdersProvider>
-    </PartnerProvider>
-  ),
+  component: PartnerDashboardScreen,
 });

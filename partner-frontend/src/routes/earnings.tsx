@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { EarningsScreen } from "../screens/EarningsScreen";
+import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/earnings")({
+  beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
       { title: "Partner Earnings · QuickPress Partner" },
@@ -12,9 +13,5 @@ export const Route = createFileRoute("/earnings")({
       { property: "og:description", content: "Daily, weekly and monthly earnings with payout history." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <EarningsScreen />
-    </PartnerProvider>
-  ),
+  component: EarningsScreen,
 });
