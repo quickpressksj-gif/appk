@@ -184,20 +184,34 @@ async def get_recommendations() -> list[dict]:
 async def get_recent_orders(user: Optional[User] = Depends(optional_user)) -> list[dict]:
     if user:
         from app.db.order_repositories import order_repository
-        orders = await order_repository.by_customer(user.id)
-        if orders:
-            return [
-                {
-                    "id": o.get("id") or o.get("_id"),
-                    "reference": o.get("orderNumber") or (o.get("id") or o.get("_id"))[:8],
-                    "title": (o.get("partner") or {}).get("name") or "Laundry Order",
-                    "items": f"{len(o.get('items', []))} items",
-                    "placed": str(o.get("createdAt") or "Recently")[:10],
-                    "status": "Delivered" if o.get("status") in ("delivered", "completed") else "In progress",
-                    "total": float(o.get("total") or o.get("pricing", {}).get("total") or 0),
-                }
-                for o in orders[:5]
-            ]
+        try:
+            orders = await order_repository.list(user.id)
+            if orders:
+                result = []
+                for o in orders[:5]:
+                    if hasattr(o, "id"):
+                        result.append({
+                            "id": o.id,
+                            "reference": getattr(o, "code", o.id[:8]),
+                            "title": getattr(o.partner, "name", "Laundry Order") if hasattr(o, "partner") else "Laundry Order",
+                            "items": f"{len(getattr(o, 'items', []))} items",
+                            "placed": str(getattr(o, "createdAt", "Recently"))[:10],
+                            "status": "Delivered" if getattr(o, "status", "") in ("delivered", "completed") else "In progress",
+                            "total": float(getattr(o.totals, "grandTotal", 0) if hasattr(o, "totals") else 0),
+                        })
+                    elif isinstance(o, dict):
+                        result.append({
+                            "id": o.get("id") or o.get("_id"),
+                            "reference": o.get("code") or (o.get("id") or o.get("_id"))[:8],
+                            "title": (o.get("partner") or {}).get("name") or "Laundry Order",
+                            "items": f"{len(o.get('items', []))} items",
+                            "placed": str(o.get("createdAt") or "Recently")[:10],
+                            "status": "Delivered" if o.get("status") in ("delivered", "completed") else "In progress",
+                            "total": float(o.get("totals", {}).get("grandTotal") or o.get("total") or 0),
+                        })
+                return result
+        except Exception:
+            return []
     return []
 
 
