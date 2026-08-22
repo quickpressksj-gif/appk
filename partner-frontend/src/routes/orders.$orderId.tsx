@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
-import { PartnerOrdersProvider } from "../context/PartnerOrdersContext";
 import { OrderDetailsScreen } from "../screens/OrderDetailsScreen";
 
 export const Route = createFileRoute("/orders/$orderId")({
@@ -13,11 +11,10 @@ export const Route = createFileRoute("/orders/$orderId")({
       { property: "og:description", content: "Order items, timeline and status actions for your store." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <PartnerOrdersProvider>
-        <OrderDetailsScreen />
-      </PartnerOrdersProvider>
-    </PartnerProvider>
-  ),
+  component: OrderDetailsRoute,
 });
+
+function OrderDetailsRoute() {
+  const { orderId } = Route.useParams();
+  return <OrderDetailsScreen orderId={orderId} />;
+}

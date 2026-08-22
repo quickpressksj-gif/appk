@@ -50,9 +50,10 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
   );
 }
 
-export function OrderDetailsScreen() {
+export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string }) {
   const navigate = useNavigate();
-  const { orderId } = useParams({ from: partnerRoutes.orderDetails });
+  const routeParams = (useParams({ strict: false }) as { orderId?: string }) || {};
+  const orderId = propOrderId || routeParams?.orderId;
   const { orders, isLoading } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
