@@ -51,12 +51,41 @@ async def health() -> dict:
 
 _COUNTRIES = [
     {
-        "code": "IN",
+        "code": "+91",
+        "label": "IN",
+        "digits": 10,
         "name": "India",
         "dialCode": "+91",
         "flag": "🇮🇳",
         "phoneLengths": [10],
-    }
+    },
+    {
+        "code": "+971",
+        "label": "AE",
+        "digits": 9,
+        "name": "United Arab Emirates",
+        "dialCode": "+971",
+        "flag": "🇦🇪",
+        "phoneLengths": [9],
+    },
+    {
+        "code": "+44",
+        "label": "GB",
+        "digits": 10,
+        "name": "United Kingdom",
+        "dialCode": "+44",
+        "flag": "🇬🇧",
+        "phoneLengths": [10],
+    },
+    {
+        "code": "+1",
+        "label": "US",
+        "digits": 10,
+        "name": "United States",
+        "dialCode": "+1",
+        "flag": "🇺🇸",
+        "phoneLengths": [10],
+    },
 ]
 
 

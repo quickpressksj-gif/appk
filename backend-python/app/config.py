@@ -65,7 +65,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> List[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        origins = [
+            origin.strip().rstrip("/")
+            for origin in self.cors_origins.split(",")
+            if origin.strip()
+        ]
+        prod_customer = "https://customer-5ys4.onrender.com"
+        if prod_customer not in origins:
+            origins.append(prod_customer)
+        return origins
 
     @property
     def use_in_memory_db(self) -> bool:

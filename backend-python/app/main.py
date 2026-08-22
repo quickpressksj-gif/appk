@@ -104,8 +104,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(auth_router, prefix=settings.api_prefix)
     # Sprint 2.6: profile / photo / settings. Registered before the home router
@@ -156,10 +156,14 @@ def create_app() -> FastAPI:
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
 
-    # Health check + meta (countries list).
-    # Mounted TWICE so both /health (Render default) and /api/health work.
-    app.include_router(health_router)                          # → /health, /countries
+    # Health check + meta (countries list) mounted exactly once under /api.
     app.include_router(health_router, prefix=settings.api_prefix)  # → /api/health, /api/countries
+
+    # Root health endpoint for Render default health check and probes → /health
+    @app.get("/health", tags=["health"], summary="Health check (root)")
+    async def root_health() -> dict:
+        from app.api.health import health as get_health_status  # noqa: PLC0415
+        return await get_health_status()
 
     return app
 
