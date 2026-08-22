@@ -31,7 +31,7 @@ class User(BaseModel):
     """`users` collection — one document per authenticated identity."""
 
     id: str
-    firebase_uid: str
+    firebase_uid: str = ""
     role: Role
     phone: Optional[str] = None
     email: Optional[str] = None

@@ -61,23 +61,44 @@ async def sync_partner_cart(
         return await cart_repository.cart(user.id)
 
     if quantities:
+        # If switching partner store, clear lines from other partners
+        existing_lines = await cart_repository.lines(user.id)
+        if existing_lines and partner_id:
+            has_other_partner = any(line.partnerId and line.partnerId != partner_id for line in existing_lines)
+            if has_other_partner:
+                await cart_repository.clear(user.id)
+
         for service_id, qty in quantities.items():
             if int(qty) <= 0:
                 continue
-            svc = await database.find_one("partner_services", {"_id": service_id}) or {}
-            price = int(svc.get("price") or 0)
-            name = svc.get("name") or "Laundry Service"
-            unit = svc.get("unit") or "kg"
+            svc = await database.find_one("partner_services", {"_id": service_id})
+            if svc is None:
+                svc = await database.find_one("partner_services", {"id": service_id})
+            if svc is None and partner_id:
+                svc = await database.find_one("partner_services", {"partnerId": partner_id, "name": service_id})
+
+            if svc and not bool(svc.get("enabled", svc.get("isActive", True))):
+                continue
+
+            resolved_partner_id = partner_id or (svc.get("partnerId") if svc else "")
+            price = int((svc.get("price") if svc else 0) or 0)
+            name = (svc.get("name") if svc else "Laundry Service") or "Laundry Service"
+            unit = (svc.get("unit") if svc else "kg") or "kg"
+            image = (svc.get("image") if svc else "") or ""
+            turnaround = (svc.get("turnaroundHours") if svc else 24) or 24
+
             await cart_repository.add_item(
                 user.id,
                 CartItemPayload(
                     id=service_id,
                     itemId=service_id,
                     serviceId=service_id,
-                    partnerId=partner_id or svc.get("partnerId", ""),
+                    partnerId=resolved_partner_id,
                     name=name,
                     price=price,
                     unit=unit,
+                    image=image,
+                    processingTime=f"{turnaround} hrs",
                     qty=int(qty),
                 ),
             )

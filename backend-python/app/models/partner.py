@@ -106,18 +106,26 @@ class PartnerServiceResponse(BaseModel):
     name: str
     unit: str
     price: int
-    turnaroundHours: int
-    enabled: bool
-    category: BusinessCategory
+    turnaroundHours: int = 24
+    enabled: bool = True
+    category: str = "laundry"
+    description: str = ""
+    image: str = ""
+    minQuantity: int = 1
+    expressAvailable: bool = False
 
 
 class PartnerServiceCreate(BaseModel):
     name: str
-    unit: str = "per item"
+    unit: str = "kg"
     price: int
     turnaroundHours: int = 24
     enabled: bool = True
-    category: BusinessCategory = "laundry"
+    category: str = "laundry"
+    description: str = ""
+    image: str = ""
+    minQuantity: int = 1
+    expressAvailable: bool = False
 
 
 class PartnerServiceUpdate(BaseModel):
@@ -126,7 +134,11 @@ class PartnerServiceUpdate(BaseModel):
     price: Optional[int] = None
     turnaroundHours: Optional[int] = None
     enabled: Optional[bool] = None
-    category: Optional[BusinessCategory] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    image: Optional[str] = None
+    minQuantity: Optional[int] = None
+    expressAvailable: Optional[bool] = None
 
 
 class PartnerDashboardResponse(BaseModel):

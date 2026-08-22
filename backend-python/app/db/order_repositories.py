@@ -366,15 +366,17 @@ class OrderRepository:
         document = None
         if partner_id:
             document = await database.find_one("partner_profiles", {"_id": partner_id})
+            if document is None:
+                document = await database.find_one("partner_profiles", {"partnerId": partner_id})
         if document is None:
             partners = await database.find_many("partner_profiles")
             document = partners[0] if partners else None
         if document is None:
-            return OrderPartnerParty(id="", name="QuickPress Partner", phone="", image="", city="")
+            return OrderPartnerParty(id=partner_id or "", name="QuickPress Partner", phone="", image="", city="")
         image = document.get("bannerUrl") or document.get("cover") or document.get("logoUrl") or document.get("logo") or ""
         city_area = f"{document.get('address') or document.get('area', '')}, {document.get('city', '')}".strip(", ")
         return OrderPartnerParty(
-            id=str(document["_id"]),
+            id=str(document.get("_id") or document.get("partnerId") or partner_id),
             name=document.get("businessName") or document.get("name") or "QuickPress Partner",
             phone=document.get("phone", ""),
             image=image,

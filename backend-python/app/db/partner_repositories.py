@@ -156,31 +156,78 @@ class PartnerRepository:
 
 class PartnerServiceRepository:
     async def list(self, partner_id: str) -> List[Dict[str, Any]]:
-        return await database.find_sorted(SERVICES, {"partnerId": partner_id}, sort=[("name", 1)])
+        docs = await database.find_sorted(SERVICES, {"partnerId": partner_id}, sort=[("name", 1)])
+        result = []
+        for d in docs:
+            doc = dict(d)
+            doc["id"] = str(doc.get("_id") or doc.get("id"))
+            doc["enabled"] = bool(doc.get("enabled", doc.get("isActive", True)))
+            doc["turnaroundHours"] = int(doc.get("turnaroundHours") or 24)
+            doc["price"] = int(doc.get("price") or 0)
+            doc["unit"] = str(doc.get("unit") or "kg")
+            doc["category"] = str(doc.get("category") or "laundry")
+            doc["description"] = str(doc.get("description") or "")
+            doc["image"] = str(doc.get("image") or "")
+            doc["minQuantity"] = int(doc.get("minQuantity") or 1)
+            doc["expressAvailable"] = bool(doc.get("expressAvailable", False))
+            result.append(doc)
+        return result
 
     async def create(self, partner_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        svc_id = _uid("svc")
+        enabled = bool(payload.get("enabled", True))
         document = {
-            "_id": _uid("svc"),
+            "_id": svc_id,
+            "id": svc_id,
             "partnerId": partner_id,
-            **payload,
+            "name": str(payload.get("name", "")).strip() or "Laundry Service",
+            "category": str(payload.get("category") or "laundry"),
+            "price": int(payload.get("price") or 0),
+            "unit": str(payload.get("unit") or "kg"),
+            "turnaroundHours": int(payload.get("turnaroundHours") or 24),
+            "enabled": enabled,
+            "isActive": enabled,
+            "description": str(payload.get("description") or ""),
+            "image": str(payload.get("image") or ""),
+            "minQuantity": int(payload.get("minQuantity") or 1),
+            "expressAvailable": bool(payload.get("expressAvailable", False)),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
         }
-        return await database.insert(SERVICES, document)
+        await database.insert(SERVICES, document)
+        return document
 
     async def update(self, partner_id: str, service_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
         changes = {k: v for k, v in changes.items() if v is not None}
         existing = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
         if existing is None:
-            raise PartnerNotFoundError("Service not found")
-        return await database.update(SERVICES, {"_id": service_id}, changes)
+            existing = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
+        if existing is None:
+            raise PartnerNotFoundError("Service not found or you do not have permission to edit it")
+
+        target_id = existing["_id"]
+        if "enabled" in changes:
+            changes["isActive"] = bool(changes["enabled"])
+        elif "isActive" in changes:
+            changes["enabled"] = bool(changes["isActive"])
+        changes["updatedAt"] = datetime.now(timezone.utc).isoformat()
+
+        updated = await database.update(SERVICES, {"_id": target_id}, changes)
+        updated_dict = dict(updated)
+        updated_dict["id"] = str(updated_dict.get("_id") or updated_dict.get("id"))
+        updated_dict["enabled"] = bool(updated_dict.get("enabled", updated_dict.get("isActive", True)))
+        return updated_dict
 
     async def delete(self, partner_id: str, service_id: str) -> None:
         existing = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
         if existing is None:
-            raise PartnerNotFoundError("Service not found")
-        await database.delete_one(SERVICES, {"_id": service_id})
+            existing = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
+        if existing is None:
+            raise PartnerNotFoundError("Service not found or you do not have permission to delete it")
+        await database.delete_one(SERVICES, {"_id": existing["_id"]})
 
     async def toggle(self, partner_id: str, service_id: str, enabled: bool) -> Dict[str, Any]:
-        return await self.update(partner_id, service_id, {"enabled": enabled})
+        return await self.update(partner_id, service_id, {"enabled": enabled, "isActive": enabled})
 
 
 def _timeline(events: Dict[str, str]) -> List[Dict[str, Any]]:

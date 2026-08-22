@@ -190,17 +190,22 @@ class CatalogRepository:
     async def partner_services(self, partner_id: str) -> Optional[List[PartnerServiceResponse]]:
         doc = await database.find_one("partner_profiles", {"_id": partner_id})
         if doc is None:
+            doc = await database.find_one("partner_profiles", {"partnerId": partner_id})
+        if doc is None:
             return None
         services_docs = await database.find_many("partner_services", {"partnerId": partner_id})
-        active_services = [s for s in services_docs if s.get("isActive", True) is not False]
+        active_services = [
+            s for s in services_docs
+            if bool(s.get("enabled", s.get("isActive", True))) is True
+        ]
         services: List[PartnerServiceResponse] = []
         for s in active_services:
             price = int(s.get("price") or 0)
             discount = int(s.get("discountPercent") or 0)
-            turnaround = s.get("turnaroundHours") or 24
+            turnaround = int(s.get("turnaroundHours") or 24)
             services.append(
                 PartnerServiceResponse(
-                    id=str(s.get("_id")),
+                    id=str(s.get("_id") or s.get("id")),
                     name=s.get("name", "Laundry Service"),
                     description=s.get("description", ""),
                     image=s.get("image", ""),
@@ -213,7 +218,7 @@ class CatalogRepository:
                     unit=s.get("unit", "kg"),
                     processingTime=f"{turnaround} hrs",
                     deliveryEta=f"{turnaround} hrs",
-                    available=bool(s.get("isActive", True)),
+                    available=True,
                 )
             )
         return services
