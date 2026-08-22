@@ -158,11 +158,23 @@ class Database:
         settings = get_settings()
         if self.in_memory or self._db is not None:
             return
+        if not settings.mongodb_uri:
+            return
         from motor.motor_asyncio import AsyncIOMotorClient  # imported lazily
 
-        self._client = AsyncIOMotorClient(settings.mongodb_uri, uuidRepresentation="standard")
-        self._db = self._client[settings.mongodb_db_name]
-        await self._db.command("ping")
+        try:
+            self._client = AsyncIOMotorClient(
+                settings.mongodb_uri,
+                uuidRepresentation="standard",
+                serverSelectionTimeoutMS=3000,
+            )
+            self._db = self._client[settings.mongodb_db_name]
+            await self._db.command("ping")
+        except Exception as err:
+            import logging
+            logging.getLogger(__name__).warning("MongoDB connection fallback to in-memory: %s", err)
+            self._client = None
+            self._db = None
 
     async def run_migrations(self) -> Optional[Dict[str, Any]]:
         """Backfill canonical ids and replace legacy unique indexes.
