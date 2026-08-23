@@ -28,7 +28,7 @@ code works against MongoDB Atlas and the in-memory preview store.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.db.client import database
@@ -276,23 +276,99 @@ admin_rider_repository = AdminAccountRepository("rider_profiles")
 
 class AdminDashboardRepository:
     async def summary(self) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        today_str = now.strftime("%Y-%m-%d")
+        week_ago_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        month_ago_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
         orders = await database.find_many("customer_orders")
         delivered = [o for o in orders if o.get("status") == "delivered"]
         cancelled = [o for o in orders if o.get("status") == "cancelled"]
         live = [o for o in orders if o.get("status") not in ("delivered", "cancelled")]
-        partners = await database.count("partner_profiles")
-        riders = await database.count("rider_profiles")
-        customers = await database.count("customers")
-        revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered)
+        today_orders = [o for o in orders if (o.get("createdAt") or "").startswith(today_str)]
+
+        partners = await database.find_many("partner_profiles")
+        pending_partners = [p for p in partners if p.get("status") == "pending" or not p.get("isVerified")]
+        active_partners = [p for p in partners if p.get("status") == "active" and p.get("isVerified")]
+        suspended_partners = [p for p in partners if p.get("status") == "suspended"]
+
+        riders = await database.find_many("rider_profiles")
+        online_riders = [r for r in riders if r.get("isOnline") is True]
+        busy_rider_ids = {o.get("rider", {}).get("id") for o in live if o.get("rider")}
+        busy_riders = [r for r in riders if r.get("_id") in busy_rider_ids]
+        available_riders = [r for r in online_riders if r.get("_id") not in busy_rider_ids]
+
+        customers = await database.find_many("customers")
+        today_customers = [c for c in customers if (c.get("createdAt") or "").startswith(today_str)]
+        active_customer_ids = {o.get("customer", {}).get("id") for o in orders if o.get("customer")}
+
+        today_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "").startswith(today_str))
+        weekly_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "") >= week_ago_str)
+        monthly_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "") >= month_ago_str)
+        total_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered)
+        platform_earnings = round(total_revenue * 0.18)
+
+        payouts = await database.find_many("admin_payouts", {"kind": "payout"})
+        pending_payout_docs = [p for p in payouts if p.get("status") in ("Pending", "Requested", "processing")]
+        pending_payout_amount = sum(p.get("amount", 0) for p in pending_payout_docs)
+
+        # Attention metrics
+        unassigned_orders = [o for o in live if not o.get("rider")]
+
+        # Top services calculation
+        service_counts: Dict[str, Dict[str, Any]] = {}
+        for o in orders:
+            s_label = o.get("serviceLabel") or "Standard Laundry"
+            entry = service_counts.setdefault(s_label, {"service": s_label, "orders": 0, "revenue": 0})
+            entry["orders"] += 1
+            if o.get("status") == "delivered":
+                entry["revenue"] += (o.get("totals") or {}).get("grandTotal", 0)
+        top_services = sorted(service_counts.values(), key=lambda x: x["orders"], reverse=True)[:5]
+
+        # Top partners calculation
+        partner_stats: Dict[str, Dict[str, Any]] = {}
+        for p in partners:
+            p_id = str(p.get("_id") or p.get("id"))
+            p_orders = [o for o in orders if (o.get("partner") or {}).get("id") == p_id]
+            p_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in p_orders if o.get("status") == "delivered")
+            partner_stats[p_id] = {
+                "id": p_id,
+                "name": p.get("name") or p.get("storeName") or "Partner Store",
+                "city": p.get("city") or "—",
+                "orders": len(p_orders),
+                "revenue": p_revenue,
+                "rating": p.get("rating", 4.8),
+                "status": p.get("status", "pending"),
+            }
+        top_partners = sorted(partner_stats.values(), key=lambda x: x["orders"], reverse=True)[:5]
+
         return {
             "totalOrders": len(orders),
+            "todayOrders": len(today_orders),
             "liveOrders": len(live),
             "deliveredOrders": len(delivered),
             "cancelledOrders": len(cancelled),
-            "revenue": revenue,
-            "partners": partners,
-            "riders": riders,
-            "customers": customers,
+            "revenue": total_revenue,
+            "todayRevenue": today_revenue,
+            "weeklyRevenue": weekly_revenue,
+            "monthlyRevenue": monthly_revenue,
+            "platformEarnings": platform_earnings,
+            "partners": len(partners),
+            "pendingPartners": len(pending_partners),
+            "activePartners": len(active_partners),
+            "suspendedPartners": len(suspended_partners),
+            "riders": len(riders),
+            "onlineRiders": len(online_riders),
+            "busyRiders": len(busy_riders),
+            "availableRiders": len(available_riders),
+            "customers": len(customers),
+            "todayCustomers": len(today_customers),
+            "activeCustomers": len(active_customer_ids),
+            "pendingPayouts": len(pending_payout_docs),
+            "pendingPayoutAmount": pending_payout_amount,
+            "unassignedOrders": len(unassigned_orders),
+            "topServices": top_services,
+            "topPartners": top_partners,
             "statusBreakdown": [
                 {
                     "status": status,
