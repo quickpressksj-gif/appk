@@ -215,6 +215,20 @@ class OnboardingPayload(BaseModel):
     pincode: str = ""
     openingTime: str = "08:00"
     closingTime: str = "21:00"
+    weeklyOff: str = "None"
+    services: List[str] = []
+    pickupRadiusKm: int = 10
+    deliveryRadiusKm: int = 10
+    pan: str = ""
+    aadhaar: str = ""
+    experience: str = ""
+    accountHolder: str = ""
+    bankName: str = ""
+    accountNumber: str = ""
+    ifsc: str = ""
+    logo: Optional[str] = None
+    banner: Optional[str] = None
+    gallery: List[str] = []
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 

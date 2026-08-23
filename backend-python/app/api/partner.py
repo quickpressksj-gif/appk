@@ -479,12 +479,22 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "ownerName": payload.ownerName,
         "category": payload.category,
         "gstin": payload.gstin,
+        "pan": payload.pan,
+        "aadhaar": payload.aadhaar,
+        "experience": payload.experience,
         "address": payload.address,
         "city": payload.city,
         "area": payload.area,
         "pincode": payload.pincode,
         "openingTime": payload.openingTime,
         "closingTime": payload.closingTime,
+        "accountHolder": payload.accountHolder,
+        "bankName": payload.bankName,
+        "accountNumber": payload.accountNumber,
+        "ifsc": payload.ifsc,
+        "logo": payload.logo,
+        "banner": payload.banner,
+        "gallery": payload.gallery,
         "latitude": payload.latitude,
         "longitude": payload.longitude,
         "status": "pending_verification",
@@ -509,7 +519,7 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
     else:
         await partner_repository.update_profile(store_id_str, changes)
 
-    # Initialize partner store settings
+    # Initialize partner store settings with timing, radius, and weekly off
     await database.update(
         "partner_settings",
         {"_id": store_id_str},
@@ -520,26 +530,44 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
             "acceptingNewOrders": False,
             "autoAcceptOrders": True,
             "expressDelivery": True,
-            "pickupRadiusKm": 10,
+            "pickupRadiusKm": payload.pickupRadiusKm or 10,
+            "deliveryRadiusKm": payload.deliveryRadiusKm or 10,
             "openingTime": payload.openingTime or "08:00",
             "closingTime": payload.closingTime or "21:00",
-            "weeklyOff": "None",
+            "weeklyOff": payload.weeklyOff or "None",
             "dailyOrderCap": 50,
         },
         upsert=True,
     )
 
-    # Ensure partner has initial rate-card services
+    # Initialize partner rate card based on chosen services
     existing_services = await database.find_many("partner_services", {"partnerId": store_id_str})
     if not existing_services:
-        sample_services = [
-            {"_id": f"svc-{store_id_str[:8]}-1", "partnerId": store_id_str, "name": "Wash & Fold", "category": "laundry", "price": 79, "unit": "kg", "turnaroundHours": 24, "isActive": True, "description": "Daily wear clothes washed, dried and neatly folded."},
-            {"_id": f"svc-{store_id_str[:8]}-2", "partnerId": store_id_str, "name": "Steam Press", "category": "iron", "price": 19, "unit": "pc", "turnaroundHours": 12, "isActive": True, "description": "Crisp wrinkle-free finish with temperature-controlled steam."},
-            {"_id": f"svc-{store_id_str[:8]}-3", "partnerId": store_id_str, "name": "Wash & Iron", "category": "laundry", "price": 99, "unit": "kg", "turnaroundHours": 24, "isActive": True, "description": "Complete wash, fabric conditioner and steam press."},
-            {"_id": f"svc-{store_id_str[:8]}-4", "partnerId": store_id_str, "name": "Dry Cleaning", "category": "dryclean", "price": 149, "unit": "pc", "turnaroundHours": 48, "isActive": True, "description": "Specialized eco-friendly dry clean for suits, blazers and silks."},
-        ]
-        for doc in sample_services:
-            await database.insert("partner_services", doc)
+        _SERVICE_MAP = {
+            "Wash & Fold": {"price": 79, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Daily wear clothes washed, dried and neatly folded."},
+            "Wash & Iron": {"price": 99, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Complete wash, fabric conditioner and steam press."},
+            "Steam Ironing": {"price": 19, "unit": "pc", "category": "iron", "turnaroundHours": 12, "desc": "Crisp wrinkle-free finish with temperature-controlled steam."},
+            "Dry Cleaning": {"price": 149, "unit": "pc", "category": "dryclean", "turnaroundHours": 48, "desc": "Specialized eco-friendly dry clean for suits, blazers and silks."},
+            "Shoe Cleaning": {"price": 249, "unit": "pair", "category": "shoe-care", "turnaroundHours": 48, "desc": "Deep cleaning, deodorizing and protection for sneakers and leather shoes."},
+            "Curtain Cleaning": {"price": 199, "unit": "panel", "category": "home-care", "turnaroundHours": 48, "desc": "Specialized curtain and drape dust extraction and steaming."},
+        }
+        chosen = payload.services if payload.services else ["Wash & Fold", "Steam Ironing"]
+        for idx, svc_name in enumerate(chosen, 1):
+            info = _SERVICE_MAP.get(svc_name, {"price": 80, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Laundry service."})
+            await database.insert(
+                "partner_services",
+                {
+                    "_id": f"svc-{store_id_str[:8]}-{idx}",
+                    "partnerId": store_id_str,
+                    "name": svc_name,
+                    "category": info["category"],
+                    "price": info["price"],
+                    "unit": info["unit"],
+                    "turnaroundHours": info["turnaroundHours"],
+                    "isActive": True,
+                    "description": info["desc"],
+                },
+            )
 
     await users.update(
         user.id,

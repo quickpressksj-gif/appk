@@ -787,10 +787,11 @@ export function BusinessRegistrationScreen() {
                     <ReviewRow label="Aadhaar" value={form.aadhaar} />
                     <ReviewRow label="GSTIN" value={form.gstin || "Not provided (Exempt)"} />
                     <ReviewRow label="Business Entity" value={form.businessType} />
+                    <ReviewRow label="Experience" value={form.experience} />
                   </div>
                 </SectionCard>
 
-                <SectionCard title={`Active Rate Card (${services.length})`} action={<EditButton onClick={() => editStep(2)} />}>
+                <SectionCard title={`Active Rate Card (${services.length} Services)`} action={<EditButton onClick={() => editStep(2)} />}>
                   <div className="flex flex-wrap gap-2">
                     {services.map((s) => (
                       <span key={s} className="rounded-xl bg-amber-100/80 border border-amber-300 px-3 py-1 text-xs font-black text-amber-900">
@@ -800,9 +801,34 @@ export function BusinessRegistrationScreen() {
                   </div>
                 </SectionCard>
 
+                <SectionCard title="Store Timings & Weekly Schedule" action={<EditButton onClick={() => editStep(3)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="Opening Time" value={form.openingTime} />
+                    <ReviewRow label="Closing Time" value={form.closingTime} />
+                    <ReviewRow label="Weekly Off" value={weeklyOff.join(", ") || "None (Open 7 Days)"} />
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Operating City & Delivery Area" action={<EditButton onClick={() => editStep(4)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="City" value={form.city} />
+                    <ReviewRow label="Area / Hub" value={form.area} />
+                    <ReviewRow label="Customer Pickup Radius" value={`${form.pickupRadius} KM`} />
+                    <ReviewRow label="Delivery Drop Radius" value={`${form.deliveryRadius} KM`} />
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Store Photos & Profile" action={<EditButton onClick={() => editStep(5)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="Storefront Logo" value={uploads.logo ? "Uploaded ✓" : "Not uploaded"} />
+                    <ReviewRow label="Facade Banner" value={uploads.banner ? "Uploaded ✓" : "Not uploaded"} />
+                    <ReviewRow label="Gallery Photos" value={`${uploads.gallery.length} photos uploaded`} />
+                  </div>
+                </SectionCard>
+
                 <SectionCard title="Bank Account Payout" action={<EditButton onClick={() => editStep(6)} />}>
                   <div className="space-y-2">
-                    <ReviewRow label="Bank" value={form.bankName} />
+                    <ReviewRow label="Bank Name" value={form.bankName} />
                     <ReviewRow label="Account Holder" value={form.accountHolder} />
                     <ReviewRow
                       label="Account Number"
