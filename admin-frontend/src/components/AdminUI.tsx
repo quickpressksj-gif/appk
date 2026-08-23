@@ -131,6 +131,14 @@ export function StatusPill({ value }: { value: string }) {
   );
 }
 
+export function CountBadge({ count }: { count: number | string }) {
+  return (
+    <span className="inline-flex items-center justify-center rounded-full bg-zinc-800 border border-zinc-700 px-2 py-0.5 text-[10px] font-black text-zinc-300">
+      {count}
+    </span>
+  );
+}
+
 /* ----------------------------------------------------------------- table */
 
 export type ColumnDef<T> = {
