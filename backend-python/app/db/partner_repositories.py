@@ -32,8 +32,8 @@ WALLET_TXNS = "partner_wallet_transactions"
 REVIEWS = "partner_reviews"
 ANALYTICS = "partner_analytics"
 SETTINGS = "partner_settings"
-
-DEMO_PARTNER_ID = "PRT-10482"
+CATEGORIES = "admin_categories"
+SERVICES_CATALOG = "admin_services"
 
 ORDER_STAGES: List[Dict[str, str]] = [
     {"id": "placed", "label": "Order placed", "status": "new"},
@@ -212,10 +212,6 @@ class PartnerRepository:
 class PartnerServiceRepository:
     async def list(self, partner_id: str) -> List[Dict[str, Any]]:
         docs = await database.find_sorted(SERVICES, {"partnerId": partner_id}, sort=[("name", 1)])
-        if not docs:
-            docs = await database.find_sorted(SERVICES, {"partnerId": DEMO_PARTNER_ID}, sort=[("name", 1)])
-            if not docs:
-                docs = await database.find_sorted(SERVICES, {}, sort=[("name", 1)])
         result = []
         for d in docs:
             doc = dict(d)
@@ -229,8 +225,6 @@ class PartnerServiceRepository:
         doc = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
         if doc is None:
             doc = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
-        if doc is None:
-            doc = await database.find_one(SERVICES, {"_id": service_id})
         if doc is None:
             raise PartnerNotFoundError("Service not found or you do not have permission to access it")
         result = dict(doc)
@@ -563,231 +557,10 @@ partner_analytics_repository = PartnerAnalyticsRepository()
 
 
 # ---------------------------------------------------------------------------
-# Idempotent seed — applied via `database.upsert_seed(PARTNER_SEED)` so the
-# partner app is never blank in preview.
+# ---------------------------------------------------------------------------
+# Partner domain collections. All partner profiles, rate cards, orders,
+# wallets, and transactions are strictly managed in real MongoDB collections.
 # ---------------------------------------------------------------------------
 
-_SEED_EVENTS_NEW = {"new": "2024-05-01T08:00:00Z"}
-_SEED_EVENTS_ACCEPTED = {"new": "2024-05-01T08:00:00Z", "accepted": "2024-05-01T08:20:00Z"}
-_SEED_EVENTS_PROCESSING = {
-    "new": "2024-05-01T08:00:00Z",
-    "accepted": "2024-05-01T08:20:00Z",
-    "picked": "2024-05-01T10:00:00Z",
-    "processing": "2024-05-01T10:30:00Z",
-}
-_SEED_EVENTS_DELIVERED = {
-    "new": "2024-04-28T08:00:00Z",
-    "accepted": "2024-04-28T08:20:00Z",
-    "picked": "2024-04-28T10:00:00Z",
-    "processing": "2024-04-28T10:30:00Z",
-    "ready": "2024-04-28T14:00:00Z",
-    "delivered": "2024-04-28T18:00:00Z",
-}
+PARTNER_SEED: Dict[str, List[Dict[str, Any]]] = {}
 
-
-def _seed_order(
-    _id: str,
-    code: str,
-    status: str,
-    events: Dict[str, str],
-    customer_name: str,
-    customer_phone: str,
-    amount: int,
-    placed_at_raw: str,
-) -> Dict[str, Any]:
-    return {
-        "_id": _id,
-        "partnerId": DEMO_PARTNER_ID,
-        "code": code,
-        "customerName": customer_name,
-        "customerPhone": customer_phone,
-        "status": status,
-        "placedAt": "9:00 AM",
-        "placedAtRaw": placed_at_raw,
-        "slot": "8 AM – 12 PM",
-        "address": "12, MG Road, Bengaluru",
-        "itemCount": 5,
-        "amount": amount,
-        "paymentMode": "online",
-        "serviceLabel": "Wash & Fold",
-        "items": [
-            {"id": "itm-1", "name": "Shirt", "qty": 3, "price": 40},
-            {"id": "itm-2", "name": "Trousers", "qty": 2, "price": 60},
-        ],
-        "events": events,
-        "timeline": _timeline(events),
-        "cancelledReason": None,
-        "createdAt": placed_at_raw,
-        "updatedAt": placed_at_raw,
-    }
-
-
-PARTNER_SEED: Dict[str, List[Dict[str, Any]]] = {
-    PROFILES: [
-        {
-            "_id": DEMO_PARTNER_ID,
-            "partnerId": DEMO_PARTNER_ID,
-            "businessName": "Sparkle Laundry Co.",
-            "ownerName": "Ravi Kumar",
-            "phone": "+91 98765 43210",
-            "email": "ravi@sparklelaundry.in",
-            "city": "Bengaluru",
-            "rating": 4.6,
-            "totalOrders": 1284,
-            "joinedOn": "2022-03-14",
-            "onTimeRate": 96.5,
-            "tier": "Gold",
-        }
-    ],
-    SETTINGS: [
-        {
-            "_id": DEMO_PARTNER_ID,
-            # Canonical id in both cases: without `partner_id` this seed row is
-            # invisible to partner_id lookups and to the partial unique index.
-            "partnerId": DEMO_PARTNER_ID,
-            "partner_id": DEMO_PARTNER_ID,
-            "isStoreOpen": True,
-
-            "acceptingNewOrders": True,
-            "autoAcceptOrders": False,
-            "expressDelivery": True,
-            "pickupRadiusKm": 6,
-            "openingTime": "08:00",
-            "closingTime": "21:00",
-            "weeklyOff": "Sunday",
-            "dailyOrderCap": 40,
-        }
-    ],
-    SERVICES: [
-        {
-            "_id": "svc-wash-fold",
-            "partnerId": DEMO_PARTNER_ID,
-            "name": "Wash & Fold",
-            "unit": "per kg",
-            "price": 79,
-            "turnaroundHours": 24,
-            "enabled": True,
-            "category": "laundry",
-        },
-        {
-            "_id": "svc-dry-clean",
-            "partnerId": DEMO_PARTNER_ID,
-            "name": "Dry Clean",
-            "unit": "per item",
-            "price": 149,
-            "turnaroundHours": 48,
-            "enabled": True,
-            "category": "dry-clean",
-        },
-        {
-            "_id": "svc-steam-iron",
-            "partnerId": DEMO_PARTNER_ID,
-            "name": "Steam Iron",
-            "unit": "per item",
-            "price": 25,
-            "turnaroundHours": 12,
-            "enabled": True,
-            "category": "premium",
-        },
-        {
-            "_id": "svc-shoe-care",
-            "partnerId": DEMO_PARTNER_ID,
-            "name": "Shoe Care",
-            "unit": "per pair",
-            "price": 199,
-            "turnaroundHours": 48,
-            "enabled": False,
-            "category": "shoe-care",
-        },
-    ],
-    ORDERS: [
-        _seed_order(
-            "ord-p-1001", "QP1041", "new", _SEED_EVENTS_NEW,
-            "Anita Sharma", "+91 90000 11111", 480, "2024-05-01T08:00:00Z",
-        ),
-        _seed_order(
-            "ord-p-1002", "QP1042", "accepted", _SEED_EVENTS_ACCEPTED,
-            "Vikram Rao", "+91 90000 22222", 620, "2024-05-01T09:00:00Z",
-        ),
-        _seed_order(
-            "ord-p-1003", "QP1043", "processing", _SEED_EVENTS_PROCESSING,
-            "Deepa Iyer", "+91 90000 33333", 350, "2024-05-01T07:00:00Z",
-        ),
-        _seed_order(
-            "ord-p-1004", "QP1040", "delivered", _SEED_EVENTS_DELIVERED,
-            "Sanjay Mehta", "+91 90000 44444", 890, "2024-04-28T08:00:00Z",
-        ),
-    ],
-    WALLETS: [
-        {
-            "_id": f"wlt-{DEMO_PARTNER_ID}",
-            "accountId": DEMO_PARTNER_ID,
-            "balance": 18450.0,
-            "cashbackBalance": 320.0,
-            "rewardPoints": 640,
-            "referralCode": "SPARKLE10",
-            "referralEarned": 500.0,
-            "onHold": 1200.0,
-            "lifetimeEarned": 96500.0,
-            "bankLast4": "4821",
-            "autoPayout": True,
-        }
-    ],
-    WALLET_TXNS: [
-        {
-            "_id": "wtx-p-1",
-            "accountId": DEMO_PARTNER_ID,
-            "title": "Order QP1040 payout",
-            "date": "2024-04-28T19:00:00Z",
-            "amount": 712.0,
-            "direction": "credit",
-            "status": "success",
-            "kind": "payout",
-        },
-        {
-            "_id": "wtx-p-2",
-            "accountId": DEMO_PARTNER_ID,
-            "title": "Platform commission",
-            "date": "2024-04-28T19:05:00Z",
-            "amount": 178.0,
-            "direction": "debit",
-            "status": "success",
-            "kind": "commission",
-        },
-        {
-            "_id": "wtx-p-3",
-            "accountId": DEMO_PARTNER_ID,
-            "title": "Weekly payout to bank",
-            "date": "2024-04-25T10:00:00Z",
-            "amount": 5200.0,
-            "direction": "debit",
-            "status": "pending",
-            "kind": "recharge",
-        },
-    ],
-    REVIEWS: [
-        {
-            "_id": "rev-p-1",
-            "partnerId": DEMO_PARTNER_ID,
-            "customerName": "Anita Sharma",
-            "rating": 5,
-            "comment": "Excellent service, clothes were spotless!",
-            "date": "2024-04-20T10:00:00Z",
-        },
-        {
-            "_id": "rev-p-2",
-            "partnerId": DEMO_PARTNER_ID,
-            "customerName": "Vikram Rao",
-            "rating": 4,
-            "comment": "Good but delivery was slightly late.",
-            "date": "2024-04-18T10:00:00Z",
-        },
-    ],
-    ANALYTICS: [
-        {
-            "_id": f"an-{DEMO_PARTNER_ID}",
-            "partnerId": DEMO_PARTNER_ID,
-            "updatedAt": "2024-05-01T00:00:00Z",
-        }
-    ],
-}
