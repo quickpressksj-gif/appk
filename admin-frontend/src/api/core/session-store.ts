@@ -18,7 +18,7 @@ import type { AuthSession } from "@/shared/types";
 const KEY_PREFIX = "quickpress.session.";
 const REMEMBER_PREFIX = "quickpress.remember.";
 
-let activeRole: string = "customer";
+let activeRole: string = "admin";
 const memory = new Map<string, AuthSession>();
 const listeners = new Set<() => void>();
 
@@ -92,18 +92,21 @@ function targetStorage(role: string): Storage | null {
 /* ------------------------------------------------------------- read/write */
 
 export function readSession(role: string = activeRole): AuthSession | null {
-  const cached = memory.get(role);
+  const cached = memory.get(role) ?? (role !== "admin" ? memory.get("admin") : null);
   if (cached) return cached;
-  for (const store of [local(), session()]) {
-    if (!store) continue;
-    try {
-      const raw = store.getItem(storageKey(role));
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as AuthSession;
-      memory.set(role, parsed);
-      return parsed;
-    } catch {
-      /* try the next storage */
+  const rolesToTry = Array.from(new Set([role, "admin", "super_admin"]));
+  for (const r of rolesToTry) {
+    for (const store of [local(), session()]) {
+      if (!store) continue;
+      try {
+        const raw = store.getItem(storageKey(r));
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as AuthSession;
+        memory.set(r, parsed);
+        return parsed;
+      } catch {
+        /* try the next storage */
+      }
     }
   }
   return null;
