@@ -7,9 +7,19 @@ import {
 } from "../../data/partner-orders-mock";
 
 /** Vertical status timeline: Pending → Accepted → … → Delivered. */
-export function OrderTimeline({ order }: { order: ManagedOrder }) {
-  const activeIndex = STAGE_TIMELINE_INDEX[order.stage];
-  const cancelled = order.stage === "cancelled";
+export function OrderTimeline({
+  order,
+  timeline: propTimeline,
+  stage: propStage,
+}: {
+  order?: ManagedOrder;
+  timeline?: { id: string; label: string; time: string; done?: boolean }[];
+  stage?: string;
+}) {
+  const currentStage = (order?.stage || propStage || "new") as any;
+  const activeIndex = STAGE_TIMELINE_INDEX[currentStage] ?? 0;
+  const cancelled = currentStage === "cancelled";
+  const timelineList = order?.timeline || propTimeline || [];
 
   return (
     <ol className="relative">
@@ -17,7 +27,7 @@ export function OrderTimeline({ order }: { order: ManagedOrder }) {
         const done = !cancelled && index <= activeIndex;
         const current = !cancelled && index === activeIndex;
         const isLast = index === TIMELINE_STEPS.length - 1;
-        const entry = order.timeline[index];
+        const entry = timelineList[index];
 
         return (
           <li key={step.key} className="flex gap-3">

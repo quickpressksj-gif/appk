@@ -34,11 +34,14 @@ const PAYMENT_LABEL: Record<PaymentStatus, string> = {
 };
 
 export function OrderStatusBadge({ order }: { order: ManagedOrder }) {
+  const stage = order?.stage || "new";
+  const tone = STAGE_TONE[stage] || "bg-primary/15 text-brand-dark";
+  const label = STAGE_LABEL[stage] || stage || "Active";
   return (
     <span
-      className={`shrink-0 rounded-full px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-wider transition-colors duration-500 ${STAGE_TONE[order.stage]}`}
+      className={`shrink-0 rounded-full px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-wider transition-colors duration-500 ${tone}`}
     >
-      {STAGE_LABEL[order.stage]}
+      {label}
     </span>
   );
 }
