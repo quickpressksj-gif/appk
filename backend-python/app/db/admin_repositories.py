@@ -1100,90 +1100,11 @@ analytics_repository = AnalyticsRepository()
 
 
 # --------------------------------------------------------------------------
-# Idempotent demo seed — every admin screen renders even on a brand new
-# database / preview environment with zero manual setup.
+# Baseline operational seed (master cities, categories and base services).
+# All business transactional records (customers, partners, riders, orders,
+# wallets, payouts, staff, support) are strictly generated and stored in
+# live MongoDB collections in real time.
 # --------------------------------------------------------------------------
-
-_SEED_CUSTOMERS = [
-    {"_id": "cust-1", "name": "Aarav Shah", "phone": "+91 90000 00001", "email": "aarav@example.com", "city": "Mumbai", "status": "active"},
-    {"_id": "cust-2", "name": "Priya Nair", "phone": "+91 90000 00002", "email": "priya@example.com", "city": "Pune", "status": "active"},
-    {"_id": "cust-3", "name": "Rohan Mehta", "phone": "+91 90000 00003", "email": "rohan@example.com", "city": "Bengaluru", "status": "active"},
-]
-
-_SEED_PARTNERS = [
-    {
-        "_id": "prt-1", "name": "SpinCycle Andheri", "ownerName": "Vikram Rao", "city": "Mumbai",
-        "phone": "+91 98000 00011", "rating": 4.6, "status": "active", "isOpen": True, "acceptingNewOrders": True, "autoAccept": False,
-    },
-    {
-        "_id": "prt-2", "name": "FreshFold Powai", "ownerName": "Neha Kapoor", "city": "Mumbai",
-        "phone": "+91 98000 00012", "rating": 4.3, "status": "pending", "isOpen": False, "acceptingNewOrders": False, "autoAccept": False,
-    },
-    {
-        "_id": "prt-3", "name": "CleanCrest Kothrud", "ownerName": "Sameer Iyer", "city": "Pune",
-        "phone": "+91 98000 00013", "rating": 4.8, "status": "active", "isOpen": True, "acceptingNewOrders": True, "autoAccept": True,
-    },
-]
-
-_SEED_RIDERS = [
-    {"_id": "rdr-1", "name": "Sameer Khan", "phone": "+91 97000 00021", "city": "Mumbai", "vehicle": "Bike", "plate": "MH12AB1234", "rating": 4.7, "trips": 812, "isOnline": True, "status": "active"},
-    {"_id": "rdr-2", "name": "Priya Das", "phone": "+91 97000 00022", "city": "Pune", "vehicle": "Scooter", "plate": "MH14CD5678", "rating": 4.5, "trips": 430, "isOnline": False, "status": "active"},
-    {"_id": "rdr-3", "name": "Imran Sheikh", "phone": "+91 97000 00023", "city": "Bengaluru", "vehicle": "Bike", "plate": "KA05EF9012", "rating": 4.2, "trips": 120, "isOnline": False, "status": "pending"},
-]
-
-_SEED_ORDERS = [
-    {
-        "_id": "ord-QP1041", "userId": "cust-1", "code": "QP1041", "status": "delivered",
-        "createdAt": "2024-05-01T09:00:00Z", "updatedAt": "2024-05-02T18:00:00Z",
-        "customer": {"id": "cust-1", "name": "Aarav Shah", "phone": "+91 90000 00001"},
-        "partner": {"id": "prt-1", "name": "SpinCycle Andheri", "phone": "+91 98000 00011", "image": "", "city": "Andheri, Mumbai"},
-        "rider": {"id": "rdr-1", "name": "Sameer Khan", "phone": "+91 97000 00021", "vehicle": "Bike", "plate": "MH12AB1234", "rating": 4.7, "trips": "812+ trips"},
-        "serviceLabel": "Wash & Fold",
-        "items": [{"id": "svc-1", "name": "Shirt", "qty": 4, "price": 20}],
-        "totals": {"itemsTotal": 80, "pickup": 0, "delivery": 0, "handling": 10, "gst": 16, "discount": 0, "grandTotal": 106},
-        "address": {"label": "Home", "line": "Flat 302, Andheri West", "city": "Mumbai", "phone": "+91 90000 00001"},
-        "pickup": {"date": "Wed, 01 May", "slot": "8 AM – 12 PM", "express": False},
-        "delivery": {"date": "Thu, 02 May", "slot": "12 PM – 4 PM"},
-        "payment": {"mode": "online", "label": "UPI", "note": "Paid from QuickPress wallet", "paid": True},
-        "otp": {"pickup": "1234", "delivery": "5678"},
-        "events": [{"id": "QP1041-evt-0", "status": "placed", "label": "Order placed", "at": "2024-05-01T09:00:00Z", "actor": "customer"}],
-        "cancelledReason": None, "couponCode": "", "instructions": "", "idempotencyKey": None,
-    },
-    {
-        "_id": "ord-QP1042", "userId": "cust-2", "code": "QP1042", "status": "rider_assigned",
-        "createdAt": "2024-05-03T10:00:00Z", "updatedAt": "2024-05-03T10:30:00Z",
-        "customer": {"id": "cust-2", "name": "Priya Nair", "phone": "+91 90000 00002"},
-        "partner": {"id": "prt-3", "name": "CleanCrest Kothrud", "phone": "+91 98000 00013", "image": "", "city": "Kothrud, Pune"},
-        "rider": None,
-        "serviceLabel": "Dry Clean",
-        "items": [{"id": "svc-2", "name": "Blazer", "qty": 1, "price": 220}],
-        "totals": {"itemsTotal": 220, "pickup": 0, "delivery": 0, "handling": 10, "gst": 41, "discount": 0, "grandTotal": 271},
-        "address": {"label": "Home", "line": "12 Kothrud Road", "city": "Pune", "phone": "+91 90000 00002"},
-        "pickup": {"date": "Fri, 03 May", "slot": "12 PM – 4 PM", "express": False},
-        "delivery": {"date": "Sun, 05 May", "slot": "4 PM – 8 PM"},
-        "payment": {"mode": "cod", "label": "Cash", "note": "Pay on delivery", "paid": False},
-        "otp": {"pickup": "2345", "delivery": "6789"},
-        "events": [{"id": "QP1042-evt-0", "status": "placed", "label": "Order placed", "at": "2024-05-03T10:00:00Z", "actor": "customer"}, {"id": "QP1042-evt-1", "status": "partner_accepted", "label": "Accepted by store", "at": "2024-05-03T10:30:00Z", "actor": "partner"}],
-        "cancelledReason": None, "couponCode": "", "instructions": "", "idempotencyKey": None,
-    },
-    {
-        "_id": "ord-QP1043", "userId": "cust-3", "code": "QP1043", "status": "cancelled",
-        "createdAt": "2024-05-04T08:00:00Z", "updatedAt": "2024-05-04T08:15:00Z",
-        "customer": {"id": "cust-3", "name": "Rohan Mehta", "phone": "+91 90000 00003"},
-        "partner": {"id": "prt-2", "name": "FreshFold Powai", "phone": "+91 98000 00012", "image": "", "city": "Powai, Mumbai"},
-        "rider": None,
-        "serviceLabel": "Steam Iron",
-        "items": [{"id": "svc-3", "name": "Trouser", "qty": 2, "price": 40}],
-        "totals": {"itemsTotal": 80, "pickup": 0, "delivery": 0, "handling": 10, "gst": 16, "discount": 0, "grandTotal": 106},
-        "address": {"label": "Office", "line": "Powai Business Park", "city": "Mumbai", "phone": "+91 90000 00003"},
-        "pickup": {"date": "Sat, 04 May", "slot": "8 AM – 12 PM", "express": False},
-        "delivery": {"date": "Sun, 05 May", "slot": "12 PM – 4 PM"},
-        "payment": {"mode": "cod", "label": "Cash", "note": "Pay on delivery", "paid": False},
-        "otp": {"pickup": "3456", "delivery": "7890"},
-        "events": [{"id": "QP1043-evt-0", "status": "placed", "label": "Order placed", "at": "2024-05-04T08:00:00Z", "actor": "customer"}, {"id": "QP1043-evt-1", "status": "cancelled", "label": "Cancelled", "at": "2024-05-04T08:15:00Z", "actor": "customer"}],
-        "cancelledReason": "Changed my mind", "couponCode": "", "instructions": "", "idempotencyKey": None,
-    },
-]
 
 _SEED_CITIES = [
     {"_id": "CI-1", "city": "Kasganj", "state": "Uttar Pradesh", "country": "India", "areas": 6, "partners": 2, "riders": 2, "pickupRadius": "8 km", "status": "Live"},
@@ -1209,43 +1130,8 @@ _SEED_SERVICES = [
     {"_id": "s3", "name": "Steam Iron", "categoryId": "cat-3", "unit": "per item", "price": 20, "image": "", "description": "Crisp, wrinkle-free finish.", "badge": None, "popular": False},
 ]
 
-_SEED_COUPONS = [
-    {"_id": "C-1", "code": "WELCOME50", "discount": "50% OFF", "description": "First order discount", "expiry": "2024-12-31", "minOrder": 99, "status": "Active"},
-    {"_id": "C-2", "code": "MONSOON30", "discount": "30% OFF", "description": "Monsoon special", "expiry": "2024-09-30", "minOrder": 199, "status": "Active"},
-]
-
-_SEED_STAFF = [
-    {"_id": "ST-1", "name": "Ananya Verma", "email": "ananya@quickpress.app", "role": "Ops manager", "scope": "All cities", "lastActive": "2 hrs ago", "status": "Active"},
-    {"_id": "ST-2", "name": "Karan Malhotra", "email": "karan@quickpress.app", "role": "Support lead", "scope": "Mumbai", "lastActive": "1 day ago", "status": "Active"},
-]
-
-_SEED_SUPPORT = [
-    {"_id": "TCK-1", "subject": "Late delivery", "customer": "Aarav Shah", "priority": "High", "status": "Open", "createdAt": "2024-05-01T12:00:00Z", "replies": []},
-    {"_id": "TCK-2", "subject": "Refund not received", "customer": "Priya Nair", "priority": "Medium", "status": "Resolved", "createdAt": "2024-04-28T09:00:00Z", "replies": []},
-]
-
 _SEED_SETTINGS = [
-    {"_id": "platform", "defaultCity": "Mumbai", "defaultCommission": "18%", "supportEmail": "support@quickpress.app", "supportPhone": "+91 90000 90000"}
-]
-
-_SEED_WALLET_TRANSACTIONS = [
-    {"_id": "TXN-1", "kind": "commission", "amount": 500, "account": "Platform", "createdAt": "2024-05-01T09:00:00Z"},
-    {"_id": "TXN-2", "kind": "refund", "amount": 120, "account": "Aarav Shah", "createdAt": "2024-05-02T09:00:00Z"},
-    {"_id": "TXN-3", "kind": "payout", "amount": 4200, "account": "Sameer Khan", "createdAt": "2024-05-02T11:00:00Z"},
-]
-
-_SEED_PAYOUTS = [
-    {"_id": "WD-1", "kind": "payout", "account": "SpinCycle Andheri", "type": "Partner", "amount": 18000, "status": "Pending", "createdAt": "2024-05-03T09:00:00Z"},
-    {"_id": "WD-2", "kind": "payout", "account": "Sameer Khan", "type": "Rider", "amount": 4200, "status": "Approved", "createdAt": "2024-05-02T11:00:00Z"},
-]
-
-_SEED_WALLETS = [
-    {"_id": "wal-prt-1", "account": "SpinCycle Andheri", "balance": 42180},
-    {"_id": "wal-rdr-1", "account": "Sameer Khan", "balance": 6420},
-]
-
-_SEED_NOTIFICATIONS = [
-    {"_id": "ntf-seed-1", "accountId": "cust-1", "role": "customer", "kind": "system", "title": "Welcome to QuickPress", "description": "Your first order is on us", "createdAt": "2024-05-01T09:00:00Z", "read": False},
+    {"_id": "platform", "defaultCity": "Kasganj", "defaultCommission": "18%", "supportEmail": "support@quickpress.app", "supportPhone": "+91 90000 90000"}
 ]
 
 ADMIN_SEED: Dict[str, List[Dict[str, Any]]] = {

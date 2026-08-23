@@ -281,7 +281,5 @@ SEED: Dict[str, List[Dict[str, Any]]] = {
     "banners": BANNERS,
     "categories": CATEGORIES,
     "services": SERVICES,
-    "catalog_partners": PARTNERS,
-    "partner_reviews": PARTNER_REVIEWS,
     "offers": OFFERS,
 }
