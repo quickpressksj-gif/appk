@@ -39,6 +39,26 @@ import { STAGE_LABEL } from "../data/partner-orders-mock";
 import { useEffect, useState } from "react";
 import { fetchPartnerOrder } from "@/api/partner/partner-orders-api";
 
+function formatOrderTime(value?: string | number): string {
+  if (!value) return "Recently";
+  if (typeof value === "string" && (value.includes("ago") || value === "Today" || value === "Yesterday" || value === "Recently")) {
+    return value;
+  }
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return String(value);
+  }
+}
+
 function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
@@ -168,22 +188,23 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
   return (
     <PartnerLayout
       activeTab="orders"
+      hideBottomNav={true}
       title={order ? `Order #${order.code}` : "Order Details"}
       subtitle={order ? `Status: ${stageLabel}` : ""}
     >
       {/* ========================================================================= */}
-      {/* MOBILE ZOMATO ORDER DETAILS VIEW (< md)                                   */}
+      {/* MOBILE ORDER DETAILS VIEW (< md)                                          */}
       {/* ========================================================================= */}
-      <div className="min-h-screen bg-[#F4F5F7] pb-32 text-zinc-900 md:hidden">
+      <div className="min-h-screen bg-[#F6F7F9] pb-36 text-zinc-900 md:hidden">
         {/* Sticky Mobile Header */}
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-white px-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-white px-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border-b border-zinc-100">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => navigate({ to: partnerRoutes.orders })}
-              className="text-zinc-800 p-1 active:scale-95"
+              className="flex size-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 active:scale-95 transition-all"
             >
-              <ArrowLeft className="size-5" />
+              <ArrowLeft className="size-4" />
             </button>
             <div>
               <div className="flex items-center gap-1.5">
@@ -194,7 +215,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                   <Copy className="size-3.5" />
                 </button>
               </div>
-              <p className="text-[10px] font-semibold text-zinc-500">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                 {stageLabel || "Loading..."}
               </p>
             </div>
@@ -204,7 +225,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
             {order?.customerPhone ? (
               <a
                 href={`tel:${order.customerPhone.replace(/\s/g, "")}`}
-                className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 active:scale-95"
+                className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 active:scale-95 shadow-xs"
               >
                 <PhoneCall className="size-4" />
               </a>
@@ -212,7 +233,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
             <button
               type="button"
               onClick={() => toast.success("Invoice receipt ready for print")}
-              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 active:scale-95"
+              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 active:scale-95 border border-zinc-200 shadow-xs"
             >
               <Printer className="size-4" />
             </button>
@@ -241,23 +262,23 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
             {/* Status & Placed Time Banner */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-xl bg-amber-100 text-amber-800 text-xs font-black">
-                    🧺
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 font-black border border-amber-100">
+                    <Sparkles className="size-5" />
                   </span>
                   <div>
-                    <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                    <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 border border-emerald-200/50">
                       {stageLabel}
                     </span>
-                    <p className="mt-0.5 text-[11px] font-semibold text-zinc-500">
-                      Booked {order.placedAt || "Recently"}
+                    <p className="mt-1 text-[11px] font-medium text-zinc-500">
+                      Booked: <span className="font-bold text-zinc-700">{formatOrderTime(order.placedAt)}</span>
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-lg font-black text-zinc-900">₹{order.amount || charges.total}</span>
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">
+                  <span className="text-xl font-black tracking-tight text-zinc-900">₹{order.amount || charges.total}</span>
+                  <p className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-0.5 inline-block uppercase">
                     {order.paymentMode === "cod" ? "Cash on Delivery" : "Paid Online"}
                   </p>
                 </div>
@@ -266,21 +287,21 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
             {/* Customer Details Card */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-black text-zinc-900">{order.customerName || "Valued Customer"}</p>
-                    <span className="flex items-center gap-0.5 rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-bold text-zinc-700">
+                    <p className="text-sm font-black text-zinc-900">{order.customerName || "Customer"}</p>
+                    <span className="flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200/50 px-2 py-0.5 text-[10px] font-black text-amber-800">
                       <Star className="size-2.5 fill-current text-amber-500" />
                       {order.customerRating && order.customerRating > 0 ? order.customerRating.toFixed(1) : "5.0"}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-zinc-500 font-medium">
+                  <p className="mt-1 text-xs text-zinc-600 font-semibold">
                     {order.customerPhone || "Phone registered"} · {order.customerOrders || 1} orders placed
                   </p>
                   {order.pickupAddress ? (
-                    <p className="mt-1 flex items-start gap-1 text-[11px] text-zinc-500">
-                      <MapPin className="size-3 shrink-0 text-zinc-400 mt-0.5" />
+                    <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-zinc-500">
+                      <MapPin className="size-3.5 shrink-0 text-zinc-400 mt-0.5" />
                       <span className="line-clamp-2">{order.pickupAddress}</span>
                     </p>
                   ) : null}
@@ -289,7 +310,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 {order.customerPhone ? (
                   <a
                     href={`tel:${order.customerPhone.replace(/\s/g, "")}`}
-                    className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs active:scale-95 shrink-0"
+                    className="flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/20 active:scale-95 shrink-0"
                   >
                     <PhoneCall className="size-3.5" />
                     <span>Call</span>
@@ -300,7 +321,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
             {/* Booked Services & Items */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-black uppercase tracking-wider text-zinc-600">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
                 Items & Services ({items.length})
               </h2>
 
@@ -311,7 +332,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                   items.map((item, idx) => (
                     <div key={item.id || idx} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
                       <div className="flex items-center gap-2.5">
-                        <span className="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-xs font-bold text-zinc-700">
+                        <span className="flex size-7 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-800 border border-zinc-200">
                           {item.qty || 1}×
                         </span>
                         <div>
@@ -335,7 +356,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 {charges.discount > 0 ? (
                   <Row label="Discount Applied" value={`-₹${charges.discount}`} />
                 ) : null}
-                <div className="border-t border-zinc-200 pt-2">
+                <div className="border-t border-zinc-200 pt-2.5">
                   <Row label="Total Bill Value" value={`₹${order.amount || charges.total}`} strong />
                 </div>
               </div>
@@ -343,23 +364,23 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
             {/* Delivery Rider Card */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-black uppercase tracking-wider text-zinc-600">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
                 Delivery Logistics
               </h2>
               <div className="mt-3 flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
                   <Bike className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-black text-zinc-900">{riderName}</p>
-                  <p className="text-[10px] font-medium text-zinc-500">{riderVehicle}</p>
+                  <p className="text-[10px] font-semibold text-zinc-500">{riderVehicle}</p>
                 </div>
               </div>
             </div>
 
             {/* Live Order Timeline */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-black uppercase tracking-wider text-zinc-600">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
                 Order Timeline
               </h2>
               <div className="mt-3">
@@ -371,11 +392,12 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
         {/* Sticky Mobile Bottom Order Action Bar */}
         {order ? (
-          <div className="fixed bottom-0 inset-x-0 z-30 bg-white p-3 border-t border-zinc-200 shadow-2xl">
-            <div className="mx-auto max-w-md">
+          <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 border-t border-zinc-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto max-w-lg">
               <OrderActionBar
                 order={order}
-                onAction={handleAction}
+                size="full"
+                onAction={(actionId) => handleAction(order, actionId)}
                 busyAction={busy?.orderId === order.id ? busy.actionId : null}
               />
             </div>
@@ -423,7 +445,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                       {order.customerPhone} · {order.customerOrders || 1} previous orders
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Booked at {order.placedAt || "Recently"}
+                      Booked at {formatOrderTime(order.placedAt)}
                     </p>
                   </div>
                   <OrderStatusBadge order={order} />
@@ -510,7 +532,8 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 <div className="mt-4">
                   <OrderActionBar
                     order={order}
-                    onAction={handleAction}
+                    size="full"
+                    onAction={(actionId) => handleAction(order, actionId)}
                     busyAction={busy?.orderId === order.id ? busy.actionId : null}
                   />
                 </div>

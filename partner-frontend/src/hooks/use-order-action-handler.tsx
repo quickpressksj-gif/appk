@@ -49,6 +49,7 @@ export function useOrderActionHandler() {
           break;
         case "start_pickup":
         case "picked_up":
+        case "start_washing":
           void run(order, actionId, "Order moved to processing", () => startProcessing(order.id));
           break;
         case "washing_complete":

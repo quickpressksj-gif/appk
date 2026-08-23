@@ -17,6 +17,7 @@ export function PartnerLayout({
   subtitle,
   searchQuery,
   onSearchChange,
+  hideBottomNav = false,
 }: {
   children: ReactNode;
   activeTab?: PartnerTabId;
@@ -24,6 +25,7 @@ export function PartnerLayout({
   subtitle?: string;
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  hideBottomNav?: boolean;
 }) {
   const navigate = useNavigate();
   const { session, hydrating, signOut } = usePartnerContext();
@@ -114,7 +116,7 @@ export function PartnerLayout({
         </main>
 
         {/* Customer-Panel Style Glass Pill Bottom Navigation Bar (< md) */}
-        {activeTab ? (
+        {activeTab && !hideBottomNav ? (
           <div className="md:hidden">
             <PartnerBottomNav active={activeTab} />
           </div>

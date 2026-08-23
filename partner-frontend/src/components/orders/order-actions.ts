@@ -59,30 +59,30 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
     case "accepted":
       return [
         {
-          id: "start_pickup",
-          label: "Start Pickup",
-          icon: Truck,
+          id: "start_washing",
+          label: isDryClean ? "Start Dry Cleaning" : "Start Washing & Processing",
+          icon: isDryClean ? Shirt : WashingMachine,
           intent: "primary",
-          nextStage: "pickup_pending",
-          timelineLabel: "Pickup started",
+          nextStage: isDryClean ? "dry_cleaning" : "washing",
+          timelineLabel: "Processing started",
         },
       ];
     case "pickup_pending":
       return [
         {
-          id: "picked_up",
-          label: "Picked Up",
-          icon: PackageCheck,
+          id: "start_washing",
+          label: isDryClean ? "Start Dry Cleaning" : "Start Washing & Processing",
+          icon: isDryClean ? Shirt : WashingMachine,
           intent: "primary",
           nextStage: isDryClean ? "dry_cleaning" : "washing",
-          timelineLabel: "Picked up",
+          timelineLabel: "Received & processing",
         },
       ];
     case "washing":
       return [
         {
           id: "washing_complete",
-          label: "Mark Washing Complete",
+          label: "Washing Done ➔ Start Ironing",
           icon: WashingMachine,
           intent: "primary",
           nextStage: "ironing",
@@ -93,7 +93,7 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
       return [
         {
           id: "washing_complete",
-          label: "Mark Dry Clean Complete",
+          label: "Dry Clean Done ➔ Start Ironing",
           icon: Shirt,
           intent: "primary",
           nextStage: "ironing",
@@ -104,7 +104,7 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
       return [
         {
           id: "mark_ready",
-          label: "Mark Ready",
+          label: "Mark Ready for Delivery",
           icon: BadgeCheck,
           intent: "primary",
           nextStage: "ready",

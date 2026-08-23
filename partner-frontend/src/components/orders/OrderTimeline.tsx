@@ -6,6 +6,26 @@ import {
   type ManagedOrder,
 } from "../../data/partner-orders-mock";
 
+function formatTimelineTime(time?: string): string {
+  if (!time) return "Completed";
+  if (time.includes("ago") || time === "Just now" || time === "Completed" || time === "Pending") {
+    return time;
+  }
+  try {
+    const d = new Date(time);
+    if (isNaN(d.getTime())) return time;
+    return d.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return time;
+  }
+}
+
 /** Vertical status timeline: Pending → Accepted → … → Delivered. */
 export function OrderTimeline({
   order,
@@ -69,7 +89,7 @@ export function OrderTimeline({
                 {cancelled && index > 0
                   ? "Not applicable"
                   : done
-                    ? (entry?.time ?? "Completed")
+                    ? formatTimelineTime(entry?.time)
                     : "Pending"}
               </p>
               {current ? (
