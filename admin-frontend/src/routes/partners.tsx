@@ -1,7 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, PauseCircle, PlayCircle, Search, X } from "lucide-react";
+import {
+  Check,
+  PauseCircle,
+  PlayCircle,
+  Search,
+  X,
+  Building2,
+  Download,
+  Phone,
+  MapPin,
+  FileCheck,
+  ShieldCheck,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Wallet,
+  Store,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/ui/button";
@@ -10,121 +29,341 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { AdminShell } from "../components/AdminShell";
-import { DataTable, DetailRow, SectionCard, StatusPill } from "../components/AdminUI";
+import { DataTable, DetailRow, SectionCard, StatusPill, KpiCard } from "../components/AdminUI";
 import { fetchPartner, fetchPartners, setPartnerStatus, type AdminPartner } from "../api/partners";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
 
 export const Route = createFileRoute("/partners")({
   beforeLoad: requireAdminSession,
-  head: () => adminHead("Partners", "Approve, monitor and manage QuickPress laundry partners."),
+  head: () => adminHead("Partners Management", "Approve, monitor and manage QuickPress laundry partner network."),
   component: PartnersPage,
 });
 
-function PartnersPage() {
+export function PartnersPage() {
   const queryClient = useQueryClient();
   const partners = useQuery({ queryKey: ["admin", "partners"], queryFn: fetchPartners });
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
-  const [tab, setTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
   const [selected, setSelected] = useState<AdminPartner | null>(null);
 
-  const decide = useMutation({
+  const allPartners = partners.data ?? [];
+
+  const decideMutation = useMutation({
     mutationFn: ({ id, action }: { id: string; action: "approve" | "reject" | "suspend" | "activate" }) =>
       setPartnerStatus(id, action),
     onSuccess: (_d, vars) => {
-      toast.success(`Partner ${vars.action}d`);
+      toast.success(`Partner store ${vars.action}d successfully!`);
       queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+    onError: () => {
+      toast.error("Failed to update partner store status.");
     },
   });
 
-  const cities = useMemo(() => Array.from(new Set((partners.data ?? []).map((p) => p.city))), [partners.data]);
+  const metrics = useMemo(() => {
+    const total = allPartners.length;
+    const pending = allPartners.filter((p) => p.status === "Pending" || p.kyc === "Pending").length;
+    const active = allPartners.filter((p) => p.status === "Active").length;
+    const suspended = allPartners.filter((p) => p.status === "Suspended").length;
+    return { total, pending, active, suspended };
+  }, [allPartners]);
+
+  const cities = useMemo(
+    () => Array.from(new Set(allPartners.map((p) => p.city).filter(Boolean))),
+    [allPartners],
+  );
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (partners.data ?? []).filter((p) => {
-      const matchesQuery = !q || [p.id, p.store, p.owner, p.phone].join(" ").toLowerCase().includes(q);
+    return allPartners.filter((p) => {
+      const matchesQuery = !q || [p.id, p.store, p.owner, p.phone, p.city].join(" ").toLowerCase().includes(q);
       const matchesTab =
-        tab === "all" ||
-        (tab === "pending" && p.status === "Pending") ||
-        (tab === "active" && p.status === "Active") ||
-        (tab === "suspended" && p.status === "Suspended");
+        activeTab === "all" ||
+        (activeTab === "pending" && (p.status === "Pending" || p.kyc === "Pending")) ||
+        (activeTab === "active" && p.status === "Active") ||
+        (activeTab === "suspended" && p.status === "Suspended");
       return matchesQuery && matchesTab && (city === "all" || p.city === city);
     });
-  }, [partners.data, query, city, tab]);
+  }, [allPartners, query, city, activeTab]);
+
+  const handleExportCSV = () => {
+    if (rows.length === 0) {
+      toast.error("No partner records to export.");
+      return;
+    }
+    const headers = ["Partner ID", "Store Name", "Owner", "Phone", "City", "Services", "Rating", "Orders", "Wallet", "KYC Status", "Account Status"];
+    const csvRows = [headers.join(",")];
+    for (const r of rows) {
+      csvRows.push(
+        [
+          `"${r.id}"`,
+          `"${r.store}"`,
+          `"${r.owner}"`,
+          `"${r.phone}"`,
+          `"${r.city}"`,
+          `"${r.services}"`,
+          `"${r.rating}"`,
+          `"${r.orders}"`,
+          `"${r.wallet}"`,
+          `"${r.kyc}"`,
+          `"${r.status}"`,
+        ].join(","),
+      );
+    }
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `QuickPress_Partners_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Partner stores CSV exported successfully!");
+  };
 
   return (
-    <AdminShell title="Partners" subtitle="Store approvals, KYC, pricing and performance.">
-      <div className="space-y-4">
+    <AdminShell
+      title="Partner Stores Management"
+      subtitle="Store approvals, KYC verification, operational statuses, pricing and payouts."
+      actions={
+        <button
+          type="button"
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-50 active:scale-95 shadow-xs"
+        >
+          <Download className="size-3.5" />
+          <span>Export CSV</span>
+        </button>
+      }
+    >
+      <div className="space-y-6">
+        {/* =========================================================================
+            1. TOP METRIC CARDS
+        ========================================================================= */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            kpi={{
+              id: "tot-part",
+              label: "Total Registered Stores",
+              value: metrics.total.toLocaleString("en-IN"),
+              hint: "All platform laundry partners",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "pend-part",
+              label: "Pending Applications",
+              value: metrics.pending.toLocaleString("en-IN"),
+              hint: "Awaiting admin verification",
+              positive: metrics.pending === 0,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "act-part",
+              label: "Active & Verified",
+              value: metrics.active.toLocaleString("en-IN"),
+              hint: "Receiving customer orders",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "susp-part",
+              label: "Suspended Stores",
+              value: metrics.suspended.toLocaleString("en-IN"),
+              hint: "Temporarily disabled",
+              positive: metrics.suspended === 0,
+            }}
+          />
+        </div>
+
+        {/* =========================================================================
+            2. STATUS TABS & FILTERS
+        ========================================================================= */}
         <SectionCard>
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending approval</TabsTrigger>
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="suspended">Suspended</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-100">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="all" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  All Stores ({allPartners.length})
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Pending Review ({allPartners.filter((p) => p.status === "Pending" || p.kyc === "Pending").length})
+                </TabsTrigger>
+                <TabsTrigger value="active" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Active Stores ({allPartners.filter((p) => p.status === "Active").length})
+                </TabsTrigger>
+                <TabsTrigger value="suspended" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Suspended ({allPartners.filter((p) => p.status === "Suspended").length})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-500">
+              <Building2 className="size-4 text-emerald-600" />
+              <span>Showing {rows.length} Stores</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="relative sm:col-span-2">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+              <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search store, owner or phone…"
+                placeholder="Search store name, owner, phone, or store ID..."
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
+
             <Select value={city} onValueChange={setCity}>
-              <SelectTrigger><SelectValue placeholder="City" /></SelectTrigger>
+              <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                <SelectValue placeholder="All Cities" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All cities</SelectItem>
-                {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                <SelectItem value="all">All Cities</SelectItem>
+                {cities.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </SectionCard>
 
-        <SectionCard title="Partner stores" description={`${rows.length} stores`}>
+        {/* =========================================================================
+            3. PARTNER STORES DATA TABLE
+        ========================================================================= */}
+        <SectionCard
+          title="Partner Stores Directory"
+          description="Click any row to inspect store details, KYC documents, pricing, and reviews."
+        >
           <DataTable
             loading={partners.isLoading}
             rows={rows}
             onRowClick={setSelected}
+            emptyMessage="No partner stores match the selected filters."
             columns={[
-              { key: "store", label: "Store", render: (r) => (
-                <div>
-                  <p className="font-medium text-foreground">{r.store}</p>
-                  <p className="text-xs text-muted-foreground">{r.owner} · {r.id}</p>
-                </div>
-              ) },
-              { key: "city", label: "City" },
-              { key: "services", label: "Services" },
-              { key: "rating", label: "Rating" },
-              { key: "orders", label: "Orders" },
-              { key: "wallet", label: "Wallet" },
-              { key: "kyc", label: "KYC", render: (r) => <StatusPill value={r.kyc} /> },
-              { key: "status", label: "Status", render: (r) => <StatusPill value={r.status} /> },
+              {
+                key: "store",
+                label: "Store / Owner",
+                render: (r) => (
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-black text-xs">
+                      <Store className="size-4" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-zinc-900 text-xs">{r.store}</p>
+                      <p className="text-[10px] text-zinc-500 font-medium">{r.owner} · #{r.id}</p>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "phone",
+                label: "Contact",
+                render: (r) => (
+                  <span className="font-mono text-xs text-zinc-800 flex items-center gap-1">
+                    <Phone className="size-3 text-emerald-600" />
+                    {r.phone || "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "city",
+                label: "City Region",
+                render: (r) => (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
+                    <MapPin className="size-3 text-zinc-400" />
+                    {r.city || "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "services",
+                label: "Services Offered",
+                render: (r) => (
+                  <span className="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
+                    {r.services}
+                  </span>
+                ),
+              },
+              {
+                key: "rating",
+                label: "Rating",
+                render: (r) => <span className="font-bold text-xs text-amber-700">★ {r.rating}</span>,
+              },
+              {
+                key: "orders",
+                label: "Orders",
+                render: (r) => <span className="font-bold text-zinc-800 text-xs">{r.orders}</span>,
+              },
+              {
+                key: "wallet",
+                label: "Wallet",
+                render: (r) => <span className="font-black text-emerald-700 text-xs">{r.wallet}</span>,
+              },
+              {
+                key: "kyc",
+                label: "KYC Status",
+                render: (r) => <StatusPill value={r.kyc} />,
+              },
+              {
+                key: "status",
+                label: "Account Status",
+                render: (r) => <StatusPill value={r.status} />,
+              },
               {
                 key: "actions",
                 label: "",
                 className: "text-right",
                 render: (r) =>
                   r.status === "Pending" ? (
-                    <div className="flex justify-end gap-1.5">
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); decide.mutate({ id: r.id, action: "approve" }); }}>
-                        <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                    <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-lg bg-emerald-600 px-2.5 text-xs font-bold hover:bg-emerald-700"
+                        onClick={() => decideMutation.mutate({ id: r.id, action: "approve" })}
+                      >
+                        <Check className="mr-1 size-3.5" /> Approve
                       </Button>
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); decide.mutate({ id: r.id, action: "reject" }); }}>
-                        <X className="mr-1 h-3.5 w-3.5" /> Reject
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg border-rose-300 text-rose-600 px-2.5 text-xs font-bold hover:bg-rose-50"
+                        onClick={() => decideMutation.mutate({ id: r.id, action: "reject" })}
+                      >
+                        <X className="mr-1 size-3.5" /> Reject
                       </Button>
                     </div>
                   ) : r.status === "Suspended" ? (
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); decide.mutate({ id: r.id, action: "activate" }); }}>
-                      <PlayCircle className="mr-1 h-3.5 w-3.5" /> Activate
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg border-emerald-300 text-emerald-700 px-2.5 text-xs font-bold hover:bg-emerald-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        decideMutation.mutate({ id: r.id, action: "activate" });
+                      }}
+                    >
+                      <PlayCircle className="mr-1 size-3.5" /> Activate
                     </Button>
                   ) : (
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); decide.mutate({ id: r.id, action: "suspend" }); }}>
-                      <PauseCircle className="mr-1 h-3.5 w-3.5" /> Suspend
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 px-2.5 text-xs font-bold"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        decideMutation.mutate({ id: r.id, action: "suspend" });
+                      }}
+                    >
+                      <PauseCircle className="mr-1 size-3.5" /> Suspend
                     </Button>
                   ),
               },
@@ -133,81 +372,176 @@ function PartnersPage() {
         </SectionCard>
       </div>
 
-      <PartnerSheet partner={selected} onClose={() => setSelected(null)} />
+      {/* =========================================================================
+          4. PARTNER DETAIL & KYC DRAWER
+      ========================================================================= */}
+      <PartnerSheet
+        partner={selected}
+        onClose={() => setSelected(null)}
+        onAction={(id, action) => decideMutation.mutate({ id, action })}
+      />
     </AdminShell>
   );
 }
 
-function PartnerSheet({ partner, onClose }: { partner: AdminPartner | null; onClose: () => void }) {
+function PartnerSheet({
+  partner,
+  onClose,
+  onAction,
+}: {
+  partner: AdminPartner | null;
+  onClose: () => void;
+  onAction: (id: string, action: "approve" | "reject" | "suspend" | "activate") => void;
+}) {
   const detail = useQuery({
     queryKey: ["admin", "partners", partner?.id],
     queryFn: () => fetchPartner(partner!.id),
     enabled: Boolean(partner),
   });
+
   const data = detail.data;
 
   return (
     <Sheet open={Boolean(partner)} onOpenChange={(open) => (open ? null : onClose())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>{partner?.store ?? "Partner"}</SheetTitle>
-          <SheetDescription>{partner?.id} · {partner?.city}</SheetDescription>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl bg-white text-zinc-900 border-zinc-200">
+        <SheetHeader className="border-b border-zinc-100 pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <SheetTitle className="text-lg font-black text-zinc-900">{partner?.store ?? "Partner Store"}</SheetTitle>
+              <SheetDescription className="text-xs text-zinc-500 font-medium mt-0.5">
+                ID: #{partner?.id} · {partner?.city}
+              </SheetDescription>
+            </div>
+            {partner && <StatusPill value={partner.status} />}
+          </div>
         </SheetHeader>
 
-        <div className="px-4 pb-10">
+        <div className="space-y-6 px-4 py-6">
           <Tabs defaultValue="profile">
-            <TabsList className="w-full">
-              <TabsTrigger value="profile" className="flex-1">Profile</TabsTrigger>
-              <TabsTrigger value="kyc" className="flex-1">KYC</TabsTrigger>
-              <TabsTrigger value="pricing" className="flex-1">Pricing</TabsTrigger>
-              <TabsTrigger value="reviews" className="flex-1">Reviews</TabsTrigger>
+            <TabsList className="w-full bg-zinc-100 p-1 rounded-xl">
+              <TabsTrigger value="profile" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="kyc" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                KYC Docs
+              </TabsTrigger>
+              <TabsTrigger value="pricing" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                Pricing Matrix
+              </TabsTrigger>
+              <TabsTrigger value="reviews" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                Reviews
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="profile" className="pt-4">
-              <DetailRow label="Owner" value={partner?.owner ?? "—"} />
-              <DetailRow label="Phone" value={partner?.phone ?? "—"} />
-              <DetailRow label="GSTIN" value={data?.gstin ?? "—"} />
-              <DetailRow label="Address" value={data?.address ?? "—"} />
-              <DetailRow label="Services" value={partner?.services ?? "—"} />
-              <DetailRow label="Wallet balance" value={partner?.wallet ?? "—"} />
-              <DetailRow label="Status" value={partner ? <StatusPill value={partner.status} /> : "—"} />
+            {/* Profile Tab */}
+            <TabsContent value="profile" className="pt-4 space-y-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
+                  STORE REGISTRATION SPEC
+                </h4>
+                <DetailRow label="Store Name" value={partner?.store ?? "—"} />
+                <DetailRow label="Authorized Owner" value={partner?.owner ?? "—"} />
+                <DetailRow label="Phone Contact" value={partner?.phone ?? "—"} />
+                <DetailRow label="GSTIN Tax ID" value={data?.gstin ?? "—"} />
+                <DetailRow label="Physical Address" value={data?.address ?? "—"} />
+                <DetailRow label="Services Configured" value={partner?.services ?? "—"} />
+                <DetailRow label="Wallet Available Balance" value={<span className="font-black text-emerald-700">{partner?.wallet ?? "₹0"}</span>} />
+                <DetailRow label="KYC Document Status" value={partner ? <StatusPill value={partner.kyc} /> : "—"} />
+                <DetailRow label="Store Account Status" value={partner ? <StatusPill value={partner.status} /> : "—"} />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex gap-2">
+                {partner?.status === "Pending" ? (
+                  <>
+                    <Button
+                      className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
+                      onClick={() => onAction(partner.id, "approve")}
+                    >
+                      <Check className="mr-2 size-4" />
+                      <span>Approve Store</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold"
+                      onClick={() => onAction(partner.id, "reject")}
+                    >
+                      <X className="mr-2 size-4" />
+                      <span>Reject Application</span>
+                    </Button>
+                  </>
+                ) : partner?.status === "Suspended" ? (
+                  <Button
+                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
+                    onClick={() => onAction(partner.id, "activate")}
+                  >
+                    <PlayCircle className="mr-2 size-4" />
+                    <span>Reactivate Store</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    className="w-full rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700"
+                    onClick={() => onAction(partner!.id, "suspend")}
+                  >
+                    <PauseCircle className="mr-2 size-4" />
+                    <span>Suspend Store Operations</span>
+                  </Button>
+                )}
+              </div>
             </TabsContent>
 
-            <TabsContent value="kyc" className="pt-4">
-              <ul className="space-y-2">
-                {(data?.documents ?? []).map((doc) => (
-                  <li key={doc.name} className="flex items-center justify-between rounded-lg border border-border p-3">
-                    <span className="text-sm text-foreground">{doc.name}</span>
-                    <StatusPill value={doc.status} />
-                  </li>
-                ))}
-              </ul>
+            {/* KYC Tab */}
+            <TabsContent value="kyc" className="pt-4 space-y-3">
+              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                <ul className="divide-y divide-zinc-100">
+                  {(data?.documents ?? []).map((doc) => (
+                    <li key={doc.name} className="flex items-center justify-between p-3.5 text-xs">
+                      <div className="flex items-center gap-2 font-bold text-zinc-900">
+                        <FileCheck className="size-4 text-emerald-600" />
+                        <span>{doc.name}</span>
+                      </div>
+                      <StatusPill value={doc.status} />
+                    </li>
+                  ))}
+                  {(!data?.documents || data.documents.length === 0) && (
+                    <li className="p-6 text-center text-xs text-zinc-400">No documents uploaded yet.</li>
+                  )}
+                </ul>
+              </div>
             </TabsContent>
 
+            {/* Pricing Tab */}
             <TabsContent value="pricing" className="pt-4">
               <DataTable
                 loading={detail.isLoading}
                 rows={(data?.pricing ?? []).map((p) => ({ ...p, id: `${p.item}-${p.service}` }))}
                 columns={[
-                  { key: "item", label: "Item" },
-                  { key: "service", label: "Service" },
-                  { key: "price", label: "Price", className: "text-right" },
+                  { key: "item", label: "Item Name" },
+                  { key: "service", label: "Service Category" },
+                  { key: "price", label: "Partner Rate", className: "text-right" },
                 ]}
               />
             </TabsContent>
 
-            <TabsContent value="reviews" className="pt-4">
-              <ul className="space-y-3">
-                {(data?.reviews ?? []).map((review) => (
-                  <li key={review.customer} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-foreground">{review.customer}</p>
-                      <span className="text-sm text-muted-foreground">★ {review.rating}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{review.note}</p>
-                  </li>
-                ))}
-              </ul>
+            {/* Reviews Tab */}
+            <TabsContent value="reviews" className="pt-4 space-y-3">
+              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                <ul className="divide-y divide-zinc-100">
+                  {(data?.reviews ?? []).map((review, idx) => (
+                    <li key={idx} className="p-3.5 text-xs">
+                      <div className="flex items-center justify-between font-bold text-zinc-900">
+                        <span>{review.customer}</span>
+                        <span className="text-amber-700">★ {review.rating}</span>
+                      </div>
+                      <p className="mt-1 text-zinc-600 font-medium">{review.note}</p>
+                    </li>
+                  ))}
+                  {(!data?.reviews || data.reviews.length === 0) && (
+                    <li className="p-6 text-center text-xs text-zinc-400">No customer reviews yet.</li>
+                  )}
+                </ul>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
