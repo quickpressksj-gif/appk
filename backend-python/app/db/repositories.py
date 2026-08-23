@@ -29,8 +29,15 @@ class UserRepository:
         doc = await self._c.find_one({"_id": user_id})
         return User.from_document(doc) if doc else None
 
-    async def by_phone(self, phone: str, role: Role) -> Optional[User]:
-        doc = await self._c.find_one({"phone": phone, "role": role.value})
+    async def by_phone(self, phone: str, role: Optional[Role] = None) -> Optional[User]:
+        clean = phone.replace("+91", "").replace("+", "").strip()
+        candidates = [phone, clean, f"+91{clean}", f"+91 {clean}"]
+        query: Dict[str, Any] = {"phone": {"$in": candidates}}
+        if role is not None:
+            query["role"] = role.value
+        doc = await self._c.find_one(query)
+        if not doc and role is not None:
+            doc = await self._c.find_one({"phone": {"$in": candidates}})
         return User.from_document(doc) if doc else None
 
     async def create(self, user: User) -> User:
@@ -43,7 +50,87 @@ class UserRepository:
         await self._c.update_one({"_id": user_id}, {"$set": changes})
 
     async def _ensure_role_profile(self, user: User) -> None:
-        """Every authenticated user gets exactly one role profile document."""
+        """Every authenticated user gets linked to their actual role profile document."""
+        clean_phone = (user.phone or "").replace("+91", "").replace("+", "").strip()
+        phone_candidates = [user.phone, clean_phone, f"+91{clean_phone}", f"+91 {clean_phone}"]
+
+        if user.role == Role.rider:
+            # Look for existing rider profile by userId or phone
+            profile = await database.collection("rider_profiles").find_one({
+                "$or": [
+                    {"userId": user.id},
+                    {"phone": {"$in": phone_candidates}},
+                    {"mobile": {"$in": phone_candidates}},
+                ]
+            })
+            if profile:
+                rider_id = profile.get("riderId") or profile.get("_id")
+                is_verified = bool(profile.get("isVerified", False) or profile.get("status") == "active")
+                full_name = profile.get("fullName") or profile.get("name") or user.display_name
+                city = profile.get("city") or user.city or "Kasganj"
+
+                await database.collection("rider_profiles").update_one(
+                    {"_id": profile["_id"]},
+                    {"$set": {"userId": user.id, "riderId": str(rider_id)}}
+                )
+                await database.collection("riders").update_one(
+                    {"user_id": user.id},
+                    {"$set": {"rider_id": str(rider_id), "user_id": user.id}},
+                    upsert=True
+                )
+                await self.update(user.id, {
+                    "linked_id": str(rider_id),
+                    "is_onboarded": True,
+                    "is_verified": is_verified,
+                    "display_name": full_name,
+                    "city": city,
+                })
+                user.linked_id = str(rider_id)
+                user.is_onboarded = True
+                user.is_verified = is_verified
+                user.display_name = full_name
+                user.city = city
+                return
+
+        elif user.role == Role.partner:
+            # Look for existing partner profile by userId or phone
+            profile = await database.collection("partner_profiles").find_one({
+                "$or": [
+                    {"userId": user.id},
+                    {"phone": {"$in": phone_candidates}},
+                    {"ownerPhone": {"$in": phone_candidates}},
+                ]
+            })
+            if profile:
+                partner_id = profile.get("partnerId") or profile.get("_id")
+                is_verified = bool(profile.get("isVerified", False) or profile.get("status") == "active")
+                business_name = profile.get("businessName") or profile.get("name") or user.display_name
+                city = profile.get("city") or user.city or "Kasganj"
+
+                await database.collection("partner_profiles").update_one(
+                    {"_id": profile["_id"]},
+                    {"$set": {"userId": user.id, "partnerId": str(partner_id)}}
+                )
+                await database.collection("partners").update_one(
+                    {"user_id": user.id},
+                    {"$set": {"partner_id": str(partner_id), "user_id": user.id}},
+                    upsert=True
+                )
+                await self.update(user.id, {
+                    "linked_id": str(partner_id),
+                    "linked_partner_id": str(partner_id),
+                    "is_onboarded": True,
+                    "is_verified": is_verified,
+                    "display_name": business_name,
+                    "city": city,
+                })
+                user.linked_id = str(partner_id)
+                user.is_onboarded = True
+                user.is_verified = is_verified
+                user.display_name = business_name
+                user.city = city
+                return
+
         name = ROLE_COLLECTIONS[user.role]
         existing = await database.collection(name).find_one({"user_id": user.id})
         if existing:
@@ -57,15 +144,15 @@ class UserRepository:
         else:
             profile_id = str(uuid.uuid4())
 
-        profile = RoleProfile(
+        profile_doc = RoleProfile(
             id=profile_id,
             user_id=user.id,
             firebase_uid=user.firebase_uid,
             status=user.status,
         )
-        await database.collection(name).insert_one(profile.to_document())
-        await self.update(user.id, {"linked_id": profile.id})
-        user.linked_id = profile.id
+        await database.collection(name).insert_one(profile_doc.to_document())
+        await self.update(user.id, {"linked_id": profile_doc.id})
+        user.linked_id = profile_doc.id
 
     async def upsert_from_firebase(
         self,
@@ -78,6 +165,9 @@ class UserRepository:
         photo_url: Optional[str],
     ) -> User:
         existing = await self.by_firebase_uid(firebase_uid, role=role)
+        if not existing and phone:
+            existing = await self.by_phone(phone, role=role)
+
         if not existing:
             existing = await self.by_firebase_uid(firebase_uid)
             if existing and existing.role != role:
@@ -86,6 +176,8 @@ class UserRepository:
 
         if existing:
             changes: Dict[str, Any] = {"role": role.value}
+            if firebase_uid and firebase_uid != existing.firebase_uid:
+                changes["firebase_uid"] = firebase_uid
             if phone and phone != existing.phone:
                 changes["phone"] = phone
             if email and email != existing.email:
@@ -112,13 +204,16 @@ class UserRepository:
             is_verified=role in (Role.customer, Role.admin),
             is_onboarded=role in (Role.customer, Role.admin),
         )
-        return await self.create(user)
+        created = await self.create(user)
+        refreshed = await self.by_id(created.id)
+        return refreshed or created
 
     async def create_phone_user(self, *, phone: str, role: Role) -> User:
         existing = await self.by_phone(phone, role)
         if existing:
             await self._ensure_role_profile(existing)
-            return existing
+            refreshed = await self.by_id(existing.id)
+            return refreshed or existing
         user = User(
             id=str(uuid.uuid4()),
             firebase_uid=f"phone-{phone}",
@@ -128,7 +223,9 @@ class UserRepository:
             is_verified=role in (Role.customer, Role.admin),
             is_onboarded=role in (Role.customer, Role.admin),
         )
-        return await self.create(user)
+        created = await self.create(user)
+        refreshed = await self.by_id(created.id)
+        return refreshed or created
 
 
 class RefreshTokenRepository:
