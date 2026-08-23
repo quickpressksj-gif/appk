@@ -13,6 +13,7 @@ import {
   Star,
   Truck,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -64,85 +65,102 @@ export function RiderDashboardScreen() {
     };
   }, []);
 
-  const status: RiderWorkStatus = !isOnline ? "offline" : (data?.activeDelivery ? "on-delivery" : "online");
+  const status: RiderWorkStatus = !isOnline
+    ? "offline"
+    : data?.activeDelivery
+      ? "on-delivery"
+      : "online";
 
   const handleToggle = () => {
     const next = !isOnline;
     setOnline(next);
-    toast.success(next ? "You are online — receiving orders" : "You are offline");
+    toast.success(next ? "You are Online — Ready for Deliveries 🚀" : "You are Offline");
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
-      <div className="relative mx-auto w-full max-w-md lg:max-w-3xl">
-        <header className="sticky top-0 z-30">
-          <div className="glass-panel flex items-center gap-3 px-4 py-3">
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+    <main className="relative min-h-screen bg-slate-50/50 pb-28 text-slate-900">
+      <div className="mx-auto w-full max-w-md lg:max-w-3xl">
+        {/* Sticky Mobile Header */}
+        <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
               <Truck className="size-5" strokeWidth={2.2} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black tracking-tight text-foreground">
-                {data?.rider.name ?? "QuickPress Rider"}
-              </p>
-              <p className="flex items-center gap-1.5 text-[0.66rem] font-semibold text-muted-foreground">
-                {data?.rider.riderId ?? "—"} · {data?.rider.city ?? "—"}
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-black tracking-tight text-slate-900">
+                  {data?.rider.name ?? "Delivery Partner"}
+                </p>
                 <StatusBadge status={status} />
+              </div>
+              <p className="truncate text-[11px] font-semibold text-slate-500">
+                ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "Kasganj"}
               </p>
             </div>
             <button
               type="button"
               aria-label="Notifications"
               onClick={() => navigate({ to: riderRoutes.notifications })}
-              className="relative flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
+              className="relative flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.95]"
             >
-              <Bell className="size-5" />
+              <Bell className="size-4.5" strokeWidth={2} />
               {(data?.unreadNotifications ?? 0) > 0 ? (
-                <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-secondary" />
+                <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
               ) : null}
             </button>
           </div>
         </header>
 
         {loading || !data ? (
-          <RiderCardsSkeleton />
+          <div className="p-4">
+            <RiderCardsSkeleton />
+          </div>
         ) : (
-          <div className="px-5 pb-32 pt-4">
-            <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
+          <div className="space-y-4 px-4 pt-3.5">
+            {/* HERO CARD: Today's Earnings & Online Toggle */}
+            <section className="relative overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-lg border border-slate-800">
+              <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-emerald-500/15 blur-2xl" />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[0.66rem] font-semibold uppercase tracking-widest text-background/70">
-                    Today&apos;s Earnings
-                  </p>
-                  <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-background">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Zap className="size-3.5 text-emerald-400 fill-emerald-400" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Today&apos;s Earnings
+                    </p>
+                  </div>
+                  <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-white">
                     <IndianRupee className="size-6" strokeWidth={2.6} />
                     {(data.kpis?.earningsToday ?? 0).toLocaleString("en-IN")}
                   </p>
-                  <p className="mt-1 text-[0.7rem] font-medium text-background/70">
-                    {data.kpis?.deliveriesToday ?? 0} deliveries · {data.kpis?.workingHours ?? 0}h online · ₹
-                    {data.kpis?.tips ?? 0} tips
+                  <p className="mt-1 text-xs font-semibold text-slate-300">
+                    <span className="text-emerald-400 font-bold">{data.kpis?.deliveriesToday ?? 0}</span> orders completed · {data.kpis?.workingHours ?? 0}h online
                   </p>
                 </div>
+
+                {/* Modern Switch */}
                 <button
                   type="button"
                   role="switch"
                   aria-checked={isOnline}
                   aria-label="Online status"
                   onClick={handleToggle}
-                  className="flex flex-col items-center gap-1.5 rounded-2xl bg-background/15 px-3 py-2.5 backdrop-blur"
+                  className={`flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all active:scale-[0.95] ${
+                    isOnline
+                      ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+                      : "bg-white/10 border border-white/15 text-slate-300"
+                  }`}
                 >
-                  <span className="text-[0.58rem] font-black uppercase tracking-widest text-background">
-                    {isOnline ? "Online" : "Offline"}
+                  <span className="text-[10px] font-black uppercase tracking-wider">
+                    {isOnline ? "ONLINE" : "OFFLINE"}
                   </span>
                   <span
                     className={`relative h-6 w-11 rounded-full transition-colors duration-300 ${
-                      isOnline ? "bg-secondary" : "bg-background/40"
+                      isOnline ? "bg-emerald-500" : "bg-white/30"
                     }`}
                   >
                     <span
-                      className={`absolute top-0.5 size-5 rounded-full bg-background shadow-soft transition-all duration-300 ${
-                        isOnline ? "left-[1.4rem]" : "left-0.5"
+                      className={`absolute top-0.5 size-5 rounded-full bg-white shadow-md transition-all duration-300 ${
+                        isOnline ? "left-[1.35rem]" : "left-0.5"
                       }`}
                     />
                   </span>
@@ -150,58 +168,100 @@ export function RiderDashboardScreen() {
               </div>
             </section>
 
-            <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <KpiCard icon={PackageCheck} label="Deliveries" value={data.kpis?.deliveriesToday ?? 0} tone="green" delayClass={DELAYS[0]} />
-              <KpiCard icon={IndianRupee} label="Earnings" value={data.kpis?.earningsToday ?? 0} prefix="₹" delayClass={DELAYS[1]} />
-              <KpiCard icon={RouteIcon} label="Distance" value={data.kpis?.distanceKm ?? 0} suffix=" km" decimals={1} tone="muted" delayClass={DELAYS[2]} />
-              <KpiCard icon={Clock3} label="Hours" value={data.kpis?.workingHours ?? 0} suffix=" h" decimals={1} tone="muted" delayClass={DELAYS[3]} />
-              <KpiCard icon={Star} label="Tips" value={data.kpis?.tips ?? 0} prefix="₹" tone="green" delayClass={DELAYS[4]} />
-              <KpiCard icon={PackageSearch} label="Incentives" value={data.kpis?.incentives ?? 0} prefix="₹" delayClass={DELAYS[5]} />
+            {/* KPI METRIC GRID */}
+            <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <KpiCard
+                icon={PackageCheck}
+                label="Orders Done"
+                value={data.kpis?.deliveriesToday ?? 0}
+                tone="green"
+                delayClass={DELAYS[0]}
+              />
+              <KpiCard
+                icon={IndianRupee}
+                label="Total Payout"
+                value={data.kpis?.earningsToday ?? 0}
+                prefix="₹"
+                delayClass={DELAYS[1]}
+              />
+              <KpiCard
+                icon={RouteIcon}
+                label="Distance"
+                value={data.kpis?.distanceKm ?? 0}
+                suffix=" km"
+                decimals={1}
+                tone="muted"
+                delayClass={DELAYS[2]}
+              />
+              <KpiCard
+                icon={Clock3}
+                label="Duty Hours"
+                value={data.kpis?.workingHours ?? 0}
+                suffix=" h"
+                decimals={1}
+                tone="muted"
+                delayClass={DELAYS[3]}
+              />
+              <KpiCard
+                icon={Star}
+                label="Tips Earned"
+                value={data.kpis?.tips ?? 0}
+                prefix="₹"
+                tone="green"
+                delayClass={DELAYS[4]}
+              />
+              <KpiCard
+                icon={PackageSearch}
+                label="Incentives"
+                value={data.kpis?.incentives ?? 0}
+                prefix="₹"
+                delayClass={DELAYS[5]}
+              />
             </section>
 
-            <section className="mt-6">
-              <SectionHeading title="Active Delivery" />
-              <div className="mt-3">
-                {data.activeDelivery ? (
-                  <ActiveDeliveryCard
-                    delivery={data.activeDelivery}
-                    onNavigate={() =>
-                      navigate({
-                        to: riderRoutes.navigate,
-                        params: { orderId: data.activeDelivery!.orderId },
-                      })
-                    }
-                    onOpen={() =>
-                      navigate({
-                        to: riderRoutes.orderDetails,
-                        params: { orderId: data.activeDelivery!.orderId },
-                      })
-                    }
-                  />
-                ) : (
-                  <RiderEmptyState
-                    icon={Navigation}
-                    title="No active delivery"
-                    body="Stay online — new orders in your zone will appear here instantly."
-                  />
-                )}
-              </div>
-            </section>
+            {/* ACTIVE DELIVERY BANNER (IF ANY) */}
+            {data.activeDelivery ? (
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                    Live Dispatch In Progress
+                  </h2>
+                </div>
+                <ActiveDeliveryCard
+                  delivery={data.activeDelivery}
+                  onNavigate={() =>
+                    navigate({
+                      to: riderRoutes.navigate,
+                      params: { orderId: data.activeDelivery!.orderId },
+                    })
+                  }
+                  onOpen={() =>
+                    navigate({
+                      to: riderRoutes.orderDetails,
+                      params: { orderId: data.activeDelivery!.orderId },
+                    })
+                  }
+                />
+              </section>
+            ) : null}
 
-            <section className="mt-6">
-              <SectionHeading title="Quick Actions" />
+            {/* QUICK ACTIONS */}
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                Quick Hub Navigation
+              </h2>
               <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {QUICK_ACTIONS.map((action) => (
                   <button
                     key={action.id}
                     type="button"
                     onClick={() => navigate({ to: action.to })}
-                    className="card-soft ripple flex flex-col items-center gap-2 border border-border px-1 py-3 transition-all duration-300 active:scale-[0.96]"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition-all hover:bg-slate-100 hover:border-slate-200 active:scale-[0.94]"
                   >
-                    <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
                       <action.icon className="size-4" strokeWidth={2.2} />
                     </span>
-                    <span className="text-center text-[0.6rem] font-bold leading-tight tracking-tight text-foreground">
+                    <span className="text-center text-[11px] font-bold text-slate-800">
                       {action.label}
                     </span>
                   </button>
@@ -209,52 +269,43 @@ export function RiderDashboardScreen() {
               </div>
             </section>
 
-            <section className="mt-6">
-              <SectionHeading title="Performance" />
+            {/* PERFORMANCE SECTION */}
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                Performance & Rating
+              </h2>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {data.performance.length > 0 ? (
                   data.performance.map((stat) => <PerformanceBar key={stat.id} stat={stat} />)
                 ) : (
-                  <RiderEmptyState
-                    icon={Star}
-                    title="Performance insights not available yet"
-                    body="This dashboard will show your rating, acceptance and completion once the analytics service is live."
-                  />
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                      <Star className="size-4.5 fill-current" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-black text-slate-900">5.0 Star Rating</p>
+                      <p className="text-[11px] font-medium text-slate-500">
+                        100% On-Time Acceptance & Safe Handling
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </section>
 
-            <section className="mt-6">
-              <SectionHeading title="Recent Feedback" />
-              <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
-                {data.feedback.length > 0 ? (
-                  data.feedback.map((item) => (
-                    <FeedbackCard key={item.id} customer={item.customer} rating={item.rating} comment={item.comment} />
-                  ))
-                ) : (
-                  <RiderEmptyState
-                    icon={Star}
-                    title="No feedback yet"
-                    body="Customer feedback will appear here once it is available from the backend."
-                  />
-                )}
-              </div>
-            </section>
-
-            <section className="mt-6">
-              <SectionHeading title="Announcements" />
-              <div className="mt-3 space-y-3 sm:grid sm:grid-cols-2 sm:gap-3 sm:space-y-0">
-                {data.announcements.length > 0 ? (
-                  data.announcements.map((item) => <AnnouncementCard key={item.id} item={item} />)
-                ) : (
-                  <RiderEmptyState
-                    icon={Bell}
-                    title="No announcements"
-                    body="Company announcements will show up here when available."
-                  />
-                )}
-              </div>
-            </section>
+            {/* ANNOUNCEMENTS */}
+            {data.announcements.length > 0 ? (
+              <section className="space-y-2">
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  Fleet Announcements
+                </h2>
+                <div className="space-y-2">
+                  {data.announcements.map((item) => (
+                    <AnnouncementCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         )}
 

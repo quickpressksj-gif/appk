@@ -18,8 +18,8 @@ import {
 import type { RiderOrder, RiderTaskType } from "@/shared/types/rider";
 
 const TABS: { id: RiderTaskType; label: string }[] = [
-  { id: "pickup", label: "Pickup Orders" },
-  { id: "delivery", label: "Delivery Orders" },
+  { id: "pickup", label: "Pickup Tasks" },
+  { id: "delivery", label: "Delivery Tasks" },
 ];
 
 export function AssignedOrdersScreen() {
@@ -41,61 +41,83 @@ export function AssignedOrdersScreen() {
         item.id === order.id ? { ...item, status: "accepted" as const } : item,
       ),
     );
-    toast.success(`Accepted order ${order.code}`);
+    toast.success(`Accepted order ${order.code} 🚀`);
   };
 
   const handleReject = async (order: RiderOrder) => {
     await rejectRiderOrder(order.id);
     setData(orderList.filter((item) => item.id !== order.id));
-    toast.info(`Rejected order ${order.code}`);
+    toast.info(`Declined order ${order.code}`);
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="relative mx-auto w-full max-w-md">
+    <main className="relative min-h-screen bg-slate-50/50 pb-28 text-slate-900">
+      <div className="mx-auto w-full max-w-md lg:max-w-3xl">
         <RiderTopBar
           title="Assigned Orders"
-          subtitle="Accept, reject or open details"
-          action={<RiderBellAction count={2} />}
+          subtitle="Real-time pickup & delivery requests"
+          action={<RiderBellAction count={0} />}
         />
 
-        <div className="sticky top-[3.75rem] z-20 bg-background/85 px-5 py-3 backdrop-blur">
-          <div className="flex gap-2 rounded-full bg-muted p-1">
-            {TABS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id)}
-                className={`flex-1 rounded-full py-2.5 text-xs font-black tracking-tight transition-all duration-300 active:scale-[0.97] ${
-                  tab === item.id
-                    ? "bg-background text-brand-dark shadow-soft"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+        {/* Tab Controls */}
+        <div className="sticky top-[3.5rem] z-20 bg-white/90 px-4 py-2.5 backdrop-blur-md border-b border-slate-100">
+          <div className="flex gap-1.5 rounded-2xl bg-slate-100 p-1">
+            {TABS.map((item) => {
+              const count = orderList.filter((o) => (o.taskType || "pickup") === item.id).length;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTab(item.id)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-black transition-all active:scale-[0.97] ${
+                    tab === item.id
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  {count > 0 ? (
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                        tab === item.id ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
 
+        {/* Orders Feed */}
         {isLoading ? (
-          <RiderListSkeleton />
+          <div className="p-4">
+            <RiderListSkeleton rows={3} />
+          </div>
         ) : (
-          <div className="space-y-3 px-5 pb-32 pt-2">
+          <div className="space-y-3 px-4 pt-3.5">
             {orders.length === 0 ? (
-              <RiderEmptyState
-                icon={PackageSearch}
-                title="No orders here yet"
-                body="Stay online — new assignments appear the moment they're allocated to you."
-              />
+              <div className="my-8 rounded-3xl border border-slate-200/80 bg-white p-8 text-center shadow-sm">
+                <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+                  <PackageSearch className="size-6" />
+                </span>
+                <p className="mt-3 text-sm font-black text-slate-900">
+                  No {tab === "pickup" ? "Pickup" : "Delivery"} Tasks
+                </p>
+                <p className="mt-1 text-xs text-slate-500 max-w-xs mx-auto">
+                  New orders will automatically notify you when customers request laundry pickup or dispatch.
+                </p>
+              </div>
             ) : (
               orders.map((order, index) => (
                 <RiderOrderCard
                   key={order.id}
                   order={order}
-                  delay={index * 70}
-                  onAccept={(o) => void handleAccept(o)}
-                  onReject={(o) => void handleReject(o)}
+                  delay={index * 50}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
                 />
               ))
             )}
