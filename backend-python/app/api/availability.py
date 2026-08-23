@@ -76,51 +76,69 @@ async def check_location_availability(
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
 ):
-    """Strictly evaluates real partner & service availability for a given customer location."""
+    """Strictly evaluates real partner & service availability based on Admin-approved cities."""
     clean_city = (city or "").strip()
     clean_area = (area or "").strip()
 
-    partners = await catalog.partners(
-        city=clean_city if clean_city else None,
-        area=clean_area if clean_area else None,
-        lat=lat,
-        lng=lng,
-        limit=20,
-    )
+    # 1. Fetch admin-approved live cities from MongoDB
+    admin_cities = await database.find_many("admin_cities")
+    approved_live_cities = [
+        str(c.get("city") or c.get("name") or "").strip().lower()
+        for c in admin_cities
+        if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
+    ]
 
+    # 2. Check if requested city / area is admin-approved
+    is_city_approved = False
     if clean_city:
-        matched_partners = [
-            p
-            for p in partners
-            if clean_city.lower() in p.city.lower()
-            or clean_city.lower() in p.area.lower()
-            or (clean_area and clean_area.lower() in p.area.lower())
-        ]
-        if not matched_partners and clean_area:
-            matched_partners = [p for p in partners if clean_area.lower() in p.area.lower()]
+        is_city_approved = any(
+            ac in clean_city.lower() or clean_city.lower() in ac for ac in approved_live_cities
+        )
+    elif clean_area:
+        is_city_approved = any(
+            ac in clean_area.lower() for ac in approved_live_cities
+        )
     else:
-        matched_partners = partners
+        is_city_approved = False
 
-    # Real nearby serviceable areas from active partners & zones
+    matched_partners = []
+    if is_city_approved:
+        partners = await catalog.partners(
+            city=clean_city if clean_city else None,
+            area=clean_area if clean_area else None,
+            lat=lat,
+            lng=lng,
+            limit=20,
+        )
+
+        if clean_city:
+            matched_partners = [
+                p
+                for p in partners
+                if clean_city.lower() in p.city.lower()
+                or clean_city.lower() in p.area.lower()
+                or (clean_area and clean_area.lower() in p.area.lower())
+            ]
+            if not matched_partners and clean_area:
+                matched_partners = [p for p in partners if clean_area.lower() in p.area.lower()]
+        else:
+            matched_partners = partners
+
+    # 3. Real nearby serviceable areas ONLY from approved live cities with active partners
     all_active_profiles = await catalog._approved_partner_profiles()
     serviceable_areas_set = set()
     for p in all_active_profiles:
-        c = p.get("city")
-        if c:
-            serviceable_areas_set.add(c.strip())
-        a = p.get("area")
+        c = (p.get("city") or "").strip()
+        a = (p.get("area") or "").strip()
+        if c and any(ac in c.lower() or c.lower() in ac for ac in approved_live_cities):
+            serviceable_areas_set.add(c)
         if a:
-            serviceable_areas_set.add(a.strip())
-
-    zones = await availability_repository.service_areas()
-    for z in zones:
-        if z.city:
-            serviceable_areas_set.add(z.city.strip())
-        if z.area:
-            serviceable_areas_set.add(z.area.strip())
+            first_area = a.split(",")[0].strip()
+            if first_area:
+                serviceable_areas_set.add(first_area)
 
     nearby_areas = sorted(list(serviceable_areas_set))[:8]
-    is_available = len(matched_partners) > 0
+    is_available = is_city_approved and len(matched_partners) > 0
 
     return {
         "success": True,
@@ -153,28 +171,20 @@ async def service_areas() -> List[ServiceAreaResponse]:
 
 @router.get("/cities")
 async def allowed_cities():
+    """Returns only Admin-approved Live / Active cities."""
     cities = await database.find_sorted("admin_cities", sort=[("city", 1)])
     allowed = []
     for c in cities:
-        status_val = str(c.get("status", "Live")).strip().lower()
-        if status_val in ["live", "pilot", "active"]:
+        status_val = str(c.get("status", "Coming Soon")).strip().lower()
+        if status_val in ["live", "active", "approved"]:
             allowed.append({
-                "id": c.get("_id") or c.get("id"),
+                "id": str(c.get("_id") or c.get("id")),
                 "name": c.get("city") or c.get("name"),
                 "city": c.get("city") or c.get("name"),
                 "state": c.get("state", "Uttar Pradesh"),
                 "status": c.get("status", "Live"),
                 "pickupRadius": c.get("pickupRadius", "8 km"),
             })
-    if not allowed:
-        return [
-            {"id": "CI-1", "name": "Kasganj", "city": "Kasganj", "state": "Uttar Pradesh", "status": "Live"},
-            {"id": "CI-2", "name": "Aligarh", "city": "Aligarh", "state": "Uttar Pradesh", "status": "Live"},
-            {"id": "CI-3", "name": "Noida", "city": "Noida", "state": "Uttar Pradesh", "status": "Live"},
-            {"id": "CI-4", "name": "Mumbai", "city": "Mumbai", "state": "Maharashtra", "status": "Live"},
-            {"id": "CI-5", "name": "Pune", "city": "Pune", "state": "Maharashtra", "status": "Live"},
-            {"id": "CI-6", "name": "Bengaluru", "city": "Bengaluru", "state": "Karnataka", "status": "Pilot"},
-        ]
     return allowed
 
 

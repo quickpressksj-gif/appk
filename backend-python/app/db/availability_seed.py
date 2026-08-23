@@ -25,7 +25,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 120,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s2",
@@ -34,7 +34,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 90,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s3",
@@ -43,7 +43,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 40,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s4",
@@ -52,7 +52,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 35,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s5",
@@ -61,7 +61,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 30,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s6",
@@ -70,7 +70,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 25,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s7",
@@ -79,7 +79,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": True,
         "maintenanceMessage": "Carpet Shampoo is paused for equipment servicing. It returns shortly.",
         "dailyCapacity": 15,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s8",
@@ -88,7 +88,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 50,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
     {
         "_id": "s9",
@@ -97,51 +97,20 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 200,
-        "cities": ["Bengaluru"],
+        "cities": ["Kasganj"],
     },
 ]
 
 DELIVERY_ZONES: List[Dict[str, Any]] = [
     {
-        "_id": "zone-blr-indiranagar",
-        "city": "Bengaluru",
-        "area": "Indiranagar",
-        "pincodes": ["560038", "560008", "560075"],
+        "_id": "zone-ksj-awas-vikas",
+        "city": "Kasganj",
+        "area": "Awas Vikas",
+        "pincodes": ["207123"],
         "pickupAvailable": True,
         "deliveryAvailable": True,
-        "partnerIds": ["prt-2001"],
-        "etaMinutes": 25,
-    },
-    {
-        "_id": "zone-blr-koramangala",
-        "city": "Bengaluru",
-        "area": "Koramangala",
-        "pincodes": ["560034", "560095", "560047"],
-        "pickupAvailable": True,
-        "deliveryAvailable": True,
-        "partnerIds": ["prt-2002"],
+        "partnerIds": ["PRT-259692"],
         "etaMinutes": 30,
-    },
-    {
-        "_id": "zone-blr-hsr",
-        "city": "Bengaluru",
-        "area": "HSR Layout",
-        "pincodes": ["560102", "560068"],
-        "pickupAvailable": True,
-        "deliveryAvailable": True,
-        "partnerIds": ["prt-2003"],
-        "etaMinutes": 35,
-    },
-    {
-        "_id": "zone-blr-whitefield",
-        "city": "Bengaluru",
-        "area": "Whitefield",
-        "pincodes": ["560066", "560067"],
-        "pickupAvailable": True,
-        # Pickup only for now — the delivery fleet does not cover Whitefield yet.
-        "deliveryAvailable": False,
-        "partnerIds": ["prt-2001", "prt-2002"],
-        "etaMinutes": 55,
     },
 ]
 

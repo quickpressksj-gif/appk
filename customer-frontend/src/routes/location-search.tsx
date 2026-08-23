@@ -242,53 +242,61 @@ function LocationSearchScreen() {
               <ArrowRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
             </button>
 
-            <Section title="Recent locations" icon={Clock}>
-              {recent.map((place, index) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  index={index}
-                  selected={selected?.id === place.id}
-                  onSelect={setSelected}
-                />
-              ))}
-            </Section>
+            {recent.length > 0 ? (
+              <Section title="Recent locations" icon={Clock}>
+                {recent.map((place, index) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    index={index}
+                    selected={selected?.id === place.id}
+                    onSelect={setSelected}
+                  />
+                ))}
+              </Section>
+            ) : null}
 
-            <Section title="Saved address" icon={Home}>
-              {saved.map((place, index) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  index={index}
-                  selected={selected?.id === place.id}
-                  onSelect={setSelected}
-                />
-              ))}
-            </Section>
+            {saved.length > 0 ? (
+              <Section title="Saved address" icon={Home}>
+                {saved.map((place, index) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    index={index}
+                    selected={selected?.id === place.id}
+                    onSelect={setSelected}
+                  />
+                ))}
+              </Section>
+            ) : null}
 
-            <Section title="Nearby suggestions" icon={Compass}>
-              {nearby.map((place, index) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  index={index}
-                  selected={selected?.id === place.id}
-                  onSelect={setSelected}
-                />
-              ))}
-            </Section>
+            {nearby.length > 0 ? (
+              <Section title="Nearby suggestions" icon={Compass}>
+                {nearby.map((place, index) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    index={index}
+                    selected={selected?.id === place.id}
+                    onSelect={setSelected}
+                  />
+                ))}
+              </Section>
+            ) : null}
 
-            <Section title="Popular locations" icon={Star}>
-              {popular.map((place, index) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  index={index}
-                  selected={selected?.id === place.id}
-                  onSelect={setSelected}
-                />
-              ))}
-            </Section>
+            {popular.length > 0 ? (
+              <Section title="Popular locations" icon={Star}>
+                {popular.map((place, index) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    index={index}
+                    selected={selected?.id === place.id}
+                    onSelect={setSelected}
+                  />
+                ))}
+              </Section>
+            ) : null}
           </>
         )}
       </div>

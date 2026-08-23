@@ -76,16 +76,26 @@ class CatalogRepository:
     # ------------------------------------------------------------------
 
     async def _approved_partner_profiles(self) -> List[Dict[str, Any]]:
-        """Fetch all approved, verified, non-suspended partner stores from MongoDB Atlas."""
+        """Fetch all approved, verified, non-suspended partner stores from admin-approved live cities."""
+        admin_cities = await database.find_many("admin_cities")
+        live_cities = {
+            str(c.get("city") or c.get("name") or "").strip().lower()
+            for c in admin_cities
+            if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
+        }
+
         profiles = await database.find_many("partner_profiles")
         approved = []
         for p in profiles:
             st = str(p.get("status") or "").lower()
-            is_v = bool(p.get("isVerified", False))
-            if st in ("pending", "rejected", "suspended", "blocked"):
+            if st not in ("active", "approved"):
                 continue
-            if st == "active" or is_v or not st:
-                approved.append(p)
+            city = str(p.get("city") or "").strip().lower()
+            area = str(p.get("area") or "").strip().lower()
+            # Partner must be in an admin-approved live city
+            if not any(lc in city or city in lc or lc in area for lc in live_cities):
+                continue
+            approved.append(p)
         return approved
 
     async def partner_cards(
@@ -160,7 +170,12 @@ class CatalogRepository:
                 or any(needle in service.lower() for service in card.services)
             ]
         if city:
-            cards = [card for card in cards if card.city.lower() == city.lower()]
+            c_low = city.strip().lower()
+            cards = [
+                card
+                for card in cards
+                if c_low in card.city.lower() or card.city.lower() in c_low or c_low in card.area.lower()
+            ]
         if min_rating > 0:
             cards = [card for card in cards if card.rating >= min_rating]
         if max_distance > 0:

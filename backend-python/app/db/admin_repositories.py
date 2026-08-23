@@ -1114,13 +1114,13 @@ analytics_repository = AnalyticsRepository()
 # --------------------------------------------------------------------------
 
 _SEED_CITIES = [
-    {"_id": "CI-1", "city": "Kasganj", "state": "Uttar Pradesh", "country": "India", "areas": 6, "partners": 2, "riders": 2, "pickupRadius": "8 km", "status": "Live"},
-    {"_id": "CI-2", "city": "Aligarh", "state": "Uttar Pradesh", "country": "India", "areas": 8, "partners": 1, "riders": 1, "pickupRadius": "10 km", "status": "Live"},
-    {"_id": "CI-3", "city": "Noida", "state": "Uttar Pradesh", "country": "India", "areas": 12, "partners": 1, "riders": 1, "pickupRadius": "12 km", "status": "Live"},
-    {"_id": "CI-4", "city": "Mumbai", "state": "Maharashtra", "country": "India", "areas": 18, "partners": 2, "riders": 2, "pickupRadius": "6 km", "status": "Live"},
-    {"_id": "CI-5", "city": "Pune", "state": "Maharashtra", "country": "India", "areas": 9, "partners": 1, "riders": 1, "pickupRadius": "5 km", "status": "Live"},
-    {"_id": "CI-6", "city": "Bengaluru", "state": "Karnataka", "country": "India", "areas": 14, "partners": 1, "riders": 1, "pickupRadius": "8 km", "status": "Pilot"},
-    {"_id": "CI-7", "city": "Delhi", "state": "Delhi", "country": "India", "areas": 15, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Pilot"},
+    {"_id": "CI-1", "city": "Kasganj", "state": "Uttar Pradesh", "country": "India", "areas": 6, "partners": 1, "riders": 1, "pickupRadius": "8 km", "status": "Live"},
+    {"_id": "CI-2", "city": "Aligarh", "state": "Uttar Pradesh", "country": "India", "areas": 8, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Coming Soon"},
+    {"_id": "CI-3", "city": "Noida", "state": "Uttar Pradesh", "country": "India", "areas": 12, "partners": 0, "riders": 0, "pickupRadius": "12 km", "status": "Coming Soon"},
+    {"_id": "CI-4", "city": "Mumbai", "state": "Maharashtra", "country": "India", "areas": 18, "partners": 0, "riders": 0, "pickupRadius": "6 km", "status": "Coming Soon"},
+    {"_id": "CI-5", "city": "Pune", "state": "Maharashtra", "country": "India", "areas": 9, "partners": 0, "riders": 0, "pickupRadius": "5 km", "status": "Coming Soon"},
+    {"_id": "CI-6", "city": "Bengaluru", "state": "Karnataka", "country": "India", "areas": 14, "partners": 0, "riders": 0, "pickupRadius": "8 km", "status": "Coming Soon"},
+    {"_id": "CI-7", "city": "Delhi", "state": "Delhi", "country": "India", "areas": 15, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Coming Soon"},
     {"_id": "CI-8", "city": "Lucknow", "state": "Uttar Pradesh", "country": "India", "areas": 10, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Coming Soon"},
     {"_id": "CI-9", "city": "Etah", "state": "Uttar Pradesh", "country": "India", "areas": 4, "partners": 0, "riders": 0, "pickupRadius": "6 km", "status": "Coming Soon"},
 ]

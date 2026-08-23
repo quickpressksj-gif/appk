@@ -39,7 +39,7 @@ router = APIRouter(tags=["home"])
 optional_bearer = HTTPBearer(auto_error=False)
 
 GUEST_PROFILE = ProfileResponse(name="Guest", initials="G", unreadNotifications=0)
-DEFAULT_LOCATION = LocationResponse(area="Koramangala 5th Block", city="Bengaluru", state="Karnataka")
+DEFAULT_LOCATION = LocationResponse(area="Awas Vikas", city="Kasganj", state="Uttar Pradesh")
 
 
 def _initials(name: str) -> str:
@@ -215,32 +215,89 @@ async def get_recent_orders(user: Optional[User] = Depends(optional_user)) -> li
     return []
 
 
-DEFAULT_PLACES = [
-    {"id": "loc-1", "area": "Kasganj Main Market", "city": "Kasganj", "state": "Uttar Pradesh"},
-    {"id": "loc-2", "area": "Civil Lines", "city": "Aligarh", "state": "Uttar Pradesh"},
-    {"id": "loc-3", "area": "Koramangala 5th Block", "city": "Bengaluru", "state": "Karnataka"},
-    {"id": "loc-4", "area": "Indiranagar 100ft Road", "city": "Bengaluru", "state": "Karnataka"},
-    {"id": "loc-5", "area": "HSR Layout Sector 2", "city": "Bengaluru", "state": "Karnataka"},
-    {"id": "loc-6", "area": "Whitefield ITPL Main Rd", "city": "Bengaluru", "state": "Karnataka"},
-]
-
-
 @router.get("/locations")
-async def get_locations() -> dict:
+async def get_locations(creds: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer)) -> dict:
+    from app.db.client import database
+    saved_places = []
+    if creds and creds.credentials:
+        try:
+            payload = decode_token(creds.credentials)
+            user_id = payload.get("sub")
+            if user_id:
+                user_addresses = await database.find_many("customer_addresses", {"userId": user_id})
+                for addr in user_addresses:
+                    saved_places.append({
+                        "id": str(addr.get("_id")),
+                        "area": addr.get("area") or addr.get("street") or "Home",
+                        "city": addr.get("city") or "Kasganj",
+                        "state": addr.get("state") or "Uttar Pradesh",
+                        "label": addr.get("label") or "Saved Address",
+                        "type": addr.get("type") or "home",
+                    })
+        except Exception:
+            pass
+
+    admin_cities = await database.find_many("admin_cities")
+    approved_live_cities = [
+        c for c in admin_cities
+        if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
+    ]
+
+    popular_places = [
+        {
+            "id": str(c.get("_id") or c.get("id")),
+            "area": c.get("city") or "Kasganj",
+            "city": c.get("city") or "Kasganj",
+            "state": c.get("state") or "Uttar Pradesh",
+        }
+        for c in approved_live_cities
+    ]
+
+    all_active_profiles = await catalog._approved_partner_profiles()
+    nearby_places = []
+    for p in all_active_profiles:
+        c = (p.get("city") or "").strip()
+        a = (p.get("area") or "").strip()
+        if c or a:
+            nearby_places.append({
+                "id": str(p.get("_id")),
+                "area": a.split(",")[0].strip() if a else c,
+                "city": c,
+                "state": "Uttar Pradesh",
+            })
+
     return {
-        "recent": DEFAULT_PLACES[:2],
-        "saved": DEFAULT_PLACES[:1],
-        "nearby": DEFAULT_PLACES[2:5],
-        "popular": DEFAULT_PLACES,
+        "recent": saved_places[:2],
+        "saved": saved_places,
+        "nearby": nearby_places if nearby_places else popular_places,
+        "popular": popular_places,
     }
 
 
 @router.get("/locations/search")
 async def search_locations(q: str = Query(default="")) -> list[dict]:
+    from app.db.client import database
     query = q.lower().strip()
+    admin_cities = await database.find_many("admin_cities")
+    approved_live_cities = [
+        c for c in admin_cities
+        if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
+    ]
+
+    popular_places = [
+        {
+            "id": str(c.get("_id") or c.get("id")),
+            "area": c.get("city") or "Kasganj",
+            "city": c.get("city") or "Kasganj",
+            "state": c.get("state") or "Uttar Pradesh",
+        }
+        for c in approved_live_cities
+    ]
+
     if not query:
-        return DEFAULT_PLACES
+        return popular_places
+
     return [
-        p for p in DEFAULT_PLACES
+        p for p in popular_places
         if query in p["area"].lower() or query in p["city"].lower() or query in p["state"].lower()
     ]
