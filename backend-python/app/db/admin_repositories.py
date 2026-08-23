@@ -244,14 +244,21 @@ class AdminAccountRepository:
         if q:
             query["$or"] = [
                 {"name": {"$regex": q, "$options": "i"}},
+                {"businessName": {"$regex": q, "$options": "i"}},
+                {"fullName": {"$regex": q, "$options": "i"}},
                 {"ownerName": {"$regex": q, "$options": "i"}},
                 {"phone": {"$regex": q, "$options": "i"}},
             ]
         if status and status != "all":
-            query["status"] = status
-        if city:
+            if status.lower() == "pending":
+                query["$or"] = [{"status": "pending_verification"}, {"status": "pending"}, {"isVerified": False}, {"kycStatus": "pending"}]
+            elif status.lower() == "active":
+                query["$or"] = [{"status": "active"}, {"kycStatus": "verified"}]
+            else:
+                query["status"] = status
+        if city and city != "all":
             query["city"] = city
-        return await database.paginate(self.collection, query, sort=[("name", 1)], page=page, page_size=page_size)
+        return await database.paginate(self.collection, query, sort=[("createdAt", -1), ("_id", -1)], page=page, page_size=page_size)
 
     async def detail(self, entity_id: str) -> Optional[Dict[str, Any]]:
         return await database.find_one(self.collection, {"_id": entity_id})

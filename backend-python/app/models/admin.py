@@ -56,6 +56,24 @@ class AdminPartnerUpdatePayload(BaseModel):
     isVerified: Optional[bool] = None
 
 
+class AdminRiderUpdatePayload(BaseModel):
+    fullName: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    city: Optional[str] = None
+    vehicleType: Optional[str] = None
+    vehicleNumber: Optional[str] = None
+    vehicle: Optional[str] = None
+    plate: Optional[str] = None
+    bankName: Optional[str] = None
+    accountLast4: Optional[str] = None
+    ifsc: Optional[str] = None
+    status: Optional[str] = None
+    kycStatus: Optional[str] = None
+    isOnline: Optional[bool] = None
+
+
 class StaffPayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None

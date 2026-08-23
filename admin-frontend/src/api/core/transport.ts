@@ -97,7 +97,16 @@ async function httpRequest<T>(
       signal: controller.signal,
     });
 
-    if (response.status === 401) throw new ApiError("unauthorized", "Session expired", 401);
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        clearSession(activeSessionRole());
+        clearSession("admin");
+        if (!window.location.pathname.startsWith("/auth")) {
+          window.location.href = "/auth";
+        }
+      }
+      throw new ApiError("unauthorized", "Session expired", 401);
+    }
     if (response.status === 404) throw new ApiError("not-found", `${path} not found`, 404);
     if (!response.ok) {
       throw new ApiError("http", `${method} ${path} failed with ${response.status}`, response.status);

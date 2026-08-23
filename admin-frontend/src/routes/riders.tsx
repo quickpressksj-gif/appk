@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -22,6 +22,8 @@ import {
   Bike,
   Activity,
   Navigation,
+  Edit3,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,7 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { AdminShell } from "../components/AdminShell";
 import { AdminLiveMap } from "../components/AdminLiveMap";
 import { DataTable, DetailRow, SectionCard, StatusPill, KpiCard } from "../components/AdminUI";
-import { fetchRider, fetchRiders, setRiderStatus, type AdminRider } from "../api/riders";
+import { fetchRider, fetchRiders, setRiderStatus, updateRider, type AdminRider } from "../api/riders";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
 
@@ -412,6 +414,10 @@ function RiderSheet({
   onClose: () => void;
   onAction: (id: string, action: "approve" | "reject" | "suspend" | "activate") => void;
 }) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<Record<string, any>>({});
+
   const detail = useQuery({
     queryKey: ["admin", "riders", rider?.id],
     queryFn: () => fetchRider(rider!.id),
@@ -420,9 +426,42 @@ function RiderSheet({
 
   const data = detail.data;
 
+  useEffect(() => {
+    if (data) {
+      setForm({
+        fullName: data.name || "",
+        phone: data.phone || "",
+        email: data.email || "",
+        city: data.city || "",
+        vehicleType: data.vehicle || "Motorbike",
+        vehicleNumber: data.plate || "",
+        bankName: data.bankName || "",
+        accountLast4: data.accountLast4 || "",
+        ifsc: data.ifsc || "",
+      });
+    }
+  }, [data]);
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: Record<string, any>) => updateRider(rider!.id, payload),
+    onSuccess: () => {
+      toast.success("Rider details updated successfully! 🎉");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", rider?.id] });
+    },
+    onError: () => {
+      toast.error("Failed to update rider details.");
+    },
+  });
+
+  const handleSave = () => {
+    updateMutation.mutate(form);
+  };
+
   return (
     <Sheet open={Boolean(rider)} onOpenChange={(open) => (open ? null : onClose())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl bg-white text-zinc-900 border-zinc-200">
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl bg-white text-zinc-900 border-zinc-200">
         <SheetHeader className="border-b border-zinc-100 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -436,122 +475,263 @@ function RiderSheet({
                 </SheetDescription>
               </div>
             </div>
-            {rider && <StatusPill value={rider.live} />}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={isEditing ? "default" : "outline"}
+                className={`h-8 rounded-xl text-xs font-bold ${
+                  isEditing
+                    ? "bg-zinc-900 text-white hover:bg-zinc-800"
+                    : "border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+                }`}
+                onClick={() => setIsEditing(!isEditing)}
+              >
+                <Edit3 className="mr-1.5 size-3.5" />
+                {isEditing ? "View Details" : "Edit Rider Info"}
+              </Button>
+              {rider && <StatusPill value={rider.live} />}
+            </div>
           </div>
         </SheetHeader>
 
         <div className="space-y-6 px-4 py-6">
-          <Tabs defaultValue="profile">
-            <TabsList className="w-full bg-zinc-100 p-1 rounded-xl">
-              <TabsTrigger value="profile" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Profile & Vehicle
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Documents
-              </TabsTrigger>
-              <TabsTrigger value="trips" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Recent Trips
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Profile Tab */}
-            <TabsContent value="profile" className="pt-4 space-y-4">
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
-                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
-                  RIDER SPECIFICATIONS
-                </h4>
-                <DetailRow label="Full Name" value={rider?.name ?? "—"} />
-                <DetailRow label="Phone Number" value={rider?.phone ?? "—"} />
-                <DetailRow label="Assigned City" value={rider?.city ?? "—"} />
-                <DetailRow label="Vehicle Type" value={rider?.vehicle ?? "—"} />
-                <DetailRow label="Registration Plate" value={<span className="font-mono font-bold text-zinc-900">{rider?.plate ?? "—"}</span>} />
-                <DetailRow label="Lifetime Trips" value={<span className="font-bold text-zinc-900">{rider?.trips ?? 0}</span>} />
-                <DetailRow label="Customer Rating" value={<span className="font-bold text-amber-700">★ {rider?.rating ?? "4.8"}</span>} />
-                <DetailRow label="Live Availability" value={rider ? <StatusPill value={rider.live} /> : "—"} />
-                <DetailRow label="Account Standing" value={rider ? <StatusPill value={rider.status} /> : "—"} />
+          {isEditing ? (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+                <p className="text-xs font-bold text-sky-900 flex items-center gap-2">
+                  <Sparkles className="size-4 text-sky-600" />
+                  <span>Admin Edit Mode: Modify rider personal details, vehicle RC and bank specs.</span>
+                </p>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex gap-2">
-                {rider?.status === "Pending" ? (
-                  <>
-                    <Button
-                      className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
-                      onClick={() => onAction(rider.id, "approve")}
+              {/* Rider Personal Info Form */}
+              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Rider Personal & Contact</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Full Name</label>
+                    <Input
+                      value={form.fullName || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Phone Number</label>
+                    <Input
+                      value={form.phone || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Email Address</label>
+                    <Input
+                      value={form.email || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Assigned City</label>
+                    <Input
+                      value={form.city || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle & Plate Form */}
+              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Vehicle & License Specs</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Vehicle Type</label>
+                    <Input
+                      value={form.vehicleType || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                      placeholder="e.g. Scooter, Bike"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Plate Number</label>
+                    <Input
+                      value={form.vehicleNumber || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, vehicleNumber: e.target.value.toUpperCase() }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Payout Form */}
+              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Payout Bank Details</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Bank Name</label>
+                    <Input
+                      value={form.bankName || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">Account (Last 4 digits)</label>
+                    <Input
+                      value={form.accountLast4 || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, accountLast4: e.target.value }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-zinc-600">IFSC Code</label>
+                    <Input
+                      value={form.ifsc || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, ifsc: e.target.value.toUpperCase() }))}
+                      className="h-9 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Save / Cancel */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold h-10 shadow-sm"
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending}
+                >
+                  <Save className="mr-2 size-4" />
+                  <span>{updateMutation.isPending ? "Saving..." : "Save Rider Changes"}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-xl border-zinc-200 text-zinc-700 hover:bg-zinc-100 text-xs font-bold h-10"
+                  onClick={() => setIsEditing(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Tabs defaultValue="profile">
+              <TabsList className="w-full bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="profile" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Profile & Vehicle
+                </TabsTrigger>
+                <TabsTrigger value="documents" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Documents
+                </TabsTrigger>
+                <TabsTrigger value="bank" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Bank Details
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Profile Tab */}
+              <TabsContent value="profile" className="pt-4 space-y-4">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500">
+                      RIDER SPECIFICATIONS
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      <Check className="mr-2 size-4" />
-                      <span>Approve Rider</span>
-                    </Button>
+                      <Edit3 className="size-3" /> Edit
+                    </button>
+                  </div>
+                  <DetailRow label="Full Name" value={rider?.name ?? "—"} />
+                  <DetailRow label="Phone Number" value={rider?.phone ?? "—"} />
+                  <DetailRow label="Email Address" value={data?.email ?? "—"} />
+                  <DetailRow label="Assigned City" value={rider?.city ?? "—"} />
+                  <DetailRow label="Vehicle Type" value={rider?.vehicle ?? "—"} />
+                  <DetailRow label="Registration Plate" value={<span className="font-mono font-bold text-zinc-900">{rider?.plate ?? "—"}</span>} />
+                  <DetailRow label="Lifetime Trips" value={<span className="font-bold text-zinc-900">{rider?.trips ?? 0}</span>} />
+                  <DetailRow label="Customer Rating" value={<span className="font-bold text-amber-700">★ {rider?.rating ?? "4.8"}</span>} />
+                  <DetailRow label="Live Availability" value={rider ? <StatusPill value={rider.live} /> : "—"} />
+                  <DetailRow label="Account Standing" value={rider ? <StatusPill value={rider.status} /> : "—"} />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex gap-2">
+                  {rider?.status === "Pending" ? (
+                    <>
+                      <Button
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold shadow-sm"
+                        onClick={() => onAction(rider.id, "approve")}
+                      >
+                        <Check className="mr-2 size-4" />
+                        <span>Approve Rider</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold"
+                        onClick={() => onAction(rider.id, "reject")}
+                      >
+                        <X className="mr-2 size-4" />
+                        <span>Reject Application</span>
+                      </Button>
+                    </>
+                  ) : rider?.status === "Suspended" ? (
                     <Button
-                      variant="outline"
-                      className="flex-1 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold"
-                      onClick={() => onAction(rider.id, "reject")}
+                      className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
+                      onClick={() => onAction(rider.id, "activate")}
                     >
-                      <X className="mr-2 size-4" />
-                      <span>Reject Application</span>
+                      <PlayCircle className="mr-2 size-4" />
+                      <span>Reactivate Rider</span>
                     </Button>
-                  </>
-                ) : rider?.status === "Suspended" ? (
-                  <Button
-                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
-                    onClick={() => onAction(rider.id, "activate")}
-                  >
-                    <PlayCircle className="mr-2 size-4" />
-                    <span>Reactivate Rider</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    className="w-full rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700"
-                    onClick={() => onAction(rider!.id, "suspend")}
-                  >
-                    <PauseCircle className="mr-2 size-4" />
-                    <span>Suspend Rider Fleet Access</span>
-                  </Button>
-                )}
-              </div>
-            </TabsContent>
-
-            {/* Documents Tab */}
-            <TabsContent value="documents" className="pt-4 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
-                <ul className="divide-y divide-zinc-100">
-                  {(data?.documents ?? []).map((doc) => (
-                    <li key={doc.name} className="flex items-center justify-between p-3.5 text-xs">
-                      <div className="flex items-center gap-2 font-bold text-zinc-900">
-                        <FileCheck className="size-4 text-emerald-600" />
-                        <span>{doc.name}</span>
-                      </div>
-                      <StatusPill value={doc.status} />
-                    </li>
-                  ))}
-                  {(!data?.documents || data.documents.length === 0) && (
-                    <li className="p-6 text-center text-xs text-zinc-400">Driver License & RC verified.</li>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      className="w-full rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700"
+                      onClick={() => onAction(rider!.id, "suspend")}
+                    >
+                      <PauseCircle className="mr-2 size-4" />
+                      <span>Suspend Rider Fleet Access</span>
+                    </Button>
                   )}
-                </ul>
-              </div>
-            </TabsContent>
+                </div>
+              </TabsContent>
 
-            {/* Trips Tab */}
-            <TabsContent value="trips" className="pt-4 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
-                <ul className="divide-y divide-zinc-100">
-                  {(data?.trips ?? []).map((trip) => (
-                    <li key={trip.id} className="p-3.5 text-xs hover:bg-zinc-50 transition-colors">
-                      <div className="flex items-center justify-between font-bold text-zinc-900">
-                        <span className="font-mono">#{trip.id}</span>
-                        <StatusPill value={trip.status} />
-                      </div>
-                      <p className="mt-1 text-zinc-500 font-medium">{trip.from} ➔ {trip.to}</p>
-                    </li>
-                  ))}
-                  {(!data?.trips || data.trips.length === 0) && (
-                    <li className="p-6 text-center text-xs text-zinc-400">No active trips currently in flight.</li>
-                  )}
-                </ul>
-              </div>
-            </TabsContent>
-          </Tabs>
+              {/* Documents Tab */}
+              <TabsContent value="documents" className="pt-4 space-y-3">
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                  <ul className="divide-y divide-zinc-100">
+                    {(data?.documents ?? []).map((doc) => (
+                      <li key={doc.name} className="flex items-center justify-between p-3.5 text-xs">
+                        <div className="flex items-center gap-2 font-bold text-zinc-900">
+                          <FileCheck className="size-4 text-emerald-600" />
+                          <span>{doc.name}</span>
+                        </div>
+                        <StatusPill value={doc.status} />
+                      </li>
+                    ))}
+                    {(!data?.documents || data.documents.length === 0) && (
+                      <li className="p-6 text-center text-xs text-zinc-400">Driver License & RC verified.</li>
+                    )}
+                  </ul>
+                </div>
+              </TabsContent>
+
+              {/* Bank Tab */}
+              <TabsContent value="bank" className="pt-4 space-y-3">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
+                    PAYOUT BANK DETAILS
+                  </h4>
+                  <DetailRow label="Bank Name" value={data?.bankName ?? "—"} />
+                  <DetailRow label="Account Number" value={data?.accountLast4 ? `•••• •••• ${data.accountLast4}` : "—"} />
+                  <DetailRow label="IFSC Code" value={data?.ifsc ?? "—"} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </SheetContent>
     </Sheet>

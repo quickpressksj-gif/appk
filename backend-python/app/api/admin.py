@@ -280,6 +280,47 @@ async def get_rider(rider_id: str, user: User = Depends(current_user)):
     return rider
 
 
+@router.put("/riders/{rider_id}")
+async def update_rider(rider_id: str, payload: AdminRiderUpdatePayload, user: User = Depends(current_user)):
+    from app.db.client import database
+    existing = await database.find_one("rider_profiles", {"_id": rider_id})
+    if not existing:
+        existing = await database.find_one("rider_profiles", {"riderId": rider_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rider not found")
+
+    target_id = existing["_id"]
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+
+    if data:
+        # Normalize fields for rider_profiles
+        if "fullName" in data and "name" not in data:
+            data["name"] = data["fullName"]
+        elif "name" in data and "fullName" not in data:
+            data["fullName"] = data["name"]
+        if "vehicleType" in data and "vehicle" not in data:
+            data["vehicle"] = data["vehicleType"]
+        if "vehicleNumber" in data and "plate" not in data:
+            data["plate"] = data["vehicleNumber"]
+
+        await database.update("rider_profiles", {"_id": target_id}, data)
+
+        # Sync user document if present
+        user_id = existing.get("userId") or existing.get("user_id")
+        if user_id:
+            user_sync = {}
+            if "phone" in data: user_sync["phone"] = data["phone"]
+            if "email" in data: user_sync["email"] = data["email"]
+            if "fullName" in data: user_sync["display_name"] = data["fullName"]
+            if "city" in data: user_sync["city"] = data["city"]
+            if "status" in data: user_sync["status"] = data["status"]
+            if user_sync:
+                await database.update("users", {"_id": user_id}, user_sync)
+
+    await audit_repository.log(await _actor(user), "rider.update", target_id, data)
+    return await database.find_one("rider_profiles", {"_id": target_id})
+
+
 async def _rider_transition(rider_id: str, new_status: str, action: str, user: User):
     rider = await admin_rider_repository.set_status(rider_id, new_status)
     if rider is None:
