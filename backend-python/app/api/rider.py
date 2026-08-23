@@ -15,6 +15,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import current_user, require_roles
+from app.core.identifiers import generate_rider_id
 from app.db.client import database
 from app.db.repositories import users
 from app.db.rider_repositories import (
@@ -79,7 +80,7 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         if existing_profile:
             rider_id = existing_profile.get("_id")
     if not rider_id:
-        rider_id = f"RDR-{uuid.uuid4().hex[:8].upper()}"
+        rider_id = await generate_rider_id()
 
     rider_id_str = str(rider_id)
     await database.update("riders", {"user_id": user.id}, {"rider_id": rider_id_str, "user_id": user.id}, upsert=True)
@@ -88,7 +89,7 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
     full_name = payload.get("fullName") or user.display_name or "Delivery Partner"
     phone = payload.get("mobile") or user.phone or ""
     email = payload.get("email") or user.email or ""
-    city = payload.get("city") or payload.get("preferredCity") or "Bengaluru"
+    city = payload.get("city") or payload.get("preferredCity") or "Kasganj"
 
     profile_data = {
         "_id": rider_id_str,
@@ -191,10 +192,10 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
 @public_router.post("/auth/registration")
 async def submit_registration(body: dict) -> dict:
     payload = body.get("payload", body)
-    rider_id = f"RDR-{uuid.uuid4().hex[:8].upper()}"
+    rider_id = await generate_rider_id()
     full_name = payload.get("fullName", "Delivery Partner")
     phone = payload.get("mobile", "")
-    city = payload.get("city") or payload.get("preferredCity") or "Bengaluru"
+    city = payload.get("city") or payload.get("preferredCity") or "Kasganj"
 
     profile_data = {
         "_id": rider_id,

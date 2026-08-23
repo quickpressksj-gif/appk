@@ -17,6 +17,7 @@ MongoDB Atlas and the in-memory preview store.
 
 from __future__ import annotations
 
+import random
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -126,9 +127,9 @@ class PartnerRepository:
             if candidate and await database.find_one(PROFILES, {"_id": str(candidate)}):
                 store_id = str(candidate)
 
-        # 5. If still none, fallback to user_id or demo
+        # 5. If still none, generate a 6-digit random PRT-XXXXXX
         if not store_id:
-            store_id = user_id
+            store_id = f"PRT-{random.randint(100000, 999999)}"
 
         # Cache/link the resolved store_id
         await self.link_account(user_id, str(store_id))

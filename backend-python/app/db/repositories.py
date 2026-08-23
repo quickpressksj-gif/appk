@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -47,8 +48,17 @@ class UserRepository:
         existing = await database.collection(name).find_one({"user_id": user.id})
         if existing:
             return
+        if user.role == Role.rider:
+            profile_id = f"RDR-{random.randint(100000, 999999)}"
+        elif user.role == Role.partner:
+            profile_id = f"PRT-{random.randint(100000, 999999)}"
+        elif user.role == Role.customer:
+            profile_id = f"CUST-{random.randint(100000, 999999)}"
+        else:
+            profile_id = str(uuid.uuid4())
+
         profile = RoleProfile(
-            id=str(uuid.uuid4()),
+            id=profile_id,
             user_id=user.id,
             firebase_uid=user.firebase_uid,
             status=user.status,

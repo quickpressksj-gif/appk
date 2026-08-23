@@ -16,6 +16,7 @@ preview app is never blank even before a real rider signs in.
 
 from __future__ import annotations
 
+import random
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -96,8 +97,8 @@ class RiderProfileRepository:
             if linked and await self.get(linked) is not None:
                 rider_id = linked
         if not rider_id:
-            # Fallback to user.id and create empty profile if missing
-            rider_id = getattr(user, "id", "RDR-UNKNOWN")
+            # Fallback to generating 6-digit RDR-XXXXXX
+            rider_id = f"RDR-{random.randint(100000, 999999)}"
             if await self.get(rider_id) is None:
                 new_profile = {
                     "_id": rider_id,

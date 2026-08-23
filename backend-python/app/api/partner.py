@@ -39,6 +39,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import current_user
+from app.core.identifiers import generate_partner_id
 from app.db.client import database
 from app.db.notification_repositories import notification_repository
 from app.db.repositories import users
@@ -463,9 +464,14 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         account.get("partner_id")
         or account.get("partnerId")
         or getattr(user, "linked_partner_id", None)
+        or getattr(user, "linked_id", None)
     )
     if not partner_id:
-        partner_id = f"PRT-{uuid.uuid4().hex[:8].upper()}"
+        existing_profile = await database.find_one("partner_profiles", {"userId": user.id})
+        if existing_profile:
+            partner_id = existing_profile.get("_id") or existing_profile.get("partnerId")
+    if not partner_id:
+        partner_id = await generate_partner_id()
         await database.update(
             "partners", {"user_id": user.id}, {"partner_id": partner_id, "user_id": user.id}, upsert=True
         )
