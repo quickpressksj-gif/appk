@@ -13,12 +13,16 @@ import {
   Phone,
   ShieldCheck,
   UserRound,
+  CheckCircle2,
+  Sparkles,
+  MapPinCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 import { submitRiderRegistration } from "@/api/rider/rider-auth-api";
+import { apiGetJson } from "@/api/core/transport";
 
 import {
   ChoiceChips,
@@ -38,7 +42,6 @@ import {
   IDENTITY_UPLOADS,
   LICENSE_UPLOADS,
   ONBOARDING_STEPS,
-  RIDER_CITIES,
   SHIFTS,
   STATES,
   VEHICLE_OPTIONS,
@@ -64,6 +67,24 @@ import {
 import { riderRoutes } from "../navigation/rider-routes";
 
 type Errors = Record<string, string>;
+
+type AllowedCity = {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  status: string;
+  pickupRadius?: string;
+};
+
+const DEFAULT_ALLOWED_CITIES: AllowedCity[] = [
+  { id: "CI-1", name: "Kasganj", city: "Kasganj", state: "Uttar Pradesh", status: "Live" },
+  { id: "CI-2", name: "Aligarh", city: "Aligarh", state: "Uttar Pradesh", status: "Live" },
+  { id: "CI-3", name: "Noida", city: "Noida", state: "Uttar Pradesh", status: "Live" },
+  { id: "CI-4", name: "Mumbai", city: "Mumbai", state: "Maharashtra", status: "Live" },
+  { id: "CI-5", name: "Pune", city: "Pune", state: "Maharashtra", status: "Live" },
+  { id: "CI-6", name: "Bengaluru", city: "Bengaluru", state: "Karnataka", status: "Pilot" },
+];
 
 function validateStep(step: number, form: RiderOnboardingForm): Errors {
   switch (step) {
@@ -115,11 +136,47 @@ export function RiderRegistrationScreen() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RiderOnboardingForm>(() => ({
     ...emptyRiderForm,
-    mobile: phone || (typeof window !== "undefined" ? window.sessionStorage.getItem("qp.rider.pendingPhone") || window.localStorage.getItem("qp.rider.pendingPhone") || "" : ""),
+    mobile:
+      phone ||
+      (typeof window !== "undefined"
+        ? window.sessionStorage.getItem("qp.rider.pendingPhone") ||
+          window.localStorage.getItem("qp.rider.pendingPhone") ||
+          ""
+        : ""),
   }));
   const [uploads, setUploads] = useState<Record<string, string>>({});
+  const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
+
+  // Dynamic Allowed Cities from Admin Console / API
+  const [allowedCities, setAllowedCities] = useState<AllowedCity[]>(DEFAULT_ALLOWED_CITIES);
+  const [loadingCities, setLoadingCities] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function loadCities() {
+      try {
+        const res = await apiGetJson<AllowedCity[]>("/api/cities", { anonymous: true });
+        if (active && Array.isArray(res) && res.length > 0) {
+          setAllowedCities(res);
+        }
+      } catch {
+        // Safe fallback
+      } finally {
+        if (active) setLoadingCities(false);
+      }
+    }
+    void loadCities();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cityOptions = useMemo(
+    () => allowedCities.map((c) => c.name || c.city).filter(Boolean),
+    [allowedCities],
+  );
 
   useEffect(() => {
     if (phone && !form.mobile) {
@@ -136,6 +193,44 @@ export function RiderRegistrationScreen() {
     });
   };
 
+  const handleCitySelect = (selectedCityName: string, isPreference: boolean = false) => {
+    const matched = allowedCities.find(
+      (c) =>
+        (c.name || c.city || "").toLowerCase() === selectedCityName.toLowerCase(),
+    );
+    if (isPreference) {
+      set("preferredCity", selectedCityName);
+    } else {
+      set("city", selectedCityName);
+      if (matched?.state) {
+        set("state", matched.state);
+      }
+      if (!form.preferredCity) {
+        set("preferredCity", selectedCityName);
+      }
+    }
+  };
+
+  const handleUpload = (slotId: string, fileName: string, dataUrl?: string) => {
+    setUploads((p) => ({ ...p, [slotId]: fileName }));
+    if (dataUrl) {
+      setUploadPreviews((p) => ({ ...p, [slotId]: dataUrl }));
+    }
+  };
+
+  const handleClearUpload = (slotId: string) => {
+    setUploads((p) => {
+      const next = { ...p };
+      delete next[slotId];
+      return next;
+    });
+    setUploadPreviews((p) => {
+      const next = { ...p };
+      delete next[slotId];
+      return next;
+    });
+  };
+
   const vehicleLabel = useMemo(
     () => VEHICLE_OPTIONS.find((v) => v.id === form.vehicleType)?.label ?? "Bike",
     [form.vehicleType],
@@ -145,7 +240,7 @@ export function RiderRegistrationScreen() {
     const stepErrors = validateStep(step, form);
     if (Object.keys(stepErrors).length) {
       setErrors(stepErrors);
-      toast("Please fix the highlighted fields");
+      toast.error("Please fill all required fields correctly.");
       return;
     }
     setErrors({});
@@ -169,18 +264,40 @@ export function RiderRegistrationScreen() {
       if (Object.keys(stepErrors).length) {
         setStep(i);
         setErrors(stepErrors);
-        toast("Some details need attention");
+        toast.error("Some details require attention before submitting.");
         return;
       }
     }
+
     setBusy(true);
     try {
-      const updatedSession = await submitRiderRegistration(form);
+      // Build documents list with labels and images
+      const documentPayload = [
+        { id: "doc-aadhaar-front", label: "Aadhaar Card Front", name: uploads["aadhaarFront"] || "Aadhaar Front", status: "pending", dataUrl: uploadPreviews["aadhaarFront"] },
+        { id: "doc-aadhaar-back", label: "Aadhaar Card Back", name: uploads["aadhaarBack"] || "Aadhaar Back", status: "pending", dataUrl: uploadPreviews["aadhaarBack"] },
+        { id: "doc-pan", label: "PAN Card", name: uploads["panCard"] || "PAN Card", status: "pending", dataUrl: uploadPreviews["panCard"] },
+        { id: "doc-license-front", label: "Driving License Front", name: uploads["licenseFront"] || "License Front", status: "pending", dataUrl: uploadPreviews["licenseFront"] },
+        { id: "doc-license-back", label: "Driving License Back", name: uploads["licenseBack"] || "License Back", status: "pending", dataUrl: uploadPreviews["licenseBack"] },
+        { id: "doc-rc", label: "Vehicle RC Document", name: uploads["rcDoc"] || "RC Document", status: "pending", dataUrl: uploadPreviews["rcDoc"] },
+        { id: "doc-insurance", label: "Insurance Policy", name: uploads["insuranceDoc"] || "Insurance", status: "pending", dataUrl: uploadPreviews["insuranceDoc"] },
+        { id: "doc-vehicle-photo", label: "Vehicle Photo", name: uploads["vehiclePhoto"] || "Vehicle Photo", status: "pending", dataUrl: uploadPreviews["vehiclePhoto"] },
+      ].filter((d) => Boolean(d.name && d.name !== d.label) || Boolean(d.dataUrl));
+
+      const payload = {
+        ...form,
+        documents: documentPayload,
+      };
+
+      const updatedSession = await submitRiderRegistration(payload);
       signIn(updatedSession);
-      toast.success("Rider registration submitted successfully!");
+      toast.success("Rider registration submitted successfully! 🎉");
       navigate({ to: riderRoutes.registrationSubmitted });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Registration failed. Please check your details and try again.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Registration failed. Please check your details and try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -207,7 +324,8 @@ export function RiderRegistrationScreen() {
 
         <OnboardingStepper steps={ONBOARDING_STEPS} current={step} />
 
-        <div className="px-5 pb-40 pt-5">
+        <div className="px-4 pb-36 pt-4 sm:px-6 sm:pt-6">
+          {/* STEP 1: Personal Details */}
           {step === 1 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
               <TextField
@@ -217,7 +335,7 @@ export function RiderRegistrationScreen() {
                 value={form.fullName}
                 onChange={(v) => set("fullName", v)}
                 placeholder="Arjun Mehta"
-                error={errors['fullName']}
+                error={errors["fullName"]}
               />
               <TextField
                 id="mobile"
@@ -228,18 +346,18 @@ export function RiderRegistrationScreen() {
                 placeholder="98765 43210"
                 inputMode="numeric"
                 maxLength={10}
-                error={errors['mobile']}
+                error={errors["mobile"]}
               />
               <TextField
                 id="email"
-                label="Email"
+                label="Email Address"
                 icon={Mail}
                 type="email"
                 value={form.email}
                 onChange={(v) => set("email", v)}
                 placeholder="you@example.com"
                 inputMode="email"
-                error={errors['email']}
+                error={errors["email"]}
               />
               <TextField
                 id="dob"
@@ -248,7 +366,7 @@ export function RiderRegistrationScreen() {
                 type="date"
                 value={form.dob}
                 onChange={(v) => set("dob", v)}
-                error={errors['dob']}
+                error={errors["dob"]}
               />
               <ChoiceChips
                 label="Gender"
@@ -259,81 +377,103 @@ export function RiderRegistrationScreen() {
             </StepShell>
           ) : null}
 
+          {/* STEP 2: Address & Admin Allowed City */}
           {step === 2 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 mb-2">
+                <p className="text-xs font-bold text-brand-dark flex items-center gap-1.5">
+                  <MapPinCheck className="size-4 text-brand-green" />
+                  <span>Admin Approved Operating Cities Only</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Select your active operational city. QuickPress operations are live in these hubs.
+                </p>
+              </div>
+
               <TextField
                 id="address"
-                label="Current Address"
+                label="Current Physical Address"
                 icon={MapPin}
                 multiline
                 value={form.address}
                 onChange={(v) => set("address", v)}
-                placeholder="Flat / building, street, landmark"
-                error={errors['address']}
+                placeholder="Flat / House No., Street, Landmark, Locality"
+                error={errors["address"]}
               />
-              <ChoiceChips
-                label="City"
-                options={RIDER_CITIES}
-                value={form.city}
-                onChange={(v) => set("city", v)}
-                columns={2}
-              />
-              {errors['city'] ? (
-                <p role="alert" className="text-[0.68rem] font-semibold text-destructive">
-                  {errors['city']}
-                </p>
-              ) : null}
-              <ChoiceChips
-                label="State"
-                options={STATES}
-                value={form.state}
-                onChange={(v) => set("state", v)}
-                columns={2}
-              />
-              {errors['state'] ? (
-                <p role="alert" className="text-[0.68rem] font-semibold text-destructive">
-                  {errors['state']}
-                </p>
-              ) : null}
+
+              <div>
+                <ChoiceChips
+                  label="Operational City (Allowed by Admin)"
+                  options={cityOptions}
+                  value={form.city}
+                  onChange={(v) => handleCitySelect(v, false)}
+                  columns={2}
+                />
+                {errors["city"] ? (
+                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
+                    {errors["city"]}
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <ChoiceChips
+                  label="State"
+                  options={STATES}
+                  value={form.state}
+                  onChange={(v) => set("state", v)}
+                  columns={2}
+                />
+                {errors["state"] ? (
+                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
+                    {errors["state"]}
+                  </p>
+                ) : null}
+              </div>
+
               <TextField
                 id="pincode"
                 label="PIN Code"
                 icon={MapPin}
                 value={form.pincode}
                 onChange={(v) => set("pincode", v.replace(/\D/g, ""))}
-                placeholder="400053"
+                placeholder="207123"
                 inputMode="numeric"
                 maxLength={6}
-                error={errors['pincode']}
+                error={errors["pincode"]}
               />
             </StepShell>
           ) : null}
 
+          {/* STEP 3: Identity Verification */}
           {step === 3 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
               <TextField
                 id="aadhaar"
-                label="Aadhaar Number"
+                label="Aadhaar Number (12 Digits)"
                 icon={FileCheck2}
                 value={form.aadhaar}
                 onChange={(v) => set("aadhaar", v.replace(/\D/g, ""))}
                 placeholder="1234 5678 9012"
                 inputMode="numeric"
                 maxLength={12}
-                error={errors['aadhaar']}
+                error={errors["aadhaar"]}
               />
               <TextField
                 id="pan"
-                label="PAN Number"
+                label="PAN Number (10 Characters)"
                 icon={CreditCard}
                 value={form.pan}
                 onChange={(v) => set("pan", v)}
                 placeholder="ABCDE1234F"
                 maxLength={10}
                 uppercase
-                error={errors['pan']}
+                error={errors["pan"]}
               />
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-2">
+                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                  KYC Photo Uploads (Optional in preview)
+                </p>
                 {IDENTITY_UPLOADS.map((slot) => (
                   <UploadTile
                     key={slot.id}
@@ -341,20 +481,16 @@ export function RiderRegistrationScreen() {
                     label={slot.label}
                     hint={slot.hint}
                     fileName={uploads[slot.id]}
-                    onSelect={(name) => setUploads((p) => ({ ...p, [slot.id]: name }))}
-                    onClear={() =>
-                      setUploads((p) => {
-                        const next = { ...p };
-                        delete next[slot.id];
-                        return next;
-                      })
-                    }
+                    previewUrl={uploadPreviews[slot.id]}
+                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
+                    onClear={() => handleClearUpload(slot.id)}
                   />
                 ))}
               </div>
             </StepShell>
           ) : null}
 
+          {/* STEP 4: Driving License */}
           {step === 4 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
               <TextField
@@ -363,12 +499,15 @@ export function RiderRegistrationScreen() {
                 icon={IdCard}
                 value={form.license}
                 onChange={(v) => set("license", v)}
-                placeholder="MH0220210012345"
+                placeholder="DL-0420110012345"
                 maxLength={16}
                 uppercase
-                error={errors['license']}
+                error={errors["license"]}
               />
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-2">
+                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                  Driving License Photos
+                </p>
                 {LICENSE_UPLOADS.map((slot) => (
                   <UploadTile
                     key={slot.id}
@@ -376,20 +515,16 @@ export function RiderRegistrationScreen() {
                     label={slot.label}
                     hint={slot.hint}
                     fileName={uploads[slot.id]}
-                    onSelect={(name) => setUploads((p) => ({ ...p, [slot.id]: name }))}
-                    onClear={() =>
-                      setUploads((p) => {
-                        const next = { ...p };
-                        delete next[slot.id];
-                        return next;
-                      })
-                    }
+                    previewUrl={uploadPreviews[slot.id]}
+                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
+                    onClear={() => handleClearUpload(slot.id)}
                   />
                 ))}
               </div>
             </StepShell>
           ) : null}
 
+          {/* STEP 5: Vehicle Details */}
           {step === 5 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
               <VehiclePicker
@@ -399,36 +534,39 @@ export function RiderRegistrationScreen() {
               />
               <TextField
                 id="vehicleNumber"
-                label="Vehicle Number"
+                label="Vehicle Registration Plate Number"
                 icon={Bike}
                 value={form.vehicleNumber}
                 onChange={(v) => set("vehicleNumber", v)}
-                placeholder="MH 02 CX 4821"
-                maxLength={13}
+                placeholder="UP 87 AB 1234"
+                maxLength={14}
                 uppercase
-                error={errors['vehicleNumber']}
+                error={errors["vehicleNumber"]}
               />
               <TextField
                 id="rcNumber"
-                label="RC Number"
+                label="RC Certificate Number"
                 icon={FileCheck2}
                 value={form.rcNumber}
                 onChange={(v) => set("rcNumber", v)}
-                placeholder="RC-2021-884213"
+                placeholder="RC-2022-998812"
                 uppercase
-                error={errors['rcNumber']}
+                error={errors["rcNumber"]}
               />
               <TextField
                 id="insuranceNumber"
-                label="Insurance Number"
+                label="Vehicle Insurance Policy Number"
                 icon={ShieldCheck}
                 value={form.insuranceNumber}
                 onChange={(v) => set("insuranceNumber", v)}
-                placeholder="INS-99213345"
+                placeholder="INS-77665544"
                 uppercase
-                error={errors['insuranceNumber']}
+                error={errors["insuranceNumber"]}
               />
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-2">
+                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                  Vehicle Documents & Photo
+                </p>
                 {VEHICLE_UPLOADS.map((slot) => (
                   <UploadTile
                     key={slot.id}
@@ -436,30 +574,26 @@ export function RiderRegistrationScreen() {
                     label={slot.label}
                     hint={slot.hint}
                     fileName={uploads[slot.id]}
-                    onSelect={(name) => setUploads((p) => ({ ...p, [slot.id]: name }))}
-                    onClear={() =>
-                      setUploads((p) => {
-                        const next = { ...p };
-                        delete next[slot.id];
-                        return next;
-                      })
-                    }
+                    previewUrl={uploadPreviews[slot.id]}
+                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
+                    onClear={() => handleClearUpload(slot.id)}
                   />
                 ))}
               </div>
             </StepShell>
           ) : null}
 
+          {/* STEP 6: Bank Payout Details */}
           {step === 6 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
               <TextField
                 id="accountHolder"
-                label="Account Holder"
+                label="Account Holder Name (As per Bank)"
                 icon={UserRound}
                 value={form.accountHolder}
                 onChange={(v) => set("accountHolder", v)}
                 placeholder="Arjun Mehta"
-                error={errors['accountHolder']}
+                error={errors["accountHolder"]}
               />
               <ChoiceChips
                 label="Bank Name"
@@ -468,21 +602,21 @@ export function RiderRegistrationScreen() {
                 onChange={(v) => set("bankName", v)}
                 columns={2}
               />
-              {errors['bankName'] ? (
+              {errors["bankName"] ? (
                 <p role="alert" className="text-[0.68rem] font-semibold text-destructive">
-                  {errors['bankName']}
+                  {errors["bankName"]}
                 </p>
               ) : null}
               <TextField
                 id="accountNumber"
-                label="Account Number"
+                label="Bank Account Number"
                 icon={Banknote}
                 value={form.accountNumber}
                 onChange={(v) => set("accountNumber", v.replace(/\D/g, ""))}
-                placeholder="000123456789"
+                placeholder="00012345678901"
                 inputMode="numeric"
                 maxLength={18}
-                error={errors['accountNumber']}
+                error={errors["accountNumber"]}
               />
               <TextField
                 id="ifsc"
@@ -490,39 +624,43 @@ export function RiderRegistrationScreen() {
                 icon={Building2}
                 value={form.ifsc}
                 onChange={(v) => set("ifsc", v)}
-                placeholder="HDFC0000241"
+                placeholder="SBIN0001234"
                 maxLength={11}
                 uppercase
-                error={errors['ifsc']}
+                error={errors["ifsc"]}
               />
             </StepShell>
           ) : null}
 
+          {/* STEP 7: Working Preferences & Preferred City */}
           {step === 7 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <ChoiceChips
-                label="Preferred City"
-                options={RIDER_CITIES}
-                value={form.preferredCity}
-                onChange={(v) => set("preferredCity", v)}
-                columns={2}
-              />
-              {errors['preferredCity'] ? (
-                <p role="alert" className="text-[0.68rem] font-semibold text-destructive">
-                  {errors['preferredCity']}
-                </p>
-              ) : null}
+              <div>
+                <ChoiceChips
+                  label="Preferred Delivery City (Admin Approved)"
+                  options={cityOptions}
+                  value={form.preferredCity}
+                  onChange={(v) => handleCitySelect(v, true)}
+                  columns={2}
+                />
+                {errors["preferredCity"] ? (
+                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
+                    {errors["preferredCity"]}
+                  </p>
+                ) : null}
+              </div>
+
               <TextField
                 id="preferredArea"
-                label="Preferred Area"
+                label="Preferred Local Area / Zone"
                 icon={MapPin}
                 value={form.preferredArea}
                 onChange={(v) => set("preferredArea", v)}
-                placeholder="Andheri West, Jogeshwari"
-                error={errors['preferredArea']}
+                placeholder="e.g. Awas Vikas, Main Market, Station Road"
+                error={errors["preferredArea"]}
               />
               <ChoiceChips
-                label="Availability"
+                label="Employment Type"
                 options={EMPLOYMENT_TYPES}
                 value={form.employmentType}
                 onChange={(v) => set("employmentType", v)}
@@ -538,88 +676,95 @@ export function RiderRegistrationScreen() {
             </StepShell>
           ) : null}
 
+          {/* STEP 8: Review & Submit */}
           {step === 8 ? (
             <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 mb-3">
+                <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                  <span>Ready for Verification</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 mt-1 leading-relaxed">
+                  Review all your submitted specifications. Once submitted, your profile will be sent to the Operations Admin for fast review and fleet activation.
+                </p>
+              </div>
+
               <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                 <ReviewGroup
                   title="Personal Details"
                   onEdit={() => jumpTo(1)}
                   rows={[
-                    { label: "Full name", value: form.fullName },
+                    { label: "Full Name", value: form.fullName },
                     { label: "Mobile", value: form.mobile },
                     { label: "Email", value: form.email },
-                    { label: "Date of birth", value: form.dob },
+                    { label: "Date of Birth", value: form.dob },
                     { label: "Gender", value: form.gender },
                   ]}
                 />
                 <ReviewGroup
-                  title="Address"
+                  title="Address & Operating City"
                   onEdit={() => jumpTo(2)}
                   rows={[
                     { label: "Address", value: form.address },
-                    { label: "City", value: form.city },
+                    { label: "Operating City", value: form.city },
                     { label: "State", value: form.state },
-                    { label: "PIN code", value: form.pincode },
+                    { label: "PIN Code", value: form.pincode },
                   ]}
                 />
                 <ReviewGroup
-                  title="Identity"
+                  title="Identity & KYC"
                   onEdit={() => jumpTo(3)}
                   rows={[
                     { label: "Aadhaar", value: form.aadhaar },
                     { label: "PAN", value: form.pan },
                     {
                       label: "Documents",
-                      value: `${IDENTITY_UPLOADS.filter((s) => uploads[s.id]).length}/3 uploaded`,
+                      value: `${IDENTITY_UPLOADS.filter((s) => uploads[s.id]).length}/3 attached`,
                     },
                   ]}
                 />
                 <ReviewGroup
-                  title="Driving"
+                  title="Driving License"
                   onEdit={() => jumpTo(4)}
                   rows={[
-                    { label: "License", value: form.license },
+                    { label: "License No.", value: form.license },
                     {
-                      label: "Documents",
-                      value: `${LICENSE_UPLOADS.filter((s) => uploads[s.id]).length}/2 uploaded`,
+                      label: "Photos",
+                      value: `${LICENSE_UPLOADS.filter((s) => uploads[s.id]).length}/2 attached`,
                     },
                   ]}
                 />
                 <ReviewGroup
-                  title="Vehicle"
+                  title="Vehicle Specs"
                   onEdit={() => jumpTo(5)}
                   rows={[
-                    { label: "Type", value: vehicleLabel },
-                    { label: "Vehicle number", value: form.vehicleNumber },
-                    { label: "RC number", value: form.rcNumber },
+                    { label: "Vehicle Type", value: vehicleLabel },
+                    { label: "Plate Number", value: form.vehicleNumber },
+                    { label: "RC Number", value: form.rcNumber },
                     { label: "Insurance", value: form.insuranceNumber },
-                    {
-                      label: "Documents",
-                      value: `${VEHICLE_UPLOADS.filter((s) => uploads[s.id]).length}/3 uploaded`,
-                    },
                   ]}
                 />
                 <ReviewGroup
-                  title="Bank Details"
+                  title="Bank Payout Details"
                   onEdit={() => jumpTo(6)}
                   rows={[
-                    { label: "Account holder", value: form.accountHolder },
+                    { label: "Account Holder", value: form.accountHolder },
                     { label: "Bank", value: form.bankName },
                     {
-                      label: "Account",
+                      label: "Account Number",
                       value: form.accountNumber
-                        ? `••••${form.accountNumber.slice(-4)}`
-                        : "",
+                        ? `•••• •••• ${form.accountNumber.slice(-4)}`
+                        : "—",
                     },
-                    { label: "IFSC", value: form.ifsc },
+                    { label: "IFSC Code", value: form.ifsc },
                   ]}
                 />
                 <ReviewGroup
                   title="Working Preferences"
                   onEdit={() => jumpTo(7)}
                   rows={[
-                    { label: "Preferred city", value: form.preferredCity },
-                    { label: "Preferred area", value: form.preferredArea },
+                    { label: "Preferred City", value: form.preferredCity },
+                    { label: "Preferred Area", value: form.preferredArea },
                     { label: "Availability", value: form.employmentType },
                     { label: "Shift", value: form.shift },
                   ]}
@@ -629,32 +774,35 @@ export function RiderRegistrationScreen() {
           ) : null}
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-border bg-card/95 px-5 py-4 backdrop-blur lg:max-w-3xl">
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              className="ripple flex-1 rounded-2xl border border-border bg-card py-4 text-sm font-black tracking-tight text-foreground transition-all duration-300 active:scale-[0.97]"
-            >
-              Back
-            </button>
+        {/* Mobile-Friendly Sticky Bottom Bar */}
+        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-border bg-card/95 px-4 py-3.5 backdrop-blur-md lg:max-w-3xl pb-[calc(0.875rem+env(safe-area-inset-bottom))]">
+          <div className="flex gap-3 items-center">
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={goBack}
+                className="ripple h-12 flex-1 rounded-2xl border border-border bg-card text-xs font-bold tracking-tight text-foreground transition-all duration-300 active:scale-[0.97]"
+              >
+                Back
+              </button>
+            ) : null}
             {step < ONBOARDING_STEPS.length ? (
               <button
                 type="button"
                 onClick={goNext}
-                className="ripple flex-[2] rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
+                className="ripple h-12 flex-[2] rounded-2xl bg-primary text-xs font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
               >
-                Continue
+                Continue to Step {step + 1}
               </button>
             ) : (
               <button
                 type="button"
                 disabled={busy}
                 onClick={handleSubmit}
-                className="ripple flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
+                className="ripple h-12 flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-                Submit Application
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                Submit for Verification
               </button>
             )}
           </div>

@@ -98,24 +98,31 @@ export async function checkRiderVerificationStatus(): Promise<{
   riderId: string;
 }> {
   try {
-    const profile = await apiGetJson<{
-      riderId?: string;
-      fullName?: string;
+    const me = await apiGetJson<{
+      id: string;
       name?: string;
-      isVerified?: boolean;
+      email?: string;
+      phone?: string;
+      role: string;
       status?: string;
-    }>("/api/rider/profile");
+      isVerified?: boolean;
+      isOnboarded?: boolean;
+      linkedId?: string;
+    }>("/api/auth/me");
 
-    const isVerified = Boolean(profile.isVerified || profile.status === "active");
+    const isVerified = Boolean(me.isVerified || me.status === "active");
     const currentSession = readSession(ROLE);
     if (currentSession && currentSession.account) {
       const updatedSession = {
         ...currentSession,
+        isVerified,
+        isOnboarded: Boolean(me.isOnboarded),
         account: {
           ...currentSession.account,
           isVerified,
-          isOnboarded: true,
-          name: profile.fullName || profile.name || currentSession.account.name,
+          isOnboarded: Boolean(me.isOnboarded),
+          name: me.name || currentSession.account.name,
+          linkedId: me.linkedId || currentSession.account.linkedId,
         },
       };
       writeSession(updatedSession, ROLE);
@@ -123,9 +130,9 @@ export async function checkRiderVerificationStatus(): Promise<{
 
     return {
       isVerified,
-      status: profile.status || (isVerified ? "active" : "pending"),
-      fullName: profile.fullName || profile.name || "Delivery Partner",
-      riderId: profile.riderId || "",
+      status: me.status || (isVerified ? "active" : "pending"),
+      fullName: me.name || "Delivery Partner",
+      riderId: me.linkedId || me.id,
     };
   } catch {
     return {

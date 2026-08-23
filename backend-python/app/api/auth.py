@@ -119,6 +119,12 @@ async def me(user: User = Depends(current_user)) -> AccountResponse:
     return AccountResponse.from_user(user)
 
 
+@router.get("/me", response_model=AccountResponse)
+async def get_me(user: User = Depends(current_user)) -> AccountResponse:
+    latest_user = await users.by_id(user.id)
+    return AccountResponse.from_user(latest_user or user)
+
+
 @router.post("/refresh", response_model=AuthSessionResponse)
 async def refresh(payload: RefreshRequest) -> AuthSessionResponse:
     claims = decode_token(payload.refresh_token, expected_type="refresh")

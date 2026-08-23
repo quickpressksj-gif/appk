@@ -243,12 +243,13 @@ export function VehiclePicker({
   );
 }
 
-/** Local-only upload placeholder. No Cloudinary / storage connection. */
+/** Local-only upload placeholder with base64 and preview support. */
 export function UploadTile({
   id,
   label,
   hint,
   fileName,
+  previewUrl,
   onSelect,
   onClear,
 }: {
@@ -256,10 +257,26 @@ export function UploadTile({
   label: string;
   hint: string;
   fileName?: string | undefined;
-  onSelect: (name: string) => void;
+  previewUrl?: string | undefined;
+  onSelect: (name: string, dataUrl?: string) => void;
   onClear: () => void;
 }) {
-  const uploaded = Boolean(fileName);
+  const uploaded = Boolean(fileName || previewUrl);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const name = file.name;
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        onSelect(name, reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      onSelect(name);
+    }
+  };
 
   return (
     <div
@@ -268,11 +285,17 @@ export function UploadTile({
       }`}
     >
       <span
-        className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${
+        className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${
           uploaded ? "bg-secondary/20 text-brand-green" : "bg-muted text-muted-foreground"
         }`}
       >
-        {uploaded ? <FileCheck2 className="size-5" /> : <CloudUpload className="size-5" />}
+        {previewUrl ? (
+          <img src={previewUrl} alt={label} className="size-full object-cover rounded-2xl" />
+        ) : uploaded ? (
+          <FileCheck2 className="size-5" />
+        ) : (
+          <CloudUpload className="size-5" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold tracking-tight text-foreground">{label}</p>
@@ -302,7 +325,7 @@ export function UploadTile({
         type="file"
         accept="image/*,application/pdf"
         className="hidden"
-        onChange={(e) => onSelect(e.target.files?.[0]?.name ?? "")}
+        onChange={handleFileChange}
       />
     </div>
   );

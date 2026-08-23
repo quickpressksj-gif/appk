@@ -1,6 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, MessageSquareLock, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { Toaster } from "@/shared/ui/sonner";
+import { RiderTopBar } from "../components/RiderTopBar";
+import { useRiderContext } from "../context/RiderContext";
+import { useOtpCountdown } from "../hooks/use-otp-countdown";
+import { requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
+import { riderRoutes } from "../navigation/rider-routes";
 
 export function RiderOtpScreen() {
   const navigate = useNavigate();
@@ -32,7 +40,7 @@ export function RiderOtpScreen() {
   const handleVerify = async () => {
     if (busy) return;
     if (digits.length !== 6) {
-      toast("Enter the 6-digit code");
+      toast.error("Please enter the complete 6-digit OTP code");
       return;
     }
     setBusy(true);
@@ -53,13 +61,13 @@ export function RiderOtpScreen() {
     signIn(session);
 
     if (!session.isOnboarded) {
-      toast.success("Mobile number verified");
+      toast.success("Mobile number verified! Please complete registration.");
       navigate({ to: riderRoutes.registration });
     } else if (!session.isVerified) {
-      toast.success("Mobile number verified");
+      toast.success("Mobile number verified!");
       navigate({ to: riderRoutes.registrationSubmitted });
     } else {
-      toast.success(`Welcome back, ${session.fullName}`);
+      toast.success(`Welcome back, ${session.fullName}!`);
       navigate({ to: riderRoutes.dashboard });
     }
   };
@@ -83,7 +91,7 @@ export function RiderOtpScreen() {
     restart();
     setDigits("");
     inputRef.current?.focus();
-    toast.success("OTP sent again");
+    toast.success("OTP sent again to your mobile number");
   };
 
   return (
@@ -101,12 +109,13 @@ export function RiderOtpScreen() {
             Enter the 6-digit code
           </h1>
           <p className="mt-1 text-sm font-medium text-muted-foreground">
-            Sent to +91 {phone || "98765 43210"}
+            Sent to {displayPhone()}
           </p>
 
           <div className="mt-7">
             <div className="relative">
               <input
+                ref={inputRef}
                 aria-label="OTP code"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -120,7 +129,11 @@ export function RiderOtpScreen() {
                   <div
                     key={i}
                     className={`flex h-14 flex-1 items-center justify-center rounded-2xl border bg-card text-lg font-black tracking-tight text-foreground shadow-soft transition-all duration-300 ${
-                      digits.length === i ? "border-primary" : "border-border"
+                      digits.length === i
+                        ? "border-primary ring-2 ring-primary/20"
+                        : digits[i]
+                          ? "border-brand-green/60 bg-secondary/5 text-brand-green"
+                          : "border-border"
                     }`}
                   >
                     {digits[i] ?? ""}
@@ -131,9 +144,9 @@ export function RiderOtpScreen() {
 
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || digits.length !== 6}
               onClick={() => void handleVerify()}
-              className="ripple mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
+              className="ripple mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : null}
               Verify & Continue
@@ -143,7 +156,7 @@ export function RiderOtpScreen() {
               type="button"
               disabled={!canResend}
               onClick={() => void handleResend()}
-              className="mt-4 flex w-full items-center justify-center gap-1.5 text-xs font-bold tracking-tight text-muted-foreground disabled:opacity-60"
+              className="mt-4 flex w-full items-center justify-center gap-1.5 text-xs font-bold tracking-tight text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
             >
               <RotateCcw className="size-3.5" />
               {canResend ? "Resend OTP" : `Resend in ${remaining}s`}
