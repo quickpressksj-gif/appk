@@ -905,28 +905,114 @@ class SupportRepository:
     collection = "admin_support_tickets"
 
     async def list(self) -> List[Dict[str, Any]]:
-        return await database.find_sorted(self.collection, sort=[("createdAt", -1)])
+        help_tickets = await database.find_sorted("support_tickets", sort=[("created_at", -1)])
+        admin_tickets = await database.find_sorted(self.collection, sort=[("createdAt", -1)])
+        
+        results: List[Dict[str, Any]] = []
+        for t in help_tickets:
+            customer_doc = await database.find_one("customers", {"_id": t.get("user_id")}) or await database.find_one("users", {"_id": t.get("user_id")})
+            customer_name = (customer_doc or {}).get("name") or (customer_doc or {}).get("display_name") or t.get("user_id") or "Customer"
+            results.append({
+                "_id": str(t["_id"]),
+                "id": str(t["_id"]),
+                "ticketNumber": t.get("ticket_number") or str(t["_id"]),
+                "subject": t.get("subject") or t.get("description") or "Customer Issue",
+                "customer": customer_name,
+                "priority": (t.get("priority") or "Medium").capitalize(),
+                "status": (t.get("status") or "Open").capitalize(),
+                "createdAt": t.get("created_at") or t.get("createdAt") or now_iso(),
+                "replies": t.get("replies") or [],
+            })
+            
+        for t in admin_tickets:
+            if not any(r["id"] == str(t["_id"]) for r in results):
+                results.append({
+                    "_id": str(t["_id"]),
+                    "id": str(t["_id"]),
+                    "ticketNumber": t.get("ticketNumber") or str(t["_id"]),
+                    "subject": t.get("subject") or "Support Request",
+                    "customer": t.get("customer") or "Customer",
+                    "priority": t.get("priority", "Medium"),
+                    "status": t.get("status", "Open"),
+                    "createdAt": t.get("createdAt") or now_iso(),
+                    "replies": t.get("replies") or [],
+                })
+        return results
 
     async def get(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        doc = await database.find_one("support_tickets", {"_id": ticket_id})
+        if doc is not None:
+            return doc
         return await database.find_one(self.collection, {"_id": ticket_id})
 
     async def close(self, ticket_id: str) -> Optional[Dict[str, Any]]:
-        doc = await self.get(ticket_id)
-        if doc is None:
-            return None
+        doc = await database.find_one("support_tickets", {"_id": ticket_id})
+        if doc is not None:
+            return await database.update("support_tickets", {"_id": ticket_id}, {"status": "resolved", "updated_at": now_iso()})
         return await database.update(self.collection, {"_id": ticket_id}, {"status": "Resolved"})
 
     async def reply(self, ticket_id: str, body: str) -> Optional[Dict[str, Any]]:
-        doc = await self.get(ticket_id)
-        if doc is None:
-            return None
-        replies = list(doc.get("replies") or [])
-        replies.append({"body": body, "at": now_iso(), "author": "admin"})
-        await database.update(self.collection, {"_id": ticket_id}, {"replies": replies})
-        return {"ok": True, "ticketId": ticket_id, "body": body}
+        doc = await database.find_one("support_tickets", {"_id": ticket_id})
+        if doc is not None:
+            now = now_iso()
+            msg = {
+                "_id": f"msg-{uuid.uuid4().hex[:12]}",
+                "ticket_id": ticket_id,
+                "user_id": "admin",
+                "author": "support",
+                "author_name": "QuickPress Support",
+                "body": body,
+                "attachment_name": None,
+                "created_at": now,
+            }
+            await database.insert("support_messages", msg)
+            await database.update("support_tickets", {"_id": ticket_id}, {"status": "in-progress", "last_message_at": now, "updated_at": now})
+            return {"ok": True, "ticketId": ticket_id, "body": body}
+
+        doc = await database.find_one(self.collection, {"_id": ticket_id})
+        if doc is not None:
+            replies = list(doc.get("replies") or [])
+            replies.append({"body": body, "at": now_iso(), "author": "admin"})
+            await database.update(self.collection, {"_id": ticket_id}, {"replies": replies})
+            return {"ok": True, "ticketId": ticket_id, "body": body}
+        return None
 
 
 support_repository = SupportRepository()
+
+
+class BannerRepository:
+    collection = "banners"
+
+    async def list(self) -> List[Dict[str, Any]]:
+        return await database.find_sorted(self.collection, sort=[("priority", 1)])
+
+    async def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        banner_id = payload.get("_id") or new_id("b")
+        document = {
+            "_id": banner_id,
+            "id": banner_id,
+            "eyebrow": payload.get("eyebrow") or "Offer",
+            "title": payload.get("title") or "Special Discount",
+            "subtitle": payload.get("subtitle") or "",
+            "cta": payload.get("cta") or "Claim offer",
+            "tone": payload.get("tone") or "primary",
+            "redirectUrl": payload.get("redirectUrl") or "/offers",
+            "priority": int(payload.get("priority") or 1),
+            "createdAt": now_iso(),
+        }
+        await database.insert(self.collection, document)
+        return document
+
+    async def update(self, banner_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return await database.update(self.collection, {"_id": banner_id}, changes)
+
+    async def delete(self, banner_id: str) -> bool:
+        res = await database.delete_one(self.collection, {"_id": banner_id})
+        return bool(res)
+
+
+banner_repository = BannerRepository()
 
 
 class NotificationRepository:

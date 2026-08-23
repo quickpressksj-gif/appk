@@ -37,6 +37,7 @@ from app.db.admin_repositories import (
     analytics_repository,
     area_repository,
     audit_repository,
+    banner_repository,
     category_repository,
     city_repository,
     coupon_repository,
@@ -511,6 +512,37 @@ async def delete_coupon(coupon_id: str, user: User = Depends(current_user)):
     if not removed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
     await audit_repository.log(await _actor(user), "coupon.delete", coupon_id)
+    return {"ok": True}
+
+
+# -------------------------------------------------------------------- banners
+@router.get("/banners")
+async def list_banners(user: User = Depends(current_user)):
+    return await banner_repository.list()
+
+
+@router.post("/banners", status_code=status.HTTP_201_CREATED)
+async def create_banner(payload: dict, user: User = Depends(current_user)):
+    banner = await banner_repository.create(payload)
+    await audit_repository.log(await _actor(user), "banner.create", banner["_id"])
+    return banner
+
+
+@router.put("/banners/{banner_id}")
+async def update_banner(banner_id: str, payload: dict, user: User = Depends(current_user)):
+    banner = await banner_repository.update(banner_id, payload)
+    if banner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Banner not found")
+    await audit_repository.log(await _actor(user), "banner.update", banner_id)
+    return banner
+
+
+@router.delete("/banners/{banner_id}")
+async def delete_banner(banner_id: str, user: User = Depends(current_user)):
+    removed = await banner_repository.delete(banner_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Banner not found")
+    await audit_repository.log(await _actor(user), "banner.delete", banner_id)
     return {"ok": True}
 
 

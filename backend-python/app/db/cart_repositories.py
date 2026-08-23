@@ -104,6 +104,25 @@ class CartRepository:
         )
 
     async def coupons(self) -> List[CartCouponResponse]:
+        admin_docs = await database.find_many("admin_coupons", {"status": "Active"})
+        if admin_docs:
+            result = []
+            for d in admin_docs:
+                raw_discount = str(d.get("discount") or 0)
+                digits = "".join(ch for ch in raw_discount if ch.isdigit())
+                discount_val = int(digits) if digits else 50
+                result.append(
+                    CartCouponResponse(
+                        id=str(d["_id"]),
+                        code=d.get("code", ""),
+                        title=f"{d.get('code', '')} — {d.get('discount', '')}",
+                        description=d.get("description") or f"Valid on orders above ₹{d.get('minOrder', 0)}",
+                        discount=discount_val,
+                        best=bool(d.get("best", False)),
+                    )
+                )
+            return result
+
         docs = await database.find_many("cart_coupons")
         docs = docs or DEFAULT_COUPONS
         return [
