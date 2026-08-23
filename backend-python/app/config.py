@@ -10,7 +10,7 @@ _log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=("backend-python/.env", ".env"), extra="ignore")
 
     # --- environment -------------------------------------------------
     app_env: str = "development"  # development | staging | production

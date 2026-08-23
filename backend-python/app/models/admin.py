@@ -30,6 +30,32 @@ class CouponPayload(BaseModel):
     status: Optional[str] = None
 
 
+class AdminPartnerUpdatePayload(BaseModel):
+    businessName: Optional[str] = None
+    ownerName: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    area: Optional[str] = None
+    pincode: Optional[str] = None
+    pan: Optional[str] = None
+    aadhaar: Optional[str] = None
+    gstin: Optional[str] = None
+    experience: Optional[str] = None
+    bankName: Optional[str] = None
+    accountHolder: Optional[str] = None
+    accountNumber: Optional[str] = None
+    ifsc: Optional[str] = None
+    openingTime: Optional[str] = None
+    closingTime: Optional[str] = None
+    weeklyOff: Optional[str] = None
+    pickupRadiusKm: Optional[int] = None
+    deliveryRadiusKm: Optional[int] = None
+    status: Optional[str] = None
+    isVerified: Optional[bool] = None
+
+
 class StaffPayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None

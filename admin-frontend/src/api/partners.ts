@@ -185,3 +185,9 @@ export async function fetchPartner(id: string): Promise<PartnerDetail> {
 export async function setPartnerStatus(id: string, action: "approve" | "reject" | "suspend" | "activate") {
   return apiPostJson<{ id: string; status: string } | null>(`/api/admin/partners/${encodeURIComponent(id)}/${action}`);
 }
+
+/** PUT /api/admin/partners/{id} — edit partner store, bank, and KYC details */
+export async function updatePartner(id: string, payload: Record<string, unknown>) {
+  return apiPutJson<Record<string, unknown>>(`/api/admin/partners/${encodeURIComponent(id)}`, payload);
+}
+

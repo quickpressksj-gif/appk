@@ -190,6 +190,47 @@ async def get_partner(partner_id: str, user: User = Depends(current_user)):
     return partner
 
 
+@router.put("/partners/{partner_id}")
+async def update_partner(partner_id: str, payload: AdminPartnerUpdatePayload, user: User = Depends(current_user)):
+    from app.db.client import database
+    existing = await database.find_one("partner_profiles", {"_id": partner_id})
+    if not existing:
+        existing = await database.find_one("partner_profiles", {"partnerId": partner_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+
+    target_id = existing["_id"]
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+
+    if data:
+        await database.update("partner_profiles", {"_id": target_id}, data)
+        # Sync partner settings if timing or radius changed
+        settings_sync = {}
+        if "openingTime" in data: settings_sync["openingTime"] = data["openingTime"]
+        if "closingTime" in data: settings_sync["closingTime"] = data["closingTime"]
+        if "weeklyOff" in data: settings_sync["weeklyOff"] = data["weeklyOff"]
+        if "pickupRadiusKm" in data: settings_sync["pickupRadiusKm"] = data["pickupRadiusKm"]
+        if "deliveryRadiusKm" in data: settings_sync["deliveryRadiusKm"] = data["deliveryRadiusKm"]
+        if settings_sync:
+            await database.update("partner_settings", {"_id": target_id}, settings_sync)
+
+        # Sync user document
+        user_id = existing.get("userId") or existing.get("user_id")
+        if user_id:
+            user_sync = {}
+            if "phone" in data: user_sync["phone"] = data["phone"]
+            if "email" in data: user_sync["email"] = data["email"]
+            if "businessName" in data: user_sync["display_name"] = data["businessName"]
+            if "city" in data: user_sync["city"] = data["city"]
+            if "isVerified" in data: user_sync["is_verified"] = data["isVerified"]
+            if "status" in data: user_sync["status"] = data["status"]
+            if user_sync:
+                await database.update("users", {"_id": user_id}, user_sync)
+
+    await audit_repository.log(await _actor(user), "partner.update", target_id, data)
+    return await database.find_one("partner_profiles", {"_id": target_id})
+
+
 async def _partner_transition(partner_id: str, new_status: str, action: str, user: User):
     partner = await admin_partner_repository.set_status(partner_id, new_status)
     if partner is None:
