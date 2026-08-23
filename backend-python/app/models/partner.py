@@ -59,10 +59,6 @@ class PartnerProfileResponse(BaseModel):
     businessName: str = "QuickPress Partner Store"
     ownerName: str = "Partner"
     phone: str = ""
-
-    def model_post_init(self, __context: Any) -> None:
-        if not self.id:
-            self.id = self.partnerId
     email: str = ""
     city: str = "Bengaluru"
     rating: float = 5.0
@@ -72,6 +68,10 @@ class PartnerProfileResponse(BaseModel):
     tier: Literal["Bronze", "Silver", "Platinum", "Gold"] = "Silver"
     isVerified: bool = False
     status: str = "pending"
+
+    def model_post_init(self, __context: any) -> None:
+        if not self.id:
+            self.id = self.partnerId
 
 
 class PartnerProfileUpdate(BaseModel):

@@ -24,6 +24,7 @@ class Role(str, Enum):
 class UserStatus(str, Enum):
     draft = "draft"
     pending = "pending"
+    pending_verification = "pending_verification"
     under_review = "under_review"
     kyc_pending = "kyc_pending"
     approved = "approved"
@@ -36,6 +37,7 @@ class UserStatus(str, Enum):
 class PartnerStatus(str, Enum):
     draft = "draft"
     pending = "pending"
+    pending_verification = "pending_verification"
     under_review = "under_review"
     kyc_pending = "kyc_pending"
     approved = "approved"
