@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, TrendingUp, Sparkles, Inbox } from "lucide-react";
 
-import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
 import {
@@ -19,26 +18,46 @@ import type { Kpi } from "../api/client";
 
 export function KpiCard({ kpi }: { kpi: Kpi }) {
   const positive = kpi.positive !== false;
+
   return (
-    <Card className="shadow-soft">
-      <CardContent className="p-5">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{kpi.label}</p>
-        <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{kpi.value}</p>
+    <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/90 bg-gradient-to-b from-zinc-900/90 to-zinc-950/80 p-5 backdrop-blur-xl transition-all duration-300 hover:border-zinc-700 hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+      {/* Top Accent Light Line */}
+      <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+
+      <div className="flex items-start justify-between">
+        <p className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
+          {kpi.label}
+        </p>
+        <div className="flex size-8 items-center justify-center rounded-xl bg-zinc-800/80 text-emerald-400 border border-zinc-700/40">
+          <TrendingUp className="size-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-baseline gap-2">
+        <p className="text-2xl sm:text-3xl font-black tracking-tight text-white">{kpi.value}</p>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-zinc-800/50 pt-2.5">
         {kpi.delta ? (
-          <p
+          <span
             className={cn(
-              "mt-1.5 inline-flex items-center gap-1 text-xs font-medium",
-              positive ? "text-secondary" : "text-destructive",
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
+              positive
+                ? "bg-emerald-950/60 text-emerald-400 border border-emerald-500/30"
+                : "bg-rose-950/60 text-rose-400 border border-rose-500/30",
             )}
           >
-            {positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+            {positive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
             {kpi.delta}
-            <span className="text-muted-foreground">vs last period</span>
-          </p>
+          </span>
+        ) : (
+          <span className="text-[10px] text-zinc-500 font-medium">Realtime sync</span>
+        )}
+        {kpi.hint ? (
+          <span className="text-[10px] font-medium text-zinc-500 truncate max-w-[120px]">{kpi.hint}</span>
         ) : null}
-        {kpi.hint ? <p className="mt-1 text-xs text-muted-foreground">{kpi.hint}</p> : null}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -56,7 +75,7 @@ export function KpiGrid({
     return (
       <div className={cn("grid gap-4", grid)}>
         {Array.from({ length: columns }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded-2xl" />
+          <div key={i} className="h-32 rounded-2xl border border-zinc-800 bg-zinc-900/60 animate-pulse" />
         ))}
       </div>
     );
@@ -73,10 +92,10 @@ export function KpiGrid({
 /* ---------------------------------------------------------------- status */
 
 const TONES: Record<string, string> = {
-  positive: "bg-secondary/12 text-secondary border-secondary/25",
-  warning: "bg-primary/20 text-foreground border-primary/40",
-  danger: "bg-destructive/10 text-destructive border-destructive/25",
-  neutral: "bg-muted text-muted-foreground border-border",
+  positive: "bg-emerald-950/70 text-emerald-400 border-emerald-500/40",
+  warning: "bg-amber-950/70 text-amber-300 border-amber-500/40",
+  danger: "bg-rose-950/70 text-rose-400 border-rose-500/40",
+  neutral: "bg-zinc-800/80 text-zinc-300 border-zinc-700/60",
 };
 
 const POSITIVE = new Set([
@@ -102,11 +121,12 @@ export function StatusPill({ value }: { value: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider whitespace-nowrap shadow-sm",
         TONES[statusTone(value)],
       )}
     >
-      {value}
+      <span className="size-1.5 rounded-full bg-current" />
+      <span>{value}</span>
     </span>
   );
 }
@@ -123,38 +143,49 @@ export type ColumnDef<T> = {
 export function DataTable<T extends { id: string }>({
   columns,
   rows,
-  loading,
-  empty = "Nothing to show yet.",
+  loading = false,
+  emptyMessage = "No records found",
   onRowClick,
 }: {
   columns: ColumnDef<T>[];
-  rows: T[] | undefined;
-  loading: boolean;
-  empty?: string;
+  rows: T[];
+  loading?: boolean;
+  emptyMessage?: string;
   onRowClick?: (row: T) => void;
 }) {
-  if (loading || !rows) {
+  if (loading) {
     return (
-      <div className="space-y-2.5 p-1">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-11 w-full rounded-lg" />
+      <div className="space-y-3 p-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-12 w-full rounded-xl bg-zinc-800/50 animate-pulse" />
         ))}
       </div>
     );
   }
 
   if (rows.length === 0) {
-    return <p className="px-1 py-10 text-center text-sm text-muted-foreground">{empty}</p>;
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <div className="flex size-12 items-center justify-center rounded-2xl bg-zinc-800/80 text-zinc-400 border border-zinc-700/50">
+          <Inbox className="size-6" />
+        </div>
+        <p className="mt-3 text-sm font-bold text-zinc-300">{emptyMessage}</p>
+        <p className="mt-1 text-xs text-zinc-500">Records will appear as activity takes place.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-950/40">
       <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {columns.map((column) => (
-              <TableHead key={column.key} className={cn("whitespace-nowrap text-xs uppercase tracking-wide", column.className)}>
-                {column.label}
+        <TableHeader className="bg-zinc-900/80">
+          <TableRow className="border-b border-zinc-800/80 hover:bg-transparent">
+            {columns.map((col) => (
+              <TableHead
+                key={col.key}
+                className={cn("text-[11px] font-black uppercase tracking-wider text-zinc-400 py-3.5", col.className)}
+              >
+                {col.label}
               </TableHead>
             ))}
           </TableRow>
@@ -163,14 +194,15 @@ export function DataTable<T extends { id: string }>({
           {rows.map((row) => (
             <TableRow
               key={row.id}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={onRowClick ? "cursor-pointer" : undefined}
+              onClick={() => onRowClick?.(row)}
+              className={cn(
+                "border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/40",
+                onRowClick ? "cursor-pointer" : "",
+              )}
             >
-              {columns.map((column) => (
-                <TableCell key={column.key} className={cn("whitespace-nowrap text-sm", column.className)}>
-                  {column.render
-                    ? column.render(row)
-                    : String((row as unknown as Record<string, unknown>)[column.key] ?? "—")}
+              {columns.map((col) => (
+                <TableCell key={col.key} className={cn("py-3 text-xs text-zinc-200 font-medium", col.className)}>
+                  {col.render ? col.render(row) : (row as any)[col.key] ?? "—"}
                 </TableCell>
               ))}
             </TableRow>
@@ -181,50 +213,55 @@ export function DataTable<T extends { id: string }>({
   );
 }
 
-/* ---------------------------------------------------------------- layout */
+/* ----------------------------------------------------------------- cards */
 
 export function SectionCard({
   title,
   description,
   actions,
   children,
-  padded = true,
+  className,
 }: {
   title?: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
-  padded?: boolean;
+  className?: string;
 }) {
   return (
-    <Card className="shadow-soft">
-      {title ? (
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+    <div
+      className={cn(
+        "rounded-2xl border border-zinc-800/90 bg-[#111827]/80 p-5 sm:p-6 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)]",
+        className,
+      )}
+    >
+      {title || actions ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/60 pb-3.5">
           <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            {description ? <CardDescription>{description}</CardDescription> : null}
+            {title ? <h2 className="text-sm sm:text-base font-black tracking-tight text-white">{title}</h2> : null}
+            {description ? <p className="text-xs text-zinc-400 font-medium mt-0.5">{description}</p> : null}
           </div>
-          {actions}
-        </CardHeader>
+          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        </div>
       ) : null}
-      <CardContent className={padded ? undefined : "px-0 pb-0"}>{children}</CardContent>
-    </Card>
-  );
-}
-
-export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border py-2.5 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-right text-sm font-medium text-foreground">{value}</span>
+      {children}
     </div>
   );
 }
 
-export function CountBadge({ label, value }: { label: string; value: string | number }) {
+/* ---------------------------------------------------------------- detail */
+
+export function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
   return (
-    <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-xs font-medium">
-      {label}: {value}
-    </Badge>
+    <div className="flex items-center justify-between border-b border-zinc-800/60 py-2.5 text-xs">
+      <span className="font-bold text-zinc-400">{label}</span>
+      <span className="font-semibold text-zinc-100 text-right">{value}</span>
+    </div>
   );
 }
