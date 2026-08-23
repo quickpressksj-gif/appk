@@ -107,47 +107,49 @@ const STATUS_TO_STAGE: Record<PartnerOrderStatus, OrderStage> = {
 };
 
 function toManagedOrder(order: PartnerOrder): ManagedOrder {
-  const cancelledEntry = order.timeline.find((entry) => /reject|cancel/i.test(entry.label));
+  const timeline = Array.isArray(order?.timeline) ? order.timeline : [];
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const cancelledEntry = timeline.find((entry) => /reject|cancel/i.test(entry.label));
   return {
-    id: order.id,
-    code: order.code,
+    id: order.id || (order as any).orderId || "",
+    code: order.code || order.id || (order as any).orderId || "",
     stage: STATUS_TO_STAGE[order.status] ?? "new",
-    customerName: order.customerName,
-    customerRating: 0,
-    customerPhone: order.customerPhone,
-    customerOrders: 0,
-    pickupAddress: order.address,
-    deliveryAddress: order.address,
-    pickupTime: order.slot,
+    customerName: order.customerName || "Customer",
+    customerRating: 5.0,
+    customerPhone: order.customerPhone || "",
+    customerOrders: 1,
+    pickupAddress: order.address || "",
+    deliveryAddress: order.address || "",
+    pickupTime: order.slot || "Today",
     pickupDay: "today",
-    deliveryEta: order.slot,
+    deliveryEta: order.slot || "Tomorrow",
     distanceKm: 0,
     services: order.serviceLabel ? [order.serviceLabel] : [],
-    itemCount: order.itemCount,
-    amount: order.amount,
+    itemCount: order.itemCount || items.reduce((sum, it) => sum + (it.qty || 1), 0) || 1,
+    amount: order.amount || 0,
     paymentStatus: order.status === "cancelled" ? "refunded" : order.paymentMode === "cod" ? "pending" : "paid",
-    paymentMode: order.paymentMode,
-    placedAt: order.placedAt,
+    paymentMode: order.paymentMode || "cod",
+    placedAt: order.placedAt || "Recently",
     placedMinutesAgo: 0,
     specialInstructions: "",
-    items: order.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      service: order.serviceLabel,
-      qty: item.qty,
-      price: item.price,
+    items: items.map((item) => ({
+      id: item.id || "",
+      name: item.name || "Laundry Service Item",
+      service: order.serviceLabel || "Laundry",
+      qty: item.qty || 1,
+      price: item.price || 0,
     })),
     charges: {
-      subtotal: order.amount,
+      subtotal: order.amount || 0,
       pickupFee: 0,
       taxes: 0,
       discount: 0,
-      total: order.amount,
+      total: order.amount || 0,
     },
-    timeline: order.timeline.map((entry) => ({ id: entry.id, label: entry.label, time: entry.time })),
+    timeline: timeline.map((entry) => ({ id: entry.id || "", label: entry.label || "", time: entry.time || "" })),
     invoiceNo: null,
-    cancelReason: order.status === "cancelled" ? (cancelledEntry?.label ?? "Rejected by store") : null,
-    assignedRider: null,
+    cancelReason: order.status === "cancelled" ? (cancelledEntry?.label ?? (order as any).cancelledReason ?? "Cancelled") : null,
+    assignedRider: (order as any).riderName || null,
   };
 }
 

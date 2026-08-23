@@ -21,7 +21,6 @@ import {
   Star,
   User,
 } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
@@ -36,6 +35,9 @@ import { usePartnerOrders } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
 import { partnerRoutes } from "../navigation/partner-routes";
 import { STAGE_LABEL } from "../data/partner-orders-mock";
+
+import { useEffect, useState } from "react";
+import { fetchPartnerOrder } from "@/api/partner/partner-orders-api";
 
 function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -56,14 +58,82 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
   const orderId = propOrderId || routeParams?.orderId;
   const { orders, isLoading } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
+  const [fetchedOrder, setFetchedOrder] = useState<ManagedOrder | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(false);
 
-  const order = orders.find(
+  const matchedOrder = orders.find(
     (item) =>
       item.id === orderId ||
       item.code === orderId ||
       item.id?.toLowerCase() === orderId?.toLowerCase() ||
       item.code?.toLowerCase() === orderId?.toLowerCase()
   );
+
+  useEffect(() => {
+    if (!matchedOrder && orderId) {
+      let active = true;
+      setFetchLoading(true);
+      fetchPartnerOrder(orderId)
+        .then((remote) => {
+          if (active && remote) {
+            const timeline = Array.isArray(remote?.timeline) ? remote.timeline : [];
+            const items = Array.isArray(remote?.items) ? remote.items : [];
+            const cancelledEntry = timeline.find((entry) => /reject|cancel/i.test(entry.label));
+            setFetchedOrder({
+              id: remote.id || (remote as any).orderId || "",
+              code: remote.code || remote.id || "",
+              stage: (remote.status as any) || "new",
+              customerName: remote.customerName || "Customer",
+              customerRating: 5.0,
+              customerPhone: remote.customerPhone || "",
+              customerOrders: 1,
+              pickupAddress: remote.address || "",
+              deliveryAddress: remote.address || "",
+              pickupTime: remote.slot || "Today",
+              pickupDay: "today",
+              deliveryEta: remote.slot || "Tomorrow",
+              distanceKm: 0,
+              services: remote.serviceLabel ? [remote.serviceLabel] : [],
+              itemCount: remote.itemCount || items.reduce((sum, it) => sum + (it.qty || 1), 0) || 1,
+              amount: remote.amount || 0,
+              paymentStatus: remote.status === "cancelled" ? "refunded" : remote.paymentMode === "cod" ? "pending" : "paid",
+              paymentMode: remote.paymentMode || "cod",
+              placedAt: remote.placedAt || "Recently",
+              placedMinutesAgo: 0,
+              specialInstructions: "",
+              items: items.map((item) => ({
+                id: item.id || "",
+                name: item.name || "Laundry Item",
+                service: remote.serviceLabel || "Laundry",
+                qty: item.qty || 1,
+                price: item.price || 0,
+              })),
+              charges: {
+                subtotal: remote.amount || 0,
+                pickupFee: 0,
+                taxes: 0,
+                discount: 0,
+                total: remote.amount || 0,
+              },
+              timeline: timeline.map((entry) => ({ id: entry.id || "", label: entry.label || "", time: entry.time || "" })),
+              invoiceNo: null,
+              cancelReason: remote.status === "cancelled" ? (cancelledEntry?.label ?? (remote as any).cancelledReason ?? "Cancelled") : null,
+              assignedRider: (remote as any).riderName || null,
+            });
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setFetchLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+  }, [matchedOrder, orderId]);
+
+  const order = matchedOrder || fetchedOrder;
+  const isScreenLoading = (isLoading && !order) || (fetchLoading && !order);
 
   const copyCode = () => {
     if (order?.code) {
@@ -86,7 +156,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
   const riderName =
     typeof order?.assignedRider === "object" && order?.assignedRider
       ? (order.assignedRider as any).name || "QuickPress Rider"
-      : typeof order?.assignedRider === "string"
+      : typeof order?.assignedRider === "string" && order.assignedRider
       ? order.assignedRider
       : "Rider being dispatched";
 
@@ -149,7 +219,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
           </div>
         </header>
 
-        {isLoading ? (
+        {isScreenLoading ? (
           <div className="p-4">
             <OrderDetailSkeleton />
           </div>
@@ -317,7 +387,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
       {/* DESKTOP ORDER DETAILS VIEW (>= md)                                        */}
       {/* ========================================================================= */}
       <div className="hidden mx-auto w-full max-w-6xl px-4 py-4 md:block md:px-8 md:py-6">
-        {isLoading ? (
+        {isScreenLoading ? (
           <OrderDetailSkeleton />
         ) : !order ? (
           <div className="rounded-3xl border border-border bg-card px-6 py-16 text-center shadow-sm">
