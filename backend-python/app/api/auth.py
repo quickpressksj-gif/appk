@@ -70,10 +70,11 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
     settings = get_settings()
     phone = _normalize_phone(payload.phone)
     recent = await otp_attempts.sends_in_last_hour(phone)
-    if recent >= settings.otp_max_sends_per_hour:
+    limit = 100 if settings.app_env == "development" else settings.otp_max_sends_per_hour
+    if recent >= limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many OTP requests. Please try again later.",
+            detail="Too many OTP requests. Please try again in a few minutes.",
         )
     await otp_attempts.record(phone, payload.role)
     existing = await users.by_phone(phone, payload.role)
