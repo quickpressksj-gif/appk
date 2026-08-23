@@ -110,6 +110,7 @@ function HomeScreen() {
     nearbyAreas: string[];
   } | null>(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(true);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
