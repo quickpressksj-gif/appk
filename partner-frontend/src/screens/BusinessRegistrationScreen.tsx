@@ -1,5 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ArrowLeft,
+  BadgeCheck,
   Banknote,
   Bath,
   Blinds,
@@ -7,6 +9,7 @@ import {
   Building2,
   CalendarOff,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -18,12 +21,14 @@ import {
   Landmark,
   Layers,
   Loader2,
+  Lock,
   Mail,
   MapPin,
   Navigation,
   Phone,
   ReceiptText,
   Send,
+  ShieldCheck,
   Shirt,
   Sparkles,
   Store,
@@ -98,60 +103,56 @@ const EXPERIENCE_OPTIONS = [
 ] as const;
 
 const SERVICES = [
-  { id: "Wash & Fold", icon: Shirt, description: "Everyday laundry by weight" },
-  { id: "Dry Cleaning", icon: Sparkles, description: "Solvent care for delicates" },
-  { id: "Steam Iron", icon: Wind, description: "Crisp press, per piece" },
-  { id: "Premium Laundry", icon: Layers, description: "Designer & luxury garments" },
-  { id: "Shoe Cleaning", icon: Footprints, description: "Sneaker and leather care" },
-  { id: "Blanket Cleaning", icon: Bath, description: "Heavy bedding and quilts" },
-  { id: "Curtain Cleaning", icon: Blinds, description: "Drapes and sheers" },
-  { id: "Carpet Cleaning", icon: Layers, description: "Rugs and floor covers" },
+  { id: "Wash & Fold", icon: Shirt, price: 79, unit: "kg" },
+  { id: "Wash & Iron", icon: Wind, price: 99, unit: "kg" },
+  { id: "Steam Ironing", icon: Sparkles, price: 19, unit: "pc" },
+  { id: "Dry Cleaning", icon: Bath, price: 149, unit: "pc" },
+  { id: "Shoe Cleaning", icon: Footprints, price: 249, unit: "pair" },
+  { id: "Curtain Cleaning", icon: Blinds, price: 199, unit: "panel" },
 ] as const;
 
-const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const CITIES = ["Mumbai", "Pune", "Bengaluru", "Hyderabad", "Delhi NCR", "Chennai", "Ahmedabad"];
+const CITIES = ["Bengaluru", "Mumbai", "Delhi NCR", "Hyderabad", "Kasganj"] as const;
 
 const AREAS: Record<string, string[]> = {
-  Mumbai: ["Andheri West", "Bandra", "Powai", "Thane", "Chembur"],
-  Pune: ["Koregaon Park", "Baner", "Kothrud", "Viman Nagar", "Hadapsar"],
-  Bengaluru: ["Indiranagar", "Koramangala", "Whitefield", "HSR Layout", "Jayanagar"],
-  Hyderabad: ["Gachibowli", "Madhapur", "Banjara Hills", "Kukatpally", "Begumpet"],
-  "Delhi NCR": ["Saket", "Dwarka", "Gurugram", "Noida", "Rohini"],
-  Chennai: ["Adyar", "Velachery", "Anna Nagar", "T Nagar", "OMR"],
-  Ahmedabad: ["Satellite", "Bodakdev", "Maninagar", "Vastrapur", "Prahlad Nagar"],
+  Bengaluru: ["Indiranagar", "Koramangala", "HSR Layout", "Whitefield", "Jayanagar"],
+  Mumbai: ["Bandra West", "Andheri East", "Powai", "Juhu", "Lower Parel"],
+  "Delhi NCR": ["Cyber Hub", "Sector 62", "Saket", "Dwarka", "Indirapuram"],
+  Hyderabad: ["Gachibowli", "Hitec City", "Madhapur", "Jubilee Hills", "Banjara Hills"],
+  Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas"],
 };
 
-/* ------------------------------- screen -------------------------------- */
-
-type Uploads = { logo: string; banner: string; gallery: string[] };
+type Uploads = {
+  logo: string;
+  banner: string;
+  gallery: string[];
+};
 
 export function BusinessRegistrationScreen() {
   const navigate = useNavigate();
-  const { session, signIn, phone, hydrating } = usePartnerContext();
+  const { session, signIn, hydrating, phone } = usePartnerContext();
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const isGoogleAuth = Boolean(session?.email);
-
   const [form, setForm] = useState(() => ({
     shopName: "",
-    ownerName: session?.businessName || "",
-    mobile: phone || session?.phone || "",
-    email: session?.email || "",
+    ownerName: "",
+    mobile: phone || "",
+    email: "",
     shopAddress: "",
     gstin: "",
     pan: "",
     aadhaar: "",
-    businessType: "",
-    experience: "",
+    businessType: "Laundry",
+    experience: "1 - 3 years",
     openingTime: "08:00",
     closingTime: "21:00",
     emergencyClosing: "",
-    city: "",
-    area: "",
+    city: "Bengaluru",
+    area: "Indiranagar",
     pickupRadius: 5,
     deliveryRadius: 8,
     accountHolder: "",
@@ -160,7 +161,7 @@ export function BusinessRegistrationScreen() {
     ifsc: "",
   }));
 
-  // Route protection: ensure already onboarded / unauthenticated users are guided properly
+  // Route protection
   useEffect(() => {
     if (hydrating) return;
     if (!session) {
@@ -177,7 +178,7 @@ export function BusinessRegistrationScreen() {
     }
   }, [hydrating, session, navigate]);
 
-  // Sync email/phone if hydrated late
+  // Sync session details
   useEffect(() => {
     if (session) {
       setForm((prev) => ({
@@ -189,7 +190,7 @@ export function BusinessRegistrationScreen() {
     }
   }, [session, phone]);
 
-  const [services, setServices] = useState<string[]>([]);
+  const [services, setServices] = useState<string[]>(["Wash & Fold", "Steam Ironing"]);
   const [weeklyOff, setWeeklyOff] = useState<string[]>(["Sun"]);
   const [uploads, setUploads] = useState<Uploads>({ logo: "", banner: "", gallery: [] });
 
@@ -232,13 +233,11 @@ export function BusinessRegistrationScreen() {
           "shopAddress",
           `${form.shopAddress ? `${form.shopAddress} · ` : ""}Pin ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`,
         );
-        toast.success("Current location added to address");
+        toast.success("Current GPS location added to shop address");
       },
       () => toast("Could not fetch location, enter the address manually"),
     );
   };
-
-  /* ------------------------------ validation ---------------------------- */
 
   const validateStep = (index: number): FieldErrors => {
     if (index === 0) {
@@ -289,7 +288,7 @@ export function BusinessRegistrationScreen() {
     const found = validateStep(step);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      toast(Object.values(found)[0] ?? "Please complete the required fields");
+      toast.error(Object.values(found)[0] ?? "Please complete the required fields");
       return;
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -298,535 +297,548 @@ export function BusinessRegistrationScreen() {
 
   const goBack = () => {
     if (step === 0) return;
-    setErrors({});
-    setStep((s) => s - 1);
+    setStep((s) => Math.max(0, s - 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const editStep = (index: number) => {
-    setErrors({});
     setStep(index);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSubmit = async () => {
-    for (let index = 0; index < STEPS.length - 1; index += 1) {
-      const found = validateStep(index);
+    for (let i = 0; i < STEPS.length - 1; i += 1) {
+      const found = validateStep(i);
       if (Object.keys(found).length > 0) {
+        setStep(i);
         setErrors(found);
-        setStep(index);
-        toast(`Please complete "${STEPS[index]}"`);
+        toast.error(`Please complete Step ${i + 1}: ${STEPS[i]}`);
         return;
       }
     }
 
     setBusy(true);
-    const category =
-      BUSINESS_TYPES.find((type) => type.id === form.businessType)?.category ??
-      ("laundry" as BusinessCategory);
-
     try {
-      const updatedSession = await registerBusiness({
+      const category =
+        BUSINESS_TYPES.find((t) => t.id === form.businessType)?.category ?? "laundry";
+
+      const updated = await registerBusiness({
         businessName: form.shopName,
         ownerName: form.ownerName,
-        gstin: form.gstin,
+        email: form.email,
+        phone: form.mobile,
+        category,
+        gstin: form.gstin || undefined,
+        pan: form.pan,
+        aadhaar: form.aadhaar,
+        experience: form.experience,
         address: form.shopAddress,
         city: form.city,
-        pincode: "",
+        area: form.area,
+        pincode: form.shopAddress.match(/\b\d{6}\b/)?.[0] ?? "560001",
+        pickupRadiusKm: form.pickupRadius,
+        deliveryRadiusKm: form.deliveryRadius,
         openingTime: form.openingTime,
         closingTime: form.closingTime,
-        category,
+        weeklyOff: weeklyOff.join(", ") || "None",
+        emergencyClosing: form.emergencyClosing || undefined,
+        accountHolder: form.accountHolder,
+        bankName: form.bankName,
+        accountNumber: form.accountNumber,
+        ifsc: form.ifsc,
+        logo: uploads.logo || undefined,
+        banner: uploads.banner || undefined,
+        gallery: uploads.gallery,
+        services,
       });
 
-      signIn({ ...updatedSession, isOnboarded: true, isVerified: true });
-      toast.success("Business registered & approved! You can now configure your services.");
-      navigate({ to: partnerRoutes.services });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Registration failed. Please check your details and try again.");
+      signIn(updated);
+      toast.success("Registration submitted! Admin review in progress. 🎉");
+      navigate({ to: partnerRoutes.registrationSubmitted });
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : "Could not submit registration.";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
   };
 
-  /* -------------------------------- render ------------------------------ */
-
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
+    <main className="relative min-h-screen bg-[#FFFBF2] text-[#111827] font-sans pb-32">
+      {/* Background Ambience */}
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-10 [background-size:24px_24px]" />
 
-      <div className="relative mx-auto w-full max-w-md">
-        <PartnerTopBar title="Partner Registration" showBack={step > 0} onBack={goBack} />
+      <div className="relative mx-auto w-full max-w-6xl px-4 pt-6 md:px-8">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-6 border-b border-zinc-200/80">
+          <PartnerAuthHeader badge="PARTNER ONBOARDING" withTagline={true} />
 
-        <div className="px-5 pt-4">
-          <PartnerAuthHeader />
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 border border-emerald-200">
+              <ShieldCheck className="size-3.5" />
+              <span>Step {step + 1} of {STEPS.length}</span>
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4">
-          <StepProgress steps={STEPS} current={step} />
+        {/* Progress Bar */}
+        <div className="mt-6">
+          <StepProgress steps={STEPS} current={step} onStepClick={editStep} />
         </div>
 
-        {/* key={step} restarts the entrance animation on every step transition */}
-        <div key={step} className="animate-slide-up space-y-4 px-5 pb-40 pt-5">
-          {step === 0 ? (
-            <SectionCard
-              title="Business Information"
-              description="Tell customers who you are and where to find you."
-            >
-              <FormField
-                id="shop-name"
-                label="Shop Name *"
-                icon={Store}
-                placeholder="Sparkle Laundry Co."
-                value={form.shopName}
-                onChange={text("shopName")}
-                error={errors['shopName']}
-              />
-              <FormField
-                id="owner-name"
-                label="Owner Name *"
-                icon={UserRound}
-                placeholder="Vikram Shetty"
-                value={form.ownerName}
-                onChange={text("ownerName")}
-                error={errors['ownerName']}
-              />
-              <FormField
-                id="mobile"
-                label="Mobile Number *"
-                icon={Phone}
-                prefix="+91"
-                inputMode="numeric"
-                placeholder="98765 43210"
-                value={form.mobile}
-                onChange={digitsOnly("mobile", 10)}
-                error={errors['mobile']}
-              />
-              <FormField
-                id="email"
-                label="Email *"
-                icon={Mail}
-                type="email"
-                placeholder="owner@sparklelaundry.in"
-                value={form.email}
-                onChange={text("email")}
-                readOnly={isGoogleAuth}
-                rightAddon={
-                  isGoogleAuth ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-600 dark:text-emerald-400">
-                      <Check className="size-3" /> Google verified
-                    </span>
-                  ) : null
-                }
-                error={errors['email']}
-              />
-              <TextAreaField
-                id="shop-address"
-                label="Shop Address *"
-                placeholder="Shop 14, Sunrise Complex, Linking Road"
-                value={form.shopAddress}
-                onChange={(next) => set("shopAddress", next)}
-                error={errors['shopAddress']}
-              />
-              <button
-                type="button"
-                onClick={useCurrentLocation}
-                className="ripple focus-key flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card py-3 text-[0.72rem] font-bold tracking-tight text-foreground shadow-soft active:scale-[0.97]"
-              >
-                <Navigation className="size-3.5 text-brand-green" strokeWidth={2.6} />
-                Use current location
-              </button>
-            </SectionCard>
-          ) : null}
-
-          {step === 1 ? (
-            <SectionCard
-              title="Business Details"
-              description="Used for verification and payouts compliance."
-            >
-              <FormField
-                id="gstin"
-                label="GST Number (Optional)"
-                icon={ReceiptText}
-                placeholder="27ABCDE1234F1Z5"
-                value={form.gstin}
-                onChange={upper("gstin", 15)}
-                error={errors['gstin']}
-                hint="Leave blank if your business is not GST registered"
-              />
-              <FormField
-                id="pan"
-                label="PAN *"
-                icon={IdCard}
-                placeholder="ABCDE1234F"
-                value={form.pan}
-                onChange={upper("pan", 10)}
-                error={errors['pan']}
-              />
-              <FormField
-                id="aadhaar"
-                label="Aadhaar *"
-                icon={Hash}
-                inputMode="numeric"
-                placeholder="1234 5678 9012"
-                value={form.aadhaar}
-                onChange={digitsOnly("aadhaar", 12)}
-                error={errors['aadhaar']}
-              />
-              <SelectField
-                id="business-type"
-                label="Business Type *"
-                icon={Briefcase}
-                value={form.businessType}
-                onChange={(next) => set("businessType", next)}
-                options={BUSINESS_TYPES.map((type) => type.id)}
-                placeholder="Select business type"
-                error={errors['businessType']}
-              />
-              <SelectField
-                id="experience"
-                label="Experience *"
-                icon={Building2}
-                value={form.experience}
-                onChange={(next) => set("experience", next)}
-                options={EXPERIENCE_OPTIONS}
-                placeholder="Select experience"
-                error={errors['experience']}
-              />
-            </SectionCard>
-          ) : null}
-
-          {step === 2 ? (
-            <SectionCard
-              title="Services"
-              description="Pick every service your shop can fulfil. You can refine pricing later."
-            >
-              <div className="space-y-2.5">
-                {SERVICES.map((service) => (
-                  <ServiceCard
-                    key={service.id}
-                    label={service.id}
-                    description={service.description}
-                    icon={service.icon}
-                    selected={services.includes(service.id)}
-                    onClick={() => {
-                      toggleService(service.id);
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next['services'];
-                        return next;
-                      });
-                    }}
+        {/* Two-Column Grid on Desktop / Single-Column on Mobile */}
+        <div className="mt-8 grid grid-cols-12 gap-8 items-start">
+          {/* Left / Main Form Column */}
+          <div className="col-span-12 lg:col-span-8 space-y-6">
+            {step === 0 ? (
+              <SectionCard title="Business & Owner Information">
+                <FormField
+                  id="shop-name"
+                  label="Laundry / Shop Name *"
+                  icon={Store}
+                  placeholder="e.g. Express Clean Laundromat"
+                  value={form.shopName}
+                  onChange={text("shopName")}
+                  error={errors["shopName"]}
+                />
+                <FormField
+                  id="owner-name"
+                  label="Owner Full Name *"
+                  icon={UserRound}
+                  placeholder="Rajesh Kumar"
+                  value={form.ownerName}
+                  onChange={text("ownerName")}
+                  error={errors["ownerName"]}
+                />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    id="owner-mobile"
+                    label="Registered Mobile *"
+                    icon={Phone}
+                    inputMode="numeric"
+                    placeholder="98765 43210"
+                    value={form.mobile}
+                    onChange={digitsOnly("mobile", 10)}
+                    error={errors["mobile"]}
                   />
-                ))}
-              </div>
-              {errors['services'] ? (
-                <p className="animate-soft-fade text-[0.68rem] font-semibold text-destructive">
-                  {errors['services']}
-                </p>
-              ) : (
-                <p className="text-[0.68rem] font-medium text-muted-foreground">
-                  {services.length} service{services.length === 1 ? "" : "s"} selected
-                </p>
-              )}
-            </SectionCard>
-          ) : null}
+                  <FormField
+                    id="owner-email"
+                    label="Email Address *"
+                    icon={Mail}
+                    type="email"
+                    placeholder="partner@quickpress.online"
+                    value={form.email}
+                    onChange={text("email")}
+                    error={errors["email"]}
+                  />
+                </div>
+                <TextAreaField
+                  id="shop-address"
+                  label="Full Shop Address *"
+                  placeholder="Shop #4, Ground Floor, Main Road, Landmark..."
+                  value={form.shopAddress}
+                  onChange={(e) => set("shopAddress", e.target.value)}
+                  error={errors["shopAddress"]}
+                  action={
+                    <button
+                      type="button"
+                      onClick={useCurrentLocation}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 hover:underline cursor-pointer"
+                    >
+                      <Navigation className="size-3" />
+                      <span>Use GPS Pin</span>
+                    </button>
+                  }
+                />
+              </SectionCard>
+            ) : null}
 
-          {step === 3 ? (
-            <SectionCard
-              title="Business Timing"
-              description="Customers only see slots inside your working hours."
-            >
-              <div className="grid grid-cols-2 gap-3">
+            {step === 1 ? (
+              <SectionCard title="Tax & Business Details">
                 <FormField
-                  id="opening-time"
-                  label="Opening Time *"
-                  icon={Sun}
-                  type="time"
-                  value={form.openingTime}
-                  onChange={text("openingTime")}
-                  error={errors['openingTime']}
+                  id="pan"
+                  label="Business / Owner PAN Card *"
+                  icon={IdCard}
+                  placeholder="ABCDE1234F"
+                  value={form.pan}
+                  onChange={upper("pan", 10)}
+                  error={errors["pan"]}
                 />
                 <FormField
-                  id="closing-time"
-                  label="Closing Time *"
-                  icon={Clock}
-                  type="time"
-                  value={form.closingTime}
-                  onChange={text("closingTime")}
-                  error={errors['closingTime']}
+                  id="aadhaar"
+                  label="Aadhaar Number *"
+                  icon={Hash}
+                  inputMode="numeric"
+                  placeholder="12-digit Aadhaar Number"
+                  value={form.aadhaar}
+                  onChange={digitsOnly("aadhaar", 12)}
+                  error={errors["aadhaar"]}
                 />
-              </div>
+                <FormField
+                  id="gstin"
+                  label="GSTIN (Optional for small stores)"
+                  icon={ReceiptText}
+                  placeholder="29AAAAA0000A1Z5"
+                  value={form.gstin}
+                  onChange={upper("gstin", 15)}
+                  error={errors["gstin"]}
+                />
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-2">
+                    Business Entity Type *
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {BUSINESS_TYPES.map((t) => (
+                      <ChoiceChip
+                        key={t.id}
+                        label={t.id}
+                        selected={form.businessType === t.id}
+                        onClick={() => set("businessType", t.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-2">
+                    Industry Experience *
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {EXPERIENCE_OPTIONS.map((exp) => (
+                      <ChoiceChip
+                        key={exp}
+                        label={exp}
+                        selected={form.experience === exp}
+                        onClick={() => set("experience", exp)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </SectionCard>
+            ) : null}
 
-              <div>
-                <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted-foreground">
-                  Weekly Off
+            {step === 2 ? (
+              <SectionCard title="Select Provided Services & Rate Card">
+                <p className="text-xs text-zinc-500 font-medium -mt-2 mb-4">
+                  Select the laundry and dry cleaning services your store fulfills:
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {WEEK_DAYS.map((day) => (
-                    <ChoiceChip
-                      key={day}
-                      label={day}
-                      selected={weeklyOff.includes(day)}
-                      onClick={() => toggleDay(day)}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {SERVICES.map((s) => (
+                    <ServiceCard
+                      key={s.id}
+                      title={s.id}
+                      icon={s.icon}
+                      price={s.price}
+                      unit={s.unit}
+                      selected={services.includes(s.id)}
+                      onToggle={() => toggleService(s.id)}
                     />
                   ))}
                 </div>
-              </div>
+                {errors["services"] ? (
+                  <p className="text-xs font-bold text-red-600 mt-2">{errors["services"]}</p>
+                ) : null}
+              </SectionCard>
+            ) : null}
 
-              <FormField
-                id="emergency-closing"
-                label="Emergency Closing (Optional)"
-                icon={CalendarOff}
-                type="date"
-                value={form.emergencyClosing}
-                onChange={text("emergencyClosing")}
-                hint="Mark a date when the shop will stay shut"
-              />
-            </SectionCard>
-          ) : null}
-
-          {step === 4 ? (
-            <SectionCard
-              title="Delivery Area"
-              description="Interface only for this sprint — mapping goes live later."
-            >
-              <SelectField
-                id="city"
-                label="Select City *"
-                icon={MapPin}
-                value={form.city}
-                onChange={(next) => {
-                  set("city", next);
-                  set("area", "");
-                }}
-                options={CITIES}
-                placeholder="Select city"
-                error={errors['city']}
-              />
-              <SelectField
-                id="area"
-                label="Select Area *"
-                icon={Navigation}
-                value={form.area}
-                onChange={(next) => set("area", next)}
-                options={areaOptions}
-                placeholder={form.city ? "Select area" : "Select a city first"}
-                error={errors['area']}
-              />
-              <SliderField
-                id="pickup-radius"
-                label="Pickup Radius"
-                value={form.pickupRadius}
-                onChange={(next) => set("pickupRadius", next)}
-              />
-              <SliderField
-                id="delivery-radius"
-                label="Delivery Radius"
-                value={form.deliveryRadius}
-                onChange={(next) => set("deliveryRadius", next)}
-              />
-            </SectionCard>
-          ) : null}
-
-          {step === 5 ? (
-            <>
-              <SectionCard
-                title="Shop Profile"
-                description="Placeholder uploads — files are not sent anywhere yet."
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <UploadTile
-                    label="Shop Logo"
-                    icon={Store}
-                    value={uploads.logo}
-                    onPick={(name) => setUploads((prev) => ({ ...prev, logo: name }))}
-                    onClear={() => setUploads((prev) => ({ ...prev, logo: "" }))}
+            {step === 3 ? (
+              <SectionCard title="Store Timings & Weekly Schedule">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    id="opening-time"
+                    label="Opening Time *"
+                    icon={Sun}
+                    type="time"
+                    value={form.openingTime}
+                    onChange={text("openingTime")}
+                    error={errors["openingTime"]}
                   />
-                  <UploadTile
-                    label="Shop Banner"
-                    icon={ImageIcon}
-                    value={uploads.banner}
-                    onPick={(name) => setUploads((prev) => ({ ...prev, banner: name }))}
-                    onClear={() => setUploads((prev) => ({ ...prev, banner: "" }))}
+                  <FormField
+                    id="closing-time"
+                    label="Closing Time *"
+                    icon={Clock}
+                    type="time"
+                    value={form.closingTime}
+                    onChange={text("closingTime")}
+                    error={errors["closingTime"]}
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-2">
+                    Weekly Off Day (Store Closed)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS.map((d) => (
+                      <ChoiceChip
+                        key={d}
+                        label={d}
+                        selected={weeklyOff.includes(d)}
+                        onClick={() => toggleDay(d)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </SectionCard>
+            ) : null}
 
-              <SectionCard title="Shop Gallery" description="Add up to 5 photos of your shop.">
-                <GalleryUploader
-                  images={uploads.gallery}
-                  max={5}
-                  onAdd={(name) =>
-                    setUploads((prev) => ({
-                      ...prev,
-                      gallery: name ? [...prev.gallery, name].slice(0, 5) : prev.gallery,
-                    }))
-                  }
-                  onRemove={(index) =>
-                    setUploads((prev) => ({
-                      ...prev,
-                      gallery: prev.gallery.filter((_, i) => i !== index),
-                    }))
-                  }
+            {step === 4 ? (
+              <SectionCard title="Service City & Delivery Area">
+                <div className="grid grid-cols-2 gap-4">
+                  <SelectField
+                    id="city"
+                    label="Operating City *"
+                    icon={Building2}
+                    options={CITIES}
+                    value={form.city}
+                    onChange={(val) => {
+                      set("city", val);
+                      set("area", AREAS[val]?.[0] ?? "");
+                    }}
+                    error={errors["city"]}
+                  />
+                  <SelectField
+                    id="area"
+                    label="Locality / Hub *"
+                    icon={MapPin}
+                    options={areaOptions}
+                    value={form.area}
+                    onChange={(val) => set("area", val)}
+                    error={errors["area"]}
+                  />
+                </div>
+                <SliderField
+                  id="pickup-radius"
+                  label="Customer Pickup Radius"
+                  min={1}
+                  max={25}
+                  unit="km"
+                  value={form.pickupRadius}
+                  onChange={(val) => set("pickupRadius", val)}
+                />
+                <SliderField
+                  id="delivery-radius"
+                  label="Delivery Drop Radius"
+                  min={1}
+                  max={25}
+                  unit="km"
+                  value={form.deliveryRadius}
+                  onChange={(val) => set("deliveryRadius", val)}
                 />
               </SectionCard>
-            </>
-          ) : null}
+            ) : null}
 
-          {step === 6 ? (
-            <SectionCard
-              title="Bank Details"
-              description="Weekly payouts are settled to this account."
-            >
-              <FormField
-                id="account-holder"
-                label="Account Holder Name *"
-                icon={UserRound}
-                placeholder="Vikram Shetty"
-                value={form.accountHolder}
-                onChange={text("accountHolder")}
-                error={errors['accountHolder']}
-              />
-              <FormField
-                id="bank-name"
-                label="Bank Name *"
-                icon={Landmark}
-                placeholder="HDFC Bank"
-                value={form.bankName}
-                onChange={text("bankName")}
-                error={errors['bankName']}
-              />
-              <FormField
-                id="account-number"
-                label="Account Number *"
-                icon={CreditCard}
-                inputMode="numeric"
-                placeholder="502001234567"
-                value={form.accountNumber}
-                onChange={digitsOnly("accountNumber", 18)}
-                error={errors['accountNumber']}
-              />
-              <FormField
-                id="ifsc"
-                label="IFSC Code *"
-                icon={Banknote}
-                placeholder="HDFC0001234"
-                value={form.ifsc}
-                onChange={upper("ifsc", 11)}
-                error={errors['ifsc']}
-              />
-            </SectionCard>
-          ) : null}
-
-          {step === 7 ? (
-            <>
-              <SectionCard
-                title="Business Information"
-                action={<EditButton onClick={() => editStep(0)} />}
-              >
-                <div className="space-y-2">
-                  <ReviewRow label="Shop Name" value={form.shopName} />
-                  <ReviewRow label="Owner Name" value={form.ownerName} />
-                  <ReviewRow label="Mobile" value={form.mobile ? `+91 ${form.mobile}` : ""} />
-                  <ReviewRow label="Email" value={form.email} />
-                  <ReviewRow label="Address" value={form.shopAddress} />
+            {step === 5 ? (
+              <SectionCard title="Shop Front & Interior Photos">
+                <div className="grid grid-cols-2 gap-4">
+                  <UploadTile
+                    label="Storefront Logo"
+                    hint="Square PNG/JPG (Min 500x500)"
+                    value={uploads.logo}
+                    onChange={(val) => setUploads((p) => ({ ...p, logo: val }))}
+                  />
+                  <UploadTile
+                    label="Store Facade Banner"
+                    hint="Front signboard banner"
+                    value={uploads.banner}
+                    onChange={(val) => setUploads((p) => ({ ...p, banner: val }))}
+                  />
+                </div>
+                <div className="mt-4">
+                  <GalleryUploader
+                    items={uploads.gallery}
+                    onChange={(items) => setUploads((p) => ({ ...p, gallery: items }))}
+                  />
                 </div>
               </SectionCard>
+            ) : null}
 
-              <SectionCard
-                title="Business Details"
-                action={<EditButton onClick={() => editStep(1)} />}
-              >
-                <div className="space-y-2">
-                  <ReviewRow label="GST" value={form.gstin || "Not provided"} />
-                  <ReviewRow label="PAN" value={form.pan} />
-                  <ReviewRow label="Aadhaar" value={form.aadhaar} />
-                  <ReviewRow label="Business Type" value={form.businessType} />
-                  <ReviewRow label="Experience" value={form.experience} />
-                </div>
+            {step === 6 ? (
+              <SectionCard title="Bank Account & Payout Details">
+                <FormField
+                  id="account-holder"
+                  label="Bank Account Holder Name *"
+                  icon={UserRound}
+                  placeholder="e.g. Express Clean Pvt Ltd"
+                  value={form.accountHolder}
+                  onChange={text("accountHolder")}
+                  error={errors["accountHolder"]}
+                />
+                <FormField
+                  id="bank-name"
+                  label="Bank Name *"
+                  icon={Landmark}
+                  placeholder="e.g. HDFC Bank, SBI, ICICI"
+                  value={form.bankName}
+                  onChange={text("bankName")}
+                  error={errors["bankName"]}
+                />
+                <FormField
+                  id="account-number"
+                  label="Account Number *"
+                  icon={CreditCard}
+                  inputMode="numeric"
+                  placeholder="502001234567"
+                  value={form.accountNumber}
+                  onChange={digitsOnly("accountNumber", 18)}
+                  error={errors["accountNumber"]}
+                />
+                <FormField
+                  id="ifsc"
+                  label="IFSC Code *"
+                  icon={Banknote}
+                  placeholder="HDFC0001234"
+                  value={form.ifsc}
+                  onChange={upper("ifsc", 11)}
+                  error={errors["ifsc"]}
+                />
               </SectionCard>
+            ) : null}
 
-              <SectionCard title="Services" action={<EditButton onClick={() => editStep(2)} />}>
-                <div className="flex flex-wrap gap-2">
-                  {services.length === 0 ? (
-                    <span className="text-[0.7rem] font-medium text-muted-foreground">
-                      No services selected
-                    </span>
-                  ) : (
-                    services.map((service) => (
-                      <span
-                        key={service}
-                        className="rounded-xl bg-primary/12 px-2.5 py-1 text-[0.66rem] font-bold text-brand-dark"
-                      >
-                        {service}
+            {step === 7 ? (
+              <div className="space-y-4">
+                <SectionCard title="Owner & Store Info" action={<EditButton onClick={() => editStep(0)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="Shop Name" value={form.shopName} />
+                    <ReviewRow label="Owner Name" value={form.ownerName} />
+                    <ReviewRow label="Mobile" value={`+91 ${form.mobile}`} />
+                    <ReviewRow label="Email" value={form.email} />
+                    <ReviewRow label="Address" value={form.shopAddress} />
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Tax & Business Entity" action={<EditButton onClick={() => editStep(1)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="PAN" value={form.pan} />
+                    <ReviewRow label="Aadhaar" value={form.aadhaar} />
+                    <ReviewRow label="GSTIN" value={form.gstin || "Not provided (Exempt)"} />
+                    <ReviewRow label="Business Entity" value={form.businessType} />
+                  </div>
+                </SectionCard>
+
+                <SectionCard title={`Active Rate Card (${services.length})`} action={<EditButton onClick={() => editStep(2)} />}>
+                  <div className="flex flex-wrap gap-2">
+                    {services.map((s) => (
+                      <span key={s} className="rounded-xl bg-amber-100/80 border border-amber-300 px-3 py-1 text-xs font-black text-amber-900">
+                        {s}
                       </span>
-                    ))
-                  )}
-                </div>
-              </SectionCard>
+                    ))}
+                  </div>
+                </SectionCard>
 
-              <SectionCard
-                title="Business Timing"
-                action={<EditButton onClick={() => editStep(3)} />}
-              >
-                <div className="space-y-2">
-                  <ReviewRow label="Opening" value={form.openingTime} />
-                  <ReviewRow label="Closing" value={form.closingTime} />
-                  <ReviewRow label="Weekly Off" value={weeklyOff.join(", ") || "None"} />
-                  <ReviewRow
-                    label="Emergency Closing"
-                    value={form.emergencyClosing || "Not planned"}
+                <SectionCard title="Bank Account Payout" action={<EditButton onClick={() => editStep(6)} />}>
+                  <div className="space-y-2">
+                    <ReviewRow label="Bank" value={form.bankName} />
+                    <ReviewRow label="Account Holder" value={form.accountHolder} />
+                    <ReviewRow
+                      label="Account Number"
+                      value={form.accountNumber ? `•••• •••• ${form.accountNumber.slice(-4)}` : ""}
+                    />
+                    <ReviewRow label="IFSC Code" value={form.ifsc} />
+                  </div>
+                </SectionCard>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Right Sidebar / Live Application Summary Card (Desktop) */}
+          <div className="hidden lg:block lg:col-span-4 sticky top-6">
+            <div className="rounded-3xl border border-zinc-200/90 bg-white p-6 shadow-sm space-y-5">
+              <div className="flex items-center gap-3 border-b border-zinc-100 pb-4">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-[#F4B400] text-[#111827] font-black text-xl shadow-xs">
+                  {form.shopName ? form.shopName.slice(0, 2).toUpperCase() : "QP"}
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-zinc-900 truncate max-w-[180px]">
+                    {form.shopName || "Your Laundry Store"}
+                  </h4>
+                  <p className="text-[11px] font-semibold text-zinc-500">{form.city || "Operating City"}</p>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                  Onboarding Progress
+                </span>
+                <div className="mt-1.5 flex items-center justify-between text-xs font-bold text-zinc-700">
+                  <span>Step {step + 1} of {STEPS.length}</span>
+                  <span className="text-emerald-600 font-black">{Math.round(((step + 1) / STEPS.length) * 100)}%</span>
+                </div>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
+                    style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
                   />
                 </div>
-              </SectionCard>
+              </div>
 
-              <SectionCard
-                title="Delivery Area"
-                action={<EditButton onClick={() => editStep(4)} />}
-              >
-                <div className="space-y-2">
-                  <ReviewRow label="City" value={form.city} />
-                  <ReviewRow label="Area" value={form.area} />
-                  <ReviewRow label="Pickup Radius" value={`${form.pickupRadius} km`} />
-                  <ReviewRow label="Delivery Radius" value={`${form.deliveryRadius} km`} />
+              <div className="space-y-2.5 pt-2 border-t border-zinc-100 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Selected Services</span>
+                  <span className="font-bold text-zinc-900">{services.length} items</span>
                 </div>
-              </SectionCard>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Delivery Radius</span>
+                  <span className="font-bold text-zinc-900">{form.deliveryRadius} KM</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Timing</span>
+                  <span className="font-bold text-zinc-900">{form.openingTime} - {form.closingTime}</span>
+                </div>
+              </div>
 
-              <SectionCard title="Shop Profile" action={<EditButton onClick={() => editStep(5)} />}>
-                <div className="space-y-2">
-                  <ReviewRow label="Logo" value={uploads.logo || "Not uploaded"} />
-                  <ReviewRow label="Banner" value={uploads.banner || "Not uploaded"} />
-                  <ReviewRow label="Gallery" value={`${uploads.gallery.length} of 5 photos`} />
-                </div>
-              </SectionCard>
+              <div className="pt-2">
+                {step < STEPS.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <span>Continue To Step {step + 2}</span>
+                    <ChevronRight className="size-4 stroke-[3]" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmit()}
+                    disabled={busy}
+                    className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {busy ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Submitting Application...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="size-4 stroke-[2.5]" />
+                        <span>Submit Registration</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
-              <SectionCard title="Bank Details" action={<EditButton onClick={() => editStep(6)} />}>
-                <div className="space-y-2">
-                  <ReviewRow label="Account Holder" value={form.accountHolder} />
-                  <ReviewRow label="Bank" value={form.bankName} />
-                  <ReviewRow
-                    label="Account Number"
-                    value={
-                      form.accountNumber
-                        ? `•••• ${form.accountNumber.slice(-4)}`
-                        : ""
-                    }
-                  />
-                  <ReviewRow label="IFSC" value={form.ifsc} />
-                </div>
-              </SectionCard>
-            </>
-          ) : null}
+                {step > 0 ? (
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="mt-2.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-zinc-200 bg-white text-xs font-bold text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <ChevronLeft className="size-4" />
+                    <span>Previous Step</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Sticky step navigation */}
-        <div className="glass-panel fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
-          <div className="flex items-center gap-3">
+        {/* Mobile Sticky Bottom Action Bar (< lg) */}
+        <div className="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-t border-zinc-200 p-4 shadow-2xl">
+          <div className="mx-auto flex max-w-md items-center gap-3">
             {step > 0 ? (
               <button
                 type="button"
                 onClick={goBack}
-                className="ripple focus-key flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-soft active:scale-[0.95]"
+                className="flex size-13 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-zinc-700 active:scale-95 cursor-pointer"
                 aria-label="Previous step"
               >
                 <ChevronLeft className="size-5" />
@@ -837,30 +849,26 @@ export function BusinessRegistrationScreen() {
               <button
                 type="button"
                 onClick={goNext}
-                className="ripple focus-key flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
+                className="flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm active:scale-[0.98] cursor-pointer"
               >
-                Continue
-                <ChevronRight className="size-4" strokeWidth={2.8} />
+                <span>Continue</span>
+                <ChevronRight className="size-4 stroke-[3]" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={busy}
-                aria-busy={busy}
-                className="ripple focus-key flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-60"
+                className="flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm active:scale-[0.98] disabled:opacity-50 cursor-pointer"
               >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" strokeWidth={2.6} />
-                )}
-                {busy ? "Submitting" : "Submit Registration"}
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4 stroke-[2.5]" />}
+                <span>{busy ? "Submitting..." : "Submit Registration"}</span>
               </button>
             )}
           </div>
         </div>
       </div>
+
       <Toaster />
     </main>
   );
@@ -871,10 +879,10 @@ function EditButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="focus-key flex items-center gap-1 rounded-xl bg-muted px-2.5 py-1.5 text-[0.65rem] font-bold tracking-tight text-foreground transition-colors hover:bg-accent active:scale-95"
+      className="flex items-center gap-1 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-black text-amber-900 active:scale-95 transition-all cursor-pointer"
     >
-      <Check className="size-3 text-brand-green" strokeWidth={3} />
-      Edit
+      <Check className="size-3 text-emerald-600 stroke-[3]" />
+      <span>Edit</span>
     </button>
   );
 }

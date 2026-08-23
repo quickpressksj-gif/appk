@@ -38,14 +38,14 @@ import {
   rememberPartnerLogin,
   requestOtp,
 } from "@/api/partner/partner-auth-api";
-import { partnerAssets } from "../assets/partner-assets";
+import { PartnerAuthHeader } from "../components/PartnerAuthHeader";
 
 const BENEFIT_CARDS = [
   {
     icon: ShoppingBag,
     title: "More Orders",
     desc: "Get customers from your local area effortlessly.",
-    color: "bg-amber-400/15 text-amber-500",
+    color: "bg-amber-400/15 text-amber-600",
   },
   {
     icon: Sliders,
@@ -179,11 +179,6 @@ export function PartnerAuthScreen() {
     }
   };
 
-  const fillDemoNumber = (num: string) => {
-    setValue(num);
-    setError(null);
-  };
-
   return (
     <div className="min-h-screen bg-[#FFFBF2] text-[#111827] flex flex-col justify-between font-sans selection:bg-[#F4B400]/30">
       {/* Background Ambience / Subtle Dotted Grid */}
@@ -195,21 +190,13 @@ export function PartnerAuthScreen() {
       <div className="relative flex flex-col justify-between min-h-screen p-4 sm:p-6 lg:hidden">
         {/* Top Mobile Bar */}
         <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-[#F4B400] font-black text-[#111827] text-lg shadow-sm">
-              QP
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-base font-black tracking-tight text-[#111827]">QuickPress</span>
-                <span className="rounded-full bg-[#111827] px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
-                  Partner
-                </span>
-              </div>
-              <p className="text-[10px] font-semibold text-zinc-500 tracking-wide">
-                Laundry • Pickup • Delivery
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-black tracking-tight text-[#111827]">
+              Quick<span className="text-[#16A34A]">Press</span>
+            </span>
+            <span className="rounded-full bg-[#111827] px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
+              Partner
+            </span>
           </div>
 
           {/* Language Selector */}
@@ -280,18 +267,6 @@ export function PartnerAuthScreen() {
                     {error}
                   </p>
                 ) : null}
-              </div>
-
-              {/* Demo Helper */}
-              <div className="flex items-center justify-between text-xs text-zinc-500 pt-0.5">
-                <span>Test Store:</span>
-                <button
-                  type="button"
-                  onClick={() => fillDemoNumber("9876543210")}
-                  className="font-bold text-amber-800 hover:underline"
-                >
-                  Use 9876543210
-                </button>
               </div>
 
               {/* Primary Action Button */}
@@ -371,22 +346,7 @@ export function PartnerAuthScreen() {
       <div className="hidden lg:flex min-h-screen w-full flex-col justify-between p-8 xl:p-12 relative z-10 max-w-7xl mx-auto">
         {/* Top Desktop Bar */}
         <header className="flex items-center justify-between pb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-[#F4B400] font-black text-[#111827] text-2xl shadow-md">
-              QP
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black tracking-tight text-[#111827]">QuickPress</span>
-                <span className="rounded-full bg-[#111827] px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white uppercase">
-                  Partner Panel
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-zinc-500 tracking-wide">
-                Laundry • Pickup • Delivery
-              </p>
-            </div>
-          </div>
+          <PartnerAuthHeader badge="PARTNER PANEL" withTagline={true} />
 
           {/* Top Right Controls */}
           <div className="flex items-center gap-4">
@@ -412,13 +372,13 @@ export function PartnerAuthScreen() {
         {/* Main Two-Column Split Layout */}
         <main className="my-auto py-8 grid grid-cols-12 gap-10 xl:gap-16 items-center">
           {/* ===================================================================== */}
-          {/* LEFT MARKETING & BRAND SECTION (~45% / 5 Cols)                        */}
+          {/* LEFT MARKETING & BRAND SECTION (~45% / 6 Cols)                        */}
           {/* ===================================================================== */}
           <section className="col-span-6 xl:col-span-6 pr-4 space-y-6">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-3 py-1 text-xs font-black text-amber-900 border border-amber-300/80 mb-4">
                 <Sparkles className="size-3.5 text-amber-600" />
-                <span>PARTNER PANEL</span>
+                <span>GROW WITH QUICKPRESS</span>
               </div>
               <h2 className="text-4xl xl:text-5xl font-black leading-[1.15] tracking-tight text-[#111827]">
                 Grow Your Laundry Business With QuickPress
@@ -516,18 +476,6 @@ export function PartnerAuthScreen() {
                       {error}
                     </p>
                   ) : null}
-                </div>
-
-                {/* Developer Demo Helper */}
-                <div className="flex items-center justify-between text-xs text-zinc-500 pt-0.5">
-                  <span>Test Store Account:</span>
-                  <button
-                    type="button"
-                    onClick={() => fillDemoNumber("9876543210")}
-                    className="font-bold text-amber-800 hover:underline cursor-pointer"
-                  >
-                    Use 9876543210
-                  </button>
                 </div>
 
                 {/* Primary CTA */}
