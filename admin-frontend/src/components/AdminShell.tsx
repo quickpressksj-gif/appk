@@ -58,14 +58,14 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <nav className="flex-1 space-y-6 overflow-y-auto px-3.5 py-4 scrollbar-thin scrollbar-thumb-zinc-800">
+    <nav className="flex-1 space-y-6 overflow-y-auto px-3.5 py-4 scrollbar-thin scrollbar-thumb-zinc-200">
       {NAV_GROUPS.map((group) => {
         const groupItems = adminNavItems.filter((i) => group.items.includes(i.id));
         if (groupItems.length === 0) return null;
 
         return (
           <div key={group.title} className="space-y-1.5">
-            <p className="px-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+            <p className="px-3 text-[10px] font-black uppercase tracking-wider text-zinc-400">
               {group.title}
             </p>
             <div className="space-y-1">
@@ -80,16 +80,16 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     onClick={onNavigate}
                     className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-all ${
                       active
-                        ? "bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 text-emerald-400 font-extrabold border border-emerald-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]"
-                        : "text-zinc-400 hover:bg-zinc-800/60 hover:text-white hover:border-zinc-700/50 border border-transparent"
+                        ? "bg-emerald-50 text-emerald-800 font-extrabold border border-emerald-200 shadow-sm"
+                        : "text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900 border border-transparent"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div
                         className={`flex size-7 items-center justify-center rounded-lg transition-colors ${
                           active
-                            ? "bg-emerald-500 text-zinc-950 shadow-sm"
-                            : "bg-zinc-800/80 text-zinc-400 group-hover:bg-zinc-700 group-hover:text-white"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-900"
                         }`}
                       >
                         <Icon className="size-3.5" />
@@ -98,7 +98,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     </div>
 
                     {active && (
-                      <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="size-1.5 rounded-full bg-emerald-600" />
                     )}
                   </Link>
                 );
@@ -113,19 +113,19 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 function BrandBlock() {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-800/80 px-4 py-4.5 bg-zinc-950/50">
+    <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4.5 bg-white">
       <div className="flex items-center gap-2.5">
-        <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-500/20">
+        <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/20">
           <Shield className="size-4.5" />
         </div>
         <div className="leading-tight">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-black tracking-tight text-white">Quick<span className="text-emerald-400">Press</span></span>
-            <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-black text-amber-400 border border-amber-500/30">
+            <span className="text-sm font-black tracking-tight text-[#111827]">Quick<span className="text-[#16A34A]">Press</span></span>
+            <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[9px] font-black text-amber-900 border border-amber-300">
               OPS
             </span>
           </div>
-          <p className="text-[10px] font-medium text-zinc-500">Super Admin Console</p>
+          <p className="text-[10px] font-medium text-zinc-400">Super Admin Console</p>
         </div>
       </div>
     </div>
@@ -158,30 +158,30 @@ export function AdminShell({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0E131F] text-zinc-100 font-sans antialiased selection:bg-emerald-500 selection:text-white">
+    <div className="flex min-h-screen bg-[#F8FAFC] text-[#111827] font-sans antialiased selection:bg-emerald-500 selection:text-white">
       {/* Desktop Sticky Sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-800/90 bg-[#0B0F19] lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-200 bg-white lg:flex">
         <BrandBlock />
         <SidebarNav />
 
         {/* Bottom Status Block */}
-        <div className="border-t border-zinc-800/80 p-3.5 bg-zinc-950/40">
-          <div className="flex items-center justify-between rounded-xl bg-zinc-900/90 border border-zinc-800 p-2.5">
+        <div className="border-t border-zinc-200 p-3.5 bg-zinc-50/70">
+          <div className="flex items-center justify-between rounded-xl bg-white border border-zinc-200 p-2.5 shadow-sm">
             <div className="flex items-center gap-2">
               <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
               </span>
               <div className="text-[11px] leading-tight">
-                <p className="font-bold text-zinc-200">Cluster Online</p>
-                <p className="text-[9px] text-zinc-500">Production v2.4</p>
+                <p className="font-bold text-zinc-900">Cluster Online</p>
+                <p className="text-[9px] text-zinc-400">Production v2.4</p>
               </div>
             </div>
             <button
               onClick={() => toast.info("System Health: 99.98% uptime · All nodes active.")}
-              className="text-zinc-400 hover:text-white p-1"
+              className="text-zinc-400 hover:text-zinc-700 p-1"
             >
-              <Zap className="size-3.5 text-amber-400" />
+              <Zap className="size-3.5 text-amber-500" />
             </button>
           </div>
         </div>
@@ -189,21 +189,21 @@ export function AdminShell({
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top Floating Glass Header */}
-        <header className="sticky top-0 z-20 border-b border-zinc-800/90 bg-[#0B0F19]/90 backdrop-blur-xl">
+        {/* Top Floating Header */}
+        <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur-xl shadow-xs">
           <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
             {/* Mobile Sheet Trigger */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
                 <button
                   type="button"
-                  className="flex size-9 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white lg:hidden active:scale-95"
+                  className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 lg:hidden active:scale-95 shadow-sm"
                   aria-label="Open menu"
                 >
                   <Menu className="size-4" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0 bg-[#0B0F19] text-white border-zinc-800">
+              <SheetContent side="left" className="w-72 p-0 bg-white text-zinc-900 border-zinc-200">
                 <SheetTitle className="sr-only">Admin Navigation</SheetTitle>
                 <BrandBlock />
                 <SidebarNav onNavigate={() => setMobileOpen(false)} />
@@ -213,23 +213,23 @@ export function AdminShell({
             {/* Page Title & Subtitle */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-base sm:text-lg font-black tracking-tight text-white">{title}</h1>
-                <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                <h1 className="truncate text-base sm:text-lg font-black tracking-tight text-zinc-900">{title}</h1>
+                <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                   <CheckCircle2 className="size-3" />
                   <span>Realtime Sync</span>
                 </span>
               </div>
               {subtitle ? (
-                <p className="hidden truncate text-xs font-medium text-zinc-400 sm:block">{subtitle}</p>
+                <p className="hidden truncate text-xs font-medium text-zinc-500 sm:block">{subtitle}</p>
               ) : null}
             </div>
 
             {/* Search Bar */}
             <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
               <input
                 placeholder="Search orders, partners, riders..."
-                className="h-9 w-64 rounded-xl border border-zinc-800 bg-zinc-900/90 pl-9 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="h-9 w-64 rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
 
@@ -237,10 +237,10 @@ export function AdminShell({
             <button
               type="button"
               onClick={() => navigate({ to: adminRoutes.notifications })}
-              className="relative flex size-9 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/90 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+              className="relative flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 shadow-sm"
             >
               <Bell className="size-4" />
-              <span className="absolute top-2 right-2 size-2 rounded-full bg-emerald-500" />
+              <span className="absolute top-2 right-2 size-2 rounded-full bg-emerald-600" />
             </button>
 
             {/* Admin Avatar & Dropdown */}
@@ -248,7 +248,7 @@ export function AdminShell({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/90 p-1.5 pr-2.5 text-left transition-colors hover:bg-zinc-800"
+                  className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white p-1.5 pr-2.5 text-left transition-colors hover:bg-zinc-50 shadow-sm"
                 >
                   <Avatar className="size-7 rounded-lg border border-emerald-500/40">
                     <AvatarFallback className="bg-emerald-600 text-white font-black text-xs">
@@ -256,36 +256,36 @@ export function AdminShell({
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden sm:block leading-none text-left">
-                    <p className="text-xs font-black text-white">Super Admin</p>
-                    <p className="text-[10px] text-emerald-400 font-semibold">4502 Master</p>
+                    <p className="text-xs font-black text-zinc-900">Super Admin</p>
+                    <p className="text-[10px] text-emerald-700 font-semibold">4502 Master</p>
                   </div>
-                  <ChevronDown className="size-3 text-zinc-500" />
+                  <ChevronDown className="size-3 text-zinc-400" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 rounded-2xl bg-zinc-900 border-zinc-800 text-white shadow-2xl p-1.5">
+              <DropdownMenuContent align="end" className="w-52 rounded-2xl bg-white border-zinc-200 text-zinc-900 shadow-xl p-1.5">
                 <DropdownMenuLabel className="px-2.5 py-1.5">
-                  <p className="text-xs font-black text-white">Super Administrator</p>
-                  <p className="text-[10px] text-zinc-400">admin@quickpress.online</p>
+                  <p className="text-xs font-black text-zinc-900">Super Administrator</p>
+                  <p className="text-[10px] text-zinc-500">admin@quickpress.online</p>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-zinc-800" />
+                <DropdownMenuSeparator className="bg-zinc-100" />
                 <DropdownMenuItem
                   onClick={() => navigate({ to: adminRoutes.staff })}
-                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-200 hover:bg-zinc-800 cursor-pointer"
+                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                 >
-                  <UserCog className="mr-2 size-4 text-emerald-400" />
+                  <UserCog className="mr-2 size-4 text-emerald-600" />
                   <span>Staff & Roles</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => navigate({ to: adminRoutes.settings })}
-                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-200 hover:bg-zinc-800 cursor-pointer"
+                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                 >
-                  <HelpCircle className="mr-2 size-4 text-amber-400" />
+                  <HelpCircle className="mr-2 size-4 text-amber-600" />
                   <span>Platform Settings</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-zinc-800" />
+                <DropdownMenuSeparator className="bg-zinc-100" />
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 cursor-pointer"
+                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
                 >
                   <LogOut className="mr-2 size-4" />
                   <span>Lock & Sign Out</span>
@@ -295,11 +295,11 @@ export function AdminShell({
           </div>
         </header>
 
-        {/* Action Sub-Header / Content wrapper */}
+        {/* Content wrapper */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {actions ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-zinc-800/60">
-              <div className="text-xs text-zinc-400 font-medium">QuickPress Operations Console</div>
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-zinc-200">
+              <div className="text-xs text-zinc-500 font-medium">QuickPress Operations Console</div>
               <div className="flex items-center gap-2">{actions}</div>
             </div>
           ) : null}

@@ -37,10 +37,10 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 const TONE_DOT: Record<string, string> = {
-  default: "bg-zinc-500",
-  success: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]",
-  warning: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]",
-  danger: "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.6)]",
+  default: "bg-zinc-400",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  danger: "bg-rose-500",
 };
 
 function DashboardPage() {
@@ -77,15 +77,15 @@ function DashboardPage() {
           <button
             type="button"
             onClick={handleRefresh}
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white active:scale-95"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-50 active:scale-95 shadow-sm"
           >
-            <RefreshCw className={`size-3.5 ${kpis.isFetching ? "animate-spin text-emerald-400" : ""}`} />
+            <RefreshCw className={`size-3.5 ${kpis.isFetching ? "animate-spin text-emerald-600" : ""}`} />
             <span>Refresh</span>
           </button>
           <button
             type="button"
-            onClick={() => toast.success("Exporting snapshot as PDF/CSV...")}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-500 active:scale-95"
+            onClick={() => toast.success("Exporting snapshot as CSV...")}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95"
           >
             <Download className="size-3.5" />
             <span>Export Snapshot</span>
@@ -95,20 +95,20 @@ function DashboardPage() {
     >
       <div className="space-y-6">
         {/* Top Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl border border-zinc-800/80 bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-zinc-950 p-6 sm:p-8 backdrop-blur-xl shadow-xl">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="pointer-events-none absolute -left-16 -bottom-16 size-64 rounded-full bg-amber-500/10 blur-3xl" />
+        <div className="relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 sm:p-8 shadow-[0_4px_25px_rgba(0,0,0,0.03)]">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-emerald-50 blur-3xl" />
+          <div className="pointer-events-none absolute -left-16 -bottom-16 size-64 rounded-full bg-amber-50 blur-3xl" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-3 py-1 text-[11px] font-black text-emerald-400">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-800">
+                <span className="size-1.5 rounded-full bg-emerald-600 animate-ping" />
                 <span>COMMAND CENTER · LIVE GOVERNANCE</span>
               </div>
-              <h2 className="mt-3 text-xl sm:text-2xl font-black text-white tracking-tight">
+              <h2 className="mt-3 text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
                 Welcome back, Super Admin 👋
               </h2>
-              <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-medium">
+              <p className="mt-1 text-xs sm:text-sm text-zinc-500 font-medium">
                 Monitor incoming laundry orders, approve pending partner stores, and track platform revenue.
               </p>
             </div>
@@ -118,35 +118,35 @@ function DashboardPage() {
               <button
                 type="button"
                 onClick={() => navigate({ to: adminRoutes.partners })}
-                className="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 px-4 py-2.5 text-xs font-black text-zinc-200 hover:border-emerald-500/50 hover:bg-zinc-800 transition-all active:scale-95"
+                className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-black text-zinc-800 hover:border-emerald-500 hover:bg-white transition-all active:scale-95 shadow-sm"
               >
-                <Building2 className="size-4 text-emerald-400" />
+                <Building2 className="size-4 text-emerald-600" />
                 <span>Review Partners</span>
-                <ArrowRight className="size-3 text-zinc-500" />
+                <ArrowRight className="size-3 text-zinc-400" />
               </button>
               <button
                 type="button"
                 onClick={() => navigate({ to: adminRoutes.orders })}
-                className="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 px-4 py-2.5 text-xs font-black text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800 transition-all active:scale-95"
+                className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-black text-zinc-800 hover:border-amber-500 hover:bg-white transition-all active:scale-95 shadow-sm"
               >
-                <Clock className="size-4 text-amber-400" />
+                <Clock className="size-4 text-amber-600" />
                 <span>Live Orders</span>
-                <ArrowRight className="size-3 text-zinc-500" />
+                <ArrowRight className="size-3 text-zinc-400" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Realtime Live Dispatch & Alerts Feed */}
+        {/* Realtime Live Dispatch Feed */}
         <AdminLivePanel />
 
         {/* Dynamic Metric Cards */}
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400">
+            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">
               PLATFORM METRICS & GROWTH
             </h3>
-            <span className="text-[11px] font-bold text-zinc-500">Live Database Counters</span>
+            <span className="text-[11px] font-bold text-zinc-400">Live Database Counters</span>
           </div>
           <KpiGrid kpis={kpis.data} loading={kpis.isLoading} />
         </div>
@@ -178,7 +178,7 @@ function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => navigate({ to: adminRoutes.orders })}
-                  className="text-xs font-black text-emerald-400 hover:underline"
+                  className="text-xs font-black text-emerald-700 hover:underline"
                 >
                   View All Orders →
                 </button>
@@ -189,11 +189,11 @@ function DashboardPage() {
                 rows={latestRows}
                 onRowClick={(r) => navigate({ to: adminRoutes.orders })}
                 columns={[
-                  { key: "id", label: "Order ID", render: (r) => <span className="font-mono font-black text-zinc-200">#{r.id}</span> },
-                  { key: "customer", label: "Customer", render: (r) => <span className="font-bold text-white">{r.customer}</span> },
-                  { key: "partner", label: "Store", render: (r) => <span className="text-zinc-300 font-medium">{r.partner}</span> },
+                  { key: "id", label: "Order ID", render: (r) => <span className="font-mono font-bold text-zinc-900">#{r.id}</span> },
+                  { key: "customer", label: "Customer", render: (r) => <span className="font-bold text-zinc-900">{r.customer}</span> },
+                  { key: "partner", label: "Store", render: (r) => <span className="text-zinc-600 font-medium">{r.partner}</span> },
                   { key: "status", label: "Status", render: (r) => <StatusPill value={r.status} /> },
-                  { key: "amount", label: "Total", className: "text-right", render: (r) => <span className="font-black text-emerald-400">{r.amount}</span> },
+                  { key: "amount", label: "Total", className: "text-right", render: (r) => <span className="font-black text-emerald-700">{r.amount}</span> },
                 ]}
               />
             </SectionCard>
@@ -204,15 +204,15 @@ function DashboardPage() {
             title="Audit & Operations Stream"
             description="Realtime platform governance events"
           >
-            <ul className="space-y-3.5">
+            <ul className="space-y-3">
               {(activity.data ?? []).map((item) => (
                 <li
                   key={item.id}
-                  className="flex items-start gap-3 rounded-xl border border-zinc-800/60 bg-zinc-950/40 p-3"
+                  className="flex items-start gap-3 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3"
                 >
                   <span className={`mt-1 size-2 shrink-0 rounded-full ${TONE_DOT[item.tone] || TONE_DOT["default"]}`} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-black text-zinc-200 leading-snug">{item.title}</p>
+                    <p className="text-xs font-bold text-zinc-900 leading-snug">{item.title}</p>
                     <p className="text-[10px] text-zinc-500 font-medium mt-0.5">
                       {item.meta} · {item.time}
                     </p>
@@ -220,7 +220,7 @@ function DashboardPage() {
                 </li>
               ))}
               {activity.isLoading ? (
-                <li className="text-xs text-zinc-500 py-4 text-center">Loading audit stream...</li>
+                <li className="text-xs text-zinc-400 py-4 text-center">Loading audit stream...</li>
               ) : null}
             </ul>
           </SectionCard>
