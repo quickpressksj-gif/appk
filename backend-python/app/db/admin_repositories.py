@@ -1163,19 +1163,7 @@ _SEED_NOTIFICATIONS = [
 ]
 
 ADMIN_SEED: Dict[str, List[Dict[str, Any]]] = {
-    "customers": _SEED_CUSTOMERS,
-    "partner_profiles": _SEED_PARTNERS,
-    "rider_profiles": _SEED_RIDERS,
-    "customer_orders": _SEED_ORDERS,
     "admin_cities": _SEED_CITIES,
     "admin_categories": _SEED_CATEGORIES,
     "admin_services": _SEED_SERVICES,
-    "admin_coupons": _SEED_COUPONS,
-    "admin_staff": _SEED_STAFF,
-    "admin_support_tickets": _SEED_SUPPORT,
-    "admin_settings": _SEED_SETTINGS,
-    "admin_wallet_transactions": _SEED_WALLET_TRANSACTIONS,
-    "admin_payouts": _SEED_PAYOUTS,
-    "admin_wallets": _SEED_WALLETS,
-    "admin_notifications": _SEED_NOTIFICATIONS,
 }

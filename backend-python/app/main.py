@@ -71,12 +71,7 @@ async def lifespan(_: FastAPI):
     await database.ensure_indexes()
     await catalog.ensure_seed()
 
-    # Sprint 5.2: rider profiles, deliveries, wallet and analytics collections.
-    await database.upsert_seed(RIDER_SEED)
-    # Sprint 2.3: editorial service content, cart charges and coupons.
-    # Sprint 2.9 adds the membership plan / benefit catalogue to the same loop.
-    # Sprint 2.11 adds the FAQ category / FAQ content catalogue.
-    # Sprint 2.12 adds service availability, delivery zones and business hours.
+    # Editorial service content, availability zones and business hours
     for seed in (SERVICE_CONTENT_SEED, CART_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
         for name, documents in seed.items():
             collection = database.collection(name)
@@ -86,7 +81,7 @@ async def lifespan(_: FastAPI):
                     {"$set": {k: v for k, v in document.items() if k != "_id"}},
                     upsert=True,
                 )
-    # Sprint 5.2: admin domain seed (idempotent).
+    # Master administrative catalog (cities, categories, master services)
     await database.upsert_seed(ADMIN_SEED)
     yield
     await database.disconnect()
