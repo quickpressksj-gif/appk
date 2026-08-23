@@ -252,13 +252,13 @@ export function PartnerAuthScreen() {
                     type="tel"
                     inputMode="numeric"
                     autoComplete="tel-national"
-                    maxLength={10}
+                    maxLength={11}
                     value={value}
                     onChange={(e) => {
-                      setValue(e.target.value.replace(/\D/g, "").slice(0, 10));
+                      setValue(e.target.value.replace(/\D/g, "").slice(0, 11));
                       if (error) setError(null);
                     }}
-                    placeholder="Enter 10-digit mobile number"
+                    placeholder="Enter mobile number"
                     className="w-full bg-transparent pl-3 text-base font-black tracking-wider text-[#111827] placeholder:text-zinc-400 placeholder:font-medium placeholder:text-xs focus:outline-none"
                   />
                 </div>
@@ -461,13 +461,13 @@ export function PartnerAuthScreen() {
                       type="tel"
                       inputMode="numeric"
                       autoComplete="tel-national"
-                      maxLength={10}
+                      maxLength={11}
                       value={value}
                       onChange={(e) => {
-                        setValue(e.target.value.replace(/\D/g, "").slice(0, 10));
+                        setValue(e.target.value.replace(/\D/g, "").slice(0, 11));
                         if (error) setError(null);
                       }}
-                      placeholder="Enter 10-digit mobile number"
+                      placeholder="Enter mobile number"
                       className="w-full bg-transparent pl-3.5 text-base font-black tracking-wider text-[#111827] placeholder:text-zinc-400 placeholder:font-medium placeholder:text-xs focus:outline-none"
                     />
                   </div>
