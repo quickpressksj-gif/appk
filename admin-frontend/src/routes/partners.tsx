@@ -420,34 +420,44 @@ function PartnerSheet({
           <Tabs defaultValue="profile">
             <TabsList className="w-full bg-zinc-100 p-1 rounded-xl">
               <TabsTrigger value="profile" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Profile
+                Profile & Bank
               </TabsTrigger>
               <TabsTrigger value="kyc" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                KYC Docs
+                KYC & Tax
+              </TabsTrigger>
+              <TabsTrigger value="photos" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                Store Photos
               </TabsTrigger>
               <TabsTrigger value="pricing" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Pricing Matrix
-              </TabsTrigger>
-              <TabsTrigger value="reviews" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                Reviews
+                Rate Card
               </TabsTrigger>
             </TabsList>
 
-            {/* Profile Tab */}
+            {/* Profile & Bank Tab */}
             <TabsContent value="profile" className="pt-4 space-y-4">
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
                 <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
-                  STORE REGISTRATION SPEC
+                  STORE & OWNER PROFILE
                 </h4>
                 <DetailRow label="Store Name" value={partner?.store ?? "—"} />
                 <DetailRow label="Authorized Owner" value={partner?.owner ?? "—"} />
-                <DetailRow label="Phone Contact" value={partner?.phone ?? "—"} />
-                <DetailRow label="GSTIN Tax ID" value={data?.gstin ?? "—"} />
+                <DetailRow label="Contact Phone" value={partner?.phone ?? "—"} />
+                <DetailRow label="Email Address" value={data?.email ?? "—"} />
                 <DetailRow label="Physical Address" value={data?.address ?? "—"} />
-                <DetailRow label="Services Configured" value={partner?.services ?? "—"} />
-                <DetailRow label="Wallet Available Balance" value={<span className="font-black text-emerald-700">{partner?.wallet ?? "₹0"}</span>} />
-                <DetailRow label="KYC Document Status" value={partner ? <StatusPill value={partner.kyc} /> : "—"} />
-                <DetailRow label="Store Account Status" value={partner ? <StatusPill value={partner.status} /> : "—"} />
+                <DetailRow label="Operating City" value={partner?.city ?? "—"} />
+                <DetailRow label="Store Timings" value={data?.openingTime && data?.closingTime ? `${data.openingTime} - ${data.closingTime}` : "08:00 - 21:00"} />
+                <DetailRow label="Weekly Off" value={data?.weeklyOff ?? "None (Open 7 Days)"} />
+                <DetailRow label="Store Status" value={partner ? <StatusPill value={partner.status} /> : "—"} />
+              </div>
+
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
+                  BANK ACCOUNT & PAYOUT SPEC
+                </h4>
+                <DetailRow label="Bank Name" value={data?.bankName ?? "—"} />
+                <DetailRow label="Account Holder" value={data?.accountHolder ?? "—"} />
+                <DetailRow label="Account Number" value={data?.accountNumber ?? "—"} />
+                <DetailRow label="IFSC Code" value={data?.ifsc ?? "—"} />
               </div>
 
               {/* Action Buttons */}
@@ -455,11 +465,11 @@ function PartnerSheet({
                 {partner?.status === "Pending" ? (
                   <>
                     <Button
-                      className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
+                      className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold shadow-sm"
                       onClick={() => onAction(partner.id, "approve")}
                     >
                       <Check className="mr-2 size-4" />
-                      <span>Approve Store</span>
+                      <span>Approve & Verify Store</span>
                     </Button>
                     <Button
                       variant="outline"
@@ -492,8 +502,22 @@ function PartnerSheet({
             </TabsContent>
 
             {/* KYC Tab */}
-            <TabsContent value="kyc" className="pt-4 space-y-3">
+            <TabsContent value="kyc" className="pt-4 space-y-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
+                  TAX IDENTIFIERS & CREDENTIALS
+                </h4>
+                <DetailRow label="PAN Card Number" value={data?.pan ?? "—"} />
+                <DetailRow label="Aadhaar Number" value={data?.aadhaar ?? "—"} />
+                <DetailRow label="GSTIN Tax ID" value={data?.gstin ?? "Not Provided / Exempt"} />
+                <DetailRow label="Industry Experience" value={data?.experience ?? "—"} />
+                <DetailRow label="Verification Status" value={partner ? <StatusPill value={partner.kyc} /> : "—"} />
+              </div>
+
               <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                <div className="bg-zinc-50 px-4 py-2 border-b border-zinc-200">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-zinc-600">Verification Checklist</span>
+                </div>
                 <ul className="divide-y divide-zinc-100">
                   {(data?.documents ?? []).map((doc) => (
                     <li key={doc.name} className="flex items-center justify-between p-3.5 text-xs">
@@ -505,9 +529,45 @@ function PartnerSheet({
                     </li>
                   ))}
                   {(!data?.documents || data.documents.length === 0) && (
-                    <li className="p-6 text-center text-xs text-zinc-400">No documents uploaded yet.</li>
+                    <li className="p-6 text-center text-xs text-zinc-400">No document records found.</li>
                   )}
                 </ul>
+              </div>
+            </TabsContent>
+
+            {/* Photos Tab */}
+            <TabsContent value="photos" className="pt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-zinc-200 p-3 bg-white space-y-2">
+                  <span className="text-xs font-bold text-zinc-700">Store Logo</span>
+                  {data?.logo ? (
+                    <img src={data.logo} alt="Logo" className="h-32 w-full object-cover rounded-xl border border-zinc-100" />
+                  ) : (
+                    <div className="h-32 rounded-xl bg-zinc-100 flex items-center justify-center text-xs text-zinc-400 font-medium">No Logo</div>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-zinc-200 p-3 bg-white space-y-2">
+                  <span className="text-xs font-bold text-zinc-700">Facade Signboard</span>
+                  {data?.banner ? (
+                    <img src={data.banner} alt="Banner" className="h-32 w-full object-cover rounded-xl border border-zinc-100" />
+                  ) : (
+                    <div className="h-32 rounded-xl bg-zinc-100 flex items-center justify-center text-xs text-zinc-400 font-medium">No Banner</div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="block text-xs font-black uppercase tracking-wider text-zinc-700 mb-2">
+                  Store Gallery Photos ({data?.gallery?.length ?? 0})
+                </span>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {(data?.gallery ?? []).map((img, i) => (
+                    <img key={i} src={img} alt={`Gallery ${i + 1}`} className="h-24 w-full object-cover rounded-xl border border-zinc-200" />
+                  ))}
+                  {(!data?.gallery || data.gallery.length === 0) && (
+                    <p className="col-span-3 text-xs text-zinc-400 py-4 text-center">No gallery photos uploaded.</p>
+                  )}
+                </div>
               </div>
             </TabsContent>
 
@@ -522,26 +582,6 @@ function PartnerSheet({
                   { key: "price", label: "Partner Rate", className: "text-right" },
                 ]}
               />
-            </TabsContent>
-
-            {/* Reviews Tab */}
-            <TabsContent value="reviews" className="pt-4 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
-                <ul className="divide-y divide-zinc-100">
-                  {(data?.reviews ?? []).map((review, idx) => (
-                    <li key={idx} className="p-3.5 text-xs">
-                      <div className="flex items-center justify-between font-bold text-zinc-900">
-                        <span>{review.customer}</span>
-                        <span className="text-amber-700">★ {review.rating}</span>
-                      </div>
-                      <p className="mt-1 text-zinc-600 font-medium">{review.note}</p>
-                    </li>
-                  ))}
-                  {(!data?.reviews || data.reviews.length === 0) && (
-                    <li className="p-6 text-center text-xs text-zinc-400">No customer reviews yet.</li>
-                  )}
-                </ul>
-              </div>
             </TabsContent>
           </Tabs>
         </div>
