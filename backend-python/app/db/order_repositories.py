@@ -201,6 +201,12 @@ class OrderRepository:
         charges = await cart_repository.charges()
         totals = compute_totals(items, charges, max(0, payload.couponDiscount))
 
+        # Check live minimum order value rule from admin_settings
+        admin_doc = await database.collection("admin_settings").find_one({"_id": "platform"})
+        min_order = int((admin_doc or {}).get("minimumOrderValue") or (admin_doc or {}).get("min_order_value") or 0)
+        if min_order > 0 and totals.itemsTotal < min_order:
+            raise ValueError(f"Minimum order amount is ₹{min_order}. Your current items total is ₹{totals.itemsTotal}. Please add more items to checkout.")
+
         address = payload.address
         if address is None:
             raise ValueError("Select a pickup address before placing the order")
@@ -217,6 +223,24 @@ class OrderRepository:
         )
         delivery = payload.delivery or delivery_estimate(payload.pickup)
         mode = payload.payment.mode
+
+        # Permanent item price snapshots — historical order numbers never change on future rate updates
+        item_snapshots = []
+        for item in items:
+            svc = await database.find_one("partner_services", {"_id": item.itemId or item.id}) or {}
+            item_snapshots.append(
+                {
+                    "id": item.id,
+                    "partnerServiceId": str(svc.get("_id") or item.itemId or item.id),
+                    "masterServiceId": str(svc.get("masterServiceId") or item.serviceId or ""),
+                    "name": item.name,
+                    "qty": item.qty,
+                    "price": item.price,
+                    "unit": item.unit or "kg",
+                    "subtotal": item.price * item.qty,
+                }
+            )
+
         document: Dict[str, Any] = {
             "_id": f"ord-{code}",
             "userId": user.id,
@@ -232,10 +256,7 @@ class OrderRepository:
             "partnerId": partner.id,
             "rider": None,
             "serviceLabel": payload.serviceLabel or (items[0].name if items else "Laundry"),
-            "items": [
-                OrderLine(id=item.id, name=item.name, qty=item.qty, price=item.price).model_dump()
-                for item in items
-            ],
+            "items": item_snapshots,
             "totals": OrderTotals(
                 itemsTotal=totals.itemsTotal,
                 pickup=totals.pickup,

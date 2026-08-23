@@ -526,14 +526,102 @@ admin_wallet_repository = AdminWalletRepository()
 class AdminSettingsRepository:
     doc_id = "platform"
 
+    default_settings: Dict[str, Any] = {
+        "platformName": "QuickPress Laundry",
+        "supportEmail": "support@quickpress.app",
+        "supportPhone": "+91 90000 00000",
+        "currency": "INR",
+        "currencySymbol": "₹",
+        "defaultCountry": "India",
+        "defaultCity": "Kasganj",
+        "minimumOrderValue": 99,
+        "handlingFee": 15,
+        "deliveryFee": 29,
+        "freeDeliveryAbove": 499,
+        "pickupFee": 0,
+        "gstPercent": 5,
+        "tax_percentage": 5,
+        "platformCommissionRate": 18,
+        "defaultCommission": "18%",
+        "partnerRegistrationEnabled": True,
+        "partnerApprovalRequired": True,
+        "orderAutoCancelMinutes": 15,
+        "partnerAcceptanceTimeoutMinutes": 10,
+        "platform": {
+            "platformName": "QuickPress Laundry",
+            "supportEmail": "support@quickpress.app",
+            "supportPhone": "+91 90000 00000",
+            "defaultCity": "Kasganj",
+            "currency": "INR",
+        },
+        "business": {
+            "legalName": "QuickPress Logistics Pvt Ltd",
+            "gstin": "09AAAAA0000A1Z5",
+            "address": "Express Hub, Kasganj, Uttar Pradesh 207123",
+            "payoutCycle": "Weekly on Monday",
+            "minimumOrderValue": "99",
+            "deliveryFee": "29",
+            "handlingFee": "15",
+        },
+        "integrations": {
+            "paymentGateway": "Razorpay Live / UPI",
+            "paymentKeyId": "rzp_live_qp99",
+            "firebaseProject": "quickpress-app-prod",
+            "googleMapsKey": "AIzaSy_Maps_Live",
+            "smsProvider": "Twilio / Fast2SMS",
+            "smsSenderId": "QKPRES",
+        },
+        "finance": {
+            "gstPercent": "5%",
+            "serviceTax": "0%",
+            "defaultCommission": "18%",
+            "riderCommission": "100% of Delivery Fee + Trip Bonus",
+        },
+    }
+
     async def get(self) -> Dict[str, Any]:
         doc = await database.find_one("admin_settings", {"_id": self.doc_id})
-        return doc or {}
+        if not doc:
+            await database.insert("admin_settings", {"_id": self.doc_id, **self.default_settings})
+            return dict(self.default_settings)
+        return {**self.default_settings, **doc}
 
     async def update(self, changes: Dict[str, Any]) -> Dict[str, Any]:
         current = await self.get()
         merged = {**current, **changes}
         merged.pop("_id", None)
+        # Update top-level flat aliases if nested groups changed
+        if "business" in merged and isinstance(merged["business"], dict):
+            if "minimumOrderValue" in merged["business"]:
+                try:
+                    merged["minimumOrderValue"] = int(merged["business"]["minimumOrderValue"])
+                except Exception:
+                    pass
+            if "deliveryFee" in merged["business"]:
+                try:
+                    merged["deliveryFee"] = int(merged["business"]["deliveryFee"])
+                except Exception:
+                    pass
+            if "handlingFee" in merged["business"]:
+                try:
+                    merged["handlingFee"] = int(merged["business"]["handlingFee"])
+                except Exception:
+                    pass
+        if "finance" in merged and isinstance(merged["finance"], dict):
+            if "gstPercent" in merged["finance"]:
+                try:
+                    clean_gst = str(merged["finance"]["gstPercent"]).replace("%", "").strip()
+                    merged["gstPercent"] = float(clean_gst)
+                    merged["tax_percentage"] = float(clean_gst)
+                except Exception:
+                    pass
+            if "defaultCommission" in merged["finance"]:
+                try:
+                    clean_comm = str(merged["finance"]["defaultCommission"]).replace("%", "").strip()
+                    merged["platformCommissionRate"] = float(clean_comm)
+                except Exception:
+                    pass
+
         await database.update("admin_settings", {"_id": self.doc_id}, merged, upsert=True)
         return await self.get()
 

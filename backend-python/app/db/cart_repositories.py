@@ -77,14 +77,30 @@ class CartRepository:
     # ------------------------------------------------------------------ config
 
     async def charges(self) -> CartChargesResponse:
+        # 1. Check live admin_settings
+        admin_doc = await database.collection("admin_settings").find_one({"_id": "platform"})
         document = await database.collection(SETTINGS_COLLECTION).find_one({"_id": "default"})
         document = document or DEFAULT_CHARGES
+        if admin_doc:
+            delivery = int(admin_doc.get("deliveryFee") or admin_doc.get("default_delivery_fee") or document.get("delivery", 29))
+            handling = int(admin_doc.get("handlingFee") or admin_doc.get("default_handling_fee") or document.get("handling", 15))
+            gst_pct = float(admin_doc.get("gstPercent") or admin_doc.get("tax_percentage") or 5)
+            gst_rate = gst_pct / 100.0 if gst_pct > 1 else gst_pct
+            pickup = int(admin_doc.get("pickupFee") or document.get("pickup", 0))
+            discount = int(admin_doc.get("defaultDiscount") or document.get("discount", 0))
+        else:
+            delivery = int(document.get("delivery") or 29)
+            handling = int(document.get("handling") or 15)
+            gst_rate = float(document.get("gstRate") or 0.05)
+            pickup = int(document.get("pickup") or 0)
+            discount = int(document.get("discount") or 0)
+
         return CartChargesResponse(
-            pickup=int(document.get("pickup") or 0),
-            delivery=int(document.get("delivery") or 0),
-            handling=int(document.get("handling") or 0),
-            gstRate=float(document.get("gstRate") or 0),
-            discount=int(document.get("discount") or 0),
+            pickup=pickup,
+            delivery=delivery,
+            handling=handling,
+            gstRate=gst_rate,
+            discount=discount,
         )
 
     async def coupons(self) -> List[CartCouponResponse]:
@@ -110,7 +126,7 @@ class CartRepository:
         return [_line(d) for d in docs]
 
     async def add_item(self, user_id: str, payload: CartItemPayload) -> CartLineResponse:
-        """POST /api/cart/items — add a line, or bump the quantity when present."""
+        """POST /api/cart/items — add a line, enforcing server-side pricing from MongoDB."""
         item_id = payload.id or payload.itemId or payload.serviceId or ""
         item_id = slugify(item_id) or item_id
         if not item_id:
@@ -124,23 +140,24 @@ class CartRepository:
             return _line({**existing, "qty": qty})
 
         catalog = await self._catalog_defaults(item_id, payload)
+        # Server-side pricing is strictly derived from the database catalog (partner_services or services)
+        verified_price = int(catalog.get("price") if catalog.get("price") is not None else (payload.price or 0))
+        verified_unit = str(catalog.get("unit") or payload.unit or "kg")
+        verified_name = str(catalog.get("name") or payload.name or "Laundry Service")
+
         document = {
             "_id": line_id,
             "userId": user_id,
             "itemId": item_id,
             "serviceId": payload.serviceId or item_id,
             "partnerId": payload.partnerId or catalog.get("partnerId", ""),
-            "name": payload.name or catalog.get("name", "Item"),
+            "name": verified_name,
             "description": payload.description or catalog.get("description", ""),
             "image": payload.image or catalog.get("image", ""),
-            "unit": payload.unit or catalog.get("unit", ""),
-            "price": int(payload.price if payload.price is not None else catalog.get("price", 0)),
-            "discountPercent": int(
-                payload.discountPercent
-                if payload.discountPercent is not None
-                else catalog.get("discountPercent", 0)
-            ),
-            "processingTime": payload.processingTime or catalog.get("processingTime", ""),
+            "unit": verified_unit,
+            "price": verified_price,
+            "discountPercent": int(catalog.get("discountPercent") or 0),
+            "processingTime": payload.processingTime or catalog.get("processingTime", "24 hrs"),
             "qty": max(1, payload.qty),
             "createdAt": await _next_sequence(user_id),
         }

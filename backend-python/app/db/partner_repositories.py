@@ -276,8 +276,6 @@ class PartnerServiceRepository:
         if existing is None:
             existing = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
         if existing is None:
-            existing = await database.find_one(SERVICES, {"_id": service_id})
-        if existing is None:
             raise PartnerNotFoundError("Service not found or you do not have permission to edit it")
 
         target_id = existing["_id"]
@@ -297,8 +295,6 @@ class PartnerServiceRepository:
         existing = await database.find_one(SERVICES, {"_id": service_id, "partnerId": partner_id})
         if existing is None:
             existing = await database.find_one(SERVICES, {"id": service_id, "partnerId": partner_id})
-        if existing is None:
-            existing = await database.find_one(SERVICES, {"_id": service_id})
         if existing is None:
             raise PartnerNotFoundError("Service not found or you do not have permission to delete it")
         await database.delete_one(SERVICES, {"_id": existing["_id"]})
@@ -322,10 +318,7 @@ def _timeline(events: Dict[str, str]) -> List[Dict[str, Any]]:
 class PartnerOrderRepository:
     """The partner's view of the ONE canonical order (customer_orders).
 
-    Nothing here owns an order: every read is a projection of the canonical
-    document and every write goes through the shared lifecycle service, so the
-    customer, rider and admin apps see the change immediately, under the same
-    canonical orderId.
+    Strict tenant isolation: queries strictly for orders belonging to partner_id.
     """
 
     async def _orders_for(self, partner_id: str) -> List[Dict[str, Any]]:
@@ -333,18 +326,6 @@ class PartnerOrderRepository:
             lifecycle.ORDERS,
             {"$or": [{"partner.id": partner_id}, {"partner_id": partner_id}, {"partnerId": partner_id}]},
         )
-        if not docs:
-            docs = [
-                d
-                for d in await database.find_many(lifecycle.ORDERS, {})
-                if (d.get("partner") or {}).get("id") == partner_id
-                or d.get("partner_id") == partner_id
-                or d.get("partnerId") == partner_id
-            ]
-        if not docs:
-            all_orders = await database.find_many(lifecycle.ORDERS, {})
-            if all_orders:
-                docs = all_orders
         docs.sort(key=lambda d: d.get("createdAt") or d.get("placedAt") or "", reverse=True)
         return docs
 

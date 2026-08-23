@@ -10,15 +10,37 @@ from pydantic import BaseModel, Field
 
 
 class Role(str, Enum):
-    customer = "customer"
+    super_admin = "super_admin"
+    admin = "admin"
+    operations = "operations"
+    finance = "finance"
+    support = "support"
+    verification = "verification"
     partner = "partner"
     rider = "rider"
-    admin = "admin"
+    customer = "customer"
 
 
 class UserStatus(str, Enum):
+    draft = "draft"
     pending = "pending"
+    under_review = "under_review"
+    kyc_pending = "kyc_pending"
+    approved = "approved"
     active = "active"
+    rejected = "rejected"
+    suspended = "suspended"
+    blocked = "blocked"
+
+
+class PartnerStatus(str, Enum):
+    draft = "draft"
+    pending = "pending"
+    under_review = "under_review"
+    kyc_pending = "kyc_pending"
+    approved = "approved"
+    active = "active"
+    rejected = "rejected"
     suspended = "suspended"
     blocked = "blocked"
 
@@ -79,4 +101,9 @@ ROLE_COLLECTIONS: Dict[Role, str] = {
     Role.partner: "partners",
     Role.rider: "riders",
     Role.admin: "admins",
+    Role.super_admin: "admins",
+    Role.operations: "admins",
+    Role.finance: "admins",
+    Role.support: "admins",
+    Role.verification: "admins",
 }
