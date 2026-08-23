@@ -86,12 +86,8 @@ async def lifespan(_: FastAPI):
                     {"$set": {k: v for k, v in document.items() if k != "_id"}},
                     upsert=True,
                 )
-    # Sprint 5.2: partner domain seed (idempotent).
-    await database.upsert_seed(PARTNER_SEED)
     # Sprint 5.2: admin domain seed (idempotent).
     await database.upsert_seed(ADMIN_SEED)
-    # P0: one partner identity — catalog partner ids ARE partner profile ids.
-    await align_partner_identities()
     yield
     await database.disconnect()
 

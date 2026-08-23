@@ -140,7 +140,7 @@ async def admin_pin_login(payload: dict) -> AuthSessionResponse:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect Admin Passcode (PIN). Access denied.",
         )
-    admin_user = await users.by_email("admin@quickpress.online", Role.admin)
+    admin_user = await users.by_phone("+910000004502", Role.admin)
     if admin_user is None:
         admin_user = await users.create_phone_user(phone="+910000004502", role=Role.admin)
         await users.update(

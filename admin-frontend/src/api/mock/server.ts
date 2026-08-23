@@ -2575,6 +2575,31 @@ const routes: Array<[string, string, Handler]> = [
     },
   ],
   ["GET", "/api/rider/auth/existing-numbers", () => getDb().riders.map((rider) => rider.phone)],
+  [
+    "POST",
+    "/api/auth/admin/pin",
+    ({ body }: any) => {
+      const pin = String(body?.pin || "").trim();
+      if (pin !== "4502") {
+        throw new ApiError("unauthorized", "Incorrect Admin Passcode (PIN). Access denied.", 401);
+      }
+      return {
+        token: "mock-admin-jwt-token-4502",
+        refreshToken: "mock-admin-refresh-token-4502",
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        account: {
+          id: "admin-root",
+          role: "admin",
+          name: "QuickPress Super Admin",
+          email: "admin@quickpress.online",
+          phone: "+910000004502",
+          status: "active",
+          isVerified: true,
+          isOnboarded: true,
+        },
+      };
+    },
+  ],
 ];
 
 function match(
