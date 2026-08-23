@@ -338,7 +338,11 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       completed: 0,
       cancelled: 0,
     };
-    for (const order of orders) base[order.stage] += 1;
+    for (const order of orders) {
+      if (order && order.stage) {
+        base[order.stage] = (base[order.stage] || 0) + 1;
+      }
+    }
     return base;
   }, [orders]);
 
