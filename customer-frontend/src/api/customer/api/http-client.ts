@@ -8,7 +8,7 @@
  * no data.
  */
 
-import { apiGetJson, type QueryParams as TransportQueryParams } from "../../core/transport";
+import { apiGetJson, apiPostJson, type QueryParams as TransportQueryParams } from "../../core/transport";
 import { ApiError } from "../../core/errors";
 
 export { ApiError };
@@ -25,6 +25,19 @@ export type RequestOptions = {
 
 export async function apiGet<T>(path: string, options: RequestOptions = {}): Promise<T> {
   return apiGetJson<T>(path, {
+    params: options.params,
+    signal: options.signal,
+    headers: options.headers,
+    timeoutMs: options.timeoutMs,
+  });
+}
+
+export async function apiPost<T>(
+  path: string,
+  body?: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  return apiPostJson<T>(path, body, {
     params: options.params,
     signal: options.signal,
     headers: options.headers,

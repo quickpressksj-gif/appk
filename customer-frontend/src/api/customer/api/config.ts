@@ -73,6 +73,8 @@ export const API_ENDPOINTS = {
   recentOrders: "/api/orders/recent",
   unreadNotifications: "/api/notifications/unread-count",
   search: "/api/search",
+  checkLocationAvailability: "/api/customer/availability/check-location",
+  customerWaitlist: "/api/customer/waitlist",
 } as const;
 
 export type ApiEndpoint = (typeof API_ENDPOINTS)[keyof typeof API_ENDPOINTS];

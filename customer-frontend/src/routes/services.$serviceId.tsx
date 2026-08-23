@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ServicesUnavailableView } from "@/components/common/ServicesUnavailableView";
 import { PartnerCard } from "@/components/service/PartnerCard";
 import { ServiceFilters } from "@/components/service/ServiceFilters";
 import { ServiceListingSkeleton } from "@/components/service/ServiceListingSkeleton";
@@ -190,7 +191,12 @@ function ServiceListingScreen() {
                 <p className="pb-2 text-[11px] text-muted-foreground">Updating results…</p>
               ) : null}
 
-              {partners.length === 0 ? (
+              {data.partners.length === 0 ? (
+                <ServicesUnavailableView
+                  onRetry={() => void load()}
+                  isRetrying={refreshing}
+                />
+              ) : partners.length === 0 ? (
                 <EmptyState
                   icon={Store}
                   title="No partners match these filters"

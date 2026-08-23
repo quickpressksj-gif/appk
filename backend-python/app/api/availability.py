@@ -12,7 +12,8 @@ banner, the service card and the reorder sheet share one renderer.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ from pydantic import BaseModel
 from app.core.deps import current_user
 from app.db.client import database
 from app.db.availability_repositories import availability_repository
+from app.db.catalog_repositories import catalog
 from app.db.order_repositories import order_repository
 from app.db.reorder_repositories import reorder_repository
 from app.models.availability import (
@@ -30,6 +32,111 @@ from app.models.availability import (
 from app.models.user import User
 
 router = APIRouter(tags=["availability"])
+
+
+class WaitlistPayload(BaseModel):
+    area: str = ""
+    city: str = ""
+    state: str = ""
+    pincode: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
+@router.post("/customer/waitlist")
+async def register_waitlist(payload: WaitlistPayload):
+    """Save real customer waitlist notification request."""
+    entry = {
+        "area": payload.area.strip(),
+        "city": payload.city.strip(),
+        "state": payload.state.strip(),
+        "pincode": payload.pincode.strip(),
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+        "phone": (payload.phone or "").strip(),
+        "email": (payload.email or "").strip(),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "status": "pending",
+    }
+    result = await database.insert("service_waitlist", entry)
+    return {
+        "ok": True,
+        "message": f"We will notify you as soon as QuickPress is available in {payload.area or payload.city or 'your area'}!",
+        "id": str(result.get("_id") or result.get("id") or "saved"),
+    }
+
+
+@router.get("/customer/availability/check-location")
+async def check_location_availability(
+    city: Optional[str] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    pincode: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
+):
+    """Strictly evaluates real partner & service availability for a given customer location."""
+    clean_city = (city or "").strip()
+    clean_area = (area or "").strip()
+
+    partners = await catalog.partners(
+        city=clean_city if clean_city else None,
+        area=clean_area if clean_area else None,
+        lat=lat,
+        lng=lng,
+        limit=20,
+    )
+
+    if clean_city:
+        matched_partners = [
+            p
+            for p in partners
+            if clean_city.lower() in p.city.lower()
+            or clean_city.lower() in p.area.lower()
+            or (clean_area and clean_area.lower() in p.area.lower())
+        ]
+        if not matched_partners and clean_area:
+            matched_partners = [p for p in partners if clean_area.lower() in p.area.lower()]
+    else:
+        matched_partners = partners
+
+    # Real nearby serviceable areas from active partners & zones
+    all_active_profiles = await catalog._approved_partner_profiles()
+    serviceable_areas_set = set()
+    for p in all_active_profiles:
+        c = p.get("city")
+        if c:
+            serviceable_areas_set.add(c.strip())
+        a = p.get("area")
+        if a:
+            serviceable_areas_set.add(a.strip())
+
+    zones = await availability_repository.service_areas()
+    for z in zones:
+        if z.city:
+            serviceable_areas_set.add(z.city.strip())
+        if z.area:
+            serviceable_areas_set.add(z.area.strip())
+
+    nearby_areas = sorted(list(serviceable_areas_set))[:8]
+    is_available = len(matched_partners) > 0
+
+    return {
+        "success": True,
+        "available": is_available,
+        "partnerCount": len(matched_partners),
+        "partners": matched_partners if is_available else [],
+        "nearbyAreas": nearby_areas,
+        "location": {
+            "area": clean_area,
+            "city": clean_city,
+            "state": "Uttar Pradesh",
+            "pincode": pincode or "",
+            "lat": lat,
+            "lng": lng,
+        },
+    }
 
 
 class AvailabilityCheckPayload(BaseModel):

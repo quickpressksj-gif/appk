@@ -33,7 +33,9 @@ import { onNotificationsChanged } from "@/api/customer/notifications-api";
 import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { BottomNav } from "@/components/home/BottomNav";
 import { HomeSkeleton } from "@/components/home/HomeSkeleton";
+import { ServicesUnavailableView } from "@/components/common/ServicesUnavailableView";
 import { useHomeData } from "@/hooks/useHomeData";
+import { checkLocationAvailability } from "@/api/customer/services/partner-service";
 import {
   readRecentSearches,
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
@@ -99,10 +101,12 @@ function HomeScreen() {
     failed,
     refresh,
     retry,
+    setLocation,
   } = useHomeData();
   const [pull, setPull] = useState(0);
   const pullStart = useRef<number | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [nearbyAreas, setNearbyAreas] = useState<string[]>([]);
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
@@ -115,6 +119,25 @@ function HomeScreen() {
   const popular = sections.popular.data ?? [];
   const offers = sections.offers.data ?? [];
   const recentOrders = sections.recentOrders.data ?? [];
+
+  useEffect(() => {
+    if (!location) return;
+    let alive = true;
+    checkLocationAvailability(location)
+      .then((res) => {
+        if (alive && res.nearbyAreas) {
+          setNearbyAreas(res.nearbyAreas);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [location?.city, location?.area]);
+
+  const isPartnersLoading = sections.partners.loading;
+  const isServicesUnavailable =
+    !isPartnersLoading && partners.length === 0 && !sections.partners.error;
   
   // Header badge stays live: the notifications screen broadcasts every
   // read/delete so the count updates without a home refetch.
@@ -270,8 +293,25 @@ function HomeScreen() {
               </div>
             </header>
 
-            {/* Search */}
-            <section className="mt-6">
+            {isServicesUnavailable ? (
+              <ServicesUnavailableView
+                location={location}
+                nearbyAreas={nearbyAreas}
+                onRetry={handleRefresh}
+                isRetrying={refreshing}
+                onSelectArea={(area) => {
+                  const chosen: SavedLocation = {
+                    area,
+                    city: area.includes("Kasganj") ? "Kasganj" : area,
+                    state: "Uttar Pradesh",
+                  };
+                  setLocation(chosen);
+                }}
+              />
+            ) : (
+              <>
+                {/* Search */}
+                <section className="mt-6">
               <button
                 type="button"
                 onClick={() => void navigate({ to: "/search", search: { q: "", scope: "all" } })}
@@ -664,12 +704,13 @@ function HomeScreen() {
                 Made In India · Crafted by Utter Pradesh 🚩
               </p>
             </section>
-
-          </div>
+          </>
         )}
       </div>
+    )}
+  </div>
 
-      <FloatingCartBar />
+  <FloatingCartBar />
       <BottomNav active="home" />
     </main>
   );
