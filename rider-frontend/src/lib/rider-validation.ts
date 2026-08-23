@@ -26,8 +26,10 @@ export function validateName(value: string): string | null {
 }
 
 export function validateMobile(value: string): string | null {
-  if (!value) return "Mobile number is required";
-  return PATTERNS.mobile.test(value) ? null : "Enter a valid 10-digit Indian mobile number";
+  const digits = value.replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (!last10) return "Mobile number is required";
+  return PATTERNS.mobile.test(last10) ? null : "Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)";
 }
 
 export function validateEmail(value: string, optional = false): string | null {

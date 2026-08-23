@@ -28,12 +28,22 @@ function toRiderSession(session: AuthSession): RiderSession {
   };
 }
 
+function toE164(phone: string): string {
+  const cleaned = phone.trim();
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (!cleaned.startsWith("+") && digits) return `+${digits}`;
+  return cleaned;
+}
+
 export async function requestOtp(phone: string) {
-  return sendPhoneOtp(phone, ROLE);
+  const e164 = toE164(phone);
+  return sendPhoneOtp(e164, ROLE);
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<RiderSession> {
-  return toRiderSession(await verifyPhoneOtp(phone, code, ROLE));
+  const e164 = toE164(phone);
+  return toRiderSession(await verifyPhoneOtp(e164, code, ROLE));
 }
 
 export async function loginWithGoogle(): Promise<RiderSession> {

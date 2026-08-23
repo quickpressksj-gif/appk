@@ -1,10 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, MessageSquareLock, RotateCcw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, MessageSquareLock, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
-import { RiderTopBar } from "../components/RiderTopBar";
 import { useRiderContext } from "../context/RiderContext";
 import { useOtpCountdown } from "../hooks/use-otp-countdown";
 import { requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
@@ -44,31 +43,29 @@ export function RiderOtpScreen() {
       return;
     }
     setBusy(true);
-    // POST /api/auth/phone/verify — Firebase ID token → QuickPress JWT pair.
-    let session;
+
     try {
-      session = await verifyOtp(targetPhone || "9876543210", digits);
+      const session = await verifyOtp(targetPhone || "9876543210", digits);
+      signIn(session);
+
+      if (!session.isOnboarded) {
+        toast.success("Mobile number verified! Please complete registration.");
+        navigate({ to: riderRoutes.registration });
+      } else if (!session.isVerified) {
+        toast.success("Mobile number verified!");
+        navigate({ to: riderRoutes.registrationSubmitted });
+      } else {
+        toast.success(`Welcome back, ${session.fullName}!`);
+        navigate({ to: riderRoutes.dashboard });
+      }
     } catch (cause) {
-      setBusy(false);
       setDigits("");
       inputRef.current?.focus();
       toast.error(
         cause instanceof Error ? cause.message : "That OTP is incorrect. Please try again.",
       );
-      return;
-    }
-    setBusy(false);
-    signIn(session);
-
-    if (!session.isOnboarded) {
-      toast.success("Mobile number verified! Please complete registration.");
-      navigate({ to: riderRoutes.registration });
-    } else if (!session.isVerified) {
-      toast.success("Mobile number verified!");
-      navigate({ to: riderRoutes.registrationSubmitted });
-    } else {
-      toast.success(`Welcome back, ${session.fullName}!`);
-      navigate({ to: riderRoutes.dashboard });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -82,87 +79,124 @@ export function RiderOtpScreen() {
   const handleResend = async () => {
     try {
       await requestOtp(targetPhone);
+      restart();
+      setDigits("");
+      inputRef.current?.focus();
+      toast.success("OTP sent again to your mobile number");
     } catch (cause) {
       toast.error(
-        cause instanceof Error ? cause.message : "Could not resend the OTP. Please try again.",
+        cause instanceof Error ? cause.message : "Could not resend OTP. Please try again.",
       );
-      return;
     }
-    restart();
-    setDigits("");
-    inputRef.current?.focus();
-    toast.success("OTP sent again to your mobile number");
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
+    <main className="relative min-h-screen bg-slate-50/50 text-slate-900">
+      <div className="pointer-events-none absolute -top-24 left-1/2 size-96 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
 
-      <div className="relative mx-auto w-full max-w-md">
-        <RiderTopBar title="Verify Mobile" onBack={() => navigate({ to: riderRoutes.auth })} />
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-4 pb-8 pt-6">
+        {/* Header */}
+        <header className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate({ to: riderRoutes.auth })}
+            className="flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.95]"
+          >
+            <ArrowLeft className="size-4.5" />
+          </button>
+          <span className="text-xs font-black text-slate-900">Verification</span>
+          <div className="size-9" />
+        </header>
 
-        <div className="px-5 pb-32 pt-6">
-          <span className="flex size-14 items-center justify-center rounded-3xl bg-primary/15 text-brand-dark">
-            <MessageSquareLock className="size-6" strokeWidth={2.2} />
-          </span>
-          <h1 className="mt-4 text-2xl font-black leading-tight tracking-tight text-foreground">
-            Enter the 6-digit code
-          </h1>
-          <p className="mt-1 text-sm font-medium text-muted-foreground">
-            Sent to {displayPhone()}
-          </p>
+        {/* OTP Input Card */}
+        <div className="my-auto py-6">
+          <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-lg">
+            <span className="flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 shadow-sm">
+              <MessageSquareLock className="size-6" strokeWidth={2.2} />
+            </span>
+            <h1 className="mt-3.5 text-xl font-black tracking-tight text-slate-900">
+              Enter 6-Digit OTP
+            </h1>
+            <p className="mt-1 text-xs text-slate-500">
+              We have sent a verification code to{" "}
+              <span className="font-bold text-slate-900">{displayPhone()}</span>
+            </p>
 
-          <div className="mt-7">
-            <div className="relative">
-              <input
-                ref={inputRef}
-                aria-label="OTP code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={digits}
-                onChange={(e) => setDigits(e.target.value.replace(/\D/g, ""))}
-                className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent text-transparent caret-transparent outline-none"
-              />
-              <div className="flex items-center justify-between gap-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`flex h-14 flex-1 items-center justify-center rounded-2xl border bg-card text-lg font-black tracking-tight text-foreground shadow-soft transition-all duration-300 ${
-                      digits.length === i
-                        ? "border-primary ring-2 ring-primary/20"
-                        : digits[i]
-                          ? "border-brand-green/60 bg-secondary/5 text-brand-green"
-                          : "border-border"
-                    }`}
-                  >
-                    {digits[i] ?? ""}
-                  </div>
-                ))}
+            {/* OTP Digits Grid */}
+            <div className="mt-5">
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  aria-label="OTP code"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={digits}
+                  onChange={(e) => setDigits(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent text-transparent caret-transparent outline-none"
+                />
+                <div className="grid grid-cols-6 gap-2">
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const isCurrent = digits.length === i;
+                    const isFilled = Boolean(digits[i]);
+                    return (
+                      <div
+                        key={i}
+                        className={`flex h-13 sm:h-14 items-center justify-center rounded-xl border text-xl font-black tracking-tight shadow-sm transition-all duration-200 ${
+                          isCurrent
+                            ? "border-slate-900 bg-slate-50 ring-2 ring-slate-900/15"
+                            : isFilled
+                              ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 font-black"
+                              : "border-slate-200 bg-slate-50/50 text-slate-900"
+                        }`}
+                      >
+                        {digits[i] ?? ""}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Verify CTA */}
+              <button
+                type="button"
+                disabled={busy || digits.length !== 6}
+                onClick={() => void handleVerify()}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-3.5 text-xs font-black tracking-tight text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+                Verify &amp; Proceed
+              </button>
+
+              {/* Resend Action */}
+              <div className="mt-4 flex items-center justify-between pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: riderRoutes.auth })}
+                  className="text-[11px] font-bold text-slate-500 hover:text-slate-900"
+                >
+                  Change mobile number
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!canResend}
+                  onClick={() => void handleResend()}
+                  className="flex items-center gap-1 text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="size-3" />
+                  {canResend ? "Resend OTP" : `Resend in ${remaining}s`}
+                </button>
               </div>
             </div>
-
-            <button
-              type="button"
-              disabled={busy || digits.length !== 6}
-              onClick={() => void handleVerify()}
-              className="ripple mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-              Verify & Continue
-            </button>
-
-            <button
-              type="button"
-              disabled={!canResend}
-              onClick={() => void handleResend()}
-              className="mt-4 flex w-full items-center justify-center gap-1.5 text-xs font-bold tracking-tight text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
-            >
-              <RotateCcw className="size-3.5" />
-              {canResend ? "Resend OTP" : `Resend in ${remaining}s`}
-            </button>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="text-center text-[10px] text-slate-400">
+          Need help? Contact QuickPress Rider Support: 1800-QUICKPRESS
+        </footer>
       </div>
       <Toaster />
     </main>
