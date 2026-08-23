@@ -30,6 +30,10 @@ export type LocationAvailabilityResult = {
 };
 
 export function fetchNearbyPartners(query: NearbyPartnerQuery = {}) {
+  const cityKey = query.location?.city ? query.location.city.trim().toLowerCase() : "none";
+  const areaKey = query.location?.area ? query.location.area.trim().toLowerCase() : "none";
+  const cacheKey = `${CACHE_KEYS.partners}:${cityKey}:${areaKey}`;
+
   return resolveResource<Partner[]>({
     forceRefresh: query.forceRefresh,
     request: () =>
@@ -43,9 +47,9 @@ export function fetchNearbyPartners(query: NearbyPartnerQuery = {}) {
           limit: query.limit ?? 10,
         },
       }),
-    readCache: () => readCache<Partner[]>(CACHE_KEYS.partners),
-    readStaleCache: () => readStaleCache<Partner[]>(CACHE_KEYS.partners),
-    writeCache: (value) => writeCache(CACHE_KEYS.partners, value),
+    readCache: () => readCache<Partner[]>(cacheKey as any),
+    readStaleCache: () => readStaleCache<Partner[]>(cacheKey as any),
+    writeCache: (value) => writeCache(cacheKey as any, value),
   });
 }
 

@@ -105,8 +105,11 @@ function HomeScreen() {
   } = useHomeData();
   const [pull, setPull] = useState(0);
   const pullStart = useRef<number | null>(null);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [nearbyAreas, setNearbyAreas] = useState<string[]>([]);
+  const [availability, setAvailability] = useState<{
+    available: boolean;
+    nearbyAreas: string[];
+  } | null>(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(true);
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
@@ -121,23 +124,37 @@ function HomeScreen() {
   const recentOrders = sections.recentOrders.data ?? [];
 
   useEffect(() => {
-    if (!location) return;
+    if (!location) {
+      setIsCheckingAvailability(false);
+      return;
+    }
     let alive = true;
+    setIsCheckingAvailability(true);
     checkLocationAvailability(location)
       .then((res) => {
-        if (alive && res.nearbyAreas) {
-          setNearbyAreas(res.nearbyAreas);
+        if (alive) {
+          setAvailability({
+            available: Boolean(res.available),
+            nearbyAreas: res.nearbyAreas || [],
+          });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setAvailability(null);
+      })
+      .finally(() => {
+        if (alive) setIsCheckingAvailability(false);
+      });
     return () => {
       alive = false;
     };
-  }, [location?.city, location?.area]);
+  }, [location?.city, location?.area, location?.latitude, location?.longitude]);
 
-  const isPartnersLoading = sections.partners.loading;
+  const nearbyAreas = availability?.nearbyAreas ?? [];
+  const isPartnersLoading = sections.partners.loading || isCheckingAvailability;
   const isServicesUnavailable =
-    !isPartnersLoading && partners.length === 0 && !sections.partners.error;
+    availability?.available === false ||
+    (!isPartnersLoading && partners.length === 0 && !sections.partners.error);
   
   // Header badge stays live: the notifications screen broadcasts every
   // read/delete so the count updates without a home refetch.
