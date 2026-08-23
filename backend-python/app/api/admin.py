@@ -304,12 +304,71 @@ async def update_city(city_id: str, payload: CityPayload, user: User = Depends(c
     return city
 
 
-@router.get("/cities/{city_id}/areas")
-async def city_areas(city_id: str, user: User = Depends(current_user)):
-    areas = await area_repository.areas_for_city(city_id)
-    if areas is None:
+@router.patch("/cities/{city_id}/status")
+async def toggle_city_status(city_id: str, payload: dict, user: User = Depends(current_user)):
+    new_status = payload.get("status", "Live")
+    city = await city_repository.update(city_id, {"status": new_status})
+    if city is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
-    return areas
+    await audit_repository.log(await _actor(user), f"city.status_{new_status.lower()}", city_id)
+    return city
+
+
+@router.get("/areas")
+async def list_areas(city_id: Optional[str] = Query(default=None, alias="cityId"), user: User = Depends(current_user)):
+    return await area_repository.list(city_id=city_id)
+
+
+@router.post("/areas", status_code=status.HTTP_201_CREATED)
+async def create_area(payload: dict, user: User = Depends(current_user)):
+    area = await area_repository.create(payload)
+    await audit_repository.log(await _actor(user), "area.create", area["_id"])
+    return area
+
+
+@router.put("/areas/{area_id}")
+async def update_area(area_id: str, payload: dict, user: User = Depends(current_user)):
+    area = await area_repository.update(area_id, payload)
+    if area is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Area not found")
+    await audit_repository.log(await _actor(user), "area.update", area_id)
+    return area
+
+
+@router.delete("/areas/{area_id}")
+async def delete_area(area_id: str, user: User = Depends(current_user)):
+    removed = await area_repository.delete(area_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Area not found")
+    await audit_repository.log(await _actor(user), "area.delete", area_id)
+    return {"ok": True}
+
+
+@router.get("/states")
+async def list_states(user: User = Depends(current_user)):
+    cities = await city_repository.list()
+    state_map: dict = {}
+    for c in cities:
+        s_name = c.get("state", "Uttar Pradesh")
+        entry = state_map.setdefault(s_name, {
+            "state": s_name,
+            "citiesCount": 0,
+            "partners": 0,
+            "riders": 0,
+            "customers": 0,
+            "orders": 0,
+            "sales": 0,
+            "liveCities": 0,
+        })
+        entry["citiesCount"] += 1
+        entry["partners"] += c.get("partners", 0)
+        entry["riders"] += c.get("riders", 0)
+        entry["customers"] += c.get("customers", 0)
+        entry["orders"] += c.get("orders", 0)
+        entry["sales"] += c.get("sales", 0)
+        if c.get("status") == "Live":
+            entry["liveCities"] += 1
+    return list(state_map.values())
 
 
 # ------------------------------------------------------------------- services

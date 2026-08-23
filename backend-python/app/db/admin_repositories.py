@@ -572,7 +572,161 @@ class SimpleCrudRepository:
 
 coupon_repository = SimpleCrudRepository("admin_coupons", "C")
 staff_repository = SimpleCrudRepository("admin_staff", "ST")
-city_repository = SimpleCrudRepository("admin_cities", "CI")
+class AdminCityRepository:
+    collection = "admin_cities"
+
+    async def list(self) -> List[Dict[str, Any]]:
+        cities = await database.find_sorted(self.collection, sort=[("city", 1)])
+        partners = await database.find_many("partner_profiles")
+        riders = await database.find_many("rider_profiles")
+        customers = await database.find_many("customers")
+        orders = await database.find_many("customer_orders")
+        today_prefix = now_iso()[:10]
+
+        result = []
+        for c in cities:
+            c_name = str(c.get("city", "")).strip().lower()
+
+            # City matched partners
+            city_partners = [
+                p
+                for p in partners
+                if str(p.get("city", "")).strip().lower() == c_name
+                or c_name in str(p.get("city", "")).strip().lower()
+            ]
+            active_partners = [p for p in city_partners if p.get("status") == "active"]
+
+            # City matched riders
+            city_riders = [
+                r
+                for r in riders
+                if str(r.get("city", "")).strip().lower() == c_name
+                or c_name in str(r.get("city", "")).strip().lower()
+            ]
+            online_riders = [r for r in city_riders if r.get("isOnline", False)]
+
+            # City matched customers
+            city_customers = [
+                cust
+                for cust in customers
+                if str(cust.get("city", "")).strip().lower() == c_name
+                or c_name in str(cust.get("city", "")).strip().lower()
+            ]
+
+            # City matched orders
+            city_orders = [
+                o
+                for o in orders
+                if str((o.get("address") or {}).get("city") or (o.get("partner") or {}).get("city") or "")
+                .strip()
+                .lower()
+                == c_name
+                or c_name
+                in str((o.get("address") or {}).get("city") or (o.get("partner") or {}).get("city") or "")
+                .strip()
+                .lower()
+            ]
+            today_orders = [
+                o for o in city_orders if (o.get("createdAt") or o.get("placedAt") or "")[:10] == today_prefix
+            ]
+            delivered_orders = [o for o in city_orders if o.get("status") == "delivered"]
+
+            # Financials
+            gross_sales = sum((o.get("totals") or {}).get("grandTotal", 0) for o in city_orders)
+            platform_commission = round(gross_sales * 0.18)
+            partner_net = gross_sales - platform_commission
+
+            result.append(
+                {
+                    "_id": c["_id"],
+                    "id": c["_id"],
+                    "city": c.get("city", ""),
+                    "state": c.get("state", "Uttar Pradesh"),
+                    "country": c.get("country", "India"),
+                    "areas": int(c.get("areas") or 0),
+                    "partners": len(city_partners),
+                    "activePartners": len(active_partners),
+                    "riders": len(city_riders),
+                    "onlineRiders": len(online_riders),
+                    "customers": len(city_customers),
+                    "orders": len(city_orders),
+                    "todayOrders": len(today_orders),
+                    "sales": gross_sales,
+                    "revenue": gross_sales,
+                    "platformEarnings": platform_commission,
+                    "partnerEarnings": partner_net,
+                    "pickupRadius": c.get("pickupRadius", "8 km"),
+                    "status": c.get("status", "Live"),
+                }
+            )
+        return result
+
+    async def get(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        return await database.find_one(self.collection, {"_id": entity_id})
+
+    async def create(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        document = {"_id": new_id("CI"), "country": "India", **document}
+        return await database.insert(self.collection, document)
+
+    async def update(self, entity_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        existing = await self.get(entity_id)
+        if existing is None:
+            return None
+        changes = {k: v for k, v in changes.items() if v is not None}
+        return await database.update(self.collection, {"_id": entity_id}, changes)
+
+    async def delete(self, entity_id: str) -> bool:
+        removed = await database.delete_one(self.collection, {"_id": entity_id})
+        return bool(removed)
+
+
+city_repository = AdminCityRepository()
+
+
+class AdminAreaRepository:
+    collection = "admin_areas"
+
+    async def list(self, city_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        query = {"cityId": city_id} if city_id else {}
+        areas = await database.find_sorted(self.collection, query, sort=[("city", 1), ("area", 1)])
+        if not areas:
+            cities = await database.find_many("admin_cities")
+            fallback = []
+            for c in cities:
+                cid = c["_id"]
+                c_name = c.get("city", "")
+                s_name = c.get("state", "Uttar Pradesh")
+                count = int(c.get("areas") or 2)
+                for i in range(count):
+                    fallback.append(
+                        {
+                            "_id": f"{cid}-area-{i + 1}",
+                            "id": f"{cid}-area-{i + 1}",
+                            "area": f"{c_name} Zone {i + 1}",
+                            "city": c_name,
+                            "cityId": cid,
+                            "state": s_name,
+                            "pincode": f"207{120 + i}",
+                            "zone": f"Delivery Hub {i + 1}",
+                            "status": "Live",
+                        }
+                    )
+            return fallback
+        return areas
+
+    async def create(self, document: Dict[str, Any]) -> Dict[str, Any]:
+        document = {"_id": new_id("AR"), "status": "Live", **document}
+        return await database.insert(self.collection, document)
+
+    async def update(self, area_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        changes = {k: v for k, v in changes.items() if v is not None}
+        return await database.update(self.collection, {"_id": area_id}, changes)
+
+    async def delete(self, area_id: str) -> bool:
+        return bool(await database.delete_one(self.collection, {"_id": area_id}))
+
+
+area_repository = AdminAreaRepository()
 service_repository = SimpleCrudRepository("admin_services", "s")
 
 
@@ -858,9 +1012,15 @@ _SEED_ORDERS = [
 ]
 
 _SEED_CITIES = [
-    {"_id": "CI-1", "city": "Mumbai", "state": "Maharashtra", "areas": 18, "partners": 2, "riders": 2, "pickupRadius": "6 km", "status": "Live"},
-    {"_id": "CI-2", "city": "Pune", "state": "Maharashtra", "areas": 9, "partners": 1, "riders": 1, "pickupRadius": "5 km", "status": "Live"},
-    {"_id": "CI-3", "city": "Bengaluru", "state": "Karnataka", "areas": 14, "partners": 0, "riders": 0, "pickupRadius": "5 km", "status": "Pilot"},
+    {"_id": "CI-1", "city": "Kasganj", "state": "Uttar Pradesh", "country": "India", "areas": 6, "partners": 2, "riders": 2, "pickupRadius": "8 km", "status": "Live"},
+    {"_id": "CI-2", "city": "Aligarh", "state": "Uttar Pradesh", "country": "India", "areas": 8, "partners": 1, "riders": 1, "pickupRadius": "10 km", "status": "Live"},
+    {"_id": "CI-3", "city": "Noida", "state": "Uttar Pradesh", "country": "India", "areas": 12, "partners": 1, "riders": 1, "pickupRadius": "12 km", "status": "Live"},
+    {"_id": "CI-4", "city": "Mumbai", "state": "Maharashtra", "country": "India", "areas": 18, "partners": 2, "riders": 2, "pickupRadius": "6 km", "status": "Live"},
+    {"_id": "CI-5", "city": "Pune", "state": "Maharashtra", "country": "India", "areas": 9, "partners": 1, "riders": 1, "pickupRadius": "5 km", "status": "Live"},
+    {"_id": "CI-6", "city": "Bengaluru", "state": "Karnataka", "country": "India", "areas": 14, "partners": 1, "riders": 1, "pickupRadius": "8 km", "status": "Pilot"},
+    {"_id": "CI-7", "city": "Delhi", "state": "Delhi", "country": "India", "areas": 15, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Pilot"},
+    {"_id": "CI-8", "city": "Lucknow", "state": "Uttar Pradesh", "country": "India", "areas": 10, "partners": 0, "riders": 0, "pickupRadius": "10 km", "status": "Coming Soon"},
+    {"_id": "CI-9", "city": "Etah", "state": "Uttar Pradesh", "country": "India", "areas": 4, "partners": 0, "riders": 0, "pickupRadius": "6 km", "status": "Coming Soon"},
 ]
 
 _SEED_CATEGORIES = [
