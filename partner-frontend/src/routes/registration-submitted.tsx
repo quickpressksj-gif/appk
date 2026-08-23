@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { RegistrationSubmittedScreen } from "../screens/RegistrationSubmittedScreen";
 
 export const Route = createFileRoute("/registration-submitted")({
@@ -18,9 +17,5 @@ export const Route = createFileRoute("/registration-submitted")({
       },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <RegistrationSubmittedScreen />
-    </PartnerProvider>
-  ),
+  component: RegistrationSubmittedScreen,
 });

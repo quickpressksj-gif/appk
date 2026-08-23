@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { BusinessRegistrationScreen } from "../screens/BusinessRegistrationScreen";
 
 export const Route = createFileRoute("/registration")({
@@ -12,9 +11,5 @@ export const Route = createFileRoute("/registration")({
       { property: "og:description", content: "Register your laundry business on QuickPress." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <BusinessRegistrationScreen />
-    </PartnerProvider>
-  ),
+  component: BusinessRegistrationScreen,
 });

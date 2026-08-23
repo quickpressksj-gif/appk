@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { PartnerAuthScreen } from "../screens/PartnerAuthScreen";
 
 export const Route = createFileRoute("/auth")({
@@ -12,9 +11,5 @@ export const Route = createFileRoute("/auth")({
       { property: "og:description", content: "Sign in to your QuickPress partner store." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <PartnerAuthScreen />
-    </PartnerProvider>
-  ),
+  component: PartnerAuthScreen,
 });

@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PartnerProvider } from "../context/PartnerContext";
 import { OtpVerificationScreen } from "../screens/OtpVerificationScreen";
 
 export const Route = createFileRoute("/otp")({
@@ -12,9 +11,5 @@ export const Route = createFileRoute("/otp")({
       { property: "og:description", content: "Verify your mobile number to access the partner app." },
     ],
   }),
-  component: () => (
-    <PartnerProvider>
-      <OtpVerificationScreen />
-    </PartnerProvider>
-  ),
+  component: OtpVerificationScreen,
 });
