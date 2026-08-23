@@ -26,7 +26,13 @@ export function OrderHistoryScreen() {
   const { data, isLoading } = useRiderResource(fetchRiderHistory);
   const [tab, setTab] = useState<RiderHistoryEntry["outcome"]>("completed");
 
-  const rows = (data ?? []).filter((row) => row.outcome === tab);
+  const historyList: RiderHistoryEntry[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.items)
+      ? (data as any).items
+      : [];
+
+  const rows = historyList.filter((row) => (row.outcome || "completed") === tab);
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-background">

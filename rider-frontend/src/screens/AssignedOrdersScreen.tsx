@@ -26,24 +26,28 @@ export function AssignedOrdersScreen() {
   const { data, isLoading, setData } = useRiderResource(fetchRiderOrders);
   const [tab, setTab] = useState<RiderTaskType>("pickup");
 
-  const orders = (data ?? []).filter((order) => order.taskType === tab);
+  const orderList: RiderOrder[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.items)
+      ? (data as any).items
+      : [];
+
+  const orders = orderList.filter((order) => (order.taskType || "pickup") === tab);
 
   const handleAccept = async (order: RiderOrder) => {
-    // TODO: replace with POST /api/rider/orders/:id/accept
     await acceptRiderOrder(order.id);
     setData(
-      (data ?? []).map((item) =>
+      orderList.map((item) =>
         item.id === order.id ? { ...item, status: "accepted" as const } : item,
       ),
     );
-    toast.success(`Accepted ${order.code}`);
+    toast.success(`Accepted order ${order.code}`);
   };
 
   const handleReject = async (order: RiderOrder) => {
-    // TODO: replace with POST /api/rider/orders/:id/reject
     await rejectRiderOrder(order.id);
-    setData((data ?? []).filter((item) => item.id !== order.id));
-    toast(`Rejected ${order.code}`);
+    setData(orderList.filter((item) => item.id !== order.id));
+    toast.info(`Rejected order ${order.code}`);
   };
 
   return (

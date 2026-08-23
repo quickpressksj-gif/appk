@@ -117,11 +117,11 @@ export function RiderDashboardScreen() {
                   </p>
                   <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-background">
                     <IndianRupee className="size-6" strokeWidth={2.6} />
-                    {data.kpis.earningsToday.toLocaleString("en-IN")}
+                    {(data.kpis?.earningsToday ?? 0).toLocaleString("en-IN")}
                   </p>
                   <p className="mt-1 text-[0.7rem] font-medium text-background/70">
-                    {data.kpis.deliveriesToday} deliveries · {data.kpis.workingHours}h online · ₹
-                    {data.kpis.tips} tips
+                    {data.kpis?.deliveriesToday ?? 0} deliveries · {data.kpis?.workingHours ?? 0}h online · ₹
+                    {data.kpis?.tips ?? 0} tips
                   </p>
                 </div>
                 <button
@@ -151,12 +151,12 @@ export function RiderDashboardScreen() {
             </section>
 
             <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <KpiCard icon={PackageCheck} label="Deliveries" value={data.kpis.deliveriesToday} tone="green" delayClass={DELAYS[0]} />
-              <KpiCard icon={IndianRupee} label="Earnings" value={data.kpis.earningsToday} prefix="₹" delayClass={DELAYS[1]} />
-              <KpiCard icon={RouteIcon} label="Distance" value={data.kpis.distanceKm} suffix=" km" decimals={1} tone="muted" delayClass={DELAYS[2]} />
-              <KpiCard icon={Clock3} label="Hours" value={data.kpis.workingHours} suffix=" h" decimals={1} tone="muted" delayClass={DELAYS[3]} />
-              <KpiCard icon={Star} label="Tips" value={data.kpis.tips} prefix="₹" tone="green" delayClass={DELAYS[4]} />
-              <KpiCard icon={PackageSearch} label="Incentives" value={data.kpis.incentives} prefix="₹" delayClass={DELAYS[5]} />
+              <KpiCard icon={PackageCheck} label="Deliveries" value={data.kpis?.deliveriesToday ?? 0} tone="green" delayClass={DELAYS[0]} />
+              <KpiCard icon={IndianRupee} label="Earnings" value={data.kpis?.earningsToday ?? 0} prefix="₹" delayClass={DELAYS[1]} />
+              <KpiCard icon={RouteIcon} label="Distance" value={data.kpis?.distanceKm ?? 0} suffix=" km" decimals={1} tone="muted" delayClass={DELAYS[2]} />
+              <KpiCard icon={Clock3} label="Hours" value={data.kpis?.workingHours ?? 0} suffix=" h" decimals={1} tone="muted" delayClass={DELAYS[3]} />
+              <KpiCard icon={Star} label="Tips" value={data.kpis?.tips ?? 0} prefix="₹" tone="green" delayClass={DELAYS[4]} />
+              <KpiCard icon={PackageSearch} label="Incentives" value={data.kpis?.incentives ?? 0} prefix="₹" delayClass={DELAYS[5]} />
             </section>
 
             <section className="mt-6">

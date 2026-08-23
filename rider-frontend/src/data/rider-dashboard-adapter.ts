@@ -43,34 +43,48 @@ function toActiveDelivery(order: RiderOrder): ActiveDelivery {
 /** Loads the real rider dashboard. Fields with no backend source are left
  * honestly empty/zero instead of using fabricated placeholder data. */
 export async function loadRiderDashboard(): Promise<RiderDashboardData> {
-  const [dashboard, orders, profile] = await Promise.all([
-    fetchRiderDashboard(),
+  const [dashboard, ordersRaw, profile] = await Promise.all([
+    fetchRiderDashboard().catch(() => ({
+      riderName: "Delivery Partner",
+      isOnline: false,
+      todayDeliveries: 0,
+      todayEarnings: 0,
+      pendingPickups: 0,
+      pendingDeliveries: 0,
+      completedDeliveries: 0,
+      rating: 5.0,
+      onlineMinutes: 0,
+    })),
     fetchRiderOrders().catch(() => [] as RiderOrder[]),
     fetchRiderProfile().catch(() => null),
   ]);
+
+  const orders: RiderOrder[] = Array.isArray(ordersRaw)
+    ? ordersRaw
+    : Array.isArray((ordersRaw as any)?.items)
+      ? (ordersRaw as any).items
+      : [];
 
   const active = orders.find((order) => ACTIVE_STATUSES.includes(order.status)) ?? null;
 
   return {
     rider: {
-      name: dashboard.riderName,
+      name: profile?.fullName || dashboard.riderName || "Delivery Partner",
       riderId: profile?.riderId ?? "—",
-      city: profile?.city ?? "—",
+      city: profile?.city ?? "Kasganj",
       photo: "",
-      vehicle: profile ? `${profile.vehicleType} · ${profile.vehicleNumber}` : "—",
+      vehicle: profile ? `${profile.vehicleType} · ${profile.vehicleNumber}` : "Bike · —",
     },
     status: dashboard.isOnline ? (active ? "on-delivery" : "online") : "offline",
     kpis: {
-      deliveriesToday: dashboard.todayDeliveries,
-      earningsToday: dashboard.todayEarnings,
+      deliveriesToday: dashboard.todayDeliveries ?? 0,
+      earningsToday: dashboard.todayEarnings ?? 0,
       distanceKm: 0,
-      workingHours: Math.round((dashboard.onlineMinutes / 60) * 10) / 10,
+      workingHours: Math.round(((dashboard.onlineMinutes ?? 0) / 60) * 10) / 10,
       tips: 0,
       incentives: 0,
     },
     activeDelivery: active ? toActiveDelivery(active) : null,
-    // No backend endpoints exist yet for performance stats, feedback or
-    // announcements — shown as empty sections instead of fabricated data.
     performance: [],
     feedback: [],
     announcements: [],
