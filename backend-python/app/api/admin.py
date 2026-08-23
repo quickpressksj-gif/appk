@@ -30,6 +30,7 @@ from app.db.admin_repositories import (
     admin_dashboard_repository,
     admin_order_repository,
     admin_partner_repository,
+    admin_partner_service_repository,
     admin_rider_repository,
     admin_settings_repository,
     admin_wallet_repository,
@@ -365,6 +366,53 @@ async def update_service(service_id: str, payload: ServicePayload, user: User = 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
     await audit_repository.log(await _actor(user), "service.update", service_id)
     return service
+
+
+@router.delete("/services/{service_id}")
+async def delete_master_service(service_id: str, user: User = Depends(current_user)):
+    removed = await service_repository.delete(service_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+    await audit_repository.log(await _actor(user), "service.delete", service_id)
+    return {"ok": True}
+
+
+@router.post("/services/categories", status_code=status.HTTP_201_CREATED)
+async def create_category(payload: dict, user: User = Depends(current_user)):
+    name = str(payload.get("name", "New Category")).strip()
+    category = await category_repository.create(
+        {
+            "name": name,
+            "description": payload.get("description", ""),
+            "icon": payload.get("icon", "Sparkles"),
+            "status": payload.get("status", "Active"),
+        }
+    )
+    await audit_repository.log(await _actor(user), "category.create", category["_id"])
+    return category
+
+
+@router.get("/partner-services")
+async def list_partner_services(
+    partner_id: Optional[str] = Query(default=None, alias="partnerId"),
+    city: Optional[str] = Query(default=None),
+    user: User = Depends(current_user),
+):
+    return await admin_partner_service_repository.list(partner_id=partner_id, city=city)
+
+
+@router.patch("/partner-services/{service_id}/status")
+async def toggle_partner_service_status(
+    service_id: str,
+    payload: dict,
+    user: User = Depends(current_user),
+):
+    action = payload.get("action", payload.get("status", "activate")).lower()
+    updated = await admin_partner_service_repository.toggle_status(service_id, action)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner service not found")
+    await audit_repository.log(await _actor(user), f"partner_service.{action}", service_id)
+    return updated
 
 
 # -------------------------------------------------------------------- coupons

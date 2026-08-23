@@ -576,6 +576,89 @@ city_repository = SimpleCrudRepository("admin_cities", "CI")
 service_repository = SimpleCrudRepository("admin_services", "s")
 
 
+class AdminPartnerServiceRepository:
+    collection = "partner_services"
+
+    async def list(self, partner_id: Optional[str] = None, city: Optional[str] = None) -> List[Dict[str, Any]]:
+        partner_docs = {p["_id"]: p for p in await database.find_many("partner_profiles")}
+        services = await database.find_sorted(self.collection, sort=[("name", 1)])
+        orders = await database.find_many("customer_orders")
+
+        result = []
+        for svc in services:
+            pid = svc.get("partnerId", "")
+            partner = partner_docs.get(pid) or {}
+
+            if partner_id and pid != partner_id:
+                continue
+            partner_city = partner.get("city", "")
+            if city and city != "all" and partner_city != city:
+                continue
+
+            svc_name = svc.get("name", "")
+            matching_orders = [
+                o
+                for o in orders
+                if (o.get("partner") or {}).get("id") == pid
+                and any(
+                    (item.get("name") or "").lower() == svc_name.lower()
+                    or (item.get("service") or "").lower() == svc_name.lower()
+                    for item in (o.get("items") or [])
+                )
+            ]
+
+            is_enabled = bool(svc.get("enabled", svc.get("isActive", True)))
+            is_suspended = bool(svc.get("isSuspended", False))
+            status = "Suspended" if is_suspended else ("Active" if is_enabled else "Disabled")
+
+            result.append(
+                {
+                    "id": str(svc.get("_id") or svc.get("id")),
+                    "partnerId": pid,
+                    "partnerName": partner.get("name", "Store"),
+                    "city": partner_city or "—",
+                    "masterServiceId": svc.get("masterServiceId") or svc.get("serviceId") or "",
+                    "name": svc_name,
+                    "category": svc.get("category", "laundry"),
+                    "price": int(svc.get("price") or 0),
+                    "unit": svc.get("unit", "kg"),
+                    "turnaroundHours": int(svc.get("turnaroundHours") or 24),
+                    "expressAvailable": bool(svc.get("expressAvailable", False)),
+                    "minQuantity": int(svc.get("minQuantity") or 1),
+                    "status": status,
+                    "enabled": is_enabled,
+                    "ordersCount": len(matching_orders),
+                    "revenue": sum((o.get("totals") or {}).get("grandTotal", 0) for o in matching_orders),
+                    "updatedAt": svc.get("updatedAt", ""),
+                }
+            )
+        return result
+
+    async def toggle_status(self, service_id: str, action: str) -> Optional[Dict[str, Any]]:
+        existing = await database.find_one(self.collection, {"_id": service_id})
+        if existing is None:
+            existing = await database.find_one(self.collection, {"id": service_id})
+        if existing is None:
+            return None
+
+        target_id = existing["_id"]
+        changes: Dict[str, Any] = {}
+        if action == "suspend":
+            changes = {"isSuspended": True, "enabled": False, "isActive": False}
+        elif action == "activate":
+            changes = {"isSuspended": False, "enabled": True, "isActive": True}
+        elif action == "disable":
+            changes = {"enabled": False, "isActive": False}
+        elif action == "enable":
+            changes = {"enabled": True, "isActive": True}
+
+        changes["updatedAt"] = now_iso()
+        return await database.update(self.collection, {"_id": target_id}, changes)
+
+
+admin_partner_service_repository = AdminPartnerServiceRepository()
+
+
 class SupportRepository:
     collection = "admin_support_tickets"
 
