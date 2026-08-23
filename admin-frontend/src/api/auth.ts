@@ -20,6 +20,23 @@ export type AdminSession = {
   twoFactorRequired: boolean;
 };
 
+/** POST /api/auth/admin/pin — authenticate with 4-digit Master Passcode (4502). */
+export async function adminPinLogin(pin: string): Promise<AdminSession> {
+  const session = await apiPostJson<AuthSession>(
+    "/api/auth/admin/pin",
+    { pin, role: "admin" },
+    { anonymous: true },
+  );
+  writeSession(session, "admin");
+  return {
+    token: session.token,
+    email: session.account.email || "admin@quickpress.online",
+    name: session.account.name || "QuickPress Super Admin",
+    role: "Super admin",
+    twoFactorRequired: false,
+  };
+}
+
 /** POST /api/auth/login — dummy admin: admin@quickpress.test / any password. */
 export async function adminLogin(input: {
   email: string;
