@@ -43,6 +43,7 @@ import { Toaster } from "@/shared/ui/sonner";
 
 import { PartnerAuthHeader } from "../components/PartnerAuthHeader";
 import { PartnerTopBar } from "../components/PartnerTopBar";
+import { MapPicker, type PickedLocation } from "../components/MapPicker";
 import {
   ChoiceChip,
   FormField,
@@ -113,14 +114,30 @@ const SERVICES = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const CITIES = ["Bengaluru", "Mumbai", "Delhi NCR", "Hyderabad", "Kasganj"] as const;
+const CITIES = [
+  "Kasganj",
+  "Aligarh",
+  "Noida",
+  "Mumbai",
+  "Pune",
+  "Bengaluru",
+  "Delhi NCR",
+  "Lucknow",
+  "Etah",
+  "Hyderabad",
+] as const;
 
 const AREAS: Record<string, string[]> = {
-  Bengaluru: ["Indiranagar", "Koramangala", "HSR Layout", "Whitefield", "Jayanagar"],
+  Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
+  Aligarh: ["Civil Lines", "Center Point", "Ramghat Road", "Medical College Road", "Marris Road"],
+  Noida: ["Sector 18", "Sector 62", "Sector 50", "Sector 137", "Greater Noida West"],
   Mumbai: ["Bandra West", "Andheri East", "Powai", "Juhu", "Lower Parel"],
-  "Delhi NCR": ["Cyber Hub", "Sector 62", "Saket", "Dwarka", "Indirapuram"],
+  Pune: ["Kothrud", "Baner", "Viman Nagar", "Hinjewadi", "Koregaon Park"],
+  Bengaluru: ["Indiranagar", "Koramangala", "HSR Layout", "Whitefield", "Jayanagar"],
+  "Delhi NCR": ["Cyber Hub", "Saket", "Dwarka", "Indirapuram", "Connaught Place"],
+  Lucknow: ["Hazratganj", "Gomti Nagar", "Aliganj", "Indira Nagar", "Mahanagar"],
+  Etah: ["Civil Lines", "G.T. Road", "Shringar Nagar", "Railway Station Road"],
   Hyderabad: ["Gachibowli", "Hitec City", "Madhapur", "Jubilee Hills", "Banjara Hills"],
-  Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas"],
 };
 
 type Uploads = {
@@ -222,20 +239,65 @@ export function BusinessRegistrationScreen() {
 
   const areaOptions = useMemo(() => AREAS[form.city] ?? [], [form.city]);
 
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [shopCoords, setShopCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const handleLocationPicked = (picked: PickedLocation) => {
+    setShopCoords({ latitude: picked.latitude, longitude: picked.longitude });
+    set("shopAddress", picked.formattedAddress);
+    if (picked.city) {
+      const matchedCity = (CITIES as readonly string[]).find(
+        (c) => c.toLowerCase() === picked.city.toLowerCase(),
+      );
+      if (matchedCity) {
+        set("city", matchedCity);
+      }
+    }
+    if (picked.area) {
+      set("area", picked.area);
+    }
+    setShowMapPicker(false);
+    toast.success("Shop address and location pinned from map!");
+  };
+
   const useCurrentLocation = () => {
     if (!("geolocation" in navigator)) {
-      toast("Location is not supported on this device");
+      toast.error("Location is not supported on this device");
       return;
     }
+    toast.loading("Detecting your shop GPS location...", { id: "gps-detect" });
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        set(
-          "shopAddress",
-          `${form.shopAddress ? `${form.shopAddress} · ` : ""}Pin ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`,
-        );
-        toast.success("Current GPS location added to shop address");
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setShopCoords({ latitude: lat, longitude: lng });
+        try {
+          const { reverseGeocodeCoords } = await import("@/api/core/maps-api");
+          const geo = await reverseGeocodeCoords(lat, lng);
+          if (geo && geo.formattedAddress) {
+            set("shopAddress", geo.formattedAddress);
+            if (geo.city) {
+              const matchedCity = (CITIES as readonly string[]).find(
+                (c) => c.toLowerCase() === geo.city.toLowerCase(),
+              );
+              if (matchedCity) set("city", matchedCity);
+            }
+            if (geo.area) set("area", geo.area);
+            toast.success("Shop address detected via GPS!", { id: "gps-detect" });
+            return;
+          }
+        } catch {
+          /* fallback */
+        }
+        set("shopAddress", `Shop Pin (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
+        toast.success("GPS Pin set for shop address", { id: "gps-detect" });
       },
-      () => toast("Could not fetch location, enter the address manually"),
+      () => {
+        toast.error("Could not fetch GPS location. Please tap 'Pick on Map' or enter manually.", {
+          id: "gps-detect",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
     );
   };
 
@@ -350,6 +412,8 @@ export function BusinessRegistrationScreen() {
         banner: uploads.banner || undefined,
         gallery: uploads.gallery,
         services,
+        latitude: shopCoords?.latitude ?? undefined,
+        longitude: shopCoords?.longitude ?? undefined,
       });
 
       signIn(updated);
@@ -435,19 +499,31 @@ export function BusinessRegistrationScreen() {
                 <TextAreaField
                   id="shop-address"
                   label="Full Shop Address *"
-                  placeholder="Shop #4, Ground Floor, Main Road, Landmark..."
+                  placeholder="Shop #4, Ground Floor, Main Market Road, Landmark..."
                   value={form.shopAddress}
-                  onChange={(e) => set("shopAddress", e.target.value)}
+                  onChange={(val) =>
+                    set("shopAddress", typeof val === "string" ? val : (val as any).target.value)
+                  }
                   error={errors["shopAddress"]}
                   action={
-                    <button
-                      type="button"
-                      onClick={useCurrentLocation}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 hover:underline cursor-pointer"
-                    >
-                      <Navigation className="size-3" />
-                      <span>Use GPS Pin</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowMapPicker(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 cursor-pointer bg-amber-100/90 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all active:scale-95 shadow-2xs"
+                      >
+                        <MapPin className="size-3.5 text-amber-700" />
+                        <span>📍 Pick on Map</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={useCurrentLocation}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-900 cursor-pointer bg-emerald-100/90 hover:bg-emerald-200 border border-emerald-300 px-2.5 py-1 rounded-xl transition-all active:scale-95 shadow-2xs"
+                      >
+                        <Navigation className="size-3.5 text-emerald-700" />
+                        <span>GPS Pin</span>
+                      </button>
+                    </div>
                   }
                 />
               </SectionCard>
@@ -868,6 +944,15 @@ export function BusinessRegistrationScreen() {
           </div>
         </div>
       </div>
+
+      {showMapPicker ? (
+        <MapPicker
+          initial={shopCoords ?? undefined}
+          title="Pin Your Laundry Shop Location"
+          onConfirm={handleLocationPicked}
+          onClose={() => setShowMapPicker(false)}
+        />
+      ) : null}
 
       <Toaster />
     </main>

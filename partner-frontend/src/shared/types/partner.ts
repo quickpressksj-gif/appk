@@ -18,12 +18,30 @@ export type BusinessRegistrationPayload = {
   businessName: string;
   ownerName: string;
   category: BusinessCategory;
-  gstin: string;
+  gstin?: string;
   address: string;
   city: string;
+  area?: string;
   pincode: string;
   openingTime: string;
   closingTime: string;
+  email?: string;
+  phone?: string;
+  pan?: string;
+  aadhaar?: string;
+  experience?: string;
+  pickupRadiusKm?: number;
+  deliveryRadiusKm?: number;
+  weeklyOff?: string;
+  emergencyClosing?: string;
+  accountHolder?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  logo?: string;
+  banner?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type PartnerOrderStatus =

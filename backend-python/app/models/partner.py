@@ -211,9 +211,12 @@ class OnboardingPayload(BaseModel):
     gstin: str = ""
     address: str = ""
     city: str = ""
+    area: str = ""
     pincode: str = ""
     openingTime: str = "08:00"
     closingTime: str = "21:00"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class OnboardingResponse(BaseModel):

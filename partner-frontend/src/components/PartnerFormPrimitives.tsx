@@ -116,22 +116,31 @@ export function TextAreaField({
   onChange,
   placeholder,
   error,
+  action,
 }: {
   id: string;
   label: string;
   value: string;
-  onChange: (next: string) => void;
+  onChange: ((next: string) => void) | ((e: React.ChangeEvent<HTMLTextAreaElement>) => void);
   placeholder?: string;
   error?: string | undefined;
+  action?: ReactNode;
 }) {
+  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    (onChange as (val: any) => void)(event.target.value);
+  };
+
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="text-[0.68rem] font-bold uppercase tracking-widest text-muted-foreground"
-      >
-        {label}
-      </label>
+      <div className="flex items-center justify-between">
+        <label
+          htmlFor={id}
+          className="text-[0.68rem] font-bold uppercase tracking-widest text-muted-foreground"
+        >
+          {label}
+        </label>
+        {action}
+      </div>
       <div
         className={`field-focus mt-2 rounded-2xl border bg-card px-4 py-3 shadow-soft ${
           error ? "border-destructive" : "border-border"
@@ -142,7 +151,7 @@ export function TextAreaField({
           rows={3}
           value={value}
           placeholder={placeholder}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={handleChange}
           className="w-full resize-none bg-transparent text-sm font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>

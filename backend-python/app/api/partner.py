@@ -481,9 +481,12 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "gstin": payload.gstin,
         "address": payload.address,
         "city": payload.city,
+        "area": payload.area,
         "pincode": payload.pincode,
         "openingTime": payload.openingTime,
         "closingTime": payload.closingTime,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
         "status": "pending_verification",
         "isVerified": False,
     }
