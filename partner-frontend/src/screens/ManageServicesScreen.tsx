@@ -426,16 +426,17 @@ export function ManageServicesScreen() {
         </PullToRefresh>
       </div>
 
-      <OfferSheet
-        open={offerSheetOpen}
-        onClose={() => setOfferSheetOpen(false)}
-        services={services}
-        onCreateOffer={(serviceId, offer) => {
-          addOffer(serviceId, offer);
-          setOfferSheetOpen(false);
-          setSuccess(`Offer "${offer.title}" added to service`);
-        }}
-      />
+      {offerSheetOpen ? (
+        <OfferSheet
+          services={services}
+          onClose={() => setOfferSheetOpen(false)}
+          onCreate={(offer) => {
+            addOffer(offer);
+            setOfferSheetOpen(false);
+            setSuccess(`Offer "${offer.title}" added to service`);
+          }}
+        />
+      ) : null}
 
       <ServiceDetailsSheet
         service={detailsService}
