@@ -101,12 +101,6 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     else:
         await users._ensure_role_profile(user)
 
-    if "9255873056" in phone or "9255873056" in (payload.phone or ""):
-        await users.update(user.id, {"is_onboarded": True, "is_verified": True, "status": "active"})
-        user.is_onboarded = True
-        user.is_verified = True
-        user.status = UserStatus.active
-
     return await _issue_session(user)
 
 

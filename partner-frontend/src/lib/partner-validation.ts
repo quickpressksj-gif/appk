@@ -18,8 +18,8 @@ export function required(value: string, label: string): string | null {
 export function validateMobile(value: string): string | null {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "Mobile number is required";
-  if (digits.includes("9255873056")) return null;
-  if (digits.length < 10 || digits.length > 11) return "Enter a valid 10-digit mobile number";
+  if (digits.length !== 10) return "Enter a valid 10-digit mobile number";
+  if (!/^[6-9]/.test(digits)) return "Mobile number must start with 6-9";
   return null;
 }
 

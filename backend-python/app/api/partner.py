@@ -86,6 +86,25 @@ async def _partner_id(user: User = Depends(current_user)) -> str:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
 
 
+async def _verified_partner_id(user: User = Depends(current_user)) -> str:
+    pid = await _partner_id(user)
+    profile = await database.find_one("partner_profiles", {"_id": pid})
+    if profile:
+        is_verified = bool(profile.get("isVerified", False))
+        is_active = profile.get("status") == "active"
+        if not is_verified or not is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your store application is pending Admin verification. Please wait for the admin to approve your account.",
+            )
+    elif not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your partner account is pending Admin approval.",
+        )
+    return pid
+
+
 def _order_response(doc: dict) -> PartnerOrderResponse:
     return PartnerOrderResponse(**{k: v for k, v in doc.items() if k in PartnerOrderResponse.model_fields})
 
@@ -100,7 +119,7 @@ def _service_response(doc: dict) -> PartnerServiceResponse:
 
 
 @router.get("/dashboard", response_model=PartnerDashboardResponse)
-async def dashboard(partner_id: str = Depends(_partner_id)) -> PartnerDashboardResponse:
+async def dashboard(partner_id: str = Depends(_verified_partner_id)) -> PartnerDashboardResponse:
     return PartnerDashboardResponse(**await partner_order_repository.dashboard(partner_id))
 
 
@@ -163,7 +182,7 @@ async def list_orders(
     q: Optional[str] = Query(default=None),
     page: int = Query(1, ge=1),
     pageSize: int = Query(20, ge=1, le=100),
-    partner_id: str = Depends(_partner_id),
+    partner_id: str = Depends(_verified_partner_id),
 ) -> dict:
     envelope = await partner_order_repository.list(
         partner_id, status=status_filter, q=q, page=page, page_size=pageSize
@@ -173,13 +192,13 @@ async def list_orders(
 
 
 @router.get("/history", response_model=List[PartnerOrderResponse])
-async def order_history(partner_id: str = Depends(_partner_id)) -> List[PartnerOrderResponse]:
+async def order_history(partner_id: str = Depends(_verified_partner_id)) -> List[PartnerOrderResponse]:
     docs = await partner_order_repository.history(partner_id)
     return [_order_response(doc) for doc in docs]
 
 
 @router.get("/orders/{order_id}", response_model=PartnerOrderResponse)
-async def get_order(order_id: str, partner_id: str = Depends(_partner_id)) -> PartnerOrderResponse:
+async def get_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.by_id(partner_id, order_id)
     except PartnerAccessError as error:
@@ -190,7 +209,7 @@ async def get_order(order_id: str, partner_id: str = Depends(_partner_id)) -> Pa
 
 
 @router.post("/orders/{order_id}/accept", response_model=PartnerOrderResponse)
-async def accept_order(order_id: str, partner_id: str = Depends(_partner_id)) -> PartnerOrderResponse:
+async def accept_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.accept(partner_id, order_id)
     except PartnerAccessError as error:
@@ -204,7 +223,7 @@ async def accept_order(order_id: str, partner_id: str = Depends(_partner_id)) ->
 
 @router.post("/orders/{order_id}/reject", response_model=PartnerOrderResponse)
 async def reject_order(
-    order_id: str, payload: RejectOrderPayload | None = None, partner_id: str = Depends(_partner_id)
+    order_id: str, payload: RejectOrderPayload | None = None, partner_id: str = Depends(_verified_partner_id)
 ) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.reject(partner_id, order_id, (payload or RejectOrderPayload()).reason)
@@ -218,7 +237,7 @@ async def reject_order(
 
 
 @router.post("/orders/{order_id}/start-processing", response_model=PartnerOrderResponse)
-async def start_processing(order_id: str, partner_id: str = Depends(_partner_id)) -> PartnerOrderResponse:
+async def start_processing(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.start_processing(partner_id, order_id)
     except PartnerAccessError as error:
@@ -231,7 +250,7 @@ async def start_processing(order_id: str, partner_id: str = Depends(_partner_id)
 
 
 @router.post("/orders/{order_id}/complete", response_model=PartnerOrderResponse)
-async def complete_order(order_id: str, partner_id: str = Depends(_partner_id)) -> PartnerOrderResponse:
+async def complete_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.complete(partner_id, order_id)
     except PartnerAccessError as error:
@@ -256,7 +275,7 @@ async def list_services(partner_id: str = Depends(_partner_id)) -> List[PartnerS
 
 @router.post("/services", response_model=PartnerServiceResponse, status_code=status.HTTP_201_CREATED)
 async def create_service(
-    payload: PartnerServiceCreate, partner_id: str = Depends(_partner_id)
+    payload: PartnerServiceCreate, partner_id: str = Depends(_verified_partner_id)
 ) -> PartnerServiceResponse:
     doc = await partner_service_repository.create(partner_id, payload.model_dump())
     return _service_response(doc)
@@ -465,8 +484,8 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "pincode": payload.pincode,
         "openingTime": payload.openingTime,
         "closingTime": payload.closingTime,
-        "status": "active",
-        "isVerified": True,
+        "status": "pending_verification",
+        "isVerified": False,
     }
     existing_profile = await database.find_one("partner_profiles", {"_id": store_id_str})
     if existing_profile is None:
@@ -479,7 +498,7 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
                 "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
                 "onTimeRate": 98.5,
                 "tier": "Silver",
-                "isOnline": True,
+                "isOnline": False,
                 "createdAt": datetime.now(timezone.utc).isoformat(),
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             },
@@ -494,8 +513,8 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         {
             "_id": store_id_str,
             "partnerId": store_id_str,
-            "isStoreOpen": True,
-            "acceptingNewOrders": True,
+            "isStoreOpen": False,
+            "acceptingNewOrders": False,
             "autoAcceptOrders": True,
             "expressDelivery": True,
             "pickupRadiusKm": 10,
@@ -523,8 +542,8 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         user.id,
         {
             "is_onboarded": True,
-            "is_verified": True,
-            "status": "active",
+            "is_verified": False,
+            "status": "pending_verification",
             "display_name": payload.ownerName or payload.businessName,
             "city": payload.city,
         },
@@ -533,6 +552,6 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         partnerId=store_id_str,
         phone=user.phone or "",
         businessName=payload.businessName,
-        isVerified=True,
+        isVerified=False,
         isOnboarded=True,
     )

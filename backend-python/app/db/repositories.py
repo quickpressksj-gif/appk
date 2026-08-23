@@ -115,8 +115,8 @@ class UserRepository:
             role=role,
             phone=phone,
             status=UserStatus.active,
-            is_verified=True,
-            is_onboarded=True if role == Role.customer else False,
+            is_verified=role in (Role.customer, Role.admin),
+            is_onboarded=role in (Role.customer, Role.admin),
         )
         return await self.create(user)
 
