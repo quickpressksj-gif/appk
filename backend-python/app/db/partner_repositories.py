@@ -317,10 +317,27 @@ class PartnerOrderRepository:
     """
 
     async def _orders_for(self, partner_id: str) -> List[Dict[str, Any]]:
-        docs = await database.find_many(
-            lifecycle.ORDERS,
-            {"$or": [{"partner.id": partner_id}, {"partner_id": partner_id}, {"partnerId": partner_id}]},
-        )
+        profile = await database.find_one(PROFILES, {"$or": [{"_id": partner_id}, {"partnerId": partner_id}]})
+        user_id = profile.get("userId") if profile else None
+        partner_name = (profile.get("businessName") or profile.get("name")) if profile else None
+
+        id_candidates = {partner_id, partner_id.lower(), partner_id.upper()}
+        if user_id:
+            id_candidates.add(user_id)
+
+        or_conditions: List[Dict[str, Any]] = [
+            {"partner.id": {"$in": list(id_candidates)}},
+            {"partner_id": {"$in": list(id_candidates)}},
+            {"partnerId": {"$in": list(id_candidates)}},
+            {"store_id": {"$in": list(id_candidates)}},
+        ]
+        if partner_name:
+            or_conditions.extend([
+                {"partner.name": partner_name},
+                {"partner.businessName": partner_name},
+            ])
+
+        docs = await database.find_many(lifecycle.ORDERS, {"$or": or_conditions})
         docs.sort(key=lambda d: d.get("createdAt") or d.get("placedAt") or "", reverse=True)
         return docs
 

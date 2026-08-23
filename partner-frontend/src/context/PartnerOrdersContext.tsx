@@ -176,9 +176,11 @@ type OrdersStore = {
 
 const PartnerOrdersContext = createContext<OrdersStore | null>(null);
 
+let cachedPartnerOrders: ManagedOrder[] | null = null;
+
 export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<ManagedOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<ManagedOrder[]>(() => cachedPartnerOrders ?? []);
+  const [isLoading, setIsLoading] = useState(() => cachedPartnerOrders === null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,11 +189,12 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async (opts: { refreshing?: boolean } = {}) => {
     if (opts.refreshing) setIsRefreshing(true);
-    else setIsLoading(true);
+    else if (!cachedPartnerOrders) setIsLoading(true);
     setError(null);
     try {
       const remote = await fetchPartnerOrders();
       const mapped = remote.map(toManagedOrder);
+      cachedPartnerOrders = mapped;
       setOrders(mapped);
 
       // Check for new unacknowledged orders (Zomato style order alert)
@@ -205,7 +208,9 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
         startOrderAlarm(unacknowledgedNew.code);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load orders");
+      if (!cachedPartnerOrders) {
+        setError(err instanceof Error ? err.message : "Failed to load orders");
+      }
     } finally {
       if (opts.refreshing) setIsRefreshing(false);
       else setIsLoading(false);
@@ -218,11 +223,11 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Background polling every 6 seconds for instantaneous order notification
+  // Background polling every 8 seconds for instantaneous order notification
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void load({ refreshing: true });
-    }, 6000);
+    }, 8000);
     return () => clearInterval(pollInterval);
   }, [load]);
 
