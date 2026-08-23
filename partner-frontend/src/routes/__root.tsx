@@ -121,6 +121,8 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { PartnerServicesProvider } from "../context/PartnerServicesContext";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -128,8 +130,10 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PartnerProvider>
         <PartnerOrdersProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
+          <PartnerServicesProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </PartnerServicesProvider>
         </PartnerOrdersProvider>
       </PartnerProvider>
     </QueryClientProvider>
