@@ -29,6 +29,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { onNotificationsChanged } from "@/api/customer/notifications-api";
+import { reorder } from "@/api/customer/history-api";
 
 import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { BottomNav } from "@/components/home/BottomNav";
@@ -111,6 +112,19 @@ function HomeScreen() {
   } | null>(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(true);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [reordering, setReordering] = useState<string | null>(null);
+
+  const handleReorder = async (orderId: string) => {
+    setReordering(orderId);
+    try {
+      await reorder(orderId);
+      navigate({ to: "/checkout" });
+    } catch {
+      navigate({ to: "/checkout" });
+    } finally {
+      setReordering(null);
+    }
+  };
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
@@ -657,7 +671,11 @@ function HomeScreen() {
 
             {/* Recent orders — GET /api/orders/recent */}
             <section className="mt-8">
-              <SectionHeading title="Recent orders" action="View all" />
+              <SectionHeading
+                title="Recent orders"
+                action="View all"
+                onAction={() => void navigate({ to: "/history" })}
+              />
               <SectionStatus
                 error={sections.recentOrders.error}
                 empty={!sections.recentOrders.loading && (sections.recentOrders.data?.length ?? 0) === 0}
@@ -665,45 +683,56 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children mt-4 space-y-3">
-                {recentOrders.map((order, index) => (
-                  <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-bold text-foreground">{order.title}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {order.reference} · {order.items}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
+                {recentOrders.map((order, index) => {
+                  const targetId = order.id || order.reference;
+                  return (
+                    <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-foreground">{order.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {order.reference} · {order.items}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            order.status === "Delivered"
+                              ? "bg-secondary/12 text-brand-green"
+                              : "bg-primary/20 text-brand-dark"
+                          }`}
+                        >
+                          {order.status}
+                        </span>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                          order.status === "Delivered"
-                            ? "bg-secondary/12 text-brand-green"
-                            : "bg-primary/20 text-brand-dark"
-                        }`}
-                      >
-                        {order.status}
-                      </span>
+                      <div className="mt-4 flex items-center gap-2">
+                        <span className="mr-auto text-sm font-bold text-foreground">
+                          ₹{order.total}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleReorder(targetId)}
+                          disabled={reordering === targetId}
+                          className="rounded-2xl border border-border px-3 py-2 text-xs font-semibold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.95] disabled:opacity-50"
+                        >
+                          {reordering === targetId ? "Reordering..." : "Repeat order"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void navigate({
+                              to: "/track/$orderId",
+                              params: { orderId: targetId },
+                            })
+                          }
+                          className="rounded-2xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.95]"
+                        >
+                          Track order
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      <span className="mr-auto text-sm font-bold text-foreground">
-                        ₹{order.total}
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-2xl border border-border px-3 py-2 text-xs font-semibold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.95]"
-                      >
-                        Repeat order
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-2xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.95]"
-                      >
-                        Track order
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -775,13 +804,22 @@ function SectionStatus({
   return null;
 }
 
-function SectionHeading({ title, action }: { title: string; action?: string }) {
+function SectionHeading({
+  title,
+  action,
+  onAction,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="flex items-end justify-between gap-3">
       <h2 className="text-base font-bold tracking-tight text-foreground">{title}</h2>
       {action ? (
         <button
           type="button"
+          onClick={onAction}
           className="text-xs font-semibold text-brand-green transition-opacity hover:underline active:opacity-70"
         >
           {action}

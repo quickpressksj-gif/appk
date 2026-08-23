@@ -121,11 +121,10 @@ function HistoryScreen() {
   };
 
   const handleReorder = async (order: OrderRecord) => {
-
     setReordering(order.id);
     try {
       await reorder(order.orderId);
-      navigate({ to: "/cart" });
+      navigate({ to: "/checkout" });
     } catch {
       setError("Reorder failed. Please try again.");
     } finally {

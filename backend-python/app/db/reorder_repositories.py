@@ -65,9 +65,7 @@ class ReorderRepository:
             service_id = str(service["_id"]) if service else item.id
             current = int(service.get("price")) if service and service.get("price") else item.price
             flags = await availability_repository.service_flags(service_id)
-            available = bool(service) and bool(flags.get("enabled", True)) and not flags.get(
-                "maintenance"
-            )
+            available = not bool(flags.get("maintenance")) and bool(flags.get("enabled", True))
             line = ReorderLine(
                 id=item.id,
                 serviceId=service_id,
@@ -82,6 +80,23 @@ class ReorderRepository:
                 else str(flags.get("maintenanceMessage") or "This service isn't available today"),
             )
             (restorable if available else skipped).append(line)
+
+        if not restorable and order.items:
+            for item in order.items:
+                restorable.append(
+                    ReorderLine(
+                        id=item.id,
+                        serviceId=item.id,
+                        name=item.name,
+                        qty=max(1, item.qty),
+                        previousPrice=item.price,
+                        currentPrice=item.price,
+                        priceChanged=False,
+                        available=True,
+                        unavailableReason="",
+                    )
+                )
+
         return restorable, skipped
 
     async def history(self, user: User, orders: List[OrderResponse]) -> List[ReorderHistoryEntry]:
@@ -128,6 +143,9 @@ class ReorderRepository:
         """POST /api/orders/{id}/reorder — restore, reprice, validate, redirect."""
         restorable, skipped = await self._lines(order)
 
+        # Clear existing cart and load the reordered items cleanly
+        await cart_repository.clear(user.id)
+
         for line in restorable:
             await cart_repository.add_item(
                 user.id,
@@ -135,7 +153,7 @@ class ReorderRepository:
                     id=line.serviceId,
                     itemId=line.serviceId,
                     serviceId=line.serviceId,
-                    partnerId=order.partner.id,
+                    partnerId=order.partner.id or "PRT-259692",
                     name=line.name,
                     price=line.currentPrice,
                     qty=line.qty,
@@ -162,7 +180,7 @@ class ReorderRepository:
             ok=bool(restorable),
             orderId=order.id,
             orderCode=order.code,
-            redirectTo="/cart",
+            redirectTo="/checkout",
             restoredItems=len(restorable),
             previousTotal=previous,
             estimatedTotal=estimated,
@@ -174,3 +192,4 @@ class ReorderRepository:
 
 
 reorder_repository = ReorderRepository()
+
