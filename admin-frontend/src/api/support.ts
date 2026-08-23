@@ -59,3 +59,8 @@ export async function fetchChat(ticketId: string): Promise<ChatMessage[]> {
 export function replyToTicket(ticketId: string, body: string) {
   return apiPostJson<{ ok: boolean; ticketId: string; body: string }>(`/api/admin/support/${ticketId}/reply`, { body });
 }
+
+/** POST /api/admin/support/{id}/close */
+export function closeTicket(ticketId: string) {
+  return apiPostJson<{ ok: boolean }>(`/api/admin/support/${ticketId}/close`, {});
+}
