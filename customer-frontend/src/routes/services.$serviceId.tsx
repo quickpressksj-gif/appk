@@ -16,6 +16,7 @@ import {
   type ListingFilters,
   type ServiceListingData,
 } from "@/api/customer/service-listing-api";
+import { readSavedLocation } from "@/api/customer/services/location-service";
 
 import washFoldImg from "@/shared/assets/item-wash-fold.jpg";
 import dryCleanImg from "@/shared/assets/item-dry-clean.jpg";
@@ -72,6 +73,7 @@ export const Route = createFileRoute("/services/$serviceId")({
 function ServiceListingScreen() {
   const navigate = useNavigate();
   const { serviceId } = Route.useParams();
+  const activeLocation = readSavedLocation();
   const [data, setData] = useState<ServiceListingData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
@@ -89,8 +91,8 @@ function ServiceListingScreen() {
   }, [query]);
 
   const listingQuery = useMemo(
-    () => toListingQuery(filters, debouncedQuery),
-    [filters, debouncedQuery],
+    () => toListingQuery(filters, debouncedQuery, activeLocation?.city),
+    [filters, debouncedQuery, activeLocation?.city],
   );
 
   const load = useCallback(
@@ -224,6 +226,7 @@ function ServiceListingScreen() {
 
               {data.partners.length === 0 ? (
                 <ServicesUnavailableView
+                  location={activeLocation}
                   onRetry={() => void load()}
                   isRetrying={refreshing}
                 />

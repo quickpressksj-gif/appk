@@ -193,9 +193,12 @@ function minutesFromEta(eta: string): number {
   return /hr/i.test(eta ?? "") ? value * 60 : value;
 }
 
-/** Translate the UI filter state into GET /api/partners query params. */
-export function toListingQuery(filters: ListingFilters, query = ""): ListingQuery {
+import { readLocation } from "./location";
+
+export function toListingQuery(filters: ListingFilters, query = "", city?: string): ListingQuery {
   const params: ListingQuery = { sort: filters.sort };
+  const targetCity = (city || readLocation()?.city || "").trim();
+  if (targetCity) params.city = targetCity;
   const trimmed = query.trim();
   if (trimmed) params.q = trimmed;
   if (filters.openNow) params.openNow = true;
@@ -225,7 +228,9 @@ export async function fetchPartnerCards(
   query: ListingQuery = {},
   options: { signal?: AbortSignal | undefined } = {},
 ): Promise<ListingPartner[]> {
-  return apiGetJson<ListingPartner[]>(`/api/partners${toSearchParams(query)}`, {
+  const activeCity = query.city || readLocation()?.city || "";
+  const mergedQuery = { ...query, ...(activeCity ? { city: activeCity } : {}) };
+  return apiGetJson<ListingPartner[]>(`/api/partners${toSearchParams(mergedQuery)}`, {
     signal: options.signal,
   });
 }
@@ -267,7 +272,8 @@ export async function fetchServiceListing(
   query: ListingQuery = {},
   options: { signal?: AbortSignal | undefined } = {},
 ): Promise<ServiceListingResult> {
-  const cacheKey = serviceId;
+  const cityKey = (query.city || readLocation()?.city || "all").toLowerCase().trim();
+  const cacheKey = `${serviceId}:${cityKey}`;
   try {
     const [categories, popularServices, partners] = await Promise.all([
       apiGetJson<Category[]>("/api/categories", { signal: options.signal }),
