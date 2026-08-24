@@ -155,9 +155,7 @@ function LocationSearchScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute -top-32 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
+    <main className="relative min-h-screen overflow-hidden bg-white dark:bg-zinc-950">
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-32 pt-12">
         <div className="flex items-center gap-3">
           <button

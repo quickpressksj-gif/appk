@@ -268,9 +268,7 @@ function WalletScreen() {
   const projectedBal = currentBal + (numAmount > 0 ? numAmount : 0);
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden scroll-smooth bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
+    <main className="relative min-h-screen overflow-x-hidden scroll-smooth bg-white dark:bg-zinc-950">
       <div className="relative mx-auto w-full max-w-md">
         <ScreenTopBar title="Wallet" action={<NotificationBellAction count={2} />} />
 

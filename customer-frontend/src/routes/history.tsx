@@ -133,9 +133,7 @@ function HistoryScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
+    <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950">
       <div className="relative mx-auto w-full max-w-md">
         <header className="sticky top-0 z-30 mx-auto w-full max-w-md">
           <div className="glass-panel flex items-center gap-2 px-4 py-3">

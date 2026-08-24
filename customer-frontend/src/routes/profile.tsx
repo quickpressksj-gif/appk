@@ -357,9 +357,7 @@ function ProfileScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
+    <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950">
       <div className="relative mx-auto w-full max-w-md">
         {/* Top app bar */}
         <header className="glass-panel sticky top-0 z-30 flex items-center justify-between gap-3 border-x-0 border-t-0 px-5 py-3">

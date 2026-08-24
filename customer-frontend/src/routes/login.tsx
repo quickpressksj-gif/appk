@@ -128,9 +128,7 @@ function AuthScreen() {
   }, []);
 
   return (
-    <main className="relative flex min-h-dvh flex-col bg-background">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(120%_70%_at_50%_0%,color-mix(in_oklab,var(--color-primary)_26%,transparent),transparent_70%)]" />
-
+    <main className="relative flex min-h-dvh flex-col bg-white dark:bg-zinc-950">
       <div className="relative flex w-full flex-1 flex-col">
         <div className="flex justify-end px-5 pt-[max(0.9rem,env(safe-area-inset-top))]">
           <button

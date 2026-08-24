@@ -116,9 +116,9 @@ function SearchScreen() {
   };
 
   return (
-    <main className="min-h-screen bg-background pb-16">
+    <main className="min-h-screen bg-white dark:bg-zinc-950 pb-16">
       <div className="mx-auto w-full max-w-md">
-        <header className="sticky top-0 z-30 bg-background/92 px-5 py-3 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 bg-white/95 dark:bg-zinc-950/95 px-5 py-3 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <button
               type="button"
