@@ -343,8 +343,8 @@ function HomeScreen() {
                   className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-border/80 text-foreground shadow-2xs transition-all duration-300 hover:border-primary/60 active:scale-[0.94] bg-white"
                 >
                   <img
-                    src={profile?.avatarUrl || defaultAvatar}
-                    alt={profile?.name || "Profile"}
+                    src={defaultAvatar}
+                    alt="Profile"
                     width={80}
                     height={80}
                     className="size-full object-cover"
