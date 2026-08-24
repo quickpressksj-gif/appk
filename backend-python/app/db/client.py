@@ -24,6 +24,18 @@ class Collection(Protocol):
     async def count_documents(self, query: Dict[str, Any]) -> int: ...
 
 
+def _get_nested(doc: Dict[str, Any], key: str) -> Any:
+    if "." in key:
+        parts = key.split(".")
+        curr = doc
+        for part in parts:
+            if not isinstance(curr, dict):
+                return None
+            curr = curr.get(part)
+        return curr
+    return doc.get(key)
+
+
 def _matches(document: Dict[str, Any], query: Dict[str, Any]) -> bool:
     import re as _re
 
@@ -36,7 +48,7 @@ def _matches(document: Dict[str, Any], query: Dict[str, Any]) -> bool:
             if not all(_matches(document, clause) for clause in condition):
                 return False
             continue
-        value = document.get(key)
+        value = _get_nested(document, key)
         if isinstance(condition, dict):
             if "$gt" in condition and not (value is not None and value > condition["$gt"]):
                 return False
@@ -62,6 +74,28 @@ def _matches(document: Dict[str, Any], query: Dict[str, Any]) -> bool:
             return False
     return True
 
+
+def _apply_update(target: Dict[str, Any], update: Dict[str, Any]) -> None:
+    if "$set" in update:
+        for k, v in update["$set"].items():
+            if "." in k:
+                parts = k.split(".")
+                curr = target
+                for part in parts[:-1]:
+                    if part not in curr or not isinstance(curr[part], dict):
+                        curr[part] = {}
+                    curr = curr[part]
+                curr[parts[-1]] = v
+            else:
+                target[k] = v
+    if "$push" in update:
+        for k, v in update["$push"].items():
+            if k not in target or not isinstance(target[k], list):
+                target[k] = []
+            target[k].append(v)
+    for k, v in update.items():
+        if not k.startswith("$"):
+            target[k] = v
 
 
 def _sort_key(value: Any) -> Any:
@@ -101,7 +135,36 @@ class InMemoryCollection:
                     return
                 target = {**query, **update.get("$setOnInsert", {})}
                 self._docs.append(target)
-            target.update(update.get("$set", {}))
+            _apply_update(target, update)
+
+    async def update_many(
+        self, query: Dict[str, Any], update: Dict[str, Any], upsert: bool = False
+    ) -> int:
+        async with self._lock:
+            count = 0
+            for d in self._docs:
+                if _matches(d, query):
+                    _apply_update(d, update)
+                    count += 1
+            if count == 0 and upsert:
+                target = {**query, **update.get("$setOnInsert", {})}
+                self._docs.append(target)
+                _apply_update(target, update)
+                count = 1
+            return count
+
+    async def find_one_and_update(
+        self, query: Dict[str, Any], update: Dict[str, Any], return_document: Any = None, upsert: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        async with self._lock:
+            target = next((d for d in self._docs if _matches(d, query)), None)
+            if target is None:
+                if not upsert:
+                    return None
+                target = {**query, **update.get("$setOnInsert", {})}
+                self._docs.append(target)
+            _apply_update(target, update)
+            return dict(target)
 
     async def delete_many(self, query: Dict[str, Any]) -> int:
         async with self._lock:

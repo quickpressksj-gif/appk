@@ -160,4 +160,9 @@ def create_app() -> FastAPI:
     return app
 
 
-app = create_app()
+fastapi_app = create_app()
+
+from app.services.socket_service import sio
+import socketio
+
+app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app, socketio_path="/socket.io")

@@ -411,6 +411,7 @@ async def accept_order(order_id: str, user: User = Depends(current_user)) -> dic
 
 
 @router.post("/orders/{order_id}/pickup")
+@router.post("/orders/{order_id}/verify-pickup-otp")
 async def pickup_order(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:
@@ -425,11 +426,17 @@ async def drop_at_partner(order_id: str, user: User = Depends(current_user)) -> 
 
 
 @router.post("/orders/{order_id}/start-delivery")
-async def start_delivery(order_id: str, user: User = Depends(current_user)) -> dict:
-    return await _rider_action(rider_delivery_repository.start_delivery, order_id, user)
+@router.post("/orders/{order_id}/verify-dispatch-otp")
+async def start_delivery(
+    order_id: str, body: dict | None = None, user: User = Depends(current_user)
+) -> dict:
+    return await _rider_action(
+        rider_delivery_repository.start_delivery, order_id, user, otp=(body or {}).get("otp")
+    )
 
 
 @router.post("/orders/{order_id}/deliver")
+@router.post("/orders/{order_id}/verify-delivery-otp")
 async def deliver_order(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:

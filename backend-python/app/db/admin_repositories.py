@@ -135,23 +135,32 @@ class AdminOrderRepository:
             "trips": f"{rider.get('trips', 0)}+ trips",
         }
         current = lifecycle.order_status(order)
-        if current == lifecycle.PARTNER_ACCEPTED:
+        if current in (lifecycle.PARTNER_ACCEPTED, "rider_searching", lifecycle.PENDING):
             updated = await lifecycle.transition(
                 order["_id"],
                 lifecycle.RIDER_ASSIGNED,
                 actor_id="admin",
                 actor_role="admin",
                 metadata={"riderId": rider_id, "riderName": rider_party["name"]},
-                changes={"rider": rider_party},
+                changes={"rider": rider_party, "riderId": rider_id, "rider_id": rider_id},
             )
         elif current in lifecycle.TERMINAL:
             raise ValueError("This order can no longer be assigned to a rider")
         else:
-            # Re-assignment of an in-flight order keeps the status untouched.
+            # Re-assignment of an in-flight order keeps the status untouched but records admin audit trail
+            now = now_iso()
             await database.update(
                 self.collection,
                 {"_id": order["_id"]},
-                {"rider": rider_party, "updatedAt": now_iso()},
+                {"rider": rider_party, "riderId": rider_id, "rider_id": rider_id, "updatedAt": now},
+            )
+            await lifecycle.record_event(
+                order,
+                "RIDER_ASSIGNED",
+                actor_id="admin",
+                actor_role="admin",
+                metadata={"riderId": rider_id, "riderName": rider_party["name"]},
+                at=now,
             )
             updated = await self.find(order["_id"])
             await lifecycle.record_event(
@@ -1058,6 +1067,13 @@ notification_repository = NotificationRepository()
 
 
 class AreaRepository:
+    async def list(self, city_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        query = {"cityId": city_id} if city_id else {}
+        areas = await database.find_many("admin_areas", query)
+        if not areas and city_id:
+            return await self.areas_for_city(city_id) or []
+        return areas
+
     async def areas_for_city(self, city_id: str) -> Optional[List[Dict[str, Any]]]:
         city = await database.find_one("admin_cities", {"_id": city_id})
         if city is None:

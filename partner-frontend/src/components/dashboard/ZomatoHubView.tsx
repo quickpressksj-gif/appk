@@ -624,6 +624,33 @@ export function ZomatoHubView() {
               </div>
             </div>
 
+            {/* Dispatch OTP Card for Ready Order */}
+            {(selectedManageOrder.stage === "ready" || (selectedManageOrder as any).dispatchOtp) && (
+              <div className="mt-4 rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                    🚚 Dispatch OTP for Handover
+                  </span>
+                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white">
+                    Share with Rider
+                  </span>
+                </div>
+                <div className="my-2.5 flex items-center justify-center gap-2">
+                  {((selectedManageOrder as any).dispatchOtp || "").split("").map((digit: string, i: number) => (
+                    <span
+                      key={i}
+                      className="flex size-10 items-center justify-center rounded-xl border border-emerald-300 bg-white font-mono text-xl font-black text-emerald-950 shadow-xs"
+                    >
+                      {digit}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-center text-[10px] font-bold text-zinc-600">
+                  Provide this 4-digit code to the delivery rider when handing over clean laundry bags.
+                </p>
+              </div>
+            )}
+
             {/* Real Order Timeline */}
             <div className="mt-4 rounded-2xl bg-zinc-50 p-4 border border-zinc-100">
               <p className="text-[11px] font-black uppercase tracking-wider text-zinc-400 mb-3">

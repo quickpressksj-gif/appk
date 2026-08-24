@@ -250,6 +250,100 @@ function TrackOrderScreen() {
               </div>
             </section>
 
+            {/* Real OTP Display Card */}
+            {(() => {
+              const currentStatus = (detail?.status || "").toLowerCase();
+              const isPickupPending =
+                [
+                  "pending_partner_acceptance",
+                  "placed",
+                  "partner_accepted",
+                  "rider_searching",
+                  "rider_assigned",
+                  "rider_accepted",
+                  "pickup_otp_pending",
+                ].includes(currentStatus) && Boolean(detail?.otp?.pickup);
+              const isDeliveryPending =
+                ["out_for_delivery", "delivery_otp_pending"].includes(currentStatus) &&
+                Boolean(detail?.otp?.delivery);
+
+              if (isPickupPending && detail?.otp?.pickup) {
+                return (
+                  <section className="mt-6">
+                    <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-5 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-xs">
+                            <ShieldCheck className="size-4.5" />
+                          </span>
+                          <span className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                            Pickup Verification OTP
+                          </span>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                          Share at Doorstep
+                        </span>
+                      </div>
+
+                      <div className="my-4 flex items-center justify-center gap-3">
+                        {detail.otp.pickup.split("").map((digit, idx) => (
+                          <span
+                            key={idx}
+                            className="flex size-12 items-center justify-center rounded-2xl border border-emerald-300/80 bg-white font-mono text-2xl font-black text-emerald-950 shadow-sm dark:bg-zinc-900 dark:text-white"
+                          >
+                            {digit}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Share this 4-digit code with the rider when they arrive to verify laundry handover.
+                      </p>
+                    </div>
+                  </section>
+                );
+              }
+
+              if (isDeliveryPending && detail?.otp?.delivery) {
+                return (
+                  <section className="mt-6">
+                    <div className="relative overflow-hidden rounded-3xl border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-5 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-8 items-center justify-center rounded-xl bg-blue-500 text-white shadow-xs">
+                            <ShieldCheck className="size-4.5" />
+                          </span>
+                          <span className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-400">
+                            Delivery Confirmation OTP
+                          </span>
+                        </div>
+                        <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-black text-blue-700 dark:text-blue-300">
+                          Confirm Delivery
+                        </span>
+                      </div>
+
+                      <div className="my-4 flex items-center justify-center gap-3">
+                        {detail.otp.delivery.split("").map((digit, idx) => (
+                          <span
+                            key={idx}
+                            className="flex size-12 items-center justify-center rounded-2xl border border-blue-300/80 bg-white font-mono text-2xl font-black text-blue-950 shadow-sm dark:bg-zinc-900 dark:text-white"
+                          >
+                            {digit}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Share this 4-digit code with your delivery partner to confirm receipt of your fresh laundry.
+                      </p>
+                    </div>
+                  </section>
+                );
+              }
+
+              return null;
+            })()}
+
             {/* Rider card */}
             <section className="mt-6">
               <SectionHeading title="Your rider" />

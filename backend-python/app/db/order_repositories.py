@@ -141,23 +141,43 @@ class OrderRepository:
         return f"QP{value}"
 
 
+    def _to_order_response(self, document: Dict[str, Any]) -> OrderResponse:
+        data = dict(document)
+        otp_obj = data.get("otp") or {}
+        p_val = otp_obj.get("pickup")
+        d_val = otp_obj.get("delivery")
+        disp_val = otp_obj.get("dispatch")
+
+        p_code = p_val.get("code") if isinstance(p_val, dict) else str(p_val or "")
+        d_code = d_val.get("code") if isinstance(d_val, dict) else str(d_val or "")
+        disp_code = disp_val.get("code") if isinstance(disp_val, dict) else str(disp_val or "")
+
+        data["otp"] = {
+            "pickup": p_code or "",
+            "delivery": d_code or "",
+            "dispatch": disp_code or "",
+        }
+        return OrderResponse(
+            **{
+                k: v
+                for k, v in data.items()
+                if k not in ("_id", "userId", "couponCode", "instructions", "idempotencyKey")
+            },
+            id=str(document["_id"]),
+        )
+
     async def by_id(self, user_id: str, order_id: str) -> Optional[OrderResponse]:
         document = await database.collection(COLLECTION).find_one({"_id": order_id})
         if document is None:
             document = await database.collection(COLLECTION).find_one({"code": order_id})
         if document is None or document.get("userId") != user_id:
             return None
-        return OrderResponse(**{k: v for k, v in document.items() if k not in ("_id", "userId")}, id=str(document["_id"]))
+        return self._to_order_response(document)
 
     async def list(self, user_id: str) -> List[OrderResponse]:
         docs = await database.find_many(COLLECTION, {"userId": user_id})
         docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
-        return [
-            OrderResponse(
-                **{k: v for k, v in d.items() if k not in ("_id", "userId")}, id=str(d["_id"])
-            )
-            for d in docs
-        ]
+        return [self._to_order_response(d) for d in docs]
 
     async def find_recent_duplicate(
         self, user_id: str, idempotency_key: Optional[str]
@@ -170,10 +190,7 @@ class OrderRepository:
         )
         if document is None:
             return None
-        return OrderResponse(
-            **{k: v for k, v in document.items() if k not in ("_id", "userId")},
-            id=str(document["_id"]),
-        )
+        return self._to_order_response(document)
 
     async def create(self, user: User, payload: PlaceOrderPayload) -> OrderResponse:
         items = await cart_repository.lines(user.id)
@@ -241,6 +258,11 @@ class OrderRepository:
                 }
             )
 
+        from app.services.rider_dispatch import create_otp_record
+
+        pickup_otp_record = create_otp_record()
+        delivery_otp_record = create_otp_record()
+
         document: Dict[str, Any] = {
             "_id": f"ord-{code}",
             "userId": user.id,
@@ -276,7 +298,10 @@ class OrderRepository:
                 or ("Paid from QuickPress wallet" if mode == "online" else "Pay on delivery"),
                 paid=mode == "online",
             ).model_dump(),
-            "otp": OrderOtp(pickup=_otp(), delivery=_otp()).model_dump(),
+            "otp": {
+                "pickup": pickup_otp_record,
+                "delivery": delivery_otp_record,
+            },
             "events": [
                 OrderEvent(
                     id=f"{code}-evt-0",
@@ -301,19 +326,17 @@ class OrderRepository:
             metadata={"code": code, "grandTotal": totals.grandTotal},
             at=created,
         )
+
+        from app.services.socket_service import EVENT_ORDER_CREATED, broadcast_order_event
+
+        await broadcast_order_event(EVENT_ORDER_CREATED, document)
+
         from app.services.order_notifications import dispatch_order_created_notifications
 
         await dispatch_order_created_notifications(document)
         # The cart belongs to the order now.
         await cart_repository.clear(user.id)
-        return OrderResponse(
-            **{
-                k: v
-                for k, v in document.items()
-                if k not in ("_id", "userId", "couponCode", "instructions", "idempotencyKey")
-            },
-            id=str(document["_id"]),
-        )
+        return self._to_order_response(document)
 
     async def cancel(self, user_id: str, order_id: str, reason: str) -> Optional[OrderResponse]:
         """Customers can cancel until the rider has picked the laundry up."""

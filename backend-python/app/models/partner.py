@@ -45,6 +45,7 @@ class PartnerOrderResponse(BaseModel):
     amount: int
     paymentMode: Literal["online", "cod"]
     serviceLabel: str
+    dispatchOtp: Optional[str] = ""
     items: List[PartnerOrderItem] = []
     timeline: List[PartnerOrderTimelineStage] = []
 

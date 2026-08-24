@@ -32,25 +32,46 @@ export function RiderOrderDetailsScreen() {
   const navigate = useNavigate();
   const { orderId } = useParams({ from: "/orders/$orderId" });
   const { data, isLoading } = useRiderResource(() => fetchRiderOrder(orderId), [orderId]);
-  const [sheet, setSheet] = useState<null | "pickup" | "delivery">(null);
+  const [sheet, setSheet] = useState<null | "pickup" | "dispatch" | "delivery">(null);
   const [otp, setOtp] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     if (otp.length !== 4) {
-      toast("Enter the 4-digit OTP shared by the customer");
+      toast.error("Enter the 4-digit OTP");
       return;
     }
-    if (sheet === "pickup") {
-      // TODO: replace with POST /api/rider/orders/:id/pickup
-      await confirmPickup(orderId, otp);
-      toast.success("Pickup completed · Navigate to partner");
-    } else {
-      // TODO: replace with POST /api/rider/orders/:id/deliver
-      await confirmDelivery(orderId, otp);
-      toast.success("Delivery completed");
+    setSubmitting(true);
+    try {
+      if (sheet === "pickup") {
+        await confirmPickup(orderId, otp);
+        toast.success("Pickup completed! Head to partner store.");
+      } else if (sheet === "dispatch") {
+        await startDelivery(orderId, otp);
+        toast.success("Handover confirmed! Order is out for delivery.");
+      } else {
+        await confirmDelivery(orderId, otp);
+        toast.success("Delivery completed successfully! 🎉");
+      }
+      setOtp("");
+      setSheet(null);
+    } catch (err: any) {
+      toast.error(err?.message || "OTP verification failed. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setOtp("");
-    setSheet(null);
+  };
+
+  const handleDropAtPartner = async () => {
+    setSubmitting(true);
+    try {
+      await confirmDropAtPartner(orderId);
+      toast.success("Order dropped at partner store.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update order status.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -158,15 +179,37 @@ export function RiderOrderDetailsScreen() {
               </ol>
             </section>
 
-            <div className="mt-5 flex gap-2">
-              <RiderPrimaryButton tone="outline" onClick={() => setSheet("pickup")}>
-                <PackageCheck className="size-4" />
-                Pickup
-              </RiderPrimaryButton>
-              <RiderPrimaryButton onClick={() => setSheet("delivery")}>
-                <CheckCircle2 className="size-4" />
-                Deliver
-              </RiderPrimaryButton>
+            {/* Dynamic Stage Actions */}
+            <div className="mt-5 space-y-2">
+              {data.canonicalStatus === "rider_assigned" ||
+              data.canonicalStatus === "rider_accepted" ||
+              data.canonicalStatus === "pickup_otp_pending" ||
+              data.status === "assigned" ||
+              data.status === "accepted" ? (
+                <RiderPrimaryButton onClick={() => setSheet("pickup")}>
+                  <PackageCheck className="size-4" />
+                  Enter Customer Pickup OTP →
+                </RiderPrimaryButton>
+              ) : data.canonicalStatus === "picked_up" || data.status === "picked" ? (
+                <RiderPrimaryButton onClick={() => void handleDropAtPartner()}>
+                  <Store className="size-4" />
+                  Mark Dropped at Partner Store →
+                </RiderPrimaryButton>
+              ) : data.canonicalStatus === "ready" ||
+                data.canonicalStatus === "dispatch_otp_pending" ||
+                data.canonicalStatus === "completed" ? (
+                <RiderPrimaryButton onClick={() => setSheet("dispatch")}>
+                  <PackageCheck className="size-4" />
+                  Enter Store Dispatch OTP (Handover) →
+                </RiderPrimaryButton>
+              ) : data.canonicalStatus === "out_for_delivery" ||
+                data.canonicalStatus === "delivery_otp_pending" ||
+                data.status === "ready-for-delivery" ? (
+                <RiderPrimaryButton onClick={() => setSheet("delivery")}>
+                  <CheckCircle2 className="size-4" />
+                  Enter Customer Delivery OTP (Final) ✓
+                </RiderPrimaryButton>
+              ) : null}
             </div>
           </div>
         )}
@@ -174,10 +217,20 @@ export function RiderOrderDetailsScreen() {
         <RiderBottomSheet
           open={sheet !== null}
           onClose={() => setSheet(null)}
-          title={sheet === "pickup" ? "Pickup OTP Verification" : "Delivery OTP Verification"}
+          title={
+            sheet === "pickup"
+              ? "Customer Pickup OTP"
+              : sheet === "dispatch"
+                ? "Partner Store Dispatch OTP"
+                : "Customer Delivery OTP"
+          }
         >
           <p className="text-xs font-medium text-muted-foreground">
-            Ask the {sheet === "pickup" ? "customer" : "customer"} for the 4-digit code to confirm.
+            {sheet === "pickup"
+              ? "Ask the customer for their 4-digit pickup code upon receiving laundry bags."
+              : sheet === "dispatch"
+                ? "Ask the partner store staff for their 4-digit dispatch code upon collecting clean packages."
+                : "Ask the customer for their 4-digit delivery code upon delivering clean laundry."}
           </p>
           <div className="relative mt-4">
             <input
@@ -193,7 +246,7 @@ export function RiderOrderDetailsScreen() {
                 <div
                   key={i}
                   className={`flex h-14 flex-1 items-center justify-center rounded-2xl border bg-card text-lg font-black text-foreground shadow-soft transition-all duration-300 ${
-                    otp.length === i ? "border-primary" : "border-border"
+                    otp.length === i ? "border-primary ring-2 ring-primary/20" : "border-border"
                   }`}
                 >
                   {otp[i] ?? ""}
@@ -203,7 +256,7 @@ export function RiderOrderDetailsScreen() {
           </div>
           <div className="mt-4">
             <RiderPrimaryButton onClick={() => void handleConfirm()}>
-              Confirm {sheet === "pickup" ? "Pickup" : "Delivery"}
+              {submitting ? "Verifying..." : "Verify OTP & Continue"}
             </RiderPrimaryButton>
           </div>
         </RiderBottomSheet>

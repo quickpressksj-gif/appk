@@ -36,8 +36,6 @@ class UserRepository:
         if role is not None:
             query["role"] = role.value
         doc = await self._c.find_one(query)
-        if not doc and role is not None:
-            doc = await self._c.find_one({"phone": {"$in": candidates}})
         return User.from_document(doc) if doc else None
 
     async def create(self, user: User) -> User:
@@ -167,12 +165,6 @@ class UserRepository:
         existing = await self.by_firebase_uid(firebase_uid, role=role)
         if not existing and phone:
             existing = await self.by_phone(phone, role=role)
-
-        if not existing:
-            existing = await self.by_firebase_uid(firebase_uid)
-            if existing and existing.role != role:
-                existing.role = role
-                await self.update(existing.id, {"role": role.value})
 
         if existing:
             changes: Dict[str, Any] = {"role": role.value}

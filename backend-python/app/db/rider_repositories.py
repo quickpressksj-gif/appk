@@ -241,43 +241,36 @@ class RiderDeliveryRepository:
         return lifecycle.to_rider_delivery(updated)
 
     async def accept(self, order_id: str, rider_id: str) -> Dict[str, Any]:
-        return await self._transition(order_id, rider_id, lifecycle.RIDER_ACCEPTED)
+        from app.services.rider_dispatch import rider_dispatch_engine
+        updated = await rider_dispatch_engine.claim_rider_offer(order_id, rider_id)
+        return lifecycle.to_rider_delivery(updated)
 
     async def pickup(self, order_id: str, otp: Optional[str], rider_id: str) -> Dict[str, Any]:
-        order = await lifecycle.get_order(order_id) if order_id else None
-        if order is None:
-            raise LookupError("Delivery not found")
-        lifecycle.assert_rider(order, rider_id)
-        expected = (order.get("otp") or {}).get("pickup") or ""
-        if not otp or otp.strip() != expected:
-            raise PermissionError("That pickup OTP doesn't match")
-        return await self._transition(
-            order_id, rider_id, lifecycle.PICKED_UP, metadata={"otpVerified": True}
-        )
+        from app.services.rider_dispatch import rider_dispatch_engine
+        updated = await rider_dispatch_engine.verify_pickup_otp(order_id, rider_id, otp or "")
+        return lifecycle.to_rider_delivery(updated)
 
     async def drop_at_partner(self, order_id: str, rider_id: str) -> Dict[str, Any]:
-        return await self._transition(order_id, rider_id, lifecycle.AT_PARTNER)
+        from app.services.rider_dispatch import rider_dispatch_engine
+        updated = await rider_dispatch_engine.rider_drop_at_partner(order_id, rider_id)
+        return lifecycle.to_rider_delivery(updated)
 
-    async def start_delivery(self, order_id: str, rider_id: str) -> Dict[str, Any]:
-        return await self._transition(order_id, rider_id, lifecycle.OUT_FOR_DELIVERY)
+    async def start_delivery(self, order_id: str, rider_id: str, otp: Optional[str] = None) -> Dict[str, Any]:
+        from app.services.rider_dispatch import rider_dispatch_engine
+        order = await lifecycle.get_order(order_id)
+        dispatch_otp_obj = (order.get("otp") or {}).get("dispatch")
+        
+        # If dispatch OTP exists and code provided (or required), verify it
+        if otp or dispatch_otp_obj:
+            updated = await rider_dispatch_engine.verify_dispatch_otp(order_id, rider_id, otp or "")
+        else:
+            updated = await self._transition(order_id, rider_id, lifecycle.OUT_FOR_DELIVERY)
+        return lifecycle.to_rider_delivery(updated)
 
     async def deliver(self, order_id: str, otp: Optional[str], rider_id: str) -> Dict[str, Any]:
-        order = await lifecycle.get_order(order_id) if order_id else None
-        if order is None:
-            raise LookupError("Delivery not found")
-        lifecycle.assert_rider(order, rider_id)
-        expected = (order.get("otp") or {}).get("delivery") or ""
-        if not otp or otp.strip() != expected:
-            raise PermissionError("That delivery OTP doesn't match")
-        payment = dict(order.get("payment") or {})
-        payment["paid"] = True
-        return await self._transition(
-            order_id,
-            rider_id,
-            lifecycle.DELIVERED,
-            metadata={"otpVerified": True},
-            changes={"payment": payment},
-        )
+        from app.services.rider_dispatch import rider_dispatch_engine
+        updated = await rider_dispatch_engine.verify_delivery_otp(order_id, rider_id, otp or "")
+        return lifecycle.to_rider_delivery(updated)
 
     async def history(self, rider_id: str) -> List[Dict[str, Any]]:
         rows = []

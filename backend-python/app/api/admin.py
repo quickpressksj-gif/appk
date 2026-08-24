@@ -14,6 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.deps import current_user, require_roles
 from app.models.admin import (
+    AdminPartnerUpdatePayload,
+    AdminRiderUpdatePayload,
     AssignRiderPayload,
     BroadcastPayload,
     CancelOrderPayload,

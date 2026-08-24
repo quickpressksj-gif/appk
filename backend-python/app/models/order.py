@@ -18,13 +18,18 @@ OrderStatus = Literal[
     "pending_partner_acceptance",
     "placed",  # legacy alias of pending_partner_acceptance, kept for old rows
     "partner_accepted",
-    "rider_accepted",
+    "rider_searching",
     "rider_assigned",
+    "rider_accepted",
+    "pickup_otp_pending",
     "picked_up",
     "at_partner",
     "processing",
+    "ready",
     "completed",
+    "dispatch_otp_pending",
     "out_for_delivery",
+    "delivery_otp_pending",
     "delivered",
     "cancelled",
 ]
@@ -107,6 +112,7 @@ class OrderEvent(BaseModel):
 
 class OrderOtp(BaseModel):
     pickup: str = ""
+    dispatch: str = ""
     delivery: str = ""
 
 

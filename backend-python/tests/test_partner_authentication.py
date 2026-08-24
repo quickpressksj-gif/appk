@@ -50,6 +50,7 @@ async def partner_test_users():
         "tier": "Silver",
         "isOnline": True,
         "isVerified": True,
+        "status": "active",
     })
 
     customer_user = await users.upsert_from_firebase(

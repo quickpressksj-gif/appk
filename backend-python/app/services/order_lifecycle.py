@@ -28,7 +28,9 @@ cancelled                  -> (terminal)
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
+import secrets
+import uuid
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.db.client import database
@@ -38,45 +40,67 @@ EVENTS = "order_events"
 
 PENDING = "pending_partner_acceptance"
 PARTNER_ACCEPTED = "partner_accepted"
+RIDER_SEARCHING = "rider_searching"
 RIDER_ASSIGNED = "rider_assigned"
 RIDER_ACCEPTED = "rider_accepted"
+PICKUP_OTP_PENDING = "pickup_otp_pending"
 PICKED_UP = "picked_up"
 AT_PARTNER = "at_partner"
 PROCESSING = "processing"
+READY = "ready"
 COMPLETED = "completed"
+DISPATCH_OTP_PENDING = "dispatch_otp_pending"
 OUT_FOR_DELIVERY = "out_for_delivery"
+DELIVERY_OTP_PENDING = "delivery_otp_pending"
 DELIVERED = "delivered"
 CANCELLED = "cancelled"
 
-TERMINAL = (DELIVERED, CANCELLED)
+TERMINAL = (DELIVERED, COMPLETED, CANCELLED)
 
-#: Documents created before the canonical lifecycle used `placed`.
-LEGACY_STATUS_ALIASES = {"placed": PENDING}
+#: Documents created before the canonical lifecycle used aliases.
+LEGACY_STATUS_ALIASES = {
+    "placed": PENDING,
+    "ORDER_CREATED": PENDING,
+    "order_created": PENDING,
+    "searching": RIDER_SEARCHING,
+    "at-partner": AT_PARTNER,
+    "ready-for-delivery": OUT_FOR_DELIVERY,
+}
 
 TRANSITIONS: Dict[str, tuple] = {
-    PENDING: (PARTNER_ACCEPTED, CANCELLED),
-    PARTNER_ACCEPTED: (RIDER_ASSIGNED, AT_PARTNER, PROCESSING, CANCELLED),
-    RIDER_ASSIGNED: (RIDER_ACCEPTED, CANCELLED),
-    RIDER_ACCEPTED: (PICKED_UP, CANCELLED),
+    PENDING: (PARTNER_ACCEPTED, RIDER_SEARCHING, CANCELLED),
+    PARTNER_ACCEPTED: (RIDER_SEARCHING, RIDER_ASSIGNED, AT_PARTNER, PROCESSING, CANCELLED),
+    RIDER_SEARCHING: (RIDER_ASSIGNED, CANCELLED),
+    RIDER_ASSIGNED: (RIDER_ACCEPTED, PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
+    RIDER_ACCEPTED: (PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
+    PICKUP_OTP_PENDING: (PICKED_UP, CANCELLED),
     PICKED_UP: (AT_PARTNER, CANCELLED),
     AT_PARTNER: (PROCESSING, CANCELLED),
-    PROCESSING: (COMPLETED, CANCELLED),
-    COMPLETED: (OUT_FOR_DELIVERY, CANCELLED),
-    OUT_FOR_DELIVERY: (DELIVERED,),
-    DELIVERED: (),
+    PROCESSING: (READY, COMPLETED, CANCELLED),
+    READY: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
+    COMPLETED: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
+    DISPATCH_OTP_PENDING: (OUT_FOR_DELIVERY, CANCELLED),
+    OUT_FOR_DELIVERY: (DELIVERY_OTP_PENDING, DELIVERED, CANCELLED),
+    DELIVERY_OTP_PENDING: (DELIVERED, CANCELLED),
+    DELIVERED: (COMPLETED,),
     CANCELLED: (),
 }
 
 STATUS_LABEL = {
     PENDING: "Order placed",
     PARTNER_ACCEPTED: "Accepted by store",
+    RIDER_SEARCHING: "Searching for rider",
     RIDER_ASSIGNED: "Rider assigned",
     RIDER_ACCEPTED: "Rider accepted",
+    PICKUP_OTP_PENDING: "Pickup pending",
     PICKED_UP: "Picked up",
     AT_PARTNER: "Reached store",
     PROCESSING: "In cleaning",
+    READY: "Ready for delivery",
     COMPLETED: "Laundry completed",
+    DISPATCH_OTP_PENDING: "Dispatch pending",
     OUT_FOR_DELIVERY: "Out for delivery",
+    DELIVERY_OTP_PENDING: "Delivery pending",
     DELIVERED: "Delivered",
     CANCELLED: "Cancelled",
 }
@@ -85,13 +109,18 @@ STATUS_LABEL = {
 EVENT_NAME = {
     PENDING: "ORDER_CREATED",
     PARTNER_ACCEPTED: "PARTNER_ACCEPTED",
+    RIDER_SEARCHING: "RIDER_SEARCHING",
     RIDER_ASSIGNED: "RIDER_ASSIGNED",
     RIDER_ACCEPTED: "RIDER_ACCEPTED",
+    PICKUP_OTP_PENDING: "PICKUP_OTP_PENDING",
     PICKED_UP: "PICKED_UP",
     AT_PARTNER: "AT_PARTNER",
     PROCESSING: "PROCESSING_STARTED",
+    READY: "PROCESSING_COMPLETED",
     COMPLETED: "PROCESSING_COMPLETED",
+    DISPATCH_OTP_PENDING: "DISPATCH_OTP_PENDING",
     OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
+    DELIVERY_OTP_PENDING: "DELIVERY_OTP_PENDING",
     DELIVERED: "DELIVERED",
     CANCELLED: "ORDER_CANCELLED",
 }
@@ -199,8 +228,9 @@ async def record_event(
 ) -> Dict[str, Any]:
     """Append one row to the `order_events` audit trail."""
     timestamp = at or now_iso()
+    event_id = f"oevt-{order_id_of(order)}-{event}-{uuid.uuid4().hex[:8]}"
     document = {
-        "_id": f"oevt-{order_id_of(order)}-{event}-{timestamp}",
+        "_id": event_id,
         "orderId": order_id_of(order),
         "orderCode": order.get("code", ""),
         "event": event,
@@ -209,11 +239,7 @@ async def record_event(
         "timestamp": timestamp,
         "metadata": metadata or {},
     }
-    await database.collection(EVENTS).update_one(
-        {"_id": document["_id"]},
-        {"$set": {k: v for k, v in document.items() if k != "_id"}},
-        upsert=True,
-    )
+    await database.collection(EVENTS).insert_one(document)
     return document
 
 
@@ -289,13 +315,18 @@ async def transition(
 PARTNER_STATUS = {
     PENDING: "new",
     PARTNER_ACCEPTED: "accepted",
+    RIDER_SEARCHING: "accepted",
     RIDER_ASSIGNED: "accepted",
     RIDER_ACCEPTED: "accepted",
+    PICKUP_OTP_PENDING: "accepted",
     PICKED_UP: "picked",
     AT_PARTNER: "picked",
     PROCESSING: "processing",
+    READY: "ready",
     COMPLETED: "ready",
+    DISPATCH_OTP_PENDING: "ready",
     OUT_FOR_DELIVERY: "ready",
+    DELIVERY_OTP_PENDING: "ready",
     DELIVERED: "delivered",
     CANCELLED: "cancelled",
 }
@@ -304,32 +335,37 @@ PARTNER_STATUS = {
 RIDER_STATUS = {
     PENDING: "assigned",
     PARTNER_ACCEPTED: "assigned",
-    RIDER_ASSIGNED: "assigned",
+    RIDER_SEARCHING: "assigned",
+    RIDER_ASSIGNED: "accepted",
     RIDER_ACCEPTED: "accepted",
+    PICKUP_OTP_PENDING: "accepted",
     PICKED_UP: "picked",
     AT_PARTNER: "at-partner",
     PROCESSING: "at-partner",
+    READY: "at-partner",
     COMPLETED: "at-partner",
+    DISPATCH_OTP_PENDING: "at-partner",
     OUT_FOR_DELIVERY: "ready-for-delivery",
+    DELIVERY_OTP_PENDING: "ready-for-delivery",
     DELIVERED: "delivered",
     CANCELLED: "cancelled",
 }
 
 _PARTNER_STAGES = [
     ("placed", "Order placed", (PENDING,)),
-    ("accepted", "Accepted", (PARTNER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED)),
+    ("accepted", "Accepted", (PARTNER_ACCEPTED, RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
     ("picked", "Picked up by rider", (PICKED_UP, AT_PARTNER)),
     ("processing", "In cleaning", (PROCESSING,)),
-    ("ready", "Laundry completed", (COMPLETED, OUT_FOR_DELIVERY)),
+    ("ready", "Laundry completed", (READY, COMPLETED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
     ("delivered", "Delivered", (DELIVERED,)),
 ]
 
 _RIDER_STAGES = [
-    ("assigned", "Assigned", (RIDER_ASSIGNED,)),
-    ("accepted", "Accepted", (RIDER_ACCEPTED,)),
+    ("assigned", "Assigned", (RIDER_ASSIGNED, RIDER_SEARCHING)),
+    ("accepted", "Accepted", (RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
     ("picked", "Picked up from customer", (PICKED_UP,)),
-    ("at-partner", "Dropped at store", (AT_PARTNER, PROCESSING, COMPLETED)),
-    ("ready-for-delivery", "Out for delivery", (OUT_FOR_DELIVERY,)),
+    ("at-partner", "Dropped at store", (AT_PARTNER, PROCESSING, READY, COMPLETED, DISPATCH_OTP_PENDING)),
+    ("ready-for-delivery", "Out for delivery", (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
     ("delivered", "Delivered", (DELIVERED,)),
 ]
 
@@ -363,6 +399,7 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
     payment = order.get("payment") or {}
     items = order.get("items") or []
     addr = order.get("address") or {}
+    status = order_status(order)
     
     c_name = customer.get("name") or order.get("customer_name") or order.get("customerName") or "Customer"
     c_phone = customer.get("phone") or order.get("customer_phone") or order.get("customerPhone") or (addr.get("phone") if isinstance(addr, dict) else "") or ""
@@ -375,14 +412,22 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
     if not address_str and isinstance(addr, dict):
         address_str = addr.get("line") or addr.get("city") or "Kasganj"
 
+    # Partner is shown Dispatch OTP only when order is ready / dispatch pending
+    dispatch_otp_val = (order.get("otp") or {}).get("dispatch")
+    dispatch_code = (
+        dispatch_otp_val.get("code")
+        if isinstance(dispatch_otp_val, dict)
+        else str(dispatch_otp_val or "")
+    )
+
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
         "code": order.get("code") or order.get("order_code") or order_id_of(order),
         "customerName": c_name,
         "customerPhone": c_phone,
-        "status": PARTNER_STATUS.get(order_status(order), "new"),
-        "canonicalStatus": order_status(order),
+        "status": PARTNER_STATUS.get(status, "new"),
+        "canonicalStatus": status,
         "placedAt": order.get("createdAt") or order.get("placedAt") or "",
         "placedAtRaw": order.get("createdAt") or order.get("placedAt") or "",
         "slot": (order.get("pickup") or {}).get("slot", "") if isinstance(order.get("pickup"), dict) else "",
@@ -393,6 +438,7 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         "paymentStatus": "paid" if payment.get("paid") else "pending",
         "serviceLabel": order.get("serviceLabel", "Laundry"),
         "riderName": (order.get("rider") or {}).get("name", "") if isinstance(order.get("rider"), dict) else "",
+        "dispatchOtp": dispatch_code if status in (READY, COMPLETED, DISPATCH_OTP_PENDING) else "",
         "cancelledReason": order.get("cancelledReason"),
         "items": [
             {
@@ -416,12 +462,22 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
     items = order.get("items") or []
     status = order_status(order)
     address = _address_line(order.get("address") or {})
+
+    otp_obj = order.get("otp") or {}
+    pickup_otp = otp_obj.get("pickup") or {}
+    dispatch_otp = otp_obj.get("dispatch") or {}
+    delivery_otp = otp_obj.get("delivery") or {}
+
+    pickup_verified = pickup_otp.get("verified", False) if isinstance(pickup_otp, dict) else False
+    dispatch_verified = dispatch_otp.get("verified", False) if isinstance(dispatch_otp, dict) else False
+    delivery_verified = delivery_otp.get("verified", False) if isinstance(delivery_otp, dict) else False
+
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
         "riderId": (order.get("rider") or {}).get("id", ""),
         "code": order.get("code", ""),
-        "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERED) else "pickup",
+        "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
         "status": RIDER_STATUS.get(status, "assigned"),
         "canonicalStatus": status,
         "customerName": customer.get("name", ""),
@@ -432,11 +488,17 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "deliveryAddress": address,
         "distanceKm": 0,
         "etaMinutes": 0,
-        "estimatedEarning": max(30, round(int(totals.get("grandTotal", 0)) * 0.1)),
+        "estimatedEarning": max(35, round(int(totals.get("grandTotal", 0)) * 0.12)),
         "itemCount": sum(int(item.get("qty", 0)) for item in items),
         "slot": (order.get("pickup") or {}).get("slot", ""),
         "placedAt": order.get("createdAt", ""),
         "paymentMode": payment.get("mode", "cod"),
         "amount": int(totals.get("grandTotal", 0)),
+        "pickupOtpRequired": status in (RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING) and not pickup_verified,
+        "dispatchOtpRequired": status in (READY, COMPLETED, DISPATCH_OTP_PENDING) and not dispatch_verified,
+        "deliveryOtpRequired": status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING) and not delivery_verified,
+        "pickupOtpVerified": pickup_verified,
+        "dispatchOtpVerified": dispatch_verified,
+        "deliveryOtpVerified": delivery_verified,
         "timeline": _timeline(order, _RIDER_STAGES),
     }

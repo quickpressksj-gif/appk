@@ -57,9 +57,12 @@ export async function confirmDropAtPartner(orderId: string) {
   return { ok: true as const, orderId, order };
 }
 
-/** POST /api/rider/orders/{id}/start-delivery */
-export async function startDelivery(orderId: string) {
-  const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/start-delivery`);
+/** POST /api/rider/orders/{id}/start-delivery — handover from partner to rider. */
+export async function startDelivery(orderId: string, otp?: string) {
+  const order = await apiPostJson<RiderOrder>(
+    `/api/rider/orders/${orderId}/start-delivery`,
+    otp ? { otp } : {}
+  );
   return { ok: true as const, orderId, order };
 }
 

@@ -434,7 +434,16 @@ class PartnerOrderRepository:
             "partner_id": partner_id,
             "store_id": partner_id,
         }
-        return await self._transition(partner_id, order_id, lifecycle.PARTNER_ACCEPTED, changes=changes)
+        res = await self._transition(partner_id, order_id, lifecycle.PARTNER_ACCEPTED, changes=changes)
+
+        # Trigger automatic nearby rider search and offer dispatch
+        from app.services.rider_dispatch import rider_dispatch_engine
+        try:
+            await rider_dispatch_engine.search_and_offer_riders(order_id)
+        except Exception as e:
+            logger.error("Auto rider dispatch failed for order %s: %s", order_id, e)
+
+        return res
 
     async def reject(self, partner_id: str, order_id: str, reason: str) -> Dict[str, Any]:
         text = reason or "Rejected by store"
@@ -447,10 +456,20 @@ class PartnerOrderRepository:
         )
 
     async def start_processing(self, partner_id: str, order_id: str) -> Dict[str, Any]:
-        return await self._transition(partner_id, order_id, lifecycle.PROCESSING)
+        from app.services.rider_dispatch import rider_dispatch_engine
+        try:
+            res = await rider_dispatch_engine.partner_start_processing(order_id, partner_id)
+            return lifecycle.to_partner_order(res)
+        except Exception:
+            return await self._transition(partner_id, order_id, lifecycle.PROCESSING)
 
     async def complete(self, partner_id: str, order_id: str) -> Dict[str, Any]:
-        return await self._transition(partner_id, order_id, lifecycle.COMPLETED)
+        from app.services.rider_dispatch import rider_dispatch_engine
+        try:
+            res = await rider_dispatch_engine.partner_mark_ready(order_id, partner_id)
+            return lifecycle.to_partner_order(res)
+        except Exception:
+            return await self._transition(partner_id, order_id, lifecycle.READY)
 
     async def history(self, partner_id: str) -> List[Dict[str, Any]]:
         return [
