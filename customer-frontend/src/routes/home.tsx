@@ -202,7 +202,7 @@ function HomeScreen() {
 
   const nearbyAreas = availability?.nearbyAreas ?? [];
   const isServicesUnavailable = availability ? availability.available === false : false;
-  
+
   // Header badge stays live: the notifications screen broadcasts every
   // read/delete so the count updates without a home refetch.
   const [unreadOverride, setUnreadOverride] = useState<number | null>(null);
@@ -378,431 +378,429 @@ function HomeScreen() {
               <>
                 {/* Search */}
                 <section className="mt-6">
-              <button
-                type="button"
-                onClick={() => void navigate({ to: "/search", search: { q: "", scope: "all" } })}
-                className="card-soft flex w-full items-center gap-3 border border-border p-1.5 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 active:scale-[0.99]"
-              >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                  <Search className="size-4" />
-                </span>
-                <span className="truncate pr-3 text-sm text-muted-foreground/80">
-                  What would you like to clean today?
-                </span>
-              </button>
-
-              <div className="stagger-children no-scrollbar mt-3 flex gap-2 overflow-x-auto">
-                {SEARCH_SCOPE_OPTIONS.map((scope) => (
                   <button
-                    key={scope.id}
                     type="button"
-                    onClick={() =>
-                      void navigate({ to: "/search", search: { q: "", scope: scope.id } })
-                    }
-                    className="shrink-0 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:text-zinc-950 dark:hover:text-zinc-100 active:scale-[0.95]"
+                    onClick={() => void navigate({ to: "/search", search: { q: "", scope: "all" } })}
+                    className="card-soft flex w-full items-center gap-3 border border-border p-1.5 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 active:scale-[0.99]"
                   >
-                    {scope.label}
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                      <Search className="size-4" />
+                    </span>
+                    <span className="truncate pr-3 text-sm text-muted-foreground/80">
+                      What would you like to clean today?
+                    </span>
                   </button>
-                ))}
-              </div>
 
-              <div
-                className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto"
-                hidden={recentSearches.length === 0}
-              >
-                <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  <Clock className="size-3" /> Recent
-                </span>
-                {recentSearches.map((term) => (
-                  <button
-                    key={term}
-                    type="button"
-                    onClick={() =>
-                      void navigate({ to: "/search", search: { q: term, scope: "all" } })
-                    }
-                    className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  <div className="stagger-children no-scrollbar mt-3 flex gap-2 overflow-x-auto">
+                    {SEARCH_SCOPE_OPTIONS.map((scope) => (
+                      <button
+                        key={scope.id}
+                        type="button"
+                        onClick={() =>
+                          void navigate({ to: "/search", search: { q: "", scope: scope.id } })
+                        }
+                        className="shrink-0 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:text-zinc-950 dark:hover:text-zinc-100 active:scale-[0.95]"
+                      >
+                        {scope.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto"
+                    hidden={recentSearches.length === 0}
                   >
-                    {term}
-                  </button>
-                ))}
-              </div>
-            </section>
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      <Clock className="size-3" /> Recent
+                    </span>
+                    {recentSearches.map((term) => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() =>
+                          void navigate({ to: "/search", search: { q: term, scope: "all" } })
+                        }
+                        className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </section>
 
 
 
 
 
-            {/* Categories — GET /api/categories */}
-            <section id="services" className="mt-8 scroll-mt-24">
-              <SectionHeading title="Services" action="View all" />
-              <SectionStatus
-                error={sections.categories.error}
-                empty={!sections.categories.loading && (sections.categories.data?.length ?? 0) === 0}
-                emptyLabel="No services available in your area yet."
-                onRetry={() => void retry()}
-              />
-              <div className="stagger-children mt-4 grid grid-cols-3 gap-3">
-                {categories.map((category, index) => {
-                  const Icon = ICONS[category.icon] ?? Sparkles;
-                  return (
-                    <button
-                      key={`${category.id}-${index}`}
-                      type="button"
-                      onClick={() =>
-                        navigate({ to: "/services/$serviceId", params: { serviceId: category.id } })
-                      }
-                      className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.94]"
-                    >
-                      <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
-                        <img
-                          src={resolveCategoryServiceImage(category.title, category.image)}
-                          alt={category.title}
-                          loading="lazy"
-                          width={512}
-                          height={512}
-                          className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          decoding="async"
-                        />
-                      </div>
-                      <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
-                        {category.title}
-                      </span>
-                      <span className="text-[10px] font-medium leading-tight text-muted-foreground">
-                        {category.description}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Popular services — GET /api/services (popular) */}
-            <section className="mt-8">
-              <SectionHeading title="Popular services" action="View all" />
-              <SectionStatus
-                error={sections.popular.error}
-                empty={!sections.popular.loading && (sections.popular.data?.length ?? 0) === 0}
-                emptyLabel="No services available right now."
-                onRetry={() => void retry()}
-              />
-              <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
-                {popular.map((service, index) => {
-                  const Icon = ICONS[service.icon] ?? Sparkles;
-                  return (
-                    <button
-                      key={`${service.id}-${index}`}
-                      type="button"
-                      onClick={() =>
-                        navigate({
-                          to: "/services/$serviceId",
-                          params: { serviceId: service.categoryId ?? service.id },
-                        })
-                      }
-                      className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.97]"
-                    >
-                      <div className="flex items-start gap-3.5">
-                        <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
-                          <img
-                            src={resolveCategoryServiceImage(service.title, service.image)}
-                            alt={service.title}
-                            width={256}
-                            height={256}
-                            loading="lazy"
-                            decoding="async"
-                            className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
-                            {service.title}
-                          </p>
-                          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                            {service.description ?? service.unit}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-sm font-bold text-foreground">
-                          ₹{service.finalPrice ?? service.basePrice ?? service.price}
-                        </span>
-                        {service.discountLabel ? (
-                          <>
-                            <span className="text-[11px] text-muted-foreground line-through">
-                              ₹{service.basePrice ?? service.price}
-                            </span>
-                            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-brand-dark">
-                              {service.discountLabel}
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                      <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3.5" /> {service.processingTime ?? "24 hrs"}
-                        </span>
-                        <span className="size-1 rounded-full bg-border" />
-                        <span>{service.partnerCount ?? 0} partners</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Nearby partners — GET /api/partners/nearby */}
-            <section className="mt-8">
-              <SectionHeading title="Laundry partners near you" action="See all" />
-              <SectionStatus
-                error={sections.partners.error}
-                empty={!sections.partners.loading && (sections.partners.data?.length ?? 0) === 0}
-                emptyLabel="No laundry partners near this location yet."
-                onRetry={() => void retry()}
-              />
-              <div className="stagger-children mt-4 space-y-4">
-                {partners.map((partner, index) => (
-                  <button
-                    key={`${partner.id}-${index}`}
-                    type="button"
-                    onClick={() =>
-                      navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
-                    }
-                    className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.985]"
-                  >
-                    <div className="flex items-start gap-3.5">
-                      <div className="relative shrink-0">
-                        <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted/40 shadow-2xs">
-                          <img
-                            src={resolvePartnerImage(partner.logo ?? partner.image)}
-                            alt={`${partner.name} logo`}
-                            width={128}
-                            height={128}
-                            loading="lazy"
-                            className="size-full object-cover"
-                            decoding="async"
-                          />
-                        </div>
-                        <span
-                          className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black ${
-                            partner.open
-                              ? "bg-secondary text-secondary-foreground"
-                              : "bg-zinc-800 text-zinc-100"
-                          }`}
-                        >
-                          {partner.open ? "Open" : "Closed"}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="truncate text-sm font-black tracking-tight text-foreground">
-                            {partner.name}
-                          </p>
-                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
-                            <Star className="size-3 fill-current" />
-                            {partner.rating}
-                            <span className="font-medium text-muted-foreground text-[10px]">({partner.reviews})</span>
-                          </span>
-                        </div>
-
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground font-medium">
-                          {partner.services && partner.services.length > 0
-                            ? partner.services.slice(0, 3).join(" · ")
-                            : `${partner.distanceKm} km away`}
-                        </p>
-
-                        <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground font-medium">
-                          <span className="flex items-center gap-1">
-                            <Clock className="size-3.5 text-primary" /> {partner.pickupTime ?? partner.eta ?? "30 min"}
-                          </span>
-                          <span className="size-1 rounded-full bg-border" />
-                          <span className="font-bold text-foreground">
-                            Starts ₹{partner.minPrice}
-                          </span>
-                          <ArrowRight className="ml-auto size-4 text-muted-foreground group-hover:text-primary" />
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Membership */}
-            <section className="mt-8">
-              <div className="overflow-hidden rounded-3xl bg-brand-dark p-5 shadow-soft">
-                <div className="flex items-center gap-2">
-                  <Crown className="size-4 text-primary" />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-                    QuickPress Premium
-                  </p>
-                </div>
-                <p className="mt-3 text-lg font-bold text-secondary-foreground">
-                  Unlimited pickups, priority everything
-                </p>
-                <ul className="mt-3 space-y-1.5 text-xs text-secondary-foreground/70">
-                  <li>• Unlimited free pickup & delivery</li>
-                  <li>• Priority support, always first in queue</li>
-                  <li>• Exclusive member-only discounts</li>
-                </ul>
-                <button
-                  type="button"
-                  className="mt-5 flex h-12 w-full items-center justify-center rounded-3xl bg-primary text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.985]"
-                >
-                  Join Membership
-                </button>
-              </div>
-            </section>
-
-            {/* Offers — GET /api/offers */}
-            <section className="mt-8">
-              <SectionHeading
-                title="Offers for you"
-                action="All coupons"
-                onAction={() => void navigate({ to: "/offers" })}
-              />
-              <SectionStatus
-                error={sections.offers.error}
-                empty={!sections.offers.loading && (sections.offers.data?.length ?? 0) === 0}
-                emptyLabel="No offers running right now."
-                onRetry={() => void retry()}
-              />
-              <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
-                {offers.map((offer, index) => {
-                  const Icon =
-                    offer.kind === "cashback" ? Wallet : offer.kind === "festival" ? Percent : Gift;
-                  return (
-                    <button
-                      key={`${offer.id}-${index}`}
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard?.writeText(offer.code);
-                        toast.success(`Coupon code "${offer.code}" copied!`);
-                      }}
-                      className="card-soft w-64 shrink-0 border border-dashed border-primary/50 p-4 text-left transition-all duration-300 active:scale-[0.97]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
-                          <Icon className="size-5" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-foreground">{offer.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {offer.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between border-t border-dashed border-border pt-3">
-                        <span className="rounded-lg bg-muted px-2 py-1 text-[11px] font-bold tracking-wider text-foreground">
-                          {offer.code}
-                        </span>
-                        <span className="text-xs font-semibold text-brand-green">Copy Code</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Recent orders — GET /api/orders/recent */}
-            <section className="mt-8">
-              <SectionHeading
-                title="Recent orders"
-                action="View all"
-                onAction={() => void navigate({ to: "/history" })}
-              />
-              <SectionStatus
-                error={sections.recentOrders.error}
-                empty={!sections.recentOrders.loading && (sections.recentOrders.data?.length ?? 0) === 0}
-                emptyLabel="You have no orders yet."
-                onRetry={() => void retry()}
-              />
-              <div className="stagger-children mt-4 space-y-3">
-                {recentOrders.slice(0, 3).map((order, index) => {
-                  const targetId = order.id || order.reference;
-                  return (
-                    <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-bold text-foreground">{order.title}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {order.reference} · {order.items}
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                            order.status === "Delivered"
-                              ? "bg-secondary/12 text-brand-green"
-                              : "bg-primary/20 text-brand-dark"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </div>
-                      <div className="mt-4 flex items-center gap-2">
-                        <span className="mr-auto text-sm font-bold text-foreground">
-                          ₹{order.total}
-                        </span>
+                {/* Categories — GET /api/categories */}
+                <section id="services" className="mt-8 scroll-mt-24">
+                  <SectionHeading title="Services" action="View all" />
+                  <SectionStatus
+                    error={sections.categories.error}
+                    empty={!sections.categories.loading && (sections.categories.data?.length ?? 0) === 0}
+                    emptyLabel="No services available in your area yet."
+                    onRetry={() => void retry()}
+                  />
+                  <div className="stagger-children mt-4 grid grid-cols-3 gap-3">
+                    {categories.map((category, index) => {
+                      const Icon = ICONS[category.icon] ?? Sparkles;
+                      return (
                         <button
-                          type="button"
-                          onClick={() => void handleReorder(targetId)}
-                          disabled={reordering === targetId}
-                          className="rounded-2xl border border-border px-3 py-2 text-xs font-semibold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.95] disabled:opacity-50"
-                        >
-                          {reordering === targetId ? "Reordering..." : "Repeat order"}
-                        </button>
-                        <button
+                          key={`${category.id}-${index}`}
                           type="button"
                           onClick={() =>
-                            void navigate({
-                              to: "/track/$orderId",
-                              params: { orderId: targetId },
+                            navigate({ to: "/services/$serviceId", params: { serviceId: category.id } })
+                          }
+                          className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.94]"
+                        >
+                          <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
+                            <img
+                              src={resolveCategoryServiceImage(category.title, category.image)}
+                              alt={category.title}
+                              loading="lazy"
+                              width={512}
+                              height={512}
+                              className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              decoding="async"
+                            />
+                          </div>
+                          <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
+                            {category.title}
+                          </span>
+                          <span className="text-[10px] font-medium leading-tight text-muted-foreground">
+                            {category.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {/* Popular services — GET /api/services (popular) */}
+                <section className="mt-8">
+                  <SectionHeading title="Popular services" action="View all" />
+                  <SectionStatus
+                    error={sections.popular.error}
+                    empty={!sections.popular.loading && (sections.popular.data?.length ?? 0) === 0}
+                    emptyLabel="No services available right now."
+                    onRetry={() => void retry()}
+                  />
+                  <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
+                    {popular.map((service, index) => {
+                      const Icon = ICONS[service.icon] ?? Sparkles;
+                      return (
+                        <button
+                          key={`${service.id}-${index}`}
+                          type="button"
+                          onClick={() =>
+                            navigate({
+                              to: "/services/$serviceId",
+                              params: { serviceId: service.categoryId ?? service.id },
                             })
                           }
-                          className="rounded-2xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.95]"
+                          className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.97]"
                         >
-                          Track order
+                          <div className="flex items-start gap-3.5">
+                            <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
+                              <img
+                                src={resolveCategoryServiceImage(service.title, service.image)}
+                                alt={service.title}
+                                width={256}
+                                height={256}
+                                loading="lazy"
+                                decoding="async"
+                                className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
+                                {service.title}
+                              </p>
+                              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                                {service.description ?? service.unit}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <span className="text-sm font-bold text-foreground">
+                              ₹{service.finalPrice ?? service.basePrice ?? service.price}
+                            </span>
+                            {service.discountLabel ? (
+                              <>
+                                <span className="text-[11px] text-muted-foreground line-through">
+                                  ₹{service.basePrice ?? service.price}
+                                </span>
+                                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-brand-dark">
+                                  {service.discountLabel}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                          <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="size-3.5" /> {service.processingTime ?? "24 hrs"}
+                            </span>
+                            <span className="size-1 rounded-full bg-border" />
+                            <span>{service.partnerCount ?? 0} partners</span>
+                          </div>
                         </button>
-                      </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {/* Nearby partners — GET /api/partners/nearby */}
+                <section className="mt-8">
+                  <SectionHeading title="Laundry partners near you" action="See all" />
+                  <SectionStatus
+                    error={sections.partners.error}
+                    empty={!sections.partners.loading && (sections.partners.data?.length ?? 0) === 0}
+                    emptyLabel="No laundry partners near this location yet."
+                    onRetry={() => void retry()}
+                  />
+                  <div className="stagger-children mt-4 space-y-4">
+                    {partners.map((partner, index) => (
+                      <button
+                        key={`${partner.id}-${index}`}
+                        type="button"
+                        onClick={() =>
+                          navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
+                        }
+                        className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.985]"
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className="relative shrink-0">
+                            <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted/40 shadow-2xs">
+                              <img
+                                src={resolvePartnerImage(partner.logo ?? partner.image)}
+                                alt={`${partner.name} logo`}
+                                width={128}
+                                height={128}
+                                loading="lazy"
+                                className="size-full object-cover"
+                                decoding="async"
+                              />
+                            </div>
+                            <span
+                              className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black ${partner.open
+                                  ? "bg-secondary text-secondary-foreground"
+                                  : "bg-zinc-800 text-zinc-100"
+                                }`}
+                            >
+                              {partner.open ? "Open" : "Closed"}
+                            </span>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="truncate text-sm font-black tracking-tight text-foreground">
+                                {partner.name}
+                              </p>
+                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
+                                <Star className="size-3 fill-current" />
+                                {partner.rating}
+                                <span className="font-medium text-muted-foreground text-[10px]">({partner.reviews})</span>
+                              </span>
+                            </div>
+
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground font-medium">
+                              {partner.services && partner.services.length > 0
+                                ? partner.services.slice(0, 3).join(" · ")
+                                : `${partner.distanceKm} km away`}
+                            </p>
+
+                            <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground font-medium">
+                              <span className="flex items-center gap-1">
+                                <Clock className="size-3.5 text-primary" /> {partner.pickupTime ?? partner.eta ?? "30 min"}
+                              </span>
+                              <span className="size-1 rounded-full bg-border" />
+                              <span className="font-bold text-foreground">
+                                Starts ₹{partner.minPrice}
+                              </span>
+                              <ArrowRight className="ml-auto size-4 text-muted-foreground group-hover:text-primary" />
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Membership */}
+                <section className="mt-8">
+                  <div className="overflow-hidden rounded-3xl bg-brand-dark p-5 shadow-soft">
+                    <div className="flex items-center gap-2">
+                      <Crown className="size-4 text-primary" />
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                        QuickPress Premium
+                      </p>
                     </div>
-                  );
-                })}
+                    <p className="mt-3 text-lg font-bold text-secondary-foreground">
+                      Unlimited pickups, priority everything
+                    </p>
+                    <ul className="mt-3 space-y-1.5 text-xs text-secondary-foreground/70">
+                      <li>• Unlimited free pickup & delivery</li>
+                      <li>• Priority support, always first in queue</li>
+                      <li>• Exclusive member-only discounts</li>
+                    </ul>
+                    <button
+                      type="button"
+                      className="mt-5 flex h-12 w-full items-center justify-center rounded-3xl bg-primary text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.985]"
+                    >
+                      Join Membership
+                    </button>
+                  </div>
+                </section>
 
-                {recentOrders.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => void navigate({ to: "/history" })}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border/80 bg-card py-3 text-xs font-bold text-foreground shadow-2xs transition-all hover:bg-muted active:scale-[0.98]"
-                  >
-                    <span>View all orders</span>
-                    <ChevronRight className="size-3.5 text-muted-foreground" />
-                  </button>
-                ) : null}
-              </div>
-            </section>
+                {/* Offers — GET /api/offers */}
+                <section className="mt-8">
+                  <SectionHeading
+                    title="Offers for you"
+                    action="All coupons"
+                    onAction={() => void navigate({ to: "/offers" })}
+                  />
+                  <SectionStatus
+                    error={sections.offers.error}
+                    empty={!sections.offers.loading && (sections.offers.data?.length ?? 0) === 0}
+                    emptyLabel="No offers running right now."
+                    onRetry={() => void retry()}
+                  />
+                  <div className="stagger-children no-scrollbar -mx-5 mt-4 flex gap-3 overflow-x-auto px-5 pb-1">
+                    {offers.map((offer, index) => {
+                      const Icon =
+                        offer.kind === "cashback" ? Wallet : offer.kind === "festival" ? Percent : Gift;
+                      return (
+                        <button
+                          key={`${offer.id}-${index}`}
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(offer.code);
+                            toast.success(`Coupon code "${offer.code}" copied!`);
+                          }}
+                          className="card-soft w-64 shrink-0 border border-dashed border-primary/50 p-4 text-left transition-all duration-300 active:scale-[0.97]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+                              <Icon className="size-5" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-foreground">{offer.title}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {offer.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between border-t border-dashed border-border pt-3">
+                            <span className="rounded-lg bg-muted px-2 py-1 text-[11px] font-bold tracking-wider text-foreground">
+                              {offer.code}
+                            </span>
+                            <span className="text-xs font-semibold text-brand-green">Copy Code</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-            {/* Brand watermark footer */}
-            <section className="mt-12 -mx-4 select-none bg-muted/60 px-5 pb-10 pt-12">
-              <h2 className="text-[2.6rem] font-black leading-[0.95] tracking-tight text-muted-foreground/35">
-                India&rsquo;s freshest
-                <br />
-                laundry app <span className="text-primary/35">🧺</span>
-              </h2>
-              <div className="mt-8 h-px w-full bg-border/70" />
-              <p className="mt-6 text-3xl font-black tracking-tight text-muted-foreground/25">
-                QuickPress
-              </p>
-              <p className="mt-6 text-[11px] font-medium tracking-wide text-muted-foreground/70">
-                Made In India · Crafted by Utter Pradesh 🚩
-              </p>
-            </section>
-          </>
+                {/* Recent orders — GET /api/orders/recent */}
+                <section className="mt-8">
+                  <SectionHeading
+                    title="Recent orders"
+                    action="View all"
+                    onAction={() => void navigate({ to: "/history" })}
+                  />
+                  <SectionStatus
+                    error={sections.recentOrders.error}
+                    empty={!sections.recentOrders.loading && (sections.recentOrders.data?.length ?? 0) === 0}
+                    emptyLabel="You have no orders yet."
+                    onRetry={() => void retry()}
+                  />
+                  <div className="stagger-children mt-4 space-y-3">
+                    {recentOrders.slice(0, 3).map((order, index) => {
+                      const targetId = order.id || order.reference;
+                      return (
+                        <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-foreground">{order.title}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {order.reference} · {order.items}
+                              </p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${order.status === "Delivered"
+                                  ? "bg-secondary/12 text-brand-green"
+                                  : "bg-primary/20 text-brand-dark"
+                                }`}
+                            >
+                              {order.status}
+                            </span>
+                          </div>
+                          <div className="mt-4 flex items-center gap-2">
+                            <span className="mr-auto text-sm font-bold text-foreground">
+                              ₹{order.total}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void handleReorder(targetId)}
+                              disabled={reordering === targetId}
+                              className="rounded-2xl border border-border/80 bg-white px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-all duration-300 hover:bg-zinc-50 hover:shadow-sm active:scale-[0.95] disabled:opacity-50"
+                            >
+                              {reordering === targetId ? "Reordering..." : "Repeat order"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void navigate({
+                                  to: "/track/$orderId",
+                                  params: { orderId: targetId },
+                                })
+                              }
+                              className="rounded-2xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.95]"
+                            >
+                              Track order
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {recentOrders.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => void navigate({ to: "/history" })}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border/80 bg-card py-3 text-xs font-bold text-foreground shadow-2xs transition-all hover:bg-muted active:scale-[0.98]"
+                      >
+                        <span>View all orders</span>
+                        <ChevronRight className="size-3.5 text-muted-foreground" />
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+
+                {/* Brand watermark footer */}
+                <section className="mt-12 -mx-4 select-none bg-muted/60 px-5 pb-10 pt-12">
+                  <h2 className="text-[2.6rem] font-black leading-[0.95] tracking-tight text-muted-foreground/35">
+                    India&rsquo;s freshest
+                    <br />
+                    laundry app <span className="text-primary/35">🧺</span>
+                  </h2>
+                  <div className="mt-8 h-px w-full bg-border/70" />
+                  <p className="mt-6 text-3xl font-black tracking-tight text-muted-foreground/25">
+                    QuickPress
+                  </p>
+                  <p className="mt-6 text-[11px] font-medium tracking-wide text-muted-foreground/70">
+                    Made In India · Crafted by Utter Pradesh 🚩
+                  </p>
+                </section>
+              </>
+            )}
+          </div>
         )}
       </div>
-    )}
-  </div>
 
-  <FloatingCartBar />
+      <FloatingCartBar />
       <BottomNav active="home" />
     </main>
   );

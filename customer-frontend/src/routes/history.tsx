@@ -311,7 +311,7 @@ function HistoryScreen() {
                               void openInvoice(order);
                             }}
                             disabled={invoiceBusy === order.id}
-                            className="flex items-center gap-2 rounded-full bg-muted px-4 py-2.5 text-xs font-bold tracking-tight text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.95] disabled:opacity-70"
+                            className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white px-4 py-2.5 text-xs font-bold tracking-tight text-foreground shadow-xs transition-all duration-300 hover:bg-zinc-50 hover:shadow-sm active:scale-[0.95] disabled:opacity-70"
                           >
                             {invoiceBusy === order.id ? (
                               <Loader2 className="size-4 animate-spin" />
@@ -328,7 +328,7 @@ function HistoryScreen() {
                             void handleReorder(order);
                           }}
                           disabled={reordering === order.id}
-                          className="flex items-center gap-2 rounded-full bg-primary/15 px-4 py-2.5 text-xs font-bold tracking-tight text-brand-dark transition-all duration-300 hover:bg-primary/25 active:scale-[0.95] disabled:opacity-70"
+                          className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white px-4 py-2.5 text-xs font-bold tracking-tight text-foreground shadow-xs transition-all duration-300 hover:bg-zinc-50 hover:shadow-sm active:scale-[0.95] disabled:opacity-70"
                         >
                           {reordering === order.id ? (
                             <Loader2 className="size-4 animate-spin" />
