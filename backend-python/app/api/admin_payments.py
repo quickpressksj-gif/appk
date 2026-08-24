@@ -7,7 +7,7 @@ from app.core.deps import require_roles
 from app.db import payment_repositories as repo
 from app.db.client import database
 from app.models.payment import ApproveSettlementPayload, ApproveWithdrawalPayload, RejectReasonPayload
-from app.models.user import Role, User
+from app.models.user import Role, User, utcnow
 
 router = APIRouter(tags=["admin-payments"])
 
@@ -112,3 +112,236 @@ async def reject_withdrawal(
         return await repo.reject_withdrawal(withdrawal_id, payload.reason, owner)
     except repo.PaymentError as error:
         raise _fail(error) from error
+
+
+# =========================================================================
+#  /api/admin/wallet/* Endpoints for Admin Finance Console & Live Ledger
+# =========================================================================
+
+@router.get("/admin/wallet/kpis")
+async def admin_wallet_kpis(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    """Calculate real platform financial KPIs from live MongoDB collections."""
+    orders = await database.find_many("customer_orders", {})
+    total_order_revenue = sum(int(o.get("grand_total") or o.get("total") or 0) for o in orders if o.get("status") != "cancelled")
+    
+    mbs_txns = await database.find_many("membership_transactions", {})
+    total_mbs_revenue = sum(int(m.get("amount") or 0) for m in mbs_txns if m.get("payment_status") == "paid")
+    
+    total_revenue = total_order_revenue + total_mbs_revenue
+    platform_commission = int(total_order_revenue * 0.15 + total_mbs_revenue)
+    partner_payouts = int(total_order_revenue * 0.70)
+    rider_earnings = int(total_order_revenue * 0.15)
+    
+    wallets = await database.find_many("wallets", {})
+    total_wallet_balance = sum(int(w.get("current_balance") or 0) for w in wallets)
+    
+    withdrawals = await database.find_many("partner_withdrawals", {"status": "pending"})
+    pending_settlements = sum(int(w.get("amount") or 0) for w in withdrawals)
+
+    return [
+        {"id": "total_revenue", "label": "Total Revenue", "value": total_revenue, "positive": True},
+        {"id": "platform_commission", "label": "Platform Profit", "value": platform_commission, "positive": True},
+        {"id": "partner_payouts", "label": "Partner Payouts", "value": partner_payouts, "positive": True},
+        {"id": "rider_earnings", "label": "Rider Earnings", "value": rider_earnings, "positive": True},
+        {"id": "wallet_balance", "label": "Customer Float", "value": total_wallet_balance, "positive": True},
+        {"id": "pending_settlements", "label": "Pending Payouts", "value": pending_settlements, "positive": False},
+    ]
+
+
+@router.get("/admin/wallet/revenue-split")
+async def admin_revenue_split(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    return [
+        {"name": "Partner Payouts", "value": 70, "color": "#10b981"},
+        {"name": "Platform Margin", "value": 15, "color": "#6366f1"},
+        {"name": "Rider Delivery", "value": 15, "color": "#f59e0b"},
+    ]
+
+
+@router.get("/admin/wallet/partner-earnings")
+async def admin_partner_earnings(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    partners = await database.find_many("partners", {})
+    orders = await database.find_many("customer_orders", {})
+    
+    rows = []
+    for p in partners:
+        p_id = p.get("_id")
+        p_orders = [o for o in orders if o.get("partner_id") == p_id]
+        gross = sum(int(o.get("grand_total") or o.get("total") or 0) for o in p_orders)
+        commission = int(gross * 0.15)
+        net = gross - commission
+        rows.append({
+            "id": p_id,
+            "account": p.get("name", "Laundry Store"),
+            "city": p.get("city", "Delhi NCR"),
+            "orders": len(p_orders),
+            "gross": gross,
+            "commission": commission,
+            "net": net,
+        })
+    return rows
+
+
+@router.get("/admin/wallet/rider-earnings")
+async def admin_rider_earnings(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    riders = await database.find_many("riders", {})
+    orders = await database.find_many("customer_orders", {})
+    
+    rows = []
+    for r in riders:
+        r_id = r.get("_id")
+        r_orders = [o for o in orders if o.get("rider_id") == r_id]
+        gross = sum(int(o.get("grand_total") or o.get("total") or 0) for o in r_orders)
+        commission = int(gross * 0.10)
+        net = gross - commission
+        rows.append({
+            "id": r_id,
+            "account": r.get("name", "Rider Partner"),
+            "city": r.get("city", "Delhi NCR"),
+            "orders": len(r_orders),
+            "gross": gross,
+            "commission": commission,
+            "net": net,
+        })
+    return rows
+
+
+@router.get("/admin/wallet/withdrawals")
+async def admin_wallet_withdrawals(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    withdrawals = await database.find_many("partner_withdrawals", {})
+    if not withdrawals:
+        withdrawals = await database.find_many("withdrawals", {})
+    return [
+        {
+            "_id": w.get("_id"),
+            "accountName": w.get("account_name") or w.get("accountName") or "Partner",
+            "kind": w.get("kind") or "partner",
+            "amount": int(w.get("amount") or 0),
+            "createdAt": w.get("created_at") or w.get("createdAt") or "—",
+            "method": w.get("method") or "Bank Transfer / UPI",
+            "status": w.get("status") or "Pending",
+        }
+        for w in withdrawals
+    ]
+
+
+@router.post("/admin/wallet/withdrawals/{withdrawal_id}/{action}")
+async def admin_decide_wallet_withdrawal(
+    withdrawal_id: str, action: str, user: User = Depends(require_roles(Role.admin))
+) -> dict:
+    new_status = "Approved" if action == "approve" else "Rejected"
+    await database.collection("partner_withdrawals").update_one(
+        {"_id": withdrawal_id},
+        {"$set": {"status": new_status}}
+    )
+    return {"ok": True, "id": withdrawal_id, "action": action}
+
+
+@router.get("/admin/wallet/refunds")
+async def admin_wallet_refunds(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    refunds = await database.find_many("gateway_refunds", {})
+    users = {doc["_id"]: doc.get("display_name") or doc.get("name") or doc.get("phone") or doc["_id"] 
+             for doc in await database.find_many("users", {})}
+    
+    rows = []
+    for r in refunds:
+        user_name = users.get(r.get("accountId"), "Customer")
+        rows.append({
+            "_id": r.get("_id"),
+            "party": f"{user_name} ({r.get('reason') or 'Order Refund'})",
+            "kind": "Refund",
+            "amount": int(r.get("amount") or 0),
+            "createdAt": r.get("createdAt") or "—",
+            "status": "Settled" if r.get("status") in ("processed", "success", "paid") else "Pending",
+        })
+    return rows
+
+
+@router.get("/admin/wallet/transactions")
+async def admin_wallet_transactions(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
+    """Full live transactions audit ledger merging Wallet, Razorpay, Orders & Memberships."""
+    txns = []
+
+    # Map user identities
+    user_docs = await database.find_many("users", {})
+    users = {
+        doc["_id"]: doc.get("display_name") or doc.get("name") or doc.get("phone") or doc["_id"]
+        for doc in user_docs
+    }
+
+    # 1. Wallet transactions (top-ups, credits, debits)
+    wallet_txns = await database.find_many("wallet_transactions", {})
+    for wt in wallet_txns:
+        user_name = users.get(wt.get("user_id"), "Customer")
+        w_type = str(wt.get("type") or "")
+        kind = (
+            "Top-up" if w_type in ("add-funds", "topup")
+            else "Order" if w_type in ("order-payment", "order")
+            else "Refund" if w_type == "refund"
+            else "Commission" if "commission" in w_type
+            else "Wallet"
+        )
+        status = "Settled" if wt.get("status") in ("success", "paid", "completed", None) else "Pending"
+        txns.append({
+            "_id": wt.get("_id"),
+            "party": f"{user_name} ({wt.get('title') or kind})",
+            "kind": kind,
+            "amount": int(wt.get("amount") or 0),
+            "createdAt": wt.get("created_at") or wt.get("timestamp") or "—",
+            "status": status,
+        })
+
+    # 2. Razorpay Gateway Payments
+    gw_payments = await database.find_many("gateway_payments", {})
+    for gp in gw_payments:
+        if any(t["_id"] == gp.get("_id") for t in txns):
+            continue
+        user_name = users.get(gp.get("accountId"), "Online Customer")
+        purpose = str(gp.get("purpose") or "Razorpay Payment")
+        kind = (
+            "Top-up" if "top-up" in purpose.lower() or "topup" in purpose.lower()
+            else "Membership" if "membership" in purpose.lower()
+            else "Order" if "order" in purpose.lower()
+            else "Razorpay"
+        )
+        status = "Settled" if gp.get("status") in ("paid", "completed", "success") else "Pending" if gp.get("status") in ("created", "pending", "processing") else "Failed"
+        txns.append({
+            "_id": gp.get("_id"),
+            "party": f"{user_name} ({purpose})",
+            "kind": kind,
+            "amount": int(gp.get("amount") or 0),
+            "createdAt": gp.get("createdAt") or "—",
+            "status": status,
+        })
+
+    # 3. Membership Subscriptions
+    mbs_txns = await database.find_many("membership_transactions", {})
+    for mt in mbs_txns:
+        if any(t["_id"] == mt.get("_id") for t in txns):
+            continue
+        user_name = users.get(mt.get("user_id"), "Subscriber")
+        txns.append({
+            "_id": mt.get("_id"),
+            "party": f"{user_name} (VIP {mt.get('plan_name')})",
+            "kind": "Membership",
+            "amount": int(mt.get("amount") or 0),
+            "createdAt": mt.get("subscribed_at") or "—",
+            "status": "Settled" if mt.get("payment_status") == "paid" else "Pending",
+        })
+
+    # 4. Customer Orders
+    orders = await database.find_many("customer_orders", {})
+    for ord_doc in orders:
+        ord_id = ord_doc.get("_id")
+        user_name = users.get(ord_doc.get("customer_id"), "Customer")
+        txns.append({
+            "_id": ord_id,
+            "party": f"{user_name} (Order #{ord_id[:8]})",
+            "kind": "Order",
+            "amount": int(ord_doc.get("grand_total") or ord_doc.get("total") or 0),
+            "createdAt": ord_doc.get("created_at") or "—",
+            "status": "Settled" if ord_doc.get("status") in ("delivered", "completed", "confirmed") else "Pending",
+        })
+
+    # Sort reverse chronological
+    txns.sort(key=lambda x: str(x.get("createdAt", "")), reverse=True)
+    return txns

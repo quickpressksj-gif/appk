@@ -80,17 +80,17 @@ function CartScreen() {
 
   // GET /api/cart/summary — store, coupons and charges straight from the backend.
   useEffect(() => {
-    if (data) return;
     let alive = true;
     void fetchCart(couponDiscount).then((next) => {
       if (!alive) return;
       setData(next);
       setCartState({ data: next });
     });
+    void refreshCart(couponDiscount);
     return () => {
       alive = false;
     };
-  }, [couponDiscount, data]);
+  }, [couponDiscount, cart.count, cart.total]);
 
   // PUT /api/cart/items/{id} — optimistic, rolled back by the store on failure.
   const step = (id: string, delta: number) => {

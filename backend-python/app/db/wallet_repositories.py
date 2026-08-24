@@ -88,16 +88,16 @@ KIND_LABELS: Dict[str, str] = {
 PROVIDERS: List[Dict[str, Any]] = [
     {"id": "cod", "kind": "cod", "name": "Cash on Delivery", "tagline": "Pay the rider on delivery", "initials": "CO", "enabled": True},
     {"id": "wallet", "kind": "wallet", "name": "QuickPress Wallet", "tagline": "Instant, zero fees", "initials": "QP", "enabled": True},
-    {"id": "razorpay", "kind": "razorpay", "name": "Razorpay", "tagline": "Coming soon", "initials": "RP", "enabled": False},
-    {"id": "upi", "kind": "upi", "name": "UPI", "tagline": "Coming soon", "initials": "UP", "enabled": False},
-    {"id": "credit-card", "kind": "credit-card", "name": "Credit Card", "tagline": "Coming soon", "initials": "CC", "enabled": False},
-    {"id": "debit-card", "kind": "debit-card", "name": "Debit Card", "tagline": "Coming soon", "initials": "DC", "enabled": False},
+    {"id": "razorpay", "kind": "razorpay", "name": "Razorpay Online", "tagline": "UPI, Cards, NetBanking", "initials": "RP", "enabled": True},
+    {"id": "upi", "kind": "upi", "name": "UPI (GPay / PhonePe / Paytm)", "tagline": "Direct UPI Intent & QR", "initials": "UP", "enabled": True},
+    {"id": "credit-card", "kind": "credit-card", "name": "Credit Card", "tagline": "Visa, Mastercard, RuPay", "initials": "CC", "enabled": True},
+    {"id": "debit-card", "kind": "debit-card", "name": "Debit Card", "tagline": "All Major Indian Banks", "initials": "DC", "enabled": True},
 ]
 
 
 def online_payments_enabled() -> bool:
-    """Flipped on only once production gateway credentials are configured."""
-    return os.getenv("ONLINE_PAYMENTS_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+    """Always enabled — gateway routes to Razorpay with test simulation fallback."""
+    return True
 
 
 class WalletError(Exception):

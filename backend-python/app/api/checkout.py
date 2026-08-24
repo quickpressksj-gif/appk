@@ -76,6 +76,8 @@ def payment_methods(balance: int, payable: int) -> list[PaymentMethodResponse]:
             kind="cod",
             name="Cash on delivery",
             note="Pay the rider when your laundry arrives",
+            enabled=True,
+            comingSoon=False,
         ),
         PaymentMethodResponse(
             id="wallet",
@@ -84,17 +86,18 @@ def payment_methods(balance: int, payable: int) -> list[PaymentMethodResponse]:
             note=(
                 f"Balance ₹{balance}"
                 if balance >= payable
-                else f"Balance ₹{balance} — not enough for this order"
+                else f"Balance ₹{balance} — not enough for full payment"
             ),
-            enabled=balance >= payable and payable > 0,
+            enabled=True,
+            comingSoon=False,
         ),
         PaymentMethodResponse(
             id="online",
             kind="online",
-            name="UPI / Cards",
-            note="Online payments arrive soon",
-            enabled=False,
-            comingSoon=True,
+            name="UPI / Cards / NetBanking",
+            note="Instant online payment via Razorpay (GPay, PhonePe, Paytm, Cards)",
+            enabled=True,
+            comingSoon=False,
         ),
     ]
 

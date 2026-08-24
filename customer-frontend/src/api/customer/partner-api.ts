@@ -289,5 +289,9 @@ export async function postPartnerCart(payload: {
   quantities: Record<string, number>;
 }): Promise<{ ok: true }> {
   await apiPostJson<{ ok: true }>("/api/cart", payload);
+  try {
+    const { refreshCart } = await import("./cart-store");
+    await refreshCart();
+  } catch {}
   return { ok: true };
 }
