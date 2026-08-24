@@ -46,6 +46,36 @@ import { usePartnerOrders } from "../../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../../hooks/use-order-action-handler";
 import type { ManagedOrder } from "../../data/partner-orders-mock";
 import { STAGE_LABEL } from "../../data/partner-orders-mock";
+import { OrderTimeline } from "../orders/OrderTimeline";
+
+function getStageTimelineIndex(stage: string): number {
+  switch (stage) {
+    case "new":
+      return 0;
+    case "accepted":
+      return 1;
+    case "pickup_pending":
+    case "pickup_driver_assigned":
+    case "picked_up":
+    case "picked":
+    case "at_partner":
+      return 2;
+    case "washing":
+    case "dry_cleaning":
+    case "processing":
+    case "ironing":
+      return 3;
+    case "ready":
+    case "delivery_assigned":
+    case "out_for_delivery":
+      return 4;
+    case "completed":
+    case "delivered":
+      return 5;
+    default:
+      return 0;
+  }
+}
 
 const FEED_PILLS = [
   { id: "feed", label: "My Feed" },
@@ -114,7 +144,7 @@ export function ZomatoHubView() {
   // Find incoming new orders and active processing orders
   const newIncomingOrders = orders.filter((o) => o.stage === "new");
   const activeProcessingOrders = orders.filter(
-    (o) => o.stage === "accepted" || o.stage === "picked" || o.stage === "processing" || o.stage === "ready"
+    (o) => o.stage !== "completed" && o.stage !== "cancelled"
   );
 
   return (
@@ -130,121 +160,84 @@ export function ZomatoHubView() {
               <h1 className="truncate text-base font-black tracking-tight text-zinc-900">
                 {shopName}
               </h1>
-              <ChevronRight className="size-4 text-zinc-400 shrink-0" />
+              <ChevronRight className="size-4 text-zinc-400" />
             </div>
-            <p className="text-[11px] font-medium text-zinc-500">{locationName}</p>
+            <p className="text-xs font-semibold text-zinc-500">{locationName}</p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleToggleStore}
-              className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-black text-zinc-700 active:scale-95"
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-extrabold transition-colors ${
+                isOnline
+                  ? "border border-emerald-300 bg-emerald-50 text-emerald-700"
+                  : "border border-zinc-200 bg-zinc-100 text-zinc-600"
+              }`}
             >
-              <span className={`size-2 rounded-full ${isOnline ? "bg-emerald-500 animate-ping" : "bg-zinc-400"}`} />
+              <span
+                className={`size-2 rounded-full ${
+                  isOnline ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+                }`}
+              />
               <span>{isOnline ? "Online" : "Offline"}</span>
-              <span className="text-[10px] text-zinc-400">›</span>
+              <ChevronRight className="size-3" />
             </button>
 
             <Link
               to={partnerRoutes.notifications}
-              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-transform active:scale-95"
+              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 active:scale-95"
             >
               <Bell className="size-4" />
             </Link>
 
             <Link
-              to={partnerRoutes.profile}
-              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-800"
+              to={partnerRoutes.settings}
+              className="flex size-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 active:scale-95"
             >
-              <Menu className="size-5" />
+              <Menu className="size-4" />
             </Link>
           </div>
         </div>
 
-        {/* Real Filter Carousel */}
-        <div className="no-scrollbar -mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-1">
-          {FEED_PILLS.map((pill) => {
-            const isActive = activeFeedPill === pill.id;
-            return (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => setActiveFeedPill(pill.id)}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-black transition-all active:scale-95 ${
-                  isActive
-                    ? "bg-zinc-950 text-white shadow-sm"
-                    : "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"
-                }`}
-              >
-                {pill.label}
-              </button>
-            );
-          })}
+        {/* Feed Filter Pills Bar */}
+        <div className="no-scrollbar mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+          {FEED_PILLS.map((pill) => (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => setActiveFeedPill(pill.id)}
+              className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-black transition-all ${
+                activeFeedPill === pill.id
+                  ? "bg-zinc-900 text-white shadow-xs"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
         </div>
       </header>
 
       {/* ========================================================================= */}
-      {/* 1. MY FEED FILTER VIEW (Default Operational Flow)                          */}
+      {/* 1. MY FEED VIEW                                                           */}
       {/* ========================================================================= */}
       {activeFeedPill === "feed" && (
         <div className="space-y-4 px-4 pt-3">
-          {/* 🚨 REAL LIVE ORDER ALERT BANNER (If new incoming orders exist) */}
-          {newIncomingOrders.length > 0 ? (
-            <div className="animate-bounce-subtle rounded-2xl border-2 border-amber-500 bg-amber-500/10 p-4 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-zinc-950 font-black animate-pulse">
-                    <Volume2 className="size-4" />
-                  </span>
-                  <div>
-                    <h3 className="text-xs font-black uppercase text-amber-900 tracking-wider">
-                      🚨 New Order Received! ({newIncomingOrders.length})
-                    </h3>
-                    <p className="text-[11px] font-bold text-zinc-800">
-                      Order #{newIncomingOrders[0].code} · {newIncomingOrders[0].customerName}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-sm font-black text-zinc-950">₹{newIncomingOrders[0].amount}</span>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between border-t border-amber-300/60 pt-2.5">
-                <span className="text-[11px] font-semibold text-zinc-600">
-                  {newIncomingOrders[0].items.length} items booked
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAction(newIncomingOrders[0], "reject")}
-                    className="rounded-full bg-white px-3 py-1 text-xs font-black text-red-600 border border-red-200 active:scale-95"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAction(newIncomingOrders[0], "accept")}
-                    className="rounded-full bg-emerald-600 px-4 py-1 text-xs font-black text-white shadow-sm active:scale-95"
-                  >
-                    Accept Order ✓
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Today so far Card */}
+          {/* Today So Far Card */}
           <div>
-            <h2 className="text-base font-black tracking-tight text-zinc-900">Today so far</h2>
-            <div className="mt-2 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-black tracking-wider text-zinc-500 uppercase">
+              Today so far
+            </h2>
+            <div className="mt-1.5 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between">
-                <div className="grid grid-cols-2 gap-8">
+                <div className="flex items-baseline gap-6">
                   <div>
                     <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
                       Total sales
                     </p>
                     <p className="mt-0.5 text-2xl font-black text-zinc-900">
-                      ₹{todayEarnings > 0 ? todayEarnings.toLocaleString("en-IN") : "0"}
+                      ₹{todayEarnings.toLocaleString("en-IN")}
                     </p>
                   </div>
                   <div>
@@ -256,15 +249,6 @@ export function ZomatoHubView() {
                     </p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleToggleStore}
-                  className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 border border-emerald-200 text-xs font-black text-emerald-700 active:scale-95"
-                >
-                  <span className={`size-2 rounded-full ${isOnline ? "bg-emerald-500 animate-ping" : "bg-zinc-400"}`} />
-                  <span>{isOnline ? "● Live" : "Closed"}</span>
-                </button>
               </div>
 
               {/* Order Flow Progress */}
@@ -275,11 +259,15 @@ export function ZomatoHubView() {
                 </div>
                 <div className="rounded-xl bg-zinc-50 p-2">
                   <p className="text-[10px] font-bold text-zinc-400 uppercase">Accepted</p>
-                  <p className="text-sm font-black text-zinc-900">{counts.accepted || 0}</p>
+                  <p className="text-sm font-black text-zinc-900">
+                    {(counts.accepted || 0) + (counts.pickup_pending || 0)}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-zinc-50 p-2">
                   <p className="text-[10px] font-bold text-zinc-400 uppercase">Wash/Prep</p>
-                  <p className="text-sm font-black text-zinc-900">{counts.processing || 0}</p>
+                  <p className="text-sm font-black text-zinc-900">
+                    {(counts.washing || 0) + (counts.dry_cleaning || 0) + (counts.ironing || 0)}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-zinc-50 p-2">
                   <p className="text-[10px] font-bold text-zinc-400 uppercase">Ready</p>
@@ -312,44 +300,140 @@ export function ZomatoHubView() {
                   <p className="text-[10px] text-zinc-400">New customer bookings will appear here instantly.</p>
                 </div>
               ) : (
-                activeProcessingOrders.slice(0, 4).map((order) => (
-                  <div
-                    key={order.id}
-                    className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="inline-block rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-black text-zinc-800">
-                          #{order.code}
-                        </span>
-                        <p className="mt-1 text-sm font-black text-zinc-900">{order.customerName}</p>
-                        <p className="text-xs text-zinc-500">
-                          {order.items.length} items · ₹{order.amount}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-black uppercase text-amber-800">
-                        {STAGE_LABEL[order.stage] || order.stage}
-                      </span>
-                    </div>
+                activeProcessingOrders.map((order) => {
+                  const stepIdx = getStageTimelineIndex(order.stage);
+                  const isNew = order.stage === "new";
 
-                    <div className="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2.5">
-                      <a
-                        href={`tel:${order.customerPhone}`}
-                        className="flex items-center gap-1 text-xs font-bold text-zinc-600"
-                      >
-                        <Phone className="size-3.5" />
-                        <span>{order.customerPhone}</span>
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedManageOrder(order)}
-                        className="rounded-full bg-zinc-950 px-4 py-1 text-xs font-black text-white active:scale-95 shadow-xs"
-                      >
-                        Manage Order →
-                      </button>
+                  return (
+                    <div
+                      key={order.id}
+                      className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm space-y-3 transition-all hover:border-emerald-300"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-black text-white">
+                              #{order.code}
+                            </span>
+                            {order.services && order.services.length > 0 ? (
+                              <span className="truncate rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-700">
+                                {order.services.join(", ")}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-sm font-black text-zinc-900 truncate">
+                            {order.customerName}
+                          </p>
+                          <p className="text-xs font-semibold text-zinc-500">
+                            {order.itemCount} items · <span className="font-bold text-zinc-900">₹{order.amount}</span>
+                            {order.pickupTime ? ` · ${order.pickupTime}` : ""}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                            isNew
+                              ? "bg-amber-500/15 text-amber-800 border border-amber-500/30"
+                              : order.stage === "ready"
+                                ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
+                                : "bg-blue-500/15 text-blue-800 border border-blue-500/30"
+                          }`}
+                        >
+                          {STAGE_LABEL[order.stage] || order.stage}
+                        </span>
+                      </div>
+
+                      {/* Live Horizontal Timeline Stepper */}
+                      <div className="rounded-xl bg-zinc-50/80 p-2.5 border border-zinc-100/90">
+                        <div className="flex items-center justify-between text-[9px] font-black uppercase">
+                          {[
+                            { key: "placed", label: "Placed" },
+                            { key: "accepted", label: "Accepted" },
+                            { key: "pickup", label: "Pickup" },
+                            { key: "washing", label: "Cleaning" },
+                            { key: "ready", label: "Ready" },
+                          ].map((step, idx) => {
+                            const isDone = idx <= stepIdx;
+                            const isCurrent = idx === stepIdx;
+                            return (
+                              <div key={step.key} className="flex flex-1 flex-col items-center relative">
+                                {idx > 0 && (
+                                  <div
+                                    className={`absolute top-2 -left-1/2 w-full h-[2px] -z-0 transition-colors ${
+                                      idx <= stepIdx ? "bg-emerald-500" : "bg-zinc-200"
+                                    }`}
+                                  />
+                                )}
+                                <div
+                                  className={`relative z-10 flex size-4.5 items-center justify-center rounded-full text-[9px] font-black transition-all ${
+                                    isCurrent
+                                      ? "bg-emerald-600 text-white ring-2 ring-emerald-600/30 shadow-xs"
+                                      : isDone
+                                        ? "bg-emerald-500 text-white"
+                                        : "bg-zinc-200 text-zinc-400"
+                                  }`}
+                                >
+                                  {isDone ? "✓" : idx + 1}
+                                </div>
+                                <span
+                                  className={`mt-1 text-[9px] tracking-tight ${
+                                    isCurrent
+                                      ? "text-emerald-800 font-black"
+                                      : isDone
+                                        ? "text-zinc-700 font-bold"
+                                        : "text-zinc-400 font-medium"
+                                  }`}
+                                >
+                                  {step.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between border-t border-zinc-100 pt-2.5 gap-2">
+                        <a
+                          href={`tel:${order.customerPhone}`}
+                          className="flex items-center gap-1 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-100 active:scale-95 border border-zinc-200"
+                        >
+                          <Phone className="size-3.5 text-emerald-600" />
+                          <span>{order.customerPhone || "Call"}</span>
+                        </a>
+
+                        <div className="flex items-center gap-1.5">
+                          {isNew ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleAction(order, "reject")}
+                                className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600 border border-red-200 active:scale-95"
+                              >
+                                Reject
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAction(order, "accept")}
+                                className="rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs active:scale-95"
+                              >
+                                Accept ✓
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedManageOrder(order)}
+                              className="rounded-full bg-zinc-950 px-3.5 py-1.5 text-xs font-black text-white active:scale-95 shadow-xs flex items-center gap-1"
+                            >
+                              <span>Manage Order</span>
+                              <ArrowRight className="size-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -540,6 +624,14 @@ export function ZomatoHubView() {
               </div>
             </div>
 
+            {/* Real Order Timeline */}
+            <div className="mt-4 rounded-2xl bg-zinc-50 p-4 border border-zinc-100">
+              <p className="text-[11px] font-black uppercase tracking-wider text-zinc-400 mb-3">
+                Order Timeline
+              </p>
+              <OrderTimeline order={selectedManageOrder} />
+            </div>
+
             {/* Stage Action Buttons */}
             <div className="mt-4 space-y-2">
               {selectedManageOrder.stage === "new" ? (
@@ -565,7 +657,7 @@ export function ZomatoHubView() {
                     Accept Order ✓
                   </button>
                 </div>
-              ) : selectedManageOrder.stage === "accepted" ? (
+              ) : selectedManageOrder.stage === "accepted" || selectedManageOrder.stage === "pickup_pending" ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -576,7 +668,7 @@ export function ZomatoHubView() {
                 >
                   Mark Clothes Picked Up & Start Wash →
                 </button>
-              ) : selectedManageOrder.stage === "picked" || selectedManageOrder.stage === "processing" ? (
+              ) : selectedManageOrder.stage === "washing" || selectedManageOrder.stage === "dry_cleaning" || selectedManageOrder.stage === "ironing" ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -599,7 +691,7 @@ export function ZomatoHubView() {
                   }}
                   className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
                 >
-                  View Full Order Timeline →
+                  View Full Order Details →
                 </button>
               )}
 
