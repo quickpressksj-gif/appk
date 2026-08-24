@@ -17,6 +17,34 @@ import {
   type ServiceListingData,
 } from "@/api/customer/service-listing-api";
 
+import washFoldImg from "@/shared/assets/item-wash-fold.jpg";
+import dryCleanImg from "@/shared/assets/item-dry-clean.jpg";
+import steamIronImg from "@/shared/assets/item-steam-iron.jpg";
+import premiumImg from "@/shared/assets/item-premium.jpg";
+import shoesImg from "@/shared/assets/item-shoes.jpg";
+import curtainImg from "@/shared/assets/item-curtain.jpg";
+import blanketImg from "@/shared/assets/item-blanket.jpg";
+import carpetImg from "@/shared/assets/item-carpet.jpg";
+import expressImg from "@/shared/assets/item-express.jpg";
+
+function resolveCategoryServiceImage(title?: string | null, img?: string | null): string {
+  const t = (title || "").toLowerCase();
+  if (t.includes("wash") || t.includes("fold") || t.includes("laundry") && !t.includes("premium") && !t.includes("express")) {
+    if (!t.includes("express") && !t.includes("premium")) return washFoldImg;
+  }
+  if (t.includes("dry") || t.includes("clean") && !t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) {
+    if (!t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) return dryCleanImg;
+  }
+  if (t.includes("steam") || t.includes("iron")) return steamIronImg;
+  if (t.includes("premium") || t.includes("saree")) return premiumImg;
+  if (t.includes("shoe") || t.includes("sneaker")) return shoesImg;
+  if (t.includes("curtain")) return curtainImg;
+  if (t.includes("blanket") || t.includes("quilt")) return blanketImg;
+  if (t.includes("carpet") || t.includes("rug")) return carpetImg;
+  if (t.includes("express")) return expressImg;
+  if (img && (img.startsWith("/") || img.startsWith("http") || img.startsWith("data:"))) return img;
+  return washFoldImg;
+}
 
 export const Route = createFileRoute("/services/$serviceId")({
   head: () => ({
@@ -158,7 +186,7 @@ function ServiceListingScreen() {
               <section className="card-soft animate-pop overflow-hidden border border-border">
                 <div className="flex gap-3 p-3.5">
                   <img
-                    src={data.service.image || "/placeholder.svg"}
+                    src={resolveCategoryServiceImage(data.service.title, data.service.image)}
                     alt={data.service.title}
                     width={320}
                     height={320}
