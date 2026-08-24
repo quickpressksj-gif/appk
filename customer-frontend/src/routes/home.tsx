@@ -323,6 +323,14 @@ function HomeScreen() {
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
+                  aria-label="Wallet"
+                  onClick={() => navigate({ to: "/wallet" })}
+                  className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
+                >
+                  <Wallet className="size-5" />
+                </button>
+                <button
+                  type="button"
                   aria-label="Notifications"
                   onClick={() => navigate({ to: "/notifications" })}
                   className="relative flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"

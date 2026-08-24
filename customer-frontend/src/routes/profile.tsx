@@ -368,7 +368,7 @@ function ProfileScreen() {
             <button
               type="button"
               aria-label="Notifications"
-              onClick={() => soon("Notifications")}
+              onClick={() => navigate({ to: "/notifications" })}
               className="relative flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
             >
               <Bell className="size-5" />
@@ -513,14 +513,14 @@ function ProfileScreen() {
                   label: "Reward Points",
                   value: (data.stats?.rewardPoints ?? 0).toLocaleString("en-IN"),
                   icon: Star,
-                  action: () => soon("Rewards"),
+                  action: () => navigate({ to: "/offers" }),
                 },
                 {
                   id: "wallet",
                   label: "Wallet Balance",
                   value: `₹${(data.stats?.walletBalance ?? 0).toLocaleString("en-IN")}`,
                   icon: Wallet,
-                  action: () => soon("Wallet"),
+                  action: () => navigate({ to: "/wallet" }),
                 },
                 {
                   id: "addresses",
@@ -550,11 +550,18 @@ function ProfileScreen() {
               ))}
             </section>
 
-            {/* Account — GET /api/addresses, GET /api/payment-methods, GET /api/orders */}
+            {/* Account — GET /api/addresses, GET /api/payment-methods, GET /api/orders, GET /api/wallet */}
             <section className="mt-8">
               <SectionHeading title="Account" />
               <RowList
                 rows={[
+                  {
+                    id: "wallet",
+                    label: "QuickPress Wallet & Funds",
+                    note: `₹${(data.stats?.walletBalance ?? 0).toLocaleString("en-IN")} · Add money & instant cashbacks`,
+                    icon: Wallet,
+                    action: () => navigate({ to: "/wallet" }),
+                  },
                   {
                     id: "personal",
                     label: "Personal Information",

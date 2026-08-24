@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Banknote,
   CreditCard,
@@ -67,6 +67,7 @@ const KINDS = Object.keys(PAYMENT_KIND_LABEL) as PaymentKind[];
 
 function PaymentMethodsScreen() {
   useAuthGuard();
+  const navigate = useNavigate();
   const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
   const [providers, setProviders] = useState<PaymentProvider[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -278,7 +279,13 @@ function PaymentMethodsScreen() {
                   <button
                     key={provider.id}
                     type="button"
-                    onClick={() => handleLinkProvider(provider.name)}
+                    onClick={() => {
+                      if (provider.id === "wallet" || provider.kind === "wallet") {
+                        navigate({ to: "/wallet" });
+                      } else {
+                        handleLinkProvider(provider.name);
+                      }
+                    }}
                     className="card-soft ripple flex items-center gap-3 border border-border p-4 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.96]"
                   >
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-dark text-[0.7rem] font-black text-primary">
