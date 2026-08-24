@@ -41,6 +41,7 @@ function toServiceRate(raw: RawService): PartnerServiceRate {
     turnaroundHours: Number(raw.turnaroundHours || 24),
     category: (raw.category as BusinessCategory) || "laundry",
     description: raw.description || "",
+    image: raw.image || "",
   };
 }
 

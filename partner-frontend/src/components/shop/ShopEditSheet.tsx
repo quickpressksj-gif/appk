@@ -35,13 +35,11 @@ export function ShopEditSheet({
 
   const submit = () => {
     const next: Errors = {};
-    if (form.name.trim().length < 3) next.name = "Shop name needs at least 3 characters";
-    if (form.description.trim().length < 20) next.description = "Add at least 20 characters";
-    if (!/^\d{5}\s?\d{5}$/.test(form.contactNumber.trim()))
-      next.contactNumber = "Enter a valid 10-digit number";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Enter a valid email";
-    if (form.gstNumber.trim().length !== 15) next.gstNumber = "GST number must be 15 characters";
-    if (!form.businessType) next.businessType = "Select a business type";
+    if (form.name.trim().length < 2) next.name = "Shop name needs at least 2 characters";
+    if (form.description.trim().length > 0 && form.description.trim().length < 5) next.description = "Add at least 5 characters";
+    if (form.contactNumber.trim() && !/^\+?\d{10,13}$/.test(form.contactNumber.replace(/[\s-]/g, "")))
+      next.contactNumber = "Enter a valid phone number";
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Enter a valid email";
 
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -59,7 +57,7 @@ export function ShopEditSheet({
     <ShopSheet
       open={open}
       title="Edit Shop Details"
-      subtitle="Changes are stored locally until the API is connected"
+      subtitle="Update your store information visible to customers"
       onClose={onClose}
       footer={
         <div className="flex items-center gap-2">

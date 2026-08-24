@@ -66,6 +66,8 @@ export type PartnerServiceRate = {
   turnaroundHours: number;
   enabled: boolean;
   category: BusinessCategory;
+  description?: string;
+  image?: string;
 };
 
 export type EarningsPoint = {
@@ -120,6 +122,19 @@ export type PartnerProfile = {
   joinedOn: string;
   onTimeRate: number;
   tier: "Bronze" | "Silver" | "Gold" | "Platinum";
+  logo?: string;
+  logoUrl?: string;
+  banner?: string;
+  bannerUrl?: string;
+  cover?: string;
+  image?: string;
+  description?: string;
+  category?: string;
+  gstin?: string;
+  address?: string;
+  area?: string;
+  isVerified?: boolean;
+  status?: string;
 };
 
 export type BusinessSettings = {

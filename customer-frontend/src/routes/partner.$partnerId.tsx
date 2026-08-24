@@ -34,6 +34,61 @@ import {
   type PartnerService,
 } from "@/api/customer/partner-api";
 
+import store1 from "@/shared/assets/store-1.jpg";
+import store2 from "@/shared/assets/store-2.jpg";
+import store3 from "@/shared/assets/store-3.jpg";
+import washFoldImg from "@/shared/assets/item-wash-fold.jpg";
+import dryCleanImg from "@/shared/assets/item-dry-clean.jpg";
+import steamIronImg from "@/shared/assets/item-steam-iron.jpg";
+import premiumImg from "@/shared/assets/item-premium.jpg";
+import shoesImg from "@/shared/assets/item-shoes.jpg";
+import curtainImg from "@/shared/assets/item-curtain.jpg";
+import blanketImg from "@/shared/assets/item-blanket.jpg";
+import carpetImg from "@/shared/assets/item-carpet.jpg";
+import expressImg from "@/shared/assets/item-express.jpg";
+
+function resolvePartnerCover(cover?: string | null): string {
+  if (!cover) return store1;
+  if (cover.startsWith("http://") || cover.startsWith("https://") || cover.startsWith("data:") || cover.startsWith("/uploads/")) return cover;
+  if (cover === "store-1" || cover.includes("store-1")) return store1;
+  if (cover === "store-2" || cover.includes("store-2")) return store2;
+  if (cover === "store-3" || cover.includes("store-3")) return store3;
+  if (cover.startsWith("/")) return cover;
+  return store1;
+}
+
+function resolvePartnerLogo(logo?: string | null): string {
+  if (!logo) return store1;
+  if (logo.startsWith("http://") || logo.startsWith("https://") || logo.startsWith("data:") || logo.startsWith("/uploads/")) return logo;
+  if (logo === "store-1" || logo.includes("store-1")) return store1;
+  if (logo === "store-2" || logo.includes("store-2")) return store2;
+  if (logo === "store-3" || logo.includes("store-3")) return store3;
+  if (logo.startsWith("/")) return logo;
+  return store1;
+}
+
+function resolveServiceImage(title?: string | null, img?: string | null): string {
+  if (img && (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:") || img.startsWith("/uploads/"))) {
+    return img;
+  }
+  const t = (title || "").toLowerCase();
+  if (t.includes("wash") || t.includes("fold") || t.includes("laundry") && !t.includes("premium") && !t.includes("express")) {
+    if (!t.includes("express") && !t.includes("premium")) return washFoldImg;
+  }
+  if (t.includes("dry") || t.includes("clean") && !t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) {
+    if (!t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) return dryCleanImg;
+  }
+  if (t.includes("steam") || t.includes("iron")) return steamIronImg;
+  if (t.includes("premium") || t.includes("saree")) return premiumImg;
+  if (t.includes("shoe") || t.includes("sneaker")) return shoesImg;
+  if (t.includes("curtain")) return curtainImg;
+  if (t.includes("blanket") || t.includes("quilt")) return blanketImg;
+  if (t.includes("carpet") || t.includes("rug")) return carpetImg;
+  if (t.includes("express")) return expressImg;
+  if (img && (img.startsWith("/") || img.startsWith("http") || img.startsWith("data:"))) return img;
+  return washFoldImg;
+}
+
 export const Route = createFileRoute("/partner/$partnerId")({
   head: () => ({
     meta: [
@@ -237,7 +292,7 @@ function PartnerDetailScreen() {
 
             {/* Cover banner — GET /api/partners/{id} */}
             <img
-              src={data.partner.cover}
+              src={resolvePartnerCover(data.partner.cover)}
               alt={`${data.partner.name} storefront`}
               width={1200}
               height={640}
@@ -252,7 +307,7 @@ function PartnerDetailScreen() {
                 <div className="flex items-start gap-3">
                   <div className="relative shrink-0">
                     <img
-                      src={data.partner.logo}
+                      src={resolvePartnerLogo(data.partner.logo)}
                       alt={`${data.partner.name} logo`}
                       width={256}
                       height={256}
@@ -319,7 +374,7 @@ function PartnerDetailScreen() {
                         key={service.id} className="card-soft flex gap-3 border border-border p-3 transition-all duration-300 hover:border-primary/60"
                       >
                         <img
-                          src={service.image}
+                          src={resolveServiceImage(service.name, service.image)}
                           alt={service.name}
                           width={640}
                           height={640}

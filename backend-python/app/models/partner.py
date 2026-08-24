@@ -68,10 +68,33 @@ class PartnerProfileResponse(BaseModel):
     tier: Literal["Bronze", "Silver", "Platinum", "Gold"] = "Silver"
     isVerified: bool = False
     status: str = "pending"
+    logo: Optional[str] = None
+    logoUrl: Optional[str] = None
+    banner: Optional[str] = None
+    bannerUrl: Optional[str] = None
+    cover: Optional[str] = None
+    image: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    gstin: Optional[str] = None
+    address: Optional[str] = None
+    area: Optional[str] = None
 
     def model_post_init(self, __context: any) -> None:
         if not self.id:
             self.id = self.partnerId
+        if not self.logo and self.logoUrl:
+            self.logo = self.logoUrl
+        if not self.logoUrl and self.logo:
+            self.logoUrl = self.logo
+        if not self.banner and self.bannerUrl:
+            self.banner = self.bannerUrl
+        if not self.bannerUrl and self.banner:
+            self.bannerUrl = self.banner
+        if not self.cover and (self.banner or self.bannerUrl):
+            self.cover = self.banner or self.bannerUrl
+        if not self.image and (self.logo or self.logoUrl):
+            self.image = self.logo or self.logoUrl
 
 
 class PartnerProfileUpdate(BaseModel):
@@ -80,6 +103,17 @@ class PartnerProfileUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     city: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    gstin: Optional[str] = None
+    address: Optional[str] = None
+    area: Optional[str] = None
+    logo: Optional[str] = None
+    logoUrl: Optional[str] = None
+    banner: Optional[str] = None
+    bannerUrl: Optional[str] = None
+    cover: Optional[str] = None
+    image: Optional[str] = None
 
 
 class BusinessSettingsResponse(BaseModel):

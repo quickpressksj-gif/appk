@@ -7,6 +7,8 @@ import {
   fetchPartnerProfile,
   updateBusinessSettings,
   updatePartnerProfile,
+  uploadPartnerLogo,
+  uploadPartnerBanner,
 } from "@/api/partner/partner-profile-api";
 import { fetchEarnings } from "@/api/partner/partner-earnings-api";
 
@@ -36,7 +38,9 @@ type PartnerShopValue = {
   error: string | null;
   galleryLimit: number;
   refresh: () => Promise<void>;
-  updateProfile: (patch: ShopEditableFields) => Promise<void>;
+  updateProfile: (patch: Partial<ShopProfile>) => Promise<void>;
+  uploadLogo: (base64Image: string) => Promise<string>;
+  uploadBanner: (base64Image: string) => Promise<string>;
   setStatus: (next: ShopStatusId) => Promise<void>;
   updateHours: (patch: Partial<BusinessHours>) => Promise<void>;
   /** No upload endpoint exists yet — always reports unavailable. */
@@ -86,21 +90,27 @@ const EMPTY_STATS: ShopStatistics = {
 };
 
 function toShopProfile(profile: PartnerProfile): ShopProfile {
+  const logo = profile.logo || profile.logoUrl || profile.image;
+  const banner = profile.banner || profile.bannerUrl || profile.cover;
   return {
     shopId: profile.partnerId,
     name: profile.businessName,
     ownerName: profile.ownerName,
-    // No description/category/GST/business-type fields exist on the backend
-    // profile yet, so these stay blank rather than being fabricated.
-    description: "",
-    category: "",
-    businessType: "",
+    description: profile.description || "",
+    category: profile.category || "Laundry Service",
+    businessType: profile.category || "Laundry & Dry Clean",
     rating: profile.rating,
     reviewCount: profile.totalOrders,
-    verification: "pending",
+    verification: profile.isVerified ? "verified" : (profile.status === "rejected" ? "rejected" : "pending"),
     contactNumber: profile.phone,
     email: profile.email,
-    gstNumber: "",
+    gstNumber: profile.gstin || "",
+    logo: logo,
+    logoUrl: logo,
+    banner: banner,
+    bannerUrl: banner,
+    cover: banner,
+    image: logo || banner,
     logoTint: "from-primary/35 to-secondary/25",
     bannerTint: "from-primary/30 via-secondary/20 to-primary/10",
   };
@@ -167,20 +177,50 @@ export function PartnerShopProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => load(), [load]);
 
-  const updateProfile = useCallback(async (patch: ShopEditableFields) => {
-    // Only businessName/email/phone are persisted by the backend today;
-    // description/GST/business-type stay local-only for now.
-    const doc = await updatePartnerProfile({
-      businessName: patch.name,
-      email: patch.email,
-      phone: patch.contactNumber,
-    });
+  const uploadLogo = useCallback(async (base64Image: string) => {
+    const res = await uploadPartnerLogo(base64Image);
+    const url = res.url;
+    setProfile((current) => ({
+      ...current,
+      logo: url,
+      logoUrl: url,
+      image: url,
+    }));
+    return url;
+  }, []);
+
+  const uploadBanner = useCallback(async (base64Image: string) => {
+    const res = await uploadPartnerBanner(base64Image);
+    const url = res.url;
+    setProfile((current) => ({
+      ...current,
+      banner: url,
+      bannerUrl: url,
+      cover: url,
+    }));
+    return url;
+  }, []);
+
+  const updateProfile = useCallback(async (patch: Partial<ShopProfile>) => {
+    const payload: Partial<PartnerProfile> = {};
+    if (patch.name !== undefined) payload.businessName = patch.name;
+    if (patch.email !== undefined) payload.email = patch.email;
+    if (patch.contactNumber !== undefined) payload.phone = patch.contactNumber;
+    if (patch.description !== undefined) payload.description = patch.description;
+    if (patch.category !== undefined) payload.category = patch.category;
+    if (patch.gstNumber !== undefined) payload.gstin = patch.gstNumber;
+    if (patch.logo !== undefined) payload.logo = patch.logo;
+    if (patch.banner !== undefined) payload.banner = patch.banner;
+
+    const doc = await updatePartnerProfile(payload);
     setProfile((current) => ({
       ...current,
       ...patch,
-      name: doc.profile.businessName,
-      email: doc.profile.email,
-      contactNumber: doc.profile.phone,
+      name: doc.profile.businessName || current.name,
+      email: doc.profile.email || current.email,
+      contactNumber: doc.profile.phone || current.contactNumber,
+      logo: doc.profile.logo || current.logo,
+      banner: doc.profile.banner || current.banner,
     }));
   }, []);
 

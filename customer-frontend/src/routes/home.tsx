@@ -57,6 +57,9 @@ import carpetImg from "@/shared/assets/item-carpet.jpg";
 import expressImg from "@/shared/assets/item-express.jpg";
 
 function resolveCategoryServiceImage(title?: string | null, img?: string | null): string {
+  if (img && (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:") || img.startsWith("/uploads/"))) {
+    return img;
+  }
   const t = (title || "").toLowerCase();
   if (t.includes("wash") || t.includes("fold") || t.includes("laundry") && !t.includes("premium") && !t.includes("express")) {
     if (!t.includes("express") && !t.includes("premium")) return washFoldImg;
@@ -77,10 +80,11 @@ function resolveCategoryServiceImage(title?: string | null, img?: string | null)
 
 function resolvePartnerImage(img?: string | null): string {
   if (!img) return store1;
+  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:") || img.startsWith("/uploads/")) return img;
   if (img === "store-1" || img.includes("store-1")) return store1;
   if (img === "store-2" || img.includes("store-2")) return store2;
   if (img === "store-3" || img.includes("store-3")) return store3;
-  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/") || img.startsWith("data:")) return img;
+  if (img.startsWith("/")) return img;
   return store1;
 }
 import { useAuthGuard } from "@/hooks/useAuthGuard";

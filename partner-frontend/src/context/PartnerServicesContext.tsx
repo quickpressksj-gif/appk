@@ -135,7 +135,7 @@ function toManagedService(rate: PartnerServiceRate): ManagedService {
     enabled: rate.enabled !== false,
     ordersThisMonth: 0,
     updatedMinutesAgo: 0,
-    imageLabel: null,
+    imageLabel: rate.image || (rate as any).image || null,
   };
 }
 
@@ -179,8 +179,8 @@ export function PartnerServicesProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const remote = await fetchPartnerServices();
-      setServices(remote.map(toManagedService));
+      const items = await fetchPartnerServices();
+      setServices(items.map(toManagedService));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load services");
     } finally {
@@ -221,6 +221,7 @@ export function PartnerServicesProvider({ children }: { children: ReactNode }) {
           enabled: draft.enabled,
           category: UI_CATEGORY_TO_BACKEND[draft.category] || "laundry",
           description: draft.description || "",
+          image: draft.imageLabel || "",
           minQuantity: draft.minOrderValue ? Math.max(1, Math.round(draft.minOrderValue / Math.max(1, draft.price))) : 1,
         });
         await load();
@@ -235,6 +236,7 @@ export function PartnerServicesProvider({ children }: { children: ReactNode }) {
           ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
           ...(patch.category !== undefined ? { category: UI_CATEGORY_TO_BACKEND[patch.category] || "laundry" } : {}),
           ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.imageLabel !== undefined ? { image: patch.imageLabel || "" } : {}),
         });
         await load();
       },

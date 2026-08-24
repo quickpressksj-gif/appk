@@ -1,15 +1,20 @@
 import {
   BadgeCheck,
   Building2,
+  Camera,
   Clock3,
   ImageIcon,
+  Loader2,
   Pencil,
   ShieldAlert,
   ShieldX,
   Star,
   Store,
 } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { usePartnerShop } from "../../context/PartnerShopContext";
 import { shopStatusMeta, type ShopProfile, type ShopStatusId } from "../../data/partner-shop-mock";
 
 const TONE_CLASS: Record<string, string> = {
@@ -69,16 +74,107 @@ export function ShopProfileHeader({
   onEdit: () => void;
   onChangeStatus: () => void;
 }) {
+  const { uploadLogo, uploadBanner } = usePartnerShop();
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const bannerImg = profile.banner || profile.bannerUrl || profile.cover;
+  const logoImg = profile.logo || profile.logoUrl || profile.image;
+
+  const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (!dataUrl) return;
+      setUploadingBanner(true);
+      try {
+        await uploadBanner(dataUrl);
+        toast.success("Shop banner updated successfully! Customers will see this now.");
+      } catch {
+        toast.error("Failed to upload banner.");
+      } finally {
+        setUploadingBanner(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (!dataUrl) return;
+      setUploadingLogo(true);
+      try {
+        await uploadLogo(dataUrl);
+        toast.success("Shop logo updated successfully! Customers will see this now.");
+      } catch {
+        toast.error("Failed to upload logo.");
+      } finally {
+        setUploadingLogo(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <section className="animate-rise card-soft overflow-hidden border border-border">
+      {/* Hidden file inputs */}
+      <input
+        ref={bannerInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleBannerSelect}
+      />
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleLogoSelect}
+      />
+
       <div
-        className={`relative flex h-32 items-end bg-linear-to-br ${profile.bannerTint} md:h-40`}
-        aria-label="Shop banner placeholder"
+        className={`relative flex h-36 items-end overflow-hidden bg-linear-to-br ${profile.bannerTint} md:h-48`}
+        aria-label="Shop banner"
       >
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground">
-          Shop Banner
-        </span>
-        <div className="relative flex w-full items-center justify-between gap-2 px-4 pb-3">
+        {bannerImg ? (
+          <img
+            src={bannerImg}
+            alt={`${profile.name} banner`}
+            className="absolute inset-0 size-full object-cover"
+          />
+        ) : (
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground">
+            Shop Banner
+          </span>
+        )}
+
+        <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+        {/* Change banner button */}
+        <button
+          type="button"
+          onClick={() => bannerInputRef.current?.click()}
+          disabled={uploadingBanner}
+          className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-card/90 backdrop-blur-md px-3 py-1.5 text-[0.66rem] font-black text-foreground shadow-soft transition-all duration-300 active:scale-[0.95] hover:bg-card"
+        >
+          {uploadingBanner ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Camera className="size-3.5 text-primary" />
+          )}
+          {bannerImg ? "Change Banner" : "Upload Banner"}
+        </button>
+
+        <div className="relative z-10 flex w-full items-center justify-between gap-2 px-4 pb-3">
           <ShopStatusBadge status={status} />
           <button
             type="button"
@@ -91,12 +187,35 @@ export function ShopProfileHeader({
       </div>
 
       <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 pb-4 pt-4 sm:flex sm:items-center">
-        <span
-          className={`-mt-10 flex size-16 shrink-0 items-center justify-center rounded-3xl border-4 border-card bg-linear-to-br ${profile.logoTint} text-brand-dark shadow-soft`}
-          aria-label="Shop logo placeholder"
-        >
-          <Store className="size-6" strokeWidth={2.2} />
-        </span>
+        {/* Shop logo avatar with upload trigger */}
+        <div className="relative -mt-10 group">
+          <div
+            className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border-4 border-card bg-linear-to-br ${profile.logoTint} text-brand-dark shadow-soft`}
+          >
+            {logoImg ? (
+              <img
+                src={logoImg}
+                alt={`${profile.name} logo`}
+                className="size-full object-cover"
+              />
+            ) : (
+              <Store className="size-6" strokeWidth={2.2} />
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo}
+            title="Change shop logo"
+            className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform duration-300 hover:scale-110 active:scale-95"
+          >
+            {uploadingLogo ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Camera className="size-3" />
+            )}
+          </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
@@ -110,7 +229,7 @@ export function ShopProfileHeader({
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <VerificationChip status={profile.verification} />
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground">
-              <Building2 className="size-3" /> {profile.category}
+              <Building2 className="size-3" /> {profile.category || "Laundry Service"}
             </span>
           </div>
         </div>

@@ -125,14 +125,16 @@ class CatalogRepository:
             reviews = f"{reviews_count / 1000:.1f}k" if reviews_count >= 1000 else str(reviews_count)
             pickup = int(settings.get("pickupMinutes") or 30)
             is_open = bool(p.get("isOnline", True) and settings.get("isStoreOpen", True))
-            image = p.get("bannerUrl") or p.get("cover") or p.get("logoUrl") or p.get("logo") or "store-1"
+            banner = p.get("banner") or p.get("bannerUrl") or p.get("banner_url") or p.get("cover") or p.get("coverImage")
+            logo = p.get("logo") or p.get("logoUrl") or p.get("logo_url") or p.get("photo_url") or p.get("image")
+            image = banner or logo or "store-1"
             service_names = [s.get("name") for s in active_services if s.get("name")]
             min_price = min([int(s.get("price", 0)) for s in active_services if int(s.get("price", 0)) > 0] or [49])
 
             card = PartnerCardResponse(
                 id=pid,
                 name=p.get("businessName") or p.get("name") or "QuickPress Partner",
-                logo=p.get("logoUrl") or p.get("logo") or image,
+                logo=logo or image,
                 image=image,
                 rating=float(p.get("rating") or 5.0),
                 reviews=reviews,
@@ -283,14 +285,16 @@ class CatalogRepository:
         reviews_count = int(doc.get("totalOrders") or doc.get("reviewsCount") or len(reviews))
         reviews_str = f"{reviews_count / 1000:.1f}k" if reviews_count >= 1000 else str(reviews_count)
         is_open = bool(doc.get("isOnline", True) and settings.get("isStoreOpen", True))
-        image = doc.get("bannerUrl") or doc.get("cover") or doc.get("logoUrl") or doc.get("logo") or "store-1"
+        banner = doc.get("banner") or doc.get("bannerUrl") or doc.get("banner_url") or doc.get("cover") or doc.get("coverImage")
+        logo = doc.get("logo") or doc.get("logoUrl") or doc.get("logo_url") or doc.get("photo_url") or doc.get("image")
+        image = banner or logo or "store-1"
         radius = int(settings.get("pickupRadiusKm") or 8)
 
         partner_profile = PartnerProfileResponse(
             id=str(doc["_id"]),
             name=doc.get("businessName") or doc.get("name") or "QuickPress Partner",
-            cover=doc.get("bannerUrl") or doc.get("cover") or image,
-            logo=doc.get("logoUrl") or doc.get("logo") or image,
+            cover=banner or image,
+            logo=logo or image,
             image=image,
             verified=bool(doc.get("isVerified", True)),
             rating=float(doc.get("rating") or 5.0),

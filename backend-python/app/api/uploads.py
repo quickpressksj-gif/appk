@@ -25,11 +25,48 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 async def _store_on_role_profile(user: User, field: str, url: str) -> None:
     collection = database.collection(ROLE_COLLECTIONS[user.role])
-    await collection.update_one(
-        {"user_id": user.id},
-        {"$set": {field: url, "updated_at": utcnow().isoformat()}},
-        upsert=True,
-    )
+    if user.role == Role.partner:
+        partner_id = getattr(user, "linked_partner_id", None) or getattr(user, "linked_id", None)
+        if not partner_id:
+            account = await database.find_one("partners", {"user_id": user.id}) or {}
+            partner_id = account.get("partner_id") or account.get("partnerId")
+        if not partner_id:
+            pdoc = await database.find_one("partner_profiles", {"userId": user.id})
+            if pdoc:
+                partner_id = pdoc.get("_id") or pdoc.get("partnerId")
+
+        updates: dict = {
+            field: url,
+            "updated_at": utcnow().isoformat(),
+            "updatedAt": utcnow().isoformat(),
+        }
+        if field in ("logo_url", "logo"):
+            updates["logo_url"] = url
+            updates["logoUrl"] = url
+            updates["logo"] = url
+            updates["image"] = url
+        elif field in ("banner_url", "banner"):
+            updates["banner_url"] = url
+            updates["bannerUrl"] = url
+            updates["banner"] = url
+            updates["cover"] = url
+            updates["coverImage"] = url
+
+        filter_query = {
+            "$or": [
+                {"user_id": user.id},
+                {"userId": user.id},
+                *([{"_id": str(partner_id)}] if partner_id else []),
+                *([{"partnerId": str(partner_id)}] if partner_id else []),
+            ]
+        }
+        await collection.update_many(filter_query, {"$set": updates})
+    else:
+        await collection.update_one(
+            {"user_id": user.id},
+            {"$set": {field: url, "updated_at": utcnow().isoformat()}},
+            upsert=True,
+        )
 
 
 async def _upload_avatar(user: User, payload: ImageUploadPayload, kind: str) -> MediaResponse:
@@ -70,6 +107,14 @@ async def upload_partner_banner(
     url = await upload_image(payload.image, kind="partner_banner", public_id=f"{user.id}-banner")
     await _store_on_role_profile(user, "banner_url", url)
     return MediaResponse(url=url, field="bannerUrl")
+
+
+@router.post("/partner/service", response_model=MediaResponse)
+async def upload_partner_service_image(
+    payload: ImageUploadPayload, user: User = Depends(require_roles(Role.partner))
+) -> MediaResponse:
+    url = await upload_image(payload.image, kind="service_image", public_id=f"{user.id}-svc-{utcnow().timestamp():.0f}")
+    return MediaResponse(url=url, field="image")
 
 
 @router.get("/health")

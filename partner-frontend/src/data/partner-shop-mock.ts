@@ -67,7 +67,13 @@ export type ShopProfile = {
   contactNumber: string;
   email: string;
   gstNumber: string;
-  /** Placeholder tints — real images arrive with the Cloudinary integration. */
+  logo?: string;
+  logoUrl?: string;
+  banner?: string;
+  bannerUrl?: string;
+  cover?: string;
+  image?: string;
+  /** Placeholder tints — used when no image is uploaded yet. */
   logoTint: string;
   bannerTint: string;
 };

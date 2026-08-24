@@ -57,10 +57,18 @@ export async function markNotificationsRead() {
 }
 
 export async function updatePartnerProfile(
-  patch: Partial<Pick<PartnerProfile, "businessName" | "ownerName" | "phone" | "email" | "city">>,
+  patch: Partial<PartnerProfile>,
 ) {
   const profile = await apiRequest<PartnerProfile>("PUT", "/api/partner/profile", { body: patch });
   return { ok: true as const, profile };
+}
+
+export async function uploadPartnerLogo(image: string): Promise<{ url: string }> {
+  return apiPostJson<{ url: string; field: string }>("/api/uploads/partner/logo", { image });
+}
+
+export async function uploadPartnerBanner(image: string): Promise<{ url: string }> {
+  return apiPostJson<{ url: string; field: string }>("/api/uploads/partner/banner", { image });
 }
 
 export async function toggleStoreStatus(isOnline: boolean): Promise<PartnerProfile> {
