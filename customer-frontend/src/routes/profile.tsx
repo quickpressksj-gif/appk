@@ -742,129 +742,169 @@ function ProfileScreen() {
 
       {/* Edit profile / Personal Information sheet — PUT /api/profile */}
       {editing && data ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center">
-          <button
-            type="button"
-            aria-label="Close"
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
             onClick={() => setEditing(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            aria-hidden="true"
           />
-          <div className="animate-sheet-up relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-10 pt-4 shadow-soft">
-            <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
-            <div className="mt-4 flex items-center justify-between">
-              <h2 className="text-base font-bold tracking-tight text-foreground">Personal Information</h2>
+          <div className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-t-[2.25rem] sm:rounded-3xl bg-card text-foreground shadow-2xl border border-border/80 overflow-hidden z-10 animate-scale-in">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border/60 px-6 py-4 bg-muted/20">
+              <div>
+                <h2 className="text-base font-black tracking-tight text-foreground">Personal Information</h2>
+                <p className="text-[11px] font-medium text-muted-foreground">Update your details & account preferences</p>
+              </div>
               <button
                 type="button"
                 aria-label="Close"
                 onClick={() => setEditing(false)}
-                className="flex size-9 items-center justify-center rounded-2xl bg-muted text-foreground transition-transform active:scale-[0.94]"
+                className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-90"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={() => photoInput.current?.click()}
-              className="mt-5 flex w-full items-center gap-3 rounded-3xl bg-muted/70 p-3 text-left transition-colors active:bg-muted disabled:opacity-60"
-            >
-              <img
-                src={data.user.avatarUrl || defaultAvatar}
-                alt=""
-                className="size-14 shrink-0 rounded-full object-cover border border-border bg-white"
-              />
-              <span>
-                <span className="block text-sm font-bold text-foreground">
-                  Upload Profile Photo
-                </span>
-                <span className="block text-xs text-muted-foreground">JPG or PNG, up to 5 MB</span>
-              </span>
-              <Camera className="ml-auto size-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            <label className="mt-4 block">
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                Full Name
-              </span>
-              <input
-                value={form.name}
-                aria-invalid={Boolean(formErrors['name'])}
-                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                className={`mt-1.5 h-12 w-full rounded-2xl border bg-background px-4 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary ${
-                  formErrors['name'] ? "border-destructive" : "border-border"
-                }`}
-              />
-              {formErrors['name'] ? (
-                <span className="mt-1 block text-[11px] font-semibold text-destructive">
-                  {formErrors['name']}
-                </span>
-              ) : null}
-            </label>
-
-            <label className="mt-3 block">
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                Email Address
-              </span>
-              <input
-                type="email"
-                value={form.email}
-                aria-invalid={Boolean(formErrors['email'])}
-                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                className={`mt-1.5 h-12 w-full rounded-2xl border bg-background px-4 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary ${
-                  formErrors['email'] ? "border-destructive" : "border-border"
-                }`}
-              />
-              {formErrors['email'] ? (
-                <span className="mt-1 block text-[11px] font-semibold text-destructive">
-                  {formErrors['email']}
-                </span>
-              ) : null}
-            </label>
-
-            {/* Detected Location Card */}
-            <div className="mt-3.5 rounded-2xl border border-border/80 bg-muted/40 p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <MapPin className="size-3.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Detected Location
-                    </p>
-                    <p className="mt-0.5 truncate text-xs font-bold text-foreground">
-                      {activeLocation?.area || activeLocation?.city || data.user.city || "Kasganj"}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {[activeLocation?.city, activeLocation?.state].filter(Boolean).join(", ") || "Uttar Pradesh, India"}
-                    </p>
-                  </div>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 [scrollbar-width:thin]">
+              {/* Profile Photo */}
+              <div className="flex items-center gap-4 p-3 rounded-2xl bg-muted/40 border border-border/60">
+                <div className="relative size-16 shrink-0">
+                  <img
+                    src={data.user.avatarUrl || defaultAvatar}
+                    alt={data.user.name}
+                    className="size-16 rounded-2xl object-cover border-2 border-primary/20 bg-muted"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => photoInput.current?.click()}
+                    className="absolute -bottom-1.5 -right-1.5 flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-95 disabled:opacity-60"
+                  >
+                    <Camera className="size-3.5" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(false);
-                    void navigate({ to: "/location-search" });
-                  }}
-                  className="shrink-0 rounded-xl border border-border bg-card px-2.5 py-1.5 text-[11px] font-bold text-foreground shadow-2xs hover:bg-muted active:scale-95"
-                >
-                  Change
-                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-foreground">Profile Picture</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">JPG or PNG, up to 5 MB</p>
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => photoInput.current?.click()}
+                    className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:underline"
+                  >
+                    {uploading ? <Loader2 className="size-3 animate-spin" /> : null}
+                    {uploading ? "Uploading..." : "Change Photo"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  value={form.name}
+                  aria-invalid={Boolean(formErrors['name'])}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                  placeholder="Enter your full name"
+                  className={`h-11 w-full rounded-xl border bg-background px-3.5 text-sm font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                    formErrors['name'] ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-border"
+                  }`}
+                />
+                {formErrors['name'] ? (
+                  <span className="mt-1 block text-[11px] font-semibold text-destructive">
+                    {formErrors['name']}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  aria-invalid={Boolean(formErrors['email'])}
+                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="name@example.com"
+                  className={`h-11 w-full rounded-xl border bg-background px-3.5 text-sm font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                    formErrors['email'] ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-border"
+                  }`}
+                />
+                {formErrors['email'] ? (
+                  <span className="mt-1 block text-[11px] font-semibold text-destructive">
+                    {formErrors['email']}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Phone Number (Verified) */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Mobile Number
+                </label>
+                <div className="flex h-11 items-center justify-between rounded-xl border border-border/80 bg-muted/40 px-3.5 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Phone className="size-4 text-muted-foreground/70" />
+                    <span className="font-semibold text-foreground">{data.user.phone}</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-secondary/15 px-2 py-0.5 text-[10px] font-black text-brand-green">
+                    <BadgeCheck className="size-3" /> Verified
+                  </span>
+                </div>
+              </div>
+
+              {/* Detected Location Card */}
+              <div className="rounded-2xl border border-border/80 bg-muted/40 p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-brand-dark">
+                      <MapPin className="size-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Current Service Area
+                      </p>
+                      <p className="mt-0.5 truncate text-xs font-bold text-foreground">
+                        {activeLocation?.area || activeLocation?.city || data.user.city || "Kasganj"}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {[activeLocation?.city, activeLocation?.state].filter(Boolean).join(", ") || "Uttar Pradesh, India"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false);
+                      void navigate({ to: "/location-search" });
+                    }}
+                    className="shrink-0 rounded-xl border border-border bg-card px-2.5 py-1.5 text-[11px] font-bold text-foreground shadow-2xs hover:bg-muted active:scale-95"
+                  >
+                    Change
+                  </button>
+                </div>
               </div>
             </div>
 
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Phone className="size-3.5 shrink-0" />
-              {data.user.phone} · verified, cannot be changed here
-            </p>
-
-            <div className="sticky bottom-0 -mx-5 -mb-10 mt-6 bg-card/95 px-5 pb-8 pt-3 backdrop-blur-md">
+            {/* Footer */}
+            <div className="border-t border-border/60 bg-muted/20 px-6 py-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="h-11 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted active:scale-[0.98] transition-all"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 disabled={saving || !form.name.trim()}
                 onClick={handleSave}
-                className="ripple flex h-13 w-full items-center justify-center gap-2 rounded-3xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-50"
+                className="h-11 flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-md hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : null}
                 Save Changes
@@ -876,16 +916,14 @@ function ProfileScreen() {
 
       {/* Logout confirmation sheet */}
       {logoutOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center">
-          <button
-            type="button"
-            aria-label="Close"
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
             onClick={() => setLogoutOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            aria-hidden="true"
           />
-          <div className="animate-sheet-up relative w-full max-w-md rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
-            <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
-            <div className="mt-5 flex flex-col items-center text-center">
+          <div className="relative w-full max-w-sm rounded-t-[2rem] sm:rounded-3xl bg-card p-6 shadow-2xl border border-border/80 z-10 animate-scale-in">
+            <div className="flex flex-col items-center text-center">
               <span className="flex size-14 items-center justify-center rounded-3xl bg-destructive/10 text-destructive">
                 <LogOut className="size-6" />
               </span>
@@ -900,7 +938,7 @@ function ProfileScreen() {
               <button
                 type="button"
                 onClick={() => setLogoutOpen(false)}
-                className="ripple h-12 flex-1 rounded-3xl border border-border bg-card text-sm font-bold text-foreground transition-all duration-300 active:scale-[0.97]"
+                className="ripple h-11 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted active:scale-[0.97]"
               >
                 Cancel
               </button>
@@ -908,7 +946,7 @@ function ProfileScreen() {
                 type="button"
                 disabled={loggingOut}
                 onClick={handleLogout}
-                className="ripple flex h-12 flex-1 items-center justify-center gap-2 rounded-3xl bg-destructive text-sm font-bold text-destructive-foreground transition-all duration-300 active:scale-[0.97] disabled:opacity-60"
+                className="ripple flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-destructive text-xs font-bold text-destructive-foreground hover:brightness-105 active:scale-[0.97] disabled:opacity-60"
               >
                 {loggingOut ? <Loader2 className="size-4 animate-spin" /> : null}
                 Logout
@@ -920,22 +958,20 @@ function ProfileScreen() {
 
       {/* Settings sheet — GET/PUT /api/me/settings */}
       {settingsOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center">
-          <button
-            type="button"
-            aria-label="Close"
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
             onClick={() => setSettingsOpen(false)}
-            className="animate-overlay-in absolute inset-0 bg-brand-dark/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            aria-hidden="true"
           />
-          <div className="animate-sheet-up relative max-h-[86vh] w-full max-w-md overflow-y-auto rounded-t-4xl bg-card px-5 pb-8 pt-4 shadow-soft">
-            <div className="mx-auto h-1.5 w-10 rounded-full bg-border" />
-            <div className="mt-4 flex items-center justify-between">
+          <div className="relative max-h-[86vh] w-full max-w-md overflow-y-auto rounded-t-[2.25rem] sm:rounded-3xl bg-card p-6 shadow-2xl border border-border/80 z-10 animate-scale-in">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <h2 className="text-base font-bold tracking-tight text-foreground">Settings</h2>
               <button
                 type="button"
                 aria-label="Close"
                 onClick={() => setSettingsOpen(false)}
-                className="flex size-9 items-center justify-center rounded-2xl bg-muted text-foreground transition-transform active:scale-[0.94]"
+                className="flex size-8 items-center justify-center rounded-full bg-muted text-foreground hover:bg-accent transition-transform active:scale-[0.94]"
               >
                 <X className="size-4" />
               </button>
