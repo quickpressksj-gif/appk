@@ -6,6 +6,7 @@ import {
   Blinds,
   CalendarCheck,
   ChevronDown,
+  ChevronRight,
   Clock,
   Crown,
   Flame,
@@ -710,7 +711,7 @@ function HomeScreen() {
                 onRetry={() => void retry()}
               />
               <div className="stagger-children mt-4 space-y-3">
-                {recentOrders.map((order, index) => {
+                {recentOrders.slice(0, 3).map((order, index) => {
                   const targetId = order.id || order.reference;
                   return (
                     <div key={`${order.id}-${index}`} className="card-soft border border-border p-4">
@@ -760,6 +761,17 @@ function HomeScreen() {
                     </div>
                   );
                 })}
+
+                {recentOrders.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void navigate({ to: "/history" })}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border/80 bg-card py-3 text-xs font-bold text-foreground shadow-2xs transition-all hover:bg-muted active:scale-[0.98]"
+                  >
+                    <span>View all orders</span>
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                  </button>
+                ) : null}
               </div>
             </section>
 
