@@ -61,19 +61,16 @@ export async function fetchOffers(): Promise<OffersPage> {
 
 /** GET /api/offers — coupons the customer can apply. */
 export async function fetchCoupons(): Promise<Coupon[]> {
-  const { coupons } = await apiGetJson<{ offers: OfferEntity[]; coupons: CouponEntity[] }>(
-    OFFERS_API_ENDPOINTS.offers,
-  );
-  return coupons
-    .filter((coupon) => coupon.status === "Active")
-    .map((coupon) => ({
-      id: coupon.id,
-      code: coupon.code,
-      discount: coupon.discount,
-      description: coupon.description,
-      expiry: coupon.expiry,
-      minOrder: coupon.minOrder,
-    }));
+  const payload = await apiGetJson<any>(OFFERS_API_ENDPOINTS.offers);
+  const list = Array.isArray(payload) ? payload : (payload?.coupons ?? payload?.offers ?? []);
+  return list.map((coupon: any) => ({
+    id: String(coupon.id || coupon._id || coupon.code),
+    code: String(coupon.code || ""),
+    discount: String(coupon.discount || coupon.discountLabel || "Special discount"),
+    description: String(coupon.description || `Min order ₹${coupon.minOrder || 99}`),
+    expiry: String(coupon.expiry || coupon.expiresAt || ""),
+    minOrder: Number(coupon.minOrder || 0),
+  }));
 }
 
 /** POST /api/offers/{code}/apply */

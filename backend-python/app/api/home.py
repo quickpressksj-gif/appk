@@ -113,15 +113,24 @@ async def get_offers() -> list[OfferResponse]:
 
 @router.post("/offers/{code}/apply")
 async def apply_offer(code: str) -> dict:
-    offers = await catalog.offers()
-    matched = next((o for o in offers if o.code.upper() == code.upper()), None)
+    code_clean = (code or "").strip().upper()
+    admin_docs = await database.find_many("admin_coupons")
+    matched = next(
+        (c for c in admin_docs if str(c.get("code", "")).strip().upper() == code_clean),
+        None,
+    )
     if matched:
-        return {"ok": True, "discount": matched.discount}
-    # Check default coupons list
-    from app.db.cart_repositories import DEFAULT_COUPONS
-    coupon = next((c for c in DEFAULT_COUPONS if c["code"].upper() == code.upper()), None)
-    if coupon:
-        return {"ok": True, "discount": coupon.get("discount", 50)}
+        if str(matched.get("status", "")).lower() in ("inactive", "disabled", "expired"):
+            return {"ok": False, "discount": 0, "message": "This coupon is inactive or expired"}
+        raw_discount = str(matched.get("discount") or 0)
+        digits = "".join(ch for ch in raw_discount if ch.isdigit())
+        discount_val = int(digits) if digits else 50
+        return {
+            "ok": True,
+            "discount": discount_val,
+            "code": code_clean,
+            "message": f"Coupon {code_clean} applied successfully",
+        }
     return {"ok": False, "discount": 0, "message": "Invalid coupon code"}
 
 

@@ -460,8 +460,34 @@ class CatalogRepository:
         return results
 
     async def offers(self) -> List[OfferResponse]:
-        docs = await database.find_many("offers")
-        return [OfferResponse(id=d["_id"], **_without_id(d)) for d in docs]
+        docs = await database.find_many("admin_coupons")
+        active_docs = [
+            d
+            for d in docs
+            if str(d.get("status", "")).lower() in ("active", "live", "enabled", "")
+        ]
+        results: List[OfferResponse] = []
+        for d in active_docs:
+            code = str(d.get("code") or "").strip().upper()
+            if not code:
+                continue
+            discount_raw = str(d.get("discount") or "").strip()
+            discount_label = discount_raw if discount_raw else "Special Offer"
+            title = f"{discount_label} with {code}" if discount_raw else f"Special Offer: {code}"
+            desc = str(d.get("description") or f"Valid on orders above ₹{d.get('minOrder', 99)}")
+            results.append(
+                OfferResponse(
+                    id=str(d.get("_id") or f"c-{code}"),
+                    code=code,
+                    title=title,
+                    description=desc,
+                    kind="discount",
+                    discountLabel=discount_label,
+                    expiresAt=str(d.get("expiry")) if d.get("expiry") else None,
+                    banner=None,
+                )
+            )
+        return results
 
 
 def _without_id(document: Dict[str, Any]) -> Dict[str, Any]:

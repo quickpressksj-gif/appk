@@ -648,7 +648,11 @@ function HomeScreen() {
 
             {/* Offers — GET /api/offers */}
             <section className="mt-8">
-              <SectionHeading title="Offers for you" action="All coupons" />
+              <SectionHeading
+                title="Offers for you"
+                action="All coupons"
+                onAction={() => void navigate({ to: "/offers" })}
+              />
               <SectionStatus
                 error={sections.offers.error}
                 empty={!sections.offers.loading && (sections.offers.data?.length ?? 0) === 0}
@@ -663,6 +667,10 @@ function HomeScreen() {
                     <button
                       key={`${offer.id}-${index}`}
                       type="button"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(offer.code);
+                        toast.success(`Coupon code "${offer.code}" copied!`);
+                      }}
                       className="card-soft w-64 shrink-0 border border-dashed border-primary/50 p-4 text-left transition-all duration-300 active:scale-[0.97]"
                     >
                       <div className="flex items-center gap-3">
@@ -680,7 +688,7 @@ function HomeScreen() {
                         <span className="rounded-lg bg-muted px-2 py-1 text-[11px] font-bold tracking-wider text-foreground">
                           {offer.code}
                         </span>
-                        <span className="text-xs font-semibold text-brand-green">Apply</span>
+                        <span className="text-xs font-semibold text-brand-green">Copy Code</span>
                       </div>
                     </button>
                   );
