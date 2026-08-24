@@ -76,7 +76,7 @@ CART_SEED: Dict[str, List[Dict[str, Any]]] = {
 class CartRepository:
     # ------------------------------------------------------------------ config
 
-    async def charges(self) -> CartChargesResponse:
+    async def charges(self, user_id: Optional[str] = None) -> CartChargesResponse:
         # 1. Check live admin_settings
         admin_doc = await database.collection("admin_settings").find_one({"_id": "platform"})
         document = await database.collection(SETTINGS_COLLECTION).find_one({"_id": "default"})
@@ -94,6 +94,19 @@ class CartRepository:
             gst_rate = float(document.get("gstRate") or 0.05)
             pickup = int(document.get("pickup") or 0)
             discount = int(document.get("discount") or 0)
+
+        # Check active membership perks
+        if user_id:
+            try:
+                from app.db.membership_repositories import membership_repository
+                perks = await membership_repository.get_user_membership_perks(user_id)
+                if perks.get("active"):
+                    if perks.get("free_pickup"):
+                        pickup = 0
+                    if perks.get("free_delivery_min", 0) == 0:
+                        delivery = 0
+            except Exception:
+                pass
 
         return CartChargesResponse(
             pickup=pickup,
@@ -232,7 +245,7 @@ class CartRepository:
     async def cart(self, user_id: str, coupon_discount: int = 0) -> CartResponse:
         """GET /api/cart — items + live totals."""
         items = await self.lines(user_id)
-        charges = await self.charges()
+        charges = await self.charges(user_id)
         return CartResponse(
             items=items,
             store=await self._store(items),
@@ -243,7 +256,7 @@ class CartRepository:
     async def summary(self, user_id: str, coupon_discount: int = 0) -> CartSummaryResponse:
         """GET /api/cart/summary — store, items, coupons, charges and totals."""
         items = await self.lines(user_id)
-        charges = await self.charges()
+        charges = await self.charges(user_id)
         store = await self._store(items)
         return CartSummaryResponse(
             store=store or _fallback_store(),

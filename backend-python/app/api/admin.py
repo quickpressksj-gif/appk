@@ -8,7 +8,7 @@ blank even against a brand new database.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -845,4 +845,130 @@ async def get_referral_stats(user: User = Depends(current_user)) -> AdminReferra
 async def get_referrals_list(user: User = Depends(current_user)) -> AdminReferralListResponse:
     """GET /api/admin/referrals/list — full table of referral conversions and rewards."""
     return await referral_repository.admin_list()
+
+
+# -----------------------------------------------------------------------------
+# Memberships Management — Admin Control & Engine
+# -----------------------------------------------------------------------------
+
+from app.db.admin_membership_repository import admin_membership_repository
+from app.models.membership import (
+    AdminGrantPayload,
+    AdminPlanPayload,
+    MembershipHistoryResponse,
+    MembershipPlan,
+    MembershipStatsResponse,
+    MembershipSubscriberItem,
+    MembershipSubscribersResponse,
+)
+
+
+@router.get("/memberships/stats", response_model=MembershipStatsResponse)
+async def get_membership_stats(user: User = Depends(current_user)) -> MembershipStatsResponse:
+    """GET /api/admin/memberships/stats — Membership KPIs (Total, Active, MRR, Top tier)."""
+    return await admin_membership_repository.get_stats()
+
+
+@router.get("/memberships/plans", response_model=List[MembershipPlan])
+async def list_membership_plans(
+    include_inactive: bool = True,
+    user: User = Depends(current_user),
+) -> List[MembershipPlan]:
+    """GET /api/admin/memberships/plans — List all plans with perks and pricing."""
+    return await admin_membership_repository.list_plans(include_inactive=include_inactive)
+
+
+@router.post("/memberships/plans", response_model=MembershipPlan)
+async def create_membership_plan(
+    payload: AdminPlanPayload,
+    user: User = Depends(current_user),
+) -> MembershipPlan:
+    """POST /api/admin/memberships/plans — Create a new plan with custom perks."""
+    return await admin_membership_repository.create_plan(payload, user)
+
+
+@router.get("/memberships/plans/{plan_id}", response_model=MembershipPlan)
+async def get_membership_plan(
+    plan_id: str,
+    user: User = Depends(current_user),
+) -> MembershipPlan:
+    """GET /api/admin/memberships/plans/{plan_id} — Get details of a single plan."""
+    plan = await admin_membership_repository.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Membership plan not found")
+    return plan
+
+
+@router.put("/memberships/plans/{plan_id}", response_model=MembershipPlan)
+async def update_membership_plan(
+    plan_id: str,
+    payload: AdminPlanPayload,
+    user: User = Depends(current_user),
+) -> MembershipPlan:
+    """PUT /api/admin/memberships/plans/{plan_id} — Update pricing, perks, or status."""
+    updated = await admin_membership_repository.update_plan(plan_id, payload, user)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Membership plan not found")
+    return updated
+
+
+@router.delete("/memberships/plans/{plan_id}")
+async def delete_membership_plan(
+    plan_id: str,
+    user: User = Depends(current_user),
+) -> dict:
+    """DELETE /api/admin/memberships/plans/{plan_id} — Archive or delete a plan."""
+    ok = await admin_membership_repository.delete_plan(plan_id, user)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Membership plan not found")
+    return {"ok": True, "message": f"Membership plan '{plan_id}' archived/deleted successfully"}
+
+
+@router.get("/memberships/subscribers", response_model=MembershipSubscribersResponse)
+async def list_membership_subscribers(
+    q: Optional[str] = None,
+    status: Optional[str] = None,
+    plan_id: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+) -> MembershipSubscribersResponse:
+    """GET /api/admin/memberships/subscribers — Searchable customer subscription directory."""
+    return await admin_membership_repository.list_subscribers(
+        q=q, status=status, plan_id=plan_id, limit=limit, offset=offset
+    )
+
+
+@router.post("/memberships/subscribers/{user_id}/grant", response_model=MembershipSubscriberItem)
+async def grant_membership_to_subscriber(
+    user_id: str,
+    payload: AdminGrantPayload,
+    user: User = Depends(current_user),
+) -> MembershipSubscriberItem:
+    """POST /api/admin/memberships/subscribers/{user_id}/grant — Admin manually grant/extend plan."""
+    return await admin_membership_repository.grant_membership(user_id, payload, user)
+
+
+@router.post("/memberships/subscribers/{user_id}/revoke")
+async def revoke_membership_from_subscriber(
+    user_id: str,
+    reason: Optional[str] = None,
+    user: User = Depends(current_user),
+) -> dict:
+    """POST /api/admin/memberships/subscribers/{user_id}/revoke — Revoke customer membership."""
+    ok = await admin_membership_repository.revoke_membership(user_id, reason, user)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Customer membership not found")
+    return {"ok": True, "message": "Membership revoked successfully"}
+
+
+@router.get("/memberships/transactions", response_model=MembershipHistoryResponse)
+async def list_membership_transactions(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+) -> MembershipHistoryResponse:
+    """GET /api/admin/memberships/transactions — Subscription revenue audit ledger."""
+    return await admin_membership_repository.list_transactions(limit=limit, offset=offset)
+
 

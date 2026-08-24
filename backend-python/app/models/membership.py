@@ -1,16 +1,15 @@
-"""Membership models — Sprint 2.9."""
+"""Membership models — Dynamic engine with Admin Control."""
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
-
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
-PlanId = Literal["free", "silver", "gold", "premium"]
+PlanId = str
 BillingCycle = Literal["monthly", "yearly"]
 MembershipStatus = Literal["active", "expired", "cancelled", "none"]
 PaymentStatus = Literal["paid", "pending", "failed", "free", "refunded"]
-TransactionType = Literal["subscribe", "renew", "upgrade", "cancel", "expire"]
+TransactionType = Literal["subscribe", "renew", "upgrade", "cancel", "expire", "admin_grant", "admin_revoke"]
 
 
 class MembershipBenefit(BaseModel):
@@ -18,11 +17,11 @@ class MembershipBenefit(BaseModel):
     title: str
     description: str = ""
     icon: str = "sparkles"
-    plans: List[PlanId] = Field(default_factory=list)
+    plans: List[str] = Field(default_factory=list)
 
 
 class MembershipPlan(BaseModel):
-    id: PlanId
+    id: str
     name: str
     tagline: str = ""
     monthlyPrice: int = 0
@@ -32,23 +31,31 @@ class MembershipPlan(BaseModel):
     validityDays: int = 30
     yearlyValidityDays: int = 365
     popular: bool = False
+    status: str = "Active"  # "Active" | "Inactive" | "Archived"
+    badge: str = ""
+    color: str = "emerald"
     order: int = 0
+    discountPercent: int = 0
+    freeDeliveryMinOrder: int = 0
+    freePickup: bool = False
+    priorityProcessing: bool = False
+    supportTier: str = "Standard"
     benefits: List[MembershipBenefit] = Field(default_factory=list)
 
 
 class MembershipPlansResponse(BaseModel):
     plans: List[MembershipPlan] = Field(default_factory=list)
-    currentPlanId: PlanId = "free"
+    currentPlanId: str = "free"
 
 
 class MembershipBenefitsResponse(BaseModel):
     items: List[MembershipBenefit] = Field(default_factory=list)
     activeBenefits: List[MembershipBenefit] = Field(default_factory=list)
-    planId: PlanId = "free"
+    planId: str = "free"
 
 
 class MembershipResponse(BaseModel):
-    planId: PlanId = "free"
+    planId: str = "free"
     planName: str = "Free"
     status: MembershipStatus = "none"
     active: bool = False
@@ -67,7 +74,7 @@ class MembershipResponse(BaseModel):
 
 class MembershipTransaction(BaseModel):
     id: str
-    planId: PlanId
+    planId: str
     planName: str
     type: TransactionType = "subscribe"
     billingCycle: BillingCycle = "monthly"
@@ -85,9 +92,8 @@ class MembershipHistoryResponse(BaseModel):
 
 
 class SubscribePayload(BaseModel):
-    planId: PlanId
+    planId: str
     billingCycle: BillingCycle = "monthly"
-    #: Reserved for a future payment gateway (Sprint 3) — accepted and stored.
     paymentReference: Optional[str] = Field(default=None, max_length=120)
 
 
@@ -106,3 +112,64 @@ class CancelResponse(BaseModel):
     ok: bool = True
     message: str = ""
     membership: MembershipResponse
+
+
+# ---------------------------------------------------------------- Admin Models
+
+class AdminPlanPayload(BaseModel):
+    id: Optional[str] = None
+    name: str
+    tagline: str = ""
+    monthlyPrice: int = 0
+    yearlyPrice: int = 0
+    validityDays: int = 30
+    yearlyValidityDays: int = 365
+    popular: bool = False
+    status: str = "Active"
+    badge: str = ""
+    color: str = "emerald"
+    order: int = 0
+    discountPercent: int = 0
+    freeDeliveryMinOrder: int = 0
+    freePickup: bool = False
+    priorityProcessing: bool = False
+    supportTier: str = "Standard"
+    benefits: List[MembershipBenefit] = Field(default_factory=list)
+
+
+class AdminGrantPayload(BaseModel):
+    planId: str
+    billingCycle: BillingCycle = "monthly"
+    validityDays: Optional[int] = None
+    reason: Optional[str] = None
+
+
+class MembershipSubscriberItem(BaseModel):
+    userId: str
+    userName: str
+    userPhone: str
+    userEmail: str
+    planId: str
+    planName: str
+    status: str
+    billingCycle: str
+    amountPaid: int
+    startedAt: Optional[str] = None
+    expiresAt: Optional[str] = None
+    autoRenew: bool = False
+    remainingDays: int = 0
+
+
+class MembershipSubscribersResponse(BaseModel):
+    items: List[MembershipSubscriberItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class MembershipStatsResponse(BaseModel):
+    totalSubscribers: int = 0
+    activeMembers: int = 0
+    monthlyRecurringRevenue: int = 0
+    annualRunRate: int = 0
+    topPlanName: str = "Gold"
+    expiringSoonCount: int = 0
+    tierBreakdown: Dict[str, int] = Field(default_factory=dict)

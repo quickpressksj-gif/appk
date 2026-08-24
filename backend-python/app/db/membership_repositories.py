@@ -261,7 +261,7 @@ class MembershipRepository:
         return documents
 
     async def _plan_documents(self) -> List[Dict[str, Any]]:
-        documents = await database.find_many(PLANS, {})
+        documents = await database.find_many(PLANS, {"status": {"$ne": "Archived"}})
         if not documents:
             documents = [dict(item) for item in PLAN_SEED]
         documents.sort(key=lambda doc: int(doc.get("order") or 0))
@@ -298,7 +298,7 @@ class MembershipRepository:
         yearly = int(document.get("yearly_price") or 0)
         savings = max(monthly * 12 - yearly, 0)
         return MembershipPlan(
-            id=plan_id,  # type: ignore[arg-type]
+            id=plan_id,
             name=str(document.get("name") or plan_id.title()),
             tagline=str(document.get("tagline") or ""),
             monthlyPrice=monthly,
@@ -308,7 +308,15 @@ class MembershipRepository:
             validityDays=int(document.get("validity_days") or 30),
             yearlyValidityDays=int(document.get("yearly_validity_days") or 365),
             popular=bool(document.get("popular")),
+            status=str(document.get("status") or "Active"),
+            badge=str(document.get("badge") or ""),
+            color=str(document.get("color") or "emerald"),
             order=int(document.get("order") or 0),
+            discountPercent=int(document.get("discount_percent") or 0),
+            freeDeliveryMinOrder=int(document.get("free_delivery_min_order") or 0),
+            freePickup=bool(document.get("free_pickup", False)),
+            priorityProcessing=bool(document.get("priority_processing", False)),
+            supportTier=str(document.get("support_tier") or "Standard"),
             benefits=unique,
         )
 
@@ -317,6 +325,30 @@ class MembershipRepository:
         plans = [self._plan_model(doc, benefits) for doc in await self._plan_documents()]
         membership = await self.current(user)
         return MembershipPlansResponse(plans=plans, currentPlanId=membership.planId)
+
+    async def get_user_membership_perks(self, user_id: str) -> Dict[str, Any]:
+        """Evaluate active membership perks for cart & checkout."""
+        m = await database.collection(MEMBERSHIPS).find_one({"user_id": user_id})
+        if not m or m.get("status") != "active":
+            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+        expires_at = _parse(m.get("expires_at"))
+        if expires_at and expires_at <= utcnow():
+            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+
+        plan_id = str(m.get("plan_id") or "free")
+        plan_doc = await database.collection(PLANS).find_one({"_id": plan_id})
+        if not plan_doc:
+            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+
+        return {
+            "active": True,
+            "plan_id": plan_id,
+            "plan_name": plan_doc.get("name") or plan_id.title(),
+            "discount_percent": int(plan_doc.get("discount_percent") or (10 if plan_id in ("silver", "gold", "premium") else 0)),
+            "free_pickup": bool(plan_doc.get("free_pickup") or plan_id in ("silver", "gold", "premium")),
+            "free_delivery_min": int(plan_doc.get("free_delivery_min_order") or (299 if plan_id in ("silver", "gold", "premium") else 0)),
+            "priority_processing": bool(plan_doc.get("priority_processing") or plan_id in ("gold", "premium")),
+        }
 
     async def benefits(self, user: User) -> MembershipBenefitsResponse:
         documents = await self._benefit_documents()

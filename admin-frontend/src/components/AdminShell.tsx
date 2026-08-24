@@ -46,7 +46,7 @@ const NAV_GROUPS = [
   },
   {
     title: "FINANCE & GROWTH",
-    items: ["wallet", "coupons", "analytics"],
+    items: ["wallet", "coupons", "memberships", "analytics"],
   },
   {
     title: "SYSTEM & GOVERNANCE",

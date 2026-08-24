@@ -1,0 +1,544 @@
+"""Admin Membership Repository — Complete management engine for plans, subscribers, and stats."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from app.db.client import database
+from app.db.admin_repositories import audit_repository
+from app.models.membership import (
+    AdminGrantPayload,
+    AdminPlanPayload,
+    MembershipBenefit,
+    MembershipPlan,
+    MembershipStatsResponse,
+    MembershipSubscriberItem,
+    MembershipSubscribersResponse,
+    MembershipTransaction,
+    MembershipHistoryResponse,
+)
+from app.models.user import User, utcnow
+
+PLANS = "membership_plans"
+MEMBERSHIPS = "memberships"
+TRANSACTIONS = "membership_transactions"
+BENEFITS = "membership_benefits"
+USERS = "users"
+
+
+def _iso(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if dt else None
+
+
+def _parse_iso(val: Any) -> Optional[datetime]:
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val
+    try:
+        return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _slugify(text: str) -> str:
+    import re
+    text = text.lower().strip()
+    text = re.sub(r"[^\w\s-]", "", text)
+    return re.sub(r"[\s_-]+", "-", text).strip("-")
+
+
+def _admin_actor_name(user: User) -> str:
+    name = user.display_name or user.email or user.phone or "Admin"
+    return f"{name} ({user.id})"
+
+
+class AdminMembershipRepository:
+    async def get_stats(self) -> MembershipStatsResponse:
+        """Aggregate total subscribers, MRR, tier distribution, and expiring soon."""
+        now = utcnow()
+        memberships = await database.find_many(MEMBERSHIPS)
+
+        active_count = 0
+        total_count = len(memberships)
+        mrr = 0
+        expiring_soon = 0
+        tier_counts: Dict[str, int] = {}
+
+        plans = await database.find_many(PLANS)
+        plan_names = {str(p["_id"]): p.get("name", str(p["_id"]).title()) for p in plans}
+
+        for m in memberships:
+            plan_id = str(m.get("plan_id") or "free")
+            if plan_id == "free":
+                continue
+
+            status = str(m.get("status") or "none")
+            expires_at = _parse_iso(m.get("expires_at"))
+
+            is_active = status == "active" and (expires_at is None or expires_at > now)
+            if is_active:
+                active_count += 1
+                cycle = str(m.get("billing_cycle") or "monthly")
+                amount = int(m.get("amount_paid") or 0)
+                if cycle == "yearly":
+                    mrr += round(amount / 12)
+                else:
+                    mrr += amount
+
+                pname = plan_names.get(plan_id, plan_id.title())
+                tier_counts[pname] = tier_counts.get(pname, 0) + 1
+
+                if expires_at and (expires_at - now).total_seconds() <= 7 * 86400:
+                    expiring_soon += 1
+
+        top_plan = "Gold"
+        if tier_counts:
+            top_plan = max(tier_counts.items(), key=lambda x: x[1])[0]
+
+        return MembershipStatsResponse(
+            totalSubscribers=total_count,
+            activeMembers=active_count,
+            monthlyRecurringRevenue=mrr,
+            annualRunRate=mrr * 12,
+            topPlanName=top_plan,
+            expiringSoonCount=expiring_soon,
+            tierBreakdown=tier_counts,
+        )
+
+    async def list_plans(self, include_inactive: bool = True) -> List[MembershipPlan]:
+        """List all membership plans sorted by order."""
+        query = {} if include_inactive else {"status": "Active"}
+        docs = await database.find_many(PLANS, query)
+        docs.sort(key=lambda d: (int(d.get("order") or 99), d.get("name") or ""))
+
+        all_benefits = await database.find_many(BENEFITS)
+        benefits_map = {str(b["_id"]): b for b in all_benefits}
+
+        plans_list: List[MembershipPlan] = []
+        for d in docs:
+            plan_id = str(d["_id"])
+            benefit_ids = d.get("benefit_ids") or []
+            plan_benefits = []
+            for bid in benefit_ids:
+                if bid in benefits_map:
+                    bdoc = benefits_map[bid]
+                    plan_benefits.append(
+                        MembershipBenefit(
+                            id=str(bdoc["_id"]),
+                            title=bdoc.get("title", ""),
+                            description=bdoc.get("description", ""),
+                            icon=bdoc.get("icon", "sparkles"),
+                            plans=bdoc.get("plans", []),
+                        )
+                    )
+
+            m_price = int(d.get("monthly_price") or 0)
+            y_price = int(d.get("yearly_price") or 0)
+            y_savings = max(0, (m_price * 12) - y_price) if y_price and m_price else 0
+            savings_lbl = f"Save ₹{y_savings}/yr" if y_savings > 0 else ""
+
+            plans_list.append(
+                MembershipPlan(
+                    id=plan_id,
+                    name=d.get("name") or plan_id.title(),
+                    tagline=d.get("tagline") or "",
+                    monthlyPrice=m_price,
+                    yearlyPrice=y_price,
+                    yearlySavings=y_savings,
+                    savingsLabel=savings_lbl,
+                    validityDays=int(d.get("validity_days") or 30),
+                    yearlyValidityDays=int(d.get("yearly_validity_days") or 365),
+                    popular=bool(d.get("popular", False)),
+                    status=d.get("status", "Active"),
+                    badge=d.get("badge", ""),
+                    color=d.get("color", "emerald"),
+                    order=int(d.get("order") or 0),
+                    discountPercent=int(d.get("discount_percent") or 0),
+                    freeDeliveryMinOrder=int(d.get("free_delivery_min_order") or 0),
+                    freePickup=bool(d.get("free_pickup", False)),
+                    priorityProcessing=bool(d.get("priority_processing", False)),
+                    supportTier=d.get("support_tier", "Standard"),
+                    benefits=plan_benefits,
+                )
+            )
+        return plans_list
+
+    async def get_plan(self, plan_id: str) -> Optional[MembershipPlan]:
+        plans = await self.list_plans(include_inactive=True)
+        for p in plans:
+            if p.id == plan_id:
+                return p
+        return None
+
+    async def create_plan(self, payload: AdminPlanPayload, admin_user: User) -> MembershipPlan:
+        """Create a new membership plan in MongoDB."""
+        plan_id = _slugify(payload.id or payload.name)
+        if not plan_id:
+            plan_id = f"plan-{uuid.uuid4().hex[:6]}"
+
+        existing = await database.find_one(PLANS, {"_id": plan_id})
+        if existing:
+            plan_id = f"{plan_id}-{uuid.uuid4().hex[:4]}"
+
+        benefit_ids = []
+        for b in payload.benefits or []:
+            bid = b.id or _slugify(b.title)
+            benefit_ids.append(bid)
+            await database.collection(BENEFITS).update_one(
+                {"_id": bid},
+                {
+                    "$set": {
+                        "title": b.title,
+                        "description": b.description,
+                        "icon": b.icon or "sparkles",
+                        "updated_at": _iso(utcnow()),
+                    },
+                    "$addToSet": {"plans": plan_id},
+                },
+                upsert=True,
+            )
+
+        now = utcnow()
+        doc = {
+            "_id": plan_id,
+            "name": payload.name,
+            "tagline": payload.tagline,
+            "monthly_price": payload.monthlyPrice,
+            "yearly_price": payload.yearlyPrice,
+            "validity_days": payload.validityDays or 30,
+            "yearly_validity_days": payload.yearlyValidityDays or 365,
+            "benefit_ids": benefit_ids,
+            "order": payload.order or 1,
+            "popular": payload.popular,
+            "status": payload.status or "Active",
+            "badge": payload.badge or "",
+            "color": payload.color or "emerald",
+            "discount_percent": payload.discountPercent,
+            "free_delivery_min_order": payload.freeDeliveryMinOrder,
+            "free_pickup": payload.freePickup,
+            "priority_processing": payload.priorityProcessing,
+            "support_tier": payload.supportTier,
+            "created_at": _iso(now),
+            "updated_at": _iso(now),
+        }
+
+        await database.collection(PLANS).insert_one(doc)
+
+        await audit_repository.log(
+            actor=_admin_actor_name(admin_user),
+            action="membership.plan.create",
+            target=plan_id,
+            meta={"plan_id": plan_id, "name": payload.name, "monthly_price": payload.monthlyPrice},
+        )
+
+        created = await self.get_plan(plan_id)
+        return created or MembershipPlan(id=plan_id, name=payload.name)
+
+    async def update_plan(self, plan_id: str, payload: AdminPlanPayload, admin_user: User) -> Optional[MembershipPlan]:
+        """Update an existing membership plan."""
+        doc = await database.find_one(PLANS, {"_id": plan_id})
+        if not doc:
+            return None
+
+        benefit_ids = []
+        for b in payload.benefits or []:
+            bid = b.id or _slugify(b.title)
+            benefit_ids.append(bid)
+            await database.collection(BENEFITS).update_one(
+                {"_id": bid},
+                {
+                    "$set": {
+                        "title": b.title,
+                        "description": b.description,
+                        "icon": b.icon or "sparkles",
+                        "updated_at": _iso(utcnow()),
+                    },
+                    "$addToSet": {"plans": plan_id},
+                },
+                upsert=True,
+            )
+
+        update_fields = {
+            "name": payload.name,
+            "tagline": payload.tagline,
+            "monthly_price": payload.monthlyPrice,
+            "yearly_price": payload.yearlyPrice,
+            "validity_days": payload.validityDays,
+            "yearly_validity_days": payload.yearlyValidityDays,
+            "benefit_ids": benefit_ids,
+            "order": payload.order,
+            "popular": payload.popular,
+            "status": payload.status,
+            "badge": payload.badge,
+            "color": payload.color,
+            "discount_percent": payload.discountPercent,
+            "free_delivery_min_order": payload.freeDeliveryMinOrder,
+            "free_pickup": payload.freePickup,
+            "priority_processing": payload.priorityProcessing,
+            "support_tier": payload.supportTier,
+            "updated_at": _iso(utcnow()),
+        }
+
+        await database.collection(PLANS).update_one({"_id": plan_id}, {"$set": update_fields})
+
+        await audit_repository.log(
+            actor=_admin_actor_name(admin_user),
+            action="membership.plan.update",
+            target=plan_id,
+            meta={"plan_id": plan_id, "name": payload.name},
+        )
+
+        return await self.get_plan(plan_id)
+
+    async def delete_plan(self, plan_id: str, admin_user: User) -> bool:
+        """Archive or delete a membership plan."""
+        doc = await database.find_one(PLANS, {"_id": plan_id})
+        if not doc:
+            return False
+
+        # If subscribers exist, mark as Archived instead of hard deletion
+        subs = await database.find_many(MEMBERSHIPS, {"plan_id": plan_id})
+        if subs:
+            await database.collection(PLANS).update_one({"_id": plan_id}, {"$set": {"status": "Archived", "updated_at": _iso(utcnow())}})
+        else:
+            await database.collection(PLANS).delete_one({"_id": plan_id})
+
+        await audit_repository.log(
+            actor=_admin_actor_name(admin_user),
+            action="membership.plan.delete",
+            target=plan_id,
+            meta={"plan_id": plan_id},
+        )
+        return True
+
+    async def list_subscribers(
+        self,
+        q: Optional[str] = None,
+        status: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> MembershipSubscribersResponse:
+        """Paginated list of all customer memberships with user profiles."""
+        now = utcnow()
+        memberships = await database.find_many(MEMBERSHIPS)
+
+        plans = await database.find_many(PLANS)
+        plan_names = {str(p["_id"]): p.get("name", str(p["_id"]).title()) for p in plans}
+        plan_names["free"] = "Free"
+
+        users = await database.find_many(USERS)
+        users_map = {str(u["_id"]): u for u in users}
+
+        items: List[MembershipSubscriberItem] = []
+        for m in memberships:
+            pid = str(m.get("plan_id") or "free")
+            m_status = str(m.get("status") or "none")
+            exp_at = _parse_iso(m.get("expires_at"))
+
+            # Real-time status calculation
+            if m_status == "active" and exp_at and exp_at < now:
+                m_status = "expired"
+
+            if status and status.lower() != "all" and m_status != status.lower():
+                continue
+            if plan_id and plan_id.lower() != "all" and pid != plan_id:
+                continue
+
+            uid = str(m.get("user_id") or "")
+            uinfo = users_map.get(uid, {})
+            uname = uinfo.get("name") or "QuickPress Customer"
+            uphone = uinfo.get("phone") or ""
+            uemail = uinfo.get("email") or ""
+
+            if q:
+                needle = q.strip().lower()
+                if (
+                    needle not in uid.lower()
+                    and needle not in uname.lower()
+                    and needle not in uphone.lower()
+                    and needle not in uemail.lower()
+                    and needle not in pid.lower()
+                ):
+                    continue
+
+            remaining_days = max(0, (exp_at - now).days) if (exp_at and exp_at > now) else 0
+
+            items.append(
+                MembershipSubscriberItem(
+                    userId=uid,
+                    userName=uname,
+                    userPhone=uphone,
+                    userEmail=uemail,
+                    planId=pid,
+                    planName=plan_names.get(pid, pid.title()),
+                    status=m_status,
+                    billingCycle=str(m.get("billing_cycle") or "monthly"),
+                    amountPaid=int(m.get("amount_paid") or 0),
+                    startedAt=str(m.get("started_at") or ""),
+                    expiresAt=str(m.get("expires_at") or ""),
+                    autoRenew=bool(m.get("auto_renew", False)),
+                    remainingDays=remaining_days,
+                )
+            )
+
+        items.sort(key=lambda x: x.startedAt or "", reverse=True)
+        total = len(items)
+        return MembershipSubscribersResponse(items=items[offset : offset + limit], total=total)
+
+    async def grant_membership(
+        self,
+        user_id: str,
+        payload: AdminGrantPayload,
+        admin_user: User,
+    ) -> MembershipSubscriberItem:
+        """Admin manually grants / extends a membership to any customer."""
+        plan = await self.get_plan(payload.planId)
+        plan_name = plan.name if plan else payload.planId.title()
+
+        now = utcnow()
+        validity = payload.validityDays
+        if not validity:
+            validity = plan.yearlyValidityDays if payload.billingCycle == "yearly" and plan else (plan.validityDays if plan else 30)
+
+        expires_at = now + timedelta(days=validity)
+
+        m_doc = {
+            "_id": f"mbs-{user_id}",
+            "user_id": user_id,
+            "plan_id": payload.planId,
+            "status": "active",
+            "billing_cycle": payload.billingCycle,
+            "amount_paid": 0,
+            "started_at": _iso(now),
+            "expires_at": _iso(expires_at),
+            "cancelled_at": None,
+            "auto_renew": False,
+            "granted_by_admin": admin_user.id,
+            "updated_at": _iso(now),
+        }
+
+        await database.collection(MEMBERSHIPS).update_one({"user_id": user_id}, {"$set": m_doc}, upsert=True)
+
+        # Log transaction
+        tx_id = f"tx-{uuid.uuid4().hex[:12]}"
+        tx_doc = {
+            "_id": tx_id,
+            "user_id": user_id,
+            "plan_id": payload.planId,
+            "plan_name": plan_name,
+            "type": "admin_grant",
+            "billing_cycle": payload.billingCycle,
+            "amount": 0,
+            "payment_status": "free",
+            "payment_reference": payload.reason or f"Granted by {_admin_actor_name(admin_user)}",
+            "subscribed_at": _iso(now),
+            "renewal_at": None,
+            "expires_at": _iso(expires_at),
+        }
+        await database.collection(TRANSACTIONS).insert_one(tx_doc)
+
+        await audit_repository.log(
+            actor=_admin_actor_name(admin_user),
+            action="membership.subscriber.grant",
+            target=user_id,
+            meta={"user_id": user_id, "plan_id": payload.planId, "days": validity},
+        )
+
+        user_doc = await database.find_one(USERS, {"_id": user_id}) or {}
+        return MembershipSubscriberItem(
+            userId=user_id,
+            userName=user_doc.get("display_name") or user_doc.get("name") or "Customer",
+            userPhone=user_doc.get("phone") or "",
+            userEmail=user_doc.get("email") or "",
+            planId=payload.planId,
+            planName=plan_name,
+            status="active",
+            billingCycle=payload.billingCycle,
+            amountPaid=0,
+            startedAt=_iso(now),
+            expiresAt=_iso(expires_at),
+            autoRenew=False,
+            remainingDays=validity,
+        )
+
+    async def revoke_membership(
+        self,
+        user_id: str,
+        reason: Optional[str],
+        admin_user: User,
+    ) -> bool:
+        """Cancel/revoke a customer's active membership."""
+        now = utcnow()
+        existing = await database.find_one(MEMBERSHIPS, {"user_id": user_id})
+        if not existing:
+            return False
+
+        await database.collection(MEMBERSHIPS).update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "cancelled_at": _iso(now),
+                    "auto_renew": False,
+                    "revoked_by_admin": admin_user.id,
+                    "updated_at": _iso(now),
+                }
+            },
+        )
+
+        # Log transaction
+        tx_id = f"tx-{uuid.uuid4().hex[:12]}"
+        tx_doc = {
+            "_id": tx_id,
+            "user_id": user_id,
+            "plan_id": existing.get("plan_id") or "free",
+            "plan_name": existing.get("plan_id", "Free").title(),
+            "type": "admin_revoke",
+            "billing_cycle": existing.get("billing_cycle") or "monthly",
+            "amount": 0,
+            "payment_status": "refunded",
+            "payment_reference": reason or f"Revoked by {_admin_actor_name(admin_user)}",
+            "subscribed_at": _iso(now),
+            "renewal_at": None,
+            "expires_at": existing.get("expires_at"),
+        }
+        await database.collection(TRANSACTIONS).insert_one(tx_doc)
+
+        await audit_repository.log(
+            actor=_admin_actor_name(admin_user),
+            action="membership.subscriber.revoke",
+            target=user_id,
+            meta={"user_id": user_id, "reason": reason},
+        )
+        return True
+
+    async def list_transactions(self, limit: int = 50, offset: int = 0) -> MembershipHistoryResponse:
+        """Audit list of all membership subscribe/renew/cancel transactions."""
+        docs = await database.find_many(TRANSACTIONS)
+        docs.sort(key=lambda d: str(d.get("subscribed_at") or ""), reverse=True)
+
+        items: List[MembershipTransaction] = []
+        for d in docs:
+            items.append(
+                MembershipTransaction(
+                    id=str(d["_id"]),
+                    planId=str(d.get("plan_id") or "free"),
+                    planName=str(d.get("plan_name") or "Free"),
+                    type=d.get("type", "subscribe"),
+                    billingCycle=d.get("billing_cycle", "monthly"),
+                    amount=int(d.get("amount") or 0),
+                    paymentStatus=d.get("payment_status", "paid"),
+                    paymentReference=d.get("payment_reference"),
+                    subscribedAt=str(d.get("subscribed_at") or ""),
+                    renewalAt=d.get("renewal_at"),
+                    expiresAt=d.get("expires_at"),
+                )
+            )
+        return MembershipHistoryResponse(items=items[offset : offset + limit], total=len(items))
+
+
+admin_membership_repository = AdminMembershipRepository()

@@ -17,6 +17,7 @@ import { Route as CouponsRouteImport } from './routes/coupons'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as MembershipsRouteImport } from './routes/memberships'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PartnersRouteImport } from './routes/partners'
@@ -65,6 +66,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembershipsRoute = MembershipsRouteImport.update({
+  id: '/memberships',
+  path: '/memberships',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/partners': typeof PartnersRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/partners': typeof PartnersRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
   '/orders': typeof OrdersRoute
   '/partners': typeof PartnersRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/forgot-password'
+    | '/memberships'
     | '/notifications'
     | '/orders'
     | '/partners'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/forgot-password'
+    | '/memberships'
     | '/notifications'
     | '/orders'
     | '/partners'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/dashboard'
     | '/forgot-password'
+    | '/memberships'
     | '/notifications'
     | '/orders'
     | '/partners'
@@ -240,6 +252,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  MembershipsRoute: typeof MembershipsRoute
   NotificationsRoute: typeof NotificationsRoute
   OrdersRoute: typeof OrdersRoute
   PartnersRoute: typeof PartnersRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memberships': {
+      id: '/memberships'
+      path: '/memberships'
+      fullPath: '/memberships'
+      preLoaderRoute: typeof MembershipsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -384,6 +404,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  MembershipsRoute: MembershipsRoute,
   NotificationsRoute: NotificationsRoute,
   OrdersRoute: OrdersRoute,
   PartnersRoute: PartnersRoute,
