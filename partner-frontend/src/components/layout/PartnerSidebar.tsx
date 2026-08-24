@@ -33,21 +33,29 @@ export function PartnerSidebar({
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-border/80 bg-card/95 backdrop-blur-md transition-all duration-300 md:flex lg:w-72">
-      {/* Brand Header */}
-      <div className="flex h-20 items-center gap-3 border-b border-border/60 px-6">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 via-primary to-yellow-300 text-brand-dark shadow-md font-black text-xl tracking-tighter">
-          QP
+      {/* Partner Store Header */}
+      <div className="flex h-20 items-center gap-3 border-b border-border/60 px-5">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark border border-primary/30 shadow-xs font-black text-sm tracking-tight">
+          {(shopName || "Partner Store")
+            .split(" ")
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w) => w[0].toUpperCase())
+            .join("") || "PS"}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-foreground text-sm tracking-tight">QuickPress</span>
-            <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-brand-dark tracking-wide">
-              Partner
-            </span>
+          <h2
+            className="truncate font-black text-sm text-foreground tracking-tight"
+            title={shopName || "Partner Store"}
+          >
+            {shopName || "Partner Store"}
+          </h2>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="size-1.5 rounded-full bg-brand-green shrink-0" />
+            <p className="text-[11px] font-semibold text-muted-foreground truncate">
+              Verified Partner
+            </p>
           </div>
-          <p className="truncate text-xs font-semibold text-muted-foreground">
-            {shopName || "Store Console"}
-          </p>
         </div>
       </div>
 
