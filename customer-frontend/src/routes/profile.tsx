@@ -742,13 +742,13 @@ function ProfileScreen() {
 
       {/* Edit profile / Personal Information popup dialog — PUT /api/profile */}
       {editing && data ? (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 z-[999] flex items-start justify-center p-4 pt-6 sm:pt-10 overflow-y-auto">
           <div
             onClick={() => setEditing(false)}
             className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-[420px] my-auto max-h-[90vh] flex flex-col rounded-3xl bg-card text-foreground shadow-[0_25px_60px_rgba(0,0,0,0.35)] border border-border/80 overflow-hidden z-10">
+          <div className="relative w-full max-w-[420px] max-h-[86vh] flex flex-col rounded-3xl bg-card text-foreground shadow-[0_25px_60px_rgba(0,0,0,0.35)] border border-border/80 overflow-hidden z-10">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/50 px-5 py-3.5 bg-muted/20">
               <div>
