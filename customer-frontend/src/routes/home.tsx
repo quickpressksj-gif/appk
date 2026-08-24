@@ -200,10 +200,7 @@ function HomeScreen() {
   }, [location?.city, location?.area, location?.latitude, location?.longitude]);
 
   const nearbyAreas = availability?.nearbyAreas ?? [];
-  const isPartnersLoading = sections.partners.loading || isCheckingAvailability;
-  const isServicesUnavailable =
-    availability?.available === false ||
-    (!isPartnersLoading && partners.length === 0 && !sections.partners.error);
+  const isServicesUnavailable = availability ? availability.available === false : false;
   
   // Header badge stays live: the notifications screen broadcasts every
   // read/delete so the count updates without a home refetch.
