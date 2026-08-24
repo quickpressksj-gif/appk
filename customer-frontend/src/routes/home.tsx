@@ -46,6 +46,35 @@ import store1 from "@/shared/assets/store-1.jpg";
 import store2 from "@/shared/assets/store-2.jpg";
 import store3 from "@/shared/assets/store-3.jpg";
 
+import washFoldImg from "@/shared/assets/item-wash-fold.jpg";
+import dryCleanImg from "@/shared/assets/item-dry-clean.jpg";
+import steamIronImg from "@/shared/assets/item-steam-iron.jpg";
+import premiumImg from "@/shared/assets/item-premium.jpg";
+import shoesImg from "@/shared/assets/item-shoes.jpg";
+import curtainImg from "@/shared/assets/item-curtain.jpg";
+import blanketImg from "@/shared/assets/item-blanket.jpg";
+import carpetImg from "@/shared/assets/item-carpet.jpg";
+import expressImg from "@/shared/assets/item-express.jpg";
+
+function resolveCategoryServiceImage(title?: string | null, img?: string | null): string {
+  const t = (title || "").toLowerCase();
+  if (t.includes("wash") || t.includes("fold") || t.includes("laundry") && !t.includes("premium") && !t.includes("express")) {
+    if (!t.includes("express") && !t.includes("premium")) return washFoldImg;
+  }
+  if (t.includes("dry") || t.includes("clean") && !t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) {
+    if (!t.includes("shoe") && !t.includes("curtain") && !t.includes("carpet") && !t.includes("blanket")) return dryCleanImg;
+  }
+  if (t.includes("steam") || t.includes("iron")) return steamIronImg;
+  if (t.includes("premium") || t.includes("saree")) return premiumImg;
+  if (t.includes("shoe") || t.includes("sneaker")) return shoesImg;
+  if (t.includes("curtain")) return curtainImg;
+  if (t.includes("blanket") || t.includes("quilt")) return blanketImg;
+  if (t.includes("carpet") || t.includes("rug")) return carpetImg;
+  if (t.includes("express")) return expressImg;
+  if (img && (img.startsWith("/") || img.startsWith("http") || img.startsWith("data:"))) return img;
+  return washFoldImg;
+}
+
 function resolvePartnerImage(img?: string | null): string {
   if (!img) return store1;
   if (img === "store-1" || img.includes("store-1")) return store1;
@@ -420,19 +449,15 @@ function HomeScreen() {
                       className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.94]"
                     >
                       <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
-                        {category.image ? (
-                          <img
-                            src={category.image}
-                            alt={category.title}
-                            loading="lazy"
-                            width={512}
-                            height={512}
-                            className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            decoding="async"
-                          />
-                        ) : (
-                          <Icon className="size-7 text-brand-green" />
-                        )}
+                        <img
+                          src={resolveCategoryServiceImage(category.title, category.image)}
+                          alt={category.title}
+                          loading="lazy"
+                          width={512}
+                          height={512}
+                          className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          decoding="async"
+                        />
                       </div>
                       <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-primary transition-colors">
                         {category.title}
@@ -472,19 +497,15 @@ function HomeScreen() {
                     >
                       <div className="flex items-start gap-3.5">
                         <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
-                          {service.image ? (
-                            <img
-                              src={service.image}
-                              alt={service.title}
-                              width={256}
-                              height={256}
-                              loading="lazy"
-                              decoding="async"
-                              className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            />
-                          ) : (
-                            <Icon className="size-6 text-brand-green" />
-                          )}
+                          <img
+                            src={resolveCategoryServiceImage(service.title, service.image)}
+                            alt={service.title}
+                            width={256}
+                            height={256}
+                            loading="lazy"
+                            decoding="async"
+                            className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-black text-foreground group-hover:text-primary transition-colors">
