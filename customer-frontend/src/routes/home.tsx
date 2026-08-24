@@ -729,10 +729,13 @@ function HomeScreen() {
                               <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
                             </div>
                             <span
-                              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${order.status === "Delivered"
-                                  ? "bg-secondary/12 text-brand-green"
-                                  : "bg-primary/20 text-brand-dark"
-                                }`}
+                              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                order.status === "Delivered"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : order.status === "Cancelled"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              }`}
                             >
                               {order.status}
                             </span>

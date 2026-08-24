@@ -53,9 +53,9 @@ const FILTERS: { id: "all" | OrderStatus; label: string }[] = [
 ];
 
 const STATUS_META: Record<OrderStatus, { label: string; icon: typeof Clock; tone: string }> = {
-  delivered: { label: "Delivered", icon: CheckCircle2, tone: "bg-secondary/10 text-brand-green" },
-  "in-progress": { label: "In Progress", icon: Clock, tone: "bg-primary/15 text-brand-dark" },
-  cancelled: { label: "Cancelled", icon: XCircle, tone: "bg-destructive/10 text-destructive" },
+  delivered: { label: "Delivered", icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  "in-progress": { label: "In Progress", icon: Clock, tone: "bg-emerald-50 text-emerald-800 border border-emerald-200" },
+  cancelled: { label: "Cancelled", icon: XCircle, tone: "bg-rose-50 text-rose-700 border border-rose-200" },
 };
 
 function HistoryScreen() {
@@ -176,7 +176,7 @@ function HistoryScreen() {
                   aria-pressed={isActive}
                   className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold tracking-tight transition-all duration-300 active:scale-[0.94] ${
                     isActive
-                      ? "bg-primary/15 text-brand-dark"
+                      ? "bg-zinc-900 text-white"
                       : "bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -192,9 +192,9 @@ function HistoryScreen() {
               onClick={() =>
                 navigate({ to: "/track/$orderId", params: { orderId: activeOrder.orderId } })
               }
-              className="card-soft mt-4 flex w-full items-center gap-3 border border-primary/50 p-4 text-left transition-all duration-300 active:scale-[0.985]"
+              className="card-soft mt-4 flex w-full items-center gap-3 border border-emerald-200 bg-white p-4 text-left transition-all duration-300 active:scale-[0.985]"
             >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <Truck className="size-4" />
               </span>
               <div className="min-w-0 flex-1">
@@ -205,7 +205,7 @@ function HistoryScreen() {
                   {activeOrder.service} · {activeOrder.store}
                 </p>
               </div>
-              <span className="shrink-0 rounded-full bg-secondary/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-brand-green">
+              <span className="shrink-0 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
                 Track
               </span>
             </button>
