@@ -2,18 +2,24 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Building,
+  CheckCircle2,
   Copy,
+  CreditCard,
   Gift,
   Loader2,
   Plus,
   Receipt,
   RefreshCcw,
   Share2,
+  ShieldCheck,
+  Smartphone,
   Sparkles,
   Users,
   Wallet as WalletIcon,
   WifiOff,
   X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +46,7 @@ import {
   type RefundRecord,
 } from "@/api/customer/payments-api";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { onRealtimeEvent } from "@/api/core/socket-client";
 
 export const Route = createFileRoute("/wallet")({
   head: () => ({
@@ -52,7 +59,7 @@ export const Route = createFileRoute("/wallet")({
       },
       { property: "og:title", content: "Wallet — QuickPress Cashback & Rewards" },
       {
-        property: "og:description",
+        name: "description",
         content:
           "Wallet balance, cashback, reward points and referral earnings for your QuickPress laundry orders.",
       },
@@ -97,6 +104,37 @@ function statusTone(status: string) {
   return PAYMENT_STATUS_TONE[status] ?? "bg-muted text-muted-foreground";
 }
 
+const TOPUP_METHODS = [
+  {
+    id: "upi",
+    name: "UPI / QR",
+    description: "Google Pay, PhonePe, Paytm, BHIM",
+    icon: Smartphone,
+    badge: "Fastest",
+  },
+  {
+    id: "card",
+    name: "Cards",
+    description: "Credit & Debit Cards (Visa, RuPay)",
+    icon: CreditCard,
+  },
+  {
+    id: "netbanking",
+    name: "Net Banking",
+    description: "All Major Indian Banks",
+    icon: Building,
+  },
+  {
+    id: "wallet",
+    name: "Express Top-up",
+    description: "Direct instant wallet credit",
+    icon: Zap,
+    badge: "Instant",
+  },
+];
+
+const EXTENDED_QUICK_AMOUNTS = [100, 200, 500, 1000, 2000, 5000];
+
 function WalletScreen() {
   useAuthGuard();
   const navigate = useNavigate();
@@ -108,7 +146,8 @@ function WalletScreen() {
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [amount, setAmount] = useState<string>("");
+  const [amount, setAmount] = useState<string>("500");
+  const [selectedMethod, setSelectedMethod] = useState<string>("upi");
   const [adding, setAdding] = useState(false);
 
   // GET /api/wallet + /api/wallet/history + /api/payments + /api/refunds
@@ -137,6 +176,17 @@ function WalletScreen() {
     void load();
   }, [load]);
 
+  // Real-time wallet update listener via Socket.IO
+  useEffect(() => {
+    const unsub = onRealtimeEvent("wallet.updated", (payload: any) => {
+      if (payload) {
+        setWallet((prev) => (prev ? { ...prev, ...payload, fromCache: false } : prev));
+        void load(true);
+      }
+    });
+    return unsub;
+  }, [load]);
+
   // Auto-sync when the device comes back online.
   useEffect(() => {
     const onOnline = () => void load(true);
@@ -155,13 +205,17 @@ function WalletScreen() {
       toast.error("Enter an amount greater than ₹0");
       return;
     }
+    if (value > 100000) {
+      toast.error("Amount can't exceed ₹1,00,000");
+      return;
+    }
     setAdding(true);
     try {
-      const result = await addFunds(value);
+      const result = await addFunds(value, selectedMethod);
       setWallet(result.wallet);
-      toast.success(result.message);
+      toast.success(result.message || `₹${value} added to your wallet!`);
       setAddOpen(false);
-      setAmount("");
+      setAmount("500");
       await load(true);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Couldn't add money right now");
@@ -209,6 +263,9 @@ function WalletScreen() {
   ];
 
   const loading = !wallet || !transactions;
+  const numAmount = Number(amount) || 0;
+  const currentBal = wallet?.balances.currentBalance || 0;
+  const projectedBal = currentBal + (numAmount > 0 ? numAmount : 0);
 
   return (
     <main className="relative min-h-screen overflow-x-hidden scroll-smooth bg-background">
@@ -249,89 +306,114 @@ function WalletScreen() {
               </div>
             ) : null}
 
-            {/* Balance card — GET /api/wallet */}
-            <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
-              <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
+            {/* Balances hero */}
+            <section className="relative overflow-hidden rounded-3xl bg-brand-dark p-6 text-background shadow-soft">
+              <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-green/20 blur-2xl" />
+              <div className="pointer-events-none absolute -bottom-16 -left-16 size-48 rounded-full bg-primary/20 blur-2xl" />
+
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-widest text-background/70">
-                    Current Balance
-                  </p>
-                  <p className="mt-1 text-3xl font-black tracking-tight text-background">
-                    {formatAmount(wallet.balances.currentBalance)}
-                  </p>
+                  <span className="text-[0.68rem] font-bold uppercase tracking-widest text-background/70">
+                    Total Spendable Balance
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1">
+                    <span className="text-3xl font-black tracking-tight text-background">
+                      {formatAmount(wallet.totalBalance)}
+                    </span>
+                    <span className="text-xs font-bold text-brand-green">INR</span>
+                  </div>
                 </div>
-                <span className="flex size-11 items-center justify-center rounded-2xl bg-background/15 text-background">
+                <span className="flex size-11 items-center justify-center rounded-2xl bg-background/10 text-brand-green backdrop-blur-md">
                   <WalletIcon className="size-5" />
                 </span>
               </div>
 
-              <div className="relative mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-background/12 px-4 py-3">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-background/70">
-                    Pending
-                  </p>
-                  <p className="mt-0.5 text-lg font-black tracking-tight text-background">
-                    {formatAmount(wallet.balances.pendingBalance)}
-                  </p>
+              {/* Sub-balances */}
+              <div className="relative mt-6 grid grid-cols-3 gap-2 border-t border-background/10 pt-4">
+                <div>
+                  <span className="block text-[0.62rem] font-semibold uppercase tracking-wider text-background/60">
+                    Main
+                  </span>
+                  <span className="mt-0.5 block text-xs font-black tracking-tight text-background">
+                    {formatAmount(wallet.balances.currentBalance)}
+                  </span>
                 </div>
-                <div className="rounded-2xl bg-background/12 px-4 py-3">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-background/70">
-                    Rewards
-                  </p>
-                  <p className="mt-0.5 text-lg font-black tracking-tight text-background">
+                <div>
+                  <span className="block text-[0.62rem] font-semibold uppercase tracking-wider text-background/60">
+                    Cashback
+                  </span>
+                  <span className="mt-0.5 block text-xs font-black tracking-tight text-brand-green">
                     {formatAmount(wallet.balances.rewardBalance)}
-                  </p>
+                  </span>
                 </div>
-                <div className="rounded-2xl bg-background/12 px-4 py-3">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-background/70">
-                    Membership Credits
-                  </p>
-                  <p className="mt-0.5 text-lg font-black tracking-tight text-background">
+                <div>
+                  <span className="block text-[0.62rem] font-semibold uppercase tracking-wider text-background/60">
+                    Credits
+                  </span>
+                  <span className="mt-0.5 block text-xs font-black tracking-tight text-primary">
                     {formatAmount(wallet.balances.membershipCredits)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-background/12 px-4 py-3">
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-background/70">
-                    Total
-                  </p>
-                  <p className="mt-0.5 text-lg font-black tracking-tight text-background">
-                    {formatAmount(wallet.totalBalance)}
-                  </p>
+                  </span>
                 </div>
               </div>
             </section>
 
-            {/* Quick actions */}
-            <section className="stagger-children mt-5 grid grid-cols-4 gap-3">
-              {quickActions.map((action) => (
+            {/* Quick action grid */}
+            <div className="mt-4 grid grid-cols-4 gap-2">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                const isSpinning = busy === action.id;
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={action.onClick}
+                    className="card-soft flex flex-col items-center justify-center gap-1.5 border border-border p-3 text-center transition-all duration-300 hover:border-primary/60 active:scale-[0.95]"
+                  >
+                    <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+                      <Icon className={`size-4 ${isSpinning ? "animate-spin" : ""}`} />
+                    </span>
+                    <span className="text-[0.68rem] font-bold tracking-tight text-foreground">
+                      {action.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Refer and Earn Banner */}
+            <section className="card-soft mt-4 border border-border p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-2xl bg-secondary/15 text-brand-green">
+                    <Sparkles className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-black tracking-tight text-foreground">
+                      Refer &amp; Earn ₹150
+                    </p>
+                    <p className="text-[0.65rem] text-muted-foreground">
+                      Your friend gets ₹150 off, you get ₹150 in wallet.
+                    </p>
+                  </div>
+                </div>
                 <button
-                  key={action.id}
                   type="button"
-                  onClick={action.onClick}
-                  disabled={busy === action.id} className="card-soft ripple flex flex-col items-center gap-2 border border-border px-2 py-3 transition-all duration-300 hover:border-primary/60 active:scale-[0.96] disabled:opacity-70"
+                  onClick={() => void handleShareReferral()}
+                  className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-[0.68rem] font-bold text-brand-dark transition-transform duration-200 active:scale-95"
                 >
-                  <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
-                    {busy === action.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <action.icon className="size-4" strokeWidth={2.2} />
-                    )}
-                  </span>
-                  <span className="text-[0.68rem] font-bold tracking-tight text-foreground">
-                    {action.label}
-                  </span>
+                  <Share2 className="size-3" />
+                  Share
                 </button>
-              ))}
+              </div>
             </section>
 
-            {/* Wallet ledger — GET /api/wallet/history */}
-            <section id="wallet-transactions" className="mt-7 scroll-mt-20">
+            {/* Transaction Ledger */}
+            <section id="wallet-transactions" className="mt-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-black tracking-tight text-foreground">
+                <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
                   Recent Transactions
                 </h2>
-                <span className="text-[0.68rem] font-semibold text-muted-foreground">
+                <span className="text-[0.68rem] font-bold text-muted-foreground">
                   {transactions?.length ?? 0} entries
                 </span>
               </div>
@@ -572,75 +654,158 @@ function WalletScreen() {
         ) : null}
       </div>
 
-      {/* Add funds sheet — POST /api/wallet/add-funds */}
+      {/* Enhanced Add funds modal sheet */}
       {addOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 px-0">
-          <div className="w-full max-w-md rounded-t-3xl border border-border bg-background p-5 pb-8 shadow-soft">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/50 backdrop-blur-sm px-0 transition-opacity">
+          <div className="w-full max-w-md rounded-t-[2rem] border-t border-border bg-background p-6 pb-8 shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+            {/* Header */}
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-black tracking-tight text-foreground">Add Funds</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Money is credited to your QuickPress wallet instantly.
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark shadow-sm">
+                  <Plus className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight text-foreground">Add Money to Wallet</h3>
+                  <p className="text-[0.68rem] text-muted-foreground">
+                    Instant credit • Zero fees • 100% Secure
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="flex size-9 items-center justify-center rounded-2xl bg-muted text-muted-foreground transition-transform duration-300 active:scale-[0.94]"
+                className="flex size-9 items-center justify-center rounded-2xl bg-muted text-muted-foreground transition-transform duration-200 active:scale-90 hover:bg-muted/80"
                 aria-label="Close add funds"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-4 gap-2">
-              {QUICK_AMOUNTS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={adding}
-                  onClick={() => setAmount(String(value))}
-                  className={`rounded-2xl border px-2 py-3 text-xs font-black tracking-tight transition-all duration-300 active:scale-[0.96] disabled:opacity-70 ${
-                    amount === String(value)
-                      ? "border-primary bg-primary/15 text-brand-dark"
-                      : "border-border bg-background text-foreground hover:border-primary/60"
-                  }`}
-                >
-                  ₹{value}
-                </button>
-              ))}
+            {/* Quick Amount Pills */}
+            <div className="mt-5">
+              <span className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                Popular Amounts
+              </span>
+              <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {EXTENDED_QUICK_AMOUNTS.map((val) => {
+                  const isSelected = amount === String(val);
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      disabled={adding}
+                      onClick={() => setAmount(String(val))}
+                      className={`relative rounded-2xl border py-2.5 text-xs font-black tracking-tight transition-all duration-200 active:scale-95 disabled:opacity-60 ${
+                        isSelected
+                          ? "border-primary bg-primary/20 text-brand-dark shadow-sm ring-1 ring-primary"
+                          : "border-border bg-muted/40 text-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      ₹{val}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <label className="mt-4 block">
-              <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Custom amount
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={100000}
-                inputMode="numeric"
-                value={amount}
-                disabled={adding}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="Enter amount"
-                className="mt-1.5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm font-bold tracking-tight text-foreground outline-none transition-colors duration-300 focus:border-primary"
-              />
-            </label>
+            {/* Custom Amount Input */}
+            <div className="mt-4">
+              <label className="block">
+                <span className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                  Or Enter Custom Amount
+                </span>
+                <div className="relative mt-1.5">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-foreground">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    inputMode="numeric"
+                    value={amount}
+                    disabled={adding}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full rounded-2xl border border-border bg-background py-3.5 pl-9 pr-4 text-base font-black tracking-tight text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </label>
+            </div>
 
+            {/* Payment Method Selector */}
+            <div className="mt-5">
+              <span className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
+                Select Payment Mode
+              </span>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {TOPUP_METHODS.map((m) => {
+                  const Icon = m.icon;
+                  const isSelected = selectedMethod === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={adding}
+                      onClick={() => setSelectedMethod(m.id)}
+                      className={`flex flex-col items-start rounded-2xl border p-3 text-left transition-all duration-200 active:scale-98 disabled:opacity-60 ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                          : "border-border bg-card hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className={`flex size-7 items-center justify-center rounded-xl ${isSelected ? "bg-primary/20 text-brand-dark" : "bg-muted text-muted-foreground"}`}>
+                          <Icon className="size-3.5" />
+                        </span>
+                        {m.badge ? (
+                          <span className="rounded-full bg-brand-green/15 px-1.5 py-0.5 text-[0.6rem] font-bold text-brand-green">
+                            {m.badge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-xs font-black tracking-tight text-foreground">{m.name}</p>
+                      <p className="text-[0.62rem] text-muted-foreground line-clamp-1">{m.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Projected Balance Breakdown Card */}
+            {numAmount > 0 ? (
+              <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                  <span>Current Balance</span>
+                  <span className="font-bold text-foreground">₹{currentBal}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs font-semibold text-brand-green">
+                  <span>Top-up Amount</span>
+                  <span className="font-black">+₹{numAmount}</span>
+                </div>
+                <div className="mt-2 border-t border-border/80 pt-2 flex items-center justify-between text-xs font-black text-foreground">
+                  <span>New Wallet Balance</span>
+                  <span className="text-sm font-black text-brand-dark">₹{projectedBal}</span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Primary Submit Button */}
             <button
               type="button"
-              disabled={adding}
-              onClick={() => void submitAddFunds(Number(amount))}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-green to-primary px-5 py-3.5 text-sm font-black tracking-tight text-background shadow-cta transition-transform duration-300 active:scale-[0.97] disabled:opacity-70"
+              disabled={adding || numAmount <= 0}
+              onClick={() => void submitAddFunds(numAmount)}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand-green to-primary py-4 text-sm font-black tracking-tight text-background shadow-cta transition-transform duration-200 active:scale-98 disabled:opacity-50"
             >
               {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Add {amount ? formatAmount(Number(amount) || 0) : "money"}
+              Proceed &amp; Add ₹{numAmount || 0}
             </button>
 
-            <p className="mt-3 text-center text-[0.65rem] text-muted-foreground">
-              Card, UPI and Razorpay top-ups unlock once online payments go live.
-            </p>
+            {/* Trust & Compliance note */}
+            <div className="mt-3 flex items-center justify-center gap-1.5 text-[0.65rem] text-muted-foreground">
+              <ShieldCheck className="size-3.5 text-brand-green" />
+              <span>256-bit SSL Security • Instant Credit • Zero Surcharge</span>
+            </div>
           </div>
         </div>
       ) : null}

@@ -281,6 +281,36 @@ async def verify_payment(user: User, payload: Dict[str, Any]) -> Dict[str, Any]:
             "payment": _payment_out(payment),
         }
 
+    if verified:
+        # If this payment was a wallet top-up, credit the account ledger and wallet store
+        purpose_str = str(payment.get("purpose") or "").lower()
+        if "top-up" in purpose_str or "topup" in purpose_str:
+            try:
+                from app.db.wallet_repositories import wallet_repository
+                user_doc = await database.collection("users").find_one({"_id": payment["accountId"]})
+                if user_doc:
+                    target_user = User.from_document(user_doc)
+                    await wallet_repository.credit(
+                        target_user,
+                        payment["amount"],
+                        kind="add-funds",
+                        title="Money added to wallet",
+                        description="Added via Razorpay Online Payment",
+                        method="razorpay",
+                        reference=payment["_id"],
+                    )
+            except Exception:
+                await ledger.append_entry(
+                    account_id=payment["accountId"],
+                    role=role_of(user),
+                    direction="credit",
+                    reason="wallet-topup",
+                    amount=payment["amount"],
+                    note="Wallet top-up via Razorpay",
+                    payment_id=payment["_id"],
+                    reference=razorpay_payment_id or payment.get("gatewayOrderId"),
+                )
+
     await mark_order_paid(payment.get("orderId"), payment)
 
     return {

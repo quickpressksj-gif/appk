@@ -134,3 +134,29 @@ async def broadcast_order_event(
 
     # 5. Emit to admin room
     await sio.emit(event_name, payload, room="admins")
+
+
+EVENT_WALLET_UPDATED = "wallet.updated"
+
+
+async def broadcast_wallet_event(
+    user_id: str,
+    wallet_data: Dict[str, Any],
+) -> None:
+    """Notify the user's connected clients about their new wallet balance in real-time."""
+    if not user_id:
+        return
+    try:
+        await sio.emit(
+            EVENT_WALLET_UPDATED,
+            wallet_data,
+            room=f"user:{user_id}",
+        )
+        await sio.emit(
+            EVENT_WALLET_UPDATED,
+            wallet_data,
+            room=f"customer:{user_id}",
+        )
+    except Exception as exc:
+        logger.warning("Failed to broadcast wallet event to user %s: %s", user_id, exc)
+

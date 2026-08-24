@@ -78,8 +78,11 @@ KIND_LABELS: Dict[str, str] = {
     "wallet": "Wallet",
     "razorpay": "Razorpay",
     "upi": "UPI",
+    "card": "Debit/Credit Card",
     "credit-card": "Credit Card",
     "debit-card": "Debit Card",
+    "netbanking": "Net Banking",
+    "instant": "Express Top-up",
 }
 
 PROVIDERS: List[Dict[str, Any]] = [
@@ -288,6 +291,23 @@ class WalletRepository:
             method=method,
             reference=reference,
         )
+
+        # Synchronize double-entry wallet_ledger collection
+        try:
+            from app.services import wallet_ledger as ledger
+            await ledger.append_entry(
+                account_id=user.id,
+                role="customer",
+                direction="credit",
+                reason=kind if kind in ("add-funds", "wallet-topup", "refund", "referral-bonus") else "wallet-topup",
+                amount=amount,
+                note=description or title,
+                reference=reference or transaction.id,
+                status=status,
+            )
+        except Exception:
+            pass
+
         return document, transaction
 
     async def debit(
@@ -320,6 +340,22 @@ class WalletRepository:
             method=method,
             reference=reference,
         )
+
+        # Synchronize double-entry wallet_ledger collection
+        try:
+            from app.services import wallet_ledger as ledger
+            await ledger.append_entry(
+                account_id=user.id,
+                role="customer",
+                direction="debit",
+                reason=kind if kind in ("order-payment", "withdrawal") else "order-payment",
+                amount=amount,
+                note=description or title,
+                reference=reference or transaction.id,
+            )
+        except Exception:
+            pass
+
         return document, transaction
 
     def _validate_amount(self, amount: Any) -> float:
@@ -334,11 +370,13 @@ class WalletRepository:
         self, user: User, amount: float, method: str = "wallet", payment_reference: Optional[str] = None
     ) -> AddFundsResponse:
         value = self._validate_amount(amount)
-        self._assert_method_available(method)
+        method_clean = (method or "wallet").strip().lower()
+        method_label = KIND_LABELS.get(method_clean, method_clean.upper())
+
         payment = await self._create_payment_document(
             user,
             amount=value,
-            method=method,
+            method=method_clean,
             purpose="wallet-topup",
             status="paid",
             payment_reference=payment_reference,
@@ -348,14 +386,35 @@ class WalletRepository:
             value,
             kind="add-funds",
             title="Money added to wallet",
-            description=f"Added via {KIND_LABELS.get(method, method)}",
-            method=method,
+            description=f"Added via {method_label}",
+            method=method_clean,
             reference=payment.id,
         )
+        wallet_resp = await self._wallet_response(user, document)
+
+        # In-app notification
+        try:
+            from app.services.order_notifications import send_customer_notification
+            await send_customer_notification(
+                user.id,
+                kind="wallet",
+                title="Wallet Top-up Successful",
+                description=f"₹{int(value) if value.is_integer() else value} has been credited to your QuickPress wallet via {method_label}.",
+            )
+        except Exception:
+            pass
+
+        # Real-time Socket.IO broadcast
+        try:
+            from app.services.socket_service import broadcast_wallet_event
+            await broadcast_wallet_event(user.id, wallet_resp.model_dump())
+        except Exception:
+            pass
+
         return AddFundsResponse(
             ok=True,
             message=f"₹{int(value) if value.is_integer() else value} added to your wallet.",
-            wallet=await self._wallet_response(user, document),
+            wallet=wallet_resp,
             transaction=transaction,
             payment=payment,
         )

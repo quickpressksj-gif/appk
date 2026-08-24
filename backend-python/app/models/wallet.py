@@ -10,7 +10,9 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-PaymentKind = Literal["cod", "wallet", "razorpay", "upi", "credit-card", "debit-card"]
+PaymentKind = Literal[
+    "cod", "wallet", "razorpay", "upi", "card", "credit-card", "debit-card", "netbanking", "instant"
+]
 TransactionDirection = Literal["credit", "debit"]
 TransactionStatus = Literal["success", "pending", "failed"]
 PaymentStatus = Literal["created", "pending", "paid", "failed", "refunded", "cancelled"]
