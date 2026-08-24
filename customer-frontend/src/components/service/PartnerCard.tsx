@@ -2,6 +2,7 @@ import { BadgeCheck, Clock, MapPin, Star, Tag, Truck } from "lucide-react";
 import { memo } from "react";
 
 import type { ListingPartner } from "@/api/customer/service-listing-api";
+import store1 from "@/shared/assets/store-1.jpg";
 
 type Props = {
   partner: ListingPartner;
@@ -9,112 +10,106 @@ type Props = {
 };
 
 /**
- * Partner card used across the service listing. Memoized and lazy-loading its
- * image so long lists stay smooth on mid-range phones.
+ * Partner card used across the service listing without banner image.
+ * Uses clean store logo avatar, operational tags and pricing summary.
  */
 export const PartnerCard = memo(function PartnerCard({ partner, onOpen }: Props) {
-  const coverSrc =
-    partner.cover && (partner.cover.startsWith("http") || partner.cover.startsWith("/"))
-      ? partner.cover
-      : partner.image && (partner.image.startsWith("http") || partner.image.startsWith("/"))
+  const logoSrc =
+    partner.logo && (partner.logo.startsWith("http") || partner.logo.startsWith("data:") || partner.logo.startsWith("/"))
+      ? partner.logo
+      : partner.image && (partner.image.startsWith("http") || partner.image.startsWith("data:") || partner.image.startsWith("/"))
         ? partner.image
-        : null;
+        : store1;
 
   return (
     <button
       type="button"
       onClick={() => onOpen(partner.id)}
-      className="card-soft ripple animate-pop w-full overflow-hidden border border-border text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.99]"
+      className="card-soft ripple animate-pop w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.985]"
     >
-      <div className="relative h-36 w-full overflow-hidden bg-gradient-to-br from-primary/20 via-card to-muted">
-        {coverSrc ? (
-          <img
-            src={coverSrc}
-            alt={`${partner.name} store`}
-            width={800}
-            height={480}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-tr from-primary/25 via-background to-secondary/15">
-            <span className="text-xl font-black tracking-tight text-foreground/40">{partner.name}</span>
+      <div className="flex items-start gap-3.5">
+        {/* Store Logo / Avatar */}
+        <div className="relative shrink-0">
+          <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted/40 shadow-2xs">
+            <img
+              src={logoSrc}
+              alt={`${partner.name} logo`}
+              width={128}
+              height={128}
+              loading="lazy"
+              decoding="async"
+              className="size-full object-cover"
+            />
           </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/70 via-transparent to-transparent" />
-        <span
-          className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-            partner.open
-              ? "bg-secondary text-secondary-foreground"
-              : "bg-brand-dark text-secondary-foreground"
-          }`}
-        >
-          {partner.open ? "Open now" : "Closed"}
-        </span>
-        {partner.offerLabel ? (
-          <span className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground shadow-cta">
-            <Tag className="size-3" /> {partner.offerLabel}
+          <span
+            className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black ${
+              partner.open
+                ? "bg-secondary text-secondary-foreground"
+                : "bg-zinc-800 text-zinc-100"
+            }`}
+          >
+            {partner.open ? "Open" : "Closed"}
           </span>
-        ) : null}
-        {partner.logo && (partner.logo.startsWith("http") || partner.logo.startsWith("/")) ? (
-          <img
-            src={partner.logo}
-            alt={`${partner.name} logo`}
-            width={96}
-            height={96}
-            loading="lazy"
-            decoding="async"
-            className="absolute bottom-3 right-3 size-11 rounded-2xl border-2 border-card object-cover shadow-cta bg-card"
-          />
-        ) : null}
+        </div>
+
+        {/* Store Info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="flex items-center gap-1.5 truncate text-sm font-black tracking-tight text-foreground">
+                {partner.name}
+                {partner.verified ? (
+                  <BadgeCheck className="size-3.5 shrink-0 text-brand-green" />
+                ) : null}
+              </h3>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
+                {partner.services.slice(0, 3).join(" · ") || "Laundry & Dry Clean"}
+              </p>
+            </div>
+
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
+              <Star className="size-3 fill-current" />
+              {partner.rating}
+              <span className="font-medium text-muted-foreground text-[10px]">({partner.reviews})</span>
+            </span>
+          </div>
+
+          {/* Operational Metrics */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Truck className="size-3 text-primary" /> Pickup {partner.pickupTime}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="size-3 text-secondary" /> Delivery {partner.deliveryTime}
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin className="size-3 text-muted-foreground" /> {partner.distanceKm} km
+            </span>
+          </div>
+        </div>
       </div>
 
-
-      <div className="p-3.5">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 truncate text-sm font-bold leading-tight text-foreground">
-              {partner.name}
-              {partner.verified ? (
-                <BadgeCheck className="size-3.5 shrink-0 text-brand-green" />
-              ) : null}
-            </p>
-            <p className="mt-1 truncate text-[11px] text-muted-foreground">
-              {partner.services.slice(0, 3).join(" · ")}
-            </p>
-          </div>
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
-            <Star className="size-3 fill-current" />
-            {partner.rating}
-            <span className="font-medium text-muted-foreground">({partner.reviews})</span>
+      {/* Footer Details & Offer */}
+      <div className="mt-3.5 flex items-center justify-between border-t border-dashed border-border/80 pt-2.5 text-[11px]">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground font-medium">
+            Starts <span className="font-black text-foreground">₹{partner.minPrice}</span>
+          </span>
+          <span className="text-muted-foreground/60">·</span>
+          <span className="text-muted-foreground font-medium">
+            <span className="font-black text-foreground">{partner.servicesCount}</span> services
           </span>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Truck className="size-3" /> Pickup {partner.pickupTime}
+        {partner.offerLabel ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200/60">
+            <Tag className="size-2.5" /> {partner.offerLabel}
           </span>
-          <span className="flex items-center gap-1">
-            <Clock className="size-3" /> Delivery {partner.deliveryTime}
+        ) : (
+          <span className="text-[10px] font-bold text-muted-foreground">
+            Min order ₹{partner.minOrderValue}
           </span>
-          <span className="flex items-center gap-1">
-            <MapPin className="size-3" /> {partner.distanceKm} km
-          </span>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between border-t border-dashed border-border pt-2.5 text-[11px]">
-          <span className="text-muted-foreground">
-            Starts at <span className="font-bold text-foreground">₹{partner.minPrice}</span>
-          </span>
-          <span className="text-muted-foreground">
-            <span className="font-bold text-foreground">{partner.servicesCount}</span> services
-          </span>
-          <span className="text-muted-foreground">
-            Min order <span className="font-bold text-foreground">₹{partner.minOrderValue}</span>
-          </span>
-        </div>
-
+        )}
       </div>
     </button>
   );

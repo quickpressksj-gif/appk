@@ -565,60 +565,60 @@ function HomeScreen() {
                     onClick={() =>
                       navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
                     }
-                    className="card-soft w-full overflow-hidden border border-border text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.985]"
+                    className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary/60 hover:shadow-soft active:scale-[0.985]"
                   >
-                    <div className="relative">
-                      <img
-                        src={resolvePartnerImage(partner.logo ?? partner.image)}
-                        alt={`${partner.name} storefront`}
-                        width={800}
-                        height={600}
-                        loading="lazy"
-                        className="h-36 w-full object-cover"
-                        decoding="async"
-                      />
-                      <span
-                        className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                          partner.open
-                            ? "bg-secondary text-secondary-foreground"
-                            : "bg-brand-dark text-secondary-foreground"
-                        }`}
-                      >
-                        {partner.open ? "Open now" : "Closed"}
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-bold text-foreground">{partner.name}</p>
-                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-bold text-brand-dark">
-                          <Star className="size-3 fill-current" />
-                          {partner.rating}
+                    <div className="flex items-start gap-3.5">
+                      <div className="relative shrink-0">
+                        <div className="flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted/40 shadow-2xs">
+                          <img
+                            src={resolvePartnerImage(partner.logo ?? partner.image)}
+                            alt={`${partner.name} logo`}
+                            width={128}
+                            height={128}
+                            loading="lazy"
+                            className="size-full object-cover"
+                            decoding="async"
+                          />
+                        </div>
+                        <span
+                          className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black ${
+                            partner.open
+                              ? "bg-secondary text-secondary-foreground"
+                              : "bg-zinc-800 text-zinc-100"
+                          }`}
+                        >
+                          {partner.open ? "Open" : "Closed"}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {partner.reviews} reviews · {partner.distanceKm} km away
-                      </p>
-                      {partner.services && partner.services.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {partner.services.slice(0, 3).map((service, sIdx) => (
-                            <span
-                              key={`${partner.id}-${service}-${sIdx}`}
-                              className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
-                            >
-                              {service}
-                            </span>
-                          ))}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-sm font-black tracking-tight text-foreground">
+                            {partner.name}
+                          </p>
+                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
+                            <Star className="size-3 fill-current" />
+                            {partner.rating}
+                            <span className="font-medium text-muted-foreground text-[10px]">({partner.reviews})</span>
+                          </span>
                         </div>
-                      ) : null}
-                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3.5" /> {partner.pickupTime ?? partner.eta}
-                        </span>
-                        <span className="size-1 rounded-full bg-border" />
-                        <span className="font-semibold text-foreground">
-                          From ₹{partner.minPrice}
-                        </span>
-                        <ArrowRight className="ml-auto size-4" />
+
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground font-medium">
+                          {partner.services && partner.services.length > 0
+                            ? partner.services.slice(0, 3).join(" · ")
+                            : `${partner.distanceKm} km away`}
+                        </p>
+
+                        <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground font-medium">
+                          <span className="flex items-center gap-1">
+                            <Clock className="size-3.5 text-primary" /> {partner.pickupTime ?? partner.eta ?? "30 min"}
+                          </span>
+                          <span className="size-1 rounded-full bg-border" />
+                          <span className="font-bold text-foreground">
+                            Starts ₹{partner.minPrice}
+                          </span>
+                          <ArrowRight className="ml-auto size-4 text-muted-foreground group-hover:text-primary" />
+                        </div>
                       </div>
                     </div>
                   </button>

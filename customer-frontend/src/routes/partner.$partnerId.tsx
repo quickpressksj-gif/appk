@@ -290,19 +290,8 @@ function PartnerDetailScreen() {
               </p>
             ) : null}
 
-            {/* Cover banner — GET /api/partners/{id} */}
-            <img
-              src={resolvePartnerCover(data.partner.cover)}
-              alt={`${data.partner.name} storefront`}
-              width={1200}
-              height={640}
-              loading="lazy"
-              decoding="async"
-              className="h-44 w-full object-cover"
-            />
-
             {/* Shop identity — logo + short intro */}
-            <section className="-mt-8 px-5 pt-4">
+            <section className="px-5 pt-3">
               <div className="card-soft border border-border p-4">
                 <div className="flex items-start gap-3">
                   <div className="relative shrink-0">
