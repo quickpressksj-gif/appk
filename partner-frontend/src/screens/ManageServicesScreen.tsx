@@ -37,6 +37,7 @@ import { ServiceGridSkeleton } from "../components/services/ServiceSkeletons";
 import { ServiceSuccessOverlay } from "../components/services/ServiceSuccessOverlay";
 import { ServiceToolbar } from "../components/services/ServiceToolbar";
 import { OfferSheet } from "../components/services/OfferSheet";
+import { QuickAddCatalogModal } from "../components/services/QuickAddCatalogModal";
 import {
   matchesServiceFilter,
   matchesServiceQuery,
@@ -81,6 +82,7 @@ export function ManageServicesScreen() {
   const [sort, setSort] = useState<ServiceSortId>("popularity");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [offerSheetOpen, setOfferSheetOpen] = useState(false);
+  const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [isStoreOnline, setIsStoreOnline] = useState(true);
 
@@ -189,17 +191,17 @@ export function ManageServicesScreen() {
           <div className="mt-3.5 flex gap-2">
             <button
               type="button"
-              onClick={() => navigate({ to: partnerRoutes.serviceNew })}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-2.5 text-xs font-black text-zinc-950 shadow-sm transition-transform active:scale-95"
+              onClick={() => setCatalogModalOpen(true)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-2.5 text-xs font-black text-zinc-950 shadow-sm transition-transform active:scale-95 hover:bg-amber-300"
             >
               <Plus className="size-4" strokeWidth={2.5} />
-              <span>Add Custom Service</span>
+              <span>+ Add Service</span>
             </button>
 
             <button
               type="button"
               onClick={() => setOfferSheetOpen(true)}
-              className="flex items-center gap-1.5 rounded-2xl border border-zinc-300 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-800 shadow-xs transition-transform active:scale-95"
+              className="flex items-center gap-1.5 rounded-2xl border border-zinc-300 bg-white px-3.5 py-2.5 text-xs font-black text-zinc-800 shadow-xs transition-transform active:scale-95 hover:bg-zinc-50"
             >
               <Percent className="size-3.5 text-amber-600" />
               <span>Add Offer</span>
@@ -388,12 +390,20 @@ export function ManageServicesScreen() {
                 <Tag className="size-4 text-brand-green-dark" />
                 Add Offer ({offers.length})
               </button>
+              <button
+                type="button"
+                onClick={() => setCatalogModalOpen(true)}
+                className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-black tracking-tight text-amber-950 shadow-xs transition-all hover:bg-amber-100 active:scale-95"
+              >
+                <Sparkles className="size-4 text-amber-600" />
+                Quick Add Catalog
+              </button>
               <Link
                 to={partnerRoutes.serviceNew}
-                className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold tracking-tight text-brand-dark shadow-sm transition-all hover:brightness-105 active:scale-95"
+                className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-black tracking-tight text-primary-foreground shadow-sm transition-all hover:brightness-105 active:scale-95"
               >
                 <Plus className="size-4" />
-                Add Custom Service
+                + Custom Service
               </Link>
             </div>
           </div>
@@ -406,7 +416,7 @@ export function ManageServicesScreen() {
             ) : visible.length === 0 ? (
               <ServiceEmptyState
                 variant={isSearching ? "no-results" : "no-services"}
-                onAction={isSearching ? resetSearch : () => navigate({ to: partnerRoutes.serviceNew })}
+                onAction={isSearching ? resetSearch : () => setCatalogModalOpen(true)}
               />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -441,7 +451,23 @@ export function ManageServicesScreen() {
       <ServiceDetailsSheet
         service={detailsService}
         open={Boolean(detailsService)}
+        offers={detailsService ? offersFor(detailsService.id) : []}
         onClose={() => setDetailsId(null)}
+        onEdit={() => {
+          if (detailsService) {
+            const id = detailsService.id;
+            setDetailsId(null);
+            navigate({
+              to: partnerRoutes.serviceEdit,
+              params: { serviceId: id },
+            });
+          }
+        }}
+      />
+
+      <QuickAddCatalogModal
+        open={catalogModalOpen}
+        onClose={() => setCatalogModalOpen(false)}
       />
 
       <ServiceSuccessOverlay message={success} onDismiss={() => setSuccess(null)} />

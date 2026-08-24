@@ -59,15 +59,18 @@ export function ServiceSheet({
 /** Read-only "View Details" sheet for a single service. */
 export function ServiceDetailsSheet({
   service,
-  offers,
+  offers = [],
+  open = true,
   onClose,
   onEdit,
 }: {
-  service: ManagedService;
-  offers: ServiceOffer[];
+  service?: ManagedService | null;
+  offers?: ServiceOffer[];
+  open?: boolean;
   onClose: () => void;
-  onEdit: () => void;
+  onEdit?: () => void;
 }) {
+  if (!service || !open) return null;
   const Icon = serviceIcon(service.icon);
 
   return (
