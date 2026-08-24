@@ -740,58 +740,58 @@ function ProfileScreen() {
         ) : null}
       </div>
 
-      {/* Edit profile / Personal Information sheet — PUT /api/profile */}
+      {/* Edit profile / Personal Information popup dialog — PUT /api/profile */}
       {editing && data ? (
-        <div className="fixed inset-0 z-[999] flex items-start justify-center p-4 pt-6 sm:pt-10 overflow-y-auto">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
           <div
             onClick={() => setEditing(false)}
             className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-md max-h-[88vh] flex flex-col rounded-3xl bg-card text-foreground shadow-2xl border border-border overflow-hidden z-10">
+          <div className="relative w-full max-w-[420px] my-auto max-h-[90vh] flex flex-col rounded-3xl bg-card text-foreground shadow-[0_25px_60px_rgba(0,0,0,0.35)] border border-border/80 overflow-hidden z-10">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border/60 px-6 py-4 bg-muted/20">
+            <div className="flex items-center justify-between border-b border-border/50 px-5 py-3.5 bg-muted/20">
               <div>
                 <h2 className="text-base font-black tracking-tight text-foreground">Personal Information</h2>
-                <p className="text-[11px] font-medium text-muted-foreground">Update your details & account preferences</p>
+                <p className="text-[11px] font-medium text-muted-foreground">Edit your profile details</p>
               </div>
               <button
                 type="button"
                 aria-label="Close"
                 onClick={() => setEditing(false)}
-                className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-90"
+                className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground hover:bg-accent transition-all active:scale-90"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 [scrollbar-width:thin]">
+            {/* Scrollable Popup Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5 [scrollbar-width:thin]">
               {/* Profile Photo */}
-              <div className="flex items-center gap-4 p-3 rounded-2xl bg-muted/40 border border-border/60">
-                <div className="relative size-16 shrink-0">
+              <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-muted/30 border border-border/60">
+                <div className="relative size-14 shrink-0">
                   <img
                     src={data.user.avatarUrl || defaultAvatar}
                     alt={data.user.name}
-                    className="size-16 rounded-2xl object-cover border-2 border-primary/20 bg-muted"
+                    className="size-14 rounded-2xl object-cover border-2 border-primary/20 bg-muted"
                   />
                   <button
                     type="button"
                     disabled={uploading}
                     onClick={() => photoInput.current?.click()}
-                    className="absolute -bottom-1.5 -right-1.5 flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-95 disabled:opacity-60"
+                    className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-95 disabled:opacity-60"
                   >
-                    <Camera className="size-3.5" />
+                    <Camera className="size-3" />
                   </button>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-foreground">Profile Picture</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">JPG or PNG, up to 5 MB</p>
+                  <p className="text-[10px] text-muted-foreground">JPG or PNG, up to 5 MB</p>
                   <button
                     type="button"
                     disabled={uploading}
                     onClick={() => photoInput.current?.click()}
-                    className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:underline"
+                    className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
                   >
                     {uploading ? <Loader2 className="size-3 animate-spin" /> : null}
                     {uploading ? "Uploading..." : "Change Photo"}
@@ -801,7 +801,7 @@ function ProfileScreen() {
 
               {/* Full Name */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                   Full Name
                 </label>
                 <input
@@ -809,12 +809,12 @@ function ProfileScreen() {
                   aria-invalid={Boolean(formErrors['name'])}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="Enter your full name"
-                  className={`h-11 w-full rounded-xl border bg-background px-3.5 text-sm font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  className={`h-10 w-full rounded-xl border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
                     formErrors['name'] ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-border"
                   }`}
                 />
                 {formErrors['name'] ? (
-                  <span className="mt-1 block text-[11px] font-semibold text-destructive">
+                  <span className="mt-1 block text-[10px] font-semibold text-destructive">
                     {formErrors['name']}
                   </span>
                 ) : null}
@@ -822,7 +822,7 @@ function ProfileScreen() {
 
               {/* Email Address */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                   Email Address
                 </label>
                 <input
@@ -831,12 +831,12 @@ function ProfileScreen() {
                   aria-invalid={Boolean(formErrors['email'])}
                   onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
                   placeholder="name@example.com"
-                  className={`h-11 w-full rounded-xl border bg-background px-3.5 text-sm font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  className={`h-10 w-full rounded-xl border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
                     formErrors['email'] ? "border-destructive focus:border-destructive focus:ring-destructive/20" : "border-border"
                   }`}
                 />
                 {formErrors['email'] ? (
-                  <span className="mt-1 block text-[11px] font-semibold text-destructive">
+                  <span className="mt-1 block text-[10px] font-semibold text-destructive">
                     {formErrors['email']}
                   </span>
                 ) : null}
@@ -844,35 +844,35 @@ function ProfileScreen() {
 
               {/* Phone Number (Verified) */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                   Mobile Number
                 </label>
-                <div className="flex h-11 items-center justify-between rounded-xl border border-border/80 bg-muted/40 px-3.5 text-xs text-muted-foreground">
+                <div className="flex h-10 items-center justify-between rounded-xl border border-border/80 bg-muted/30 px-3 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <Phone className="size-4 text-muted-foreground/70" />
+                    <Phone className="size-3.5 text-muted-foreground/70" />
                     <span className="font-semibold text-foreground">{data.user.phone}</span>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-secondary/15 px-2 py-0.5 text-[10px] font-black text-brand-green">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-secondary/15 px-1.5 py-0.5 text-[10px] font-bold text-brand-green">
                     <BadgeCheck className="size-3" /> Verified
                   </span>
                 </div>
               </div>
 
               {/* Detected Location Card */}
-              <div className="rounded-2xl border border-border/80 bg-muted/40 p-3.5">
+              <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-brand-dark">
-                      <MapPin className="size-3.5" />
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-brand-dark">
+                      <MapPin className="size-3" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         Current Service Area
                       </p>
-                      <p className="mt-0.5 truncate text-xs font-bold text-foreground">
+                      <p className="truncate text-xs font-bold text-foreground">
                         {activeLocation?.area || activeLocation?.city || data.user.city || "Kasganj"}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-[10px] text-muted-foreground">
                         {[activeLocation?.city, activeLocation?.state].filter(Boolean).join(", ") || "Uttar Pradesh, India"}
                       </p>
                     </div>
@@ -883,7 +883,7 @@ function ProfileScreen() {
                       setEditing(false);
                       void navigate({ to: "/location-search" });
                     }}
-                    className="shrink-0 rounded-xl border border-border bg-card px-2.5 py-1.5 text-[11px] font-bold text-foreground shadow-2xs hover:bg-muted active:scale-95"
+                    className="shrink-0 rounded-lg border border-border bg-card px-2 py-1 text-[10px] font-bold text-foreground shadow-2xs hover:bg-muted active:scale-95"
                   >
                     Change
                   </button>
@@ -891,12 +891,12 @@ function ProfileScreen() {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="border-t border-border/60 bg-muted/20 px-6 py-4 flex gap-3">
+            {/* Footer Actions */}
+            <div className="border-t border-border/50 bg-muted/20 px-5 py-3 flex gap-2.5">
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="h-11 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted active:scale-[0.98] transition-all"
+                className="h-10 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted active:scale-[0.98] transition-all"
               >
                 Cancel
               </button>
@@ -904,9 +904,9 @@ function ProfileScreen() {
                 type="button"
                 disabled={saving || !form.name.trim()}
                 onClick={handleSave}
-                className="h-11 flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-md hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50"
+                className="h-10 flex-[2] inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                {saving ? <Loader2 className="size-3.5 animate-spin" /> : null}
                 Save Changes
               </button>
             </div>
