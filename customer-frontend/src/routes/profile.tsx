@@ -742,13 +742,13 @@ function ProfileScreen() {
 
       {/* Edit profile / Personal Information sheet — PUT /api/profile */}
       {editing && data ? (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 overflow-y-auto">
           <div
             onClick={() => setEditing(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-t-[2.25rem] sm:rounded-3xl bg-card text-foreground shadow-2xl border border-border/80 overflow-hidden z-10 animate-scale-in">
+          <div className="relative w-full max-w-md my-auto max-h-[85vh] flex flex-col rounded-3xl bg-card text-foreground shadow-2xl border border-border overflow-hidden z-10">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/60 px-6 py-4 bg-muted/20">
               <div>
@@ -916,13 +916,13 @@ function ProfileScreen() {
 
       {/* Logout confirmation sheet */}
       {logoutOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 overflow-y-auto">
           <div
             onClick={() => setLogoutOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-sm rounded-t-[2rem] sm:rounded-3xl bg-card p-6 shadow-2xl border border-border/80 z-10 animate-scale-in">
+          <div className="relative w-full max-w-sm my-auto rounded-3xl bg-card p-6 shadow-2xl border border-border z-10">
             <div className="flex flex-col items-center text-center">
               <span className="flex size-14 items-center justify-center rounded-3xl bg-destructive/10 text-destructive">
                 <LogOut className="size-6" />
@@ -958,13 +958,13 @@ function ProfileScreen() {
 
       {/* Settings sheet — GET/PUT /api/me/settings */}
       {settingsOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 overflow-y-auto">
           <div
             onClick={() => setSettingsOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             aria-hidden="true"
           />
-          <div className="relative max-h-[86vh] w-full max-w-md overflow-y-auto rounded-t-[2.25rem] sm:rounded-3xl bg-card p-6 shadow-2xl border border-border/80 z-10 animate-scale-in">
+          <div className="relative max-h-[85vh] w-full max-w-md my-auto overflow-y-auto rounded-3xl bg-card p-6 shadow-2xl border border-border z-10">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <h2 className="text-base font-bold tracking-tight text-foreground">Settings</h2>
               <button
@@ -1096,7 +1096,7 @@ function ProfileScreen() {
         onChange={(event) => void handlePhotoFile(event.target.files?.[0])}
       />
 
-      <BottomNav active="profile" />
+      {editing || logoutOpen || settingsOpen ? null : <BottomNav active="profile" />}
       <Toaster position="top-center" />
     </main>
   );
