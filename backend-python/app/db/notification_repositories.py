@@ -39,28 +39,6 @@ from app.models.user import utcnow
 
 COLLECTION = "notifications"
 
-# Seeded once per customer so the feed is never empty on a fresh account.
-WELCOME_SEED: List[Dict[str, Any]] = [
-    {
-        "kind": "system",
-        "title": "Welcome to QuickPress",
-        "description": "Schedule a pickup and we will handle the rest.",
-        "hours_ago": 1,
-    },
-    {
-        "kind": "offer",
-        "title": "Your first order is 20% off",
-        "description": "Use code FRESH20 at checkout on your first pickup.",
-        "hours_ago": 5,
-    },
-    {
-        "kind": "membership",
-        "title": "Try QuickPress Plus",
-        "description": "Free delivery and priority slots on every order.",
-        "hours_ago": 30,
-    },
-]
-
 
 def category_for(kind: str) -> str:
     return CATEGORY_BY_KIND.get(kind, "system")
@@ -99,33 +77,6 @@ class NotificationRepository:
         documents.sort(key=lambda doc: _iso(doc.get("created_at")), reverse=True)
         return documents
 
-    async def ensure_seed(self, user_id: str, role: str = "customer") -> None:
-        """Create the welcome notifications the first time a user opens the feed."""
-        existing = await self._c.count_documents({"user_id": user_id})
-        if existing:
-            return
-        now = utcnow()
-        for index, template in enumerate(WELCOME_SEED):
-            kind = str(template["kind"])
-            await self._c.insert_one(
-                {
-                    "_id": f"ntf-{user_id}-seed-{index}",
-                    "user_id": user_id,
-                    "role": role,
-                    "kind": kind,
-                    "category": category_for(kind),
-                    "title": template["title"],
-                    "description": template["description"],
-                    "created_at": (
-                        now - timedelta(hours=int(template["hours_ago"]))
-                    ).isoformat(),
-                    "read": False,
-                    "read_at": None,
-                    "order_id": None,
-                    "order_code": None,
-                }
-            )
-
     async def create(
         self,
         user_id: str,
@@ -163,7 +114,6 @@ class NotificationRepository:
         search: str = "",
         type_filter: str = "all",
     ) -> NotificationListResponse:
-        await self.ensure_seed(user_id)
         documents = await self._all_for(user_id)
         unread = sum(1 for doc in documents if not doc.get("read"))
 
