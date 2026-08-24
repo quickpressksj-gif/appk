@@ -311,11 +311,35 @@ class InvoiceRepository:
         return InvoiceDownloadResponse(
             ok=True,
             message="Invoice ready to download.",
-            downloadUrl=f"/api/invoices/{invoice.id}/download",
+            downloadUrl=f"/api/invoices/{invoice.id}/pdf",
             fileName=f"QuickPress-{safe_number}.pdf",
             format="pdf",
             invoice=refreshed,
         )
+
+    async def get_pdf_bytes(self, user: Optional[User], invoice_id: str) -> tuple[bytes, str]:
+        """Generate PDF bytes for an invoice and return (pdf_bytes, file_name)."""
+        collection = database.collection(INVOICES)
+        document = await collection.find_one({"_id": invoice_id})
+        if document is None:
+            document = await collection.find_one({"invoice_number": invoice_id})
+        if document is None:
+            raise InvoiceError("Invoice not found", 404)
+        if user and document.get("user_id") != user.id:
+            raise InvoiceError("Invoice not found", 404)
+
+        order_doc = None
+        if document.get("order_id"):
+            order_doc = await database.collection(ORDERS).find_one({"_id": document["order_id"]})
+        elif document.get("order_number"):
+            order_doc = await database.collection(ORDERS).find_one({"code": document["order_number"]})
+
+        from app.services.invoice_pdf_generator import build_invoice_pdf_payload, generate_invoice_pdf
+        invoice_model = self._to_model(document)
+        payload = build_invoice_pdf_payload(invoice_model, order_doc)
+        pdf_bytes = generate_invoice_pdf(payload)
+        safe_number = invoice_model.invoiceNumber.replace("/", "-")
+        return pdf_bytes, f"QuickPress-{safe_number}.pdf"
 
 
 invoice_repository = InvoiceRepository()

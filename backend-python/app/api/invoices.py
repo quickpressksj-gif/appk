@@ -11,10 +11,14 @@ Every route requires a bearer token and is scoped to `current_user`.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.security import HTTPAuthorizationCredentials
 
-from app.core.deps import current_user
+from app.core.deps import bearer_scheme, current_user
+from app.core.security import decode_token
 from app.db.invoice_repositories import InvoiceError, invoice_repository
+from app.db.repositories import users
 from app.models.invoice import (
     Invoice,
     InvoiceDownloadResponse,
@@ -49,10 +53,58 @@ async def get_invoice(invoice_id: str, user: User = Depends(current_user)) -> In
         raise
 
 
+@router.get("/invoices/{invoice_id}/pdf")
+@router.get("/invoices/{invoice_id}/download")
+@router.get("/invoices/{invoice_id}/download.pdf")
+async def get_invoice_pdf(
+    invoice_id: str,
+    token: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> Response:
+    """Stream 3-page Tax Invoice & Payment Summary PDF matching Rapido enterprise design."""
+    user: Optional[User] = None
+    tok = credentials.credentials if credentials else token
+    if tok:
+        try:
+            payload = decode_token(tok, expected_type="access")
+            sub = str(payload.get("sub") or "")
+            if sub:
+                user = await users.by_id(sub)
+        except Exception:
+            pass
+
+    try:
+        pdf_bytes, file_name = await invoice_repository.get_pdf_bytes(user, invoice_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+        )
+    except InvoiceError as error:
+        _raise(error)
+        raise
+
+
 @router.get("/orders/{order_id}/invoice", response_model=Invoice)
 async def invoice_for_order(order_id: str, user: User = Depends(current_user)) -> Invoice:
     try:
         return await invoice_repository.for_order(user, order_id)
+    except InvoiceError as error:
+        _raise(error)
+        raise
+
+
+@router.get("/orders/{order_id}/invoice/pdf")
+async def order_invoice_pdf(order_id: str, user: User = Depends(current_user)) -> Response:
+    """Direct PDF download for any order."""
+    try:
+        invoice = await invoice_repository.for_order(user, order_id)
+        pdf_bytes, file_name = await invoice_repository.get_pdf_bytes(user, invoice.id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+        )
     except InvoiceError as error:
         _raise(error)
         raise
