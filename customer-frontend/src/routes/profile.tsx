@@ -579,15 +579,8 @@ function ProfileScreen() {
                   {
                     id: "orders",
                     label: "My Orders",
-                    note: "Live pickups & deliveries",
+                    note: `${data.stats.totalOrders} total orders · live & history`,
                     icon: Package,
-                    action: () => navigate({ to: "/history" }),
-                  },
-                  {
-                    id: "history",
-                    label: "Order History",
-                    note: `${data.stats.totalOrders} completed orders`,
-                    icon: Receipt,
                     action: () => navigate({ to: "/history" }),
                   },
                   {
