@@ -45,6 +45,7 @@ import {
   type PaymentRecord,
   type RefundRecord,
 } from "@/api/customer/payments-api";
+import { payWithRazorpay } from "@/api/payments/razorpay-api";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { onRealtimeEvent } from "@/api/core/socket-client";
 
@@ -211,12 +212,32 @@ function WalletScreen() {
     }
     setAdding(true);
     try {
-      const result = await addFunds(value, selectedMethod);
-      setWallet(result.wallet);
-      toast.success(result.message || `₹${value} added to your wallet!`);
-      setAddOpen(false);
-      setAmount("500");
-      await load(true);
+      if (selectedMethod === "wallet") {
+        const result = await addFunds(value, selectedMethod);
+        setWallet(result.wallet);
+        toast.success(result.message || `₹${value} added to your wallet!`);
+        setAddOpen(false);
+        setAmount("500");
+        await load(true);
+      } else {
+        // Online Payment via Razorpay (UPI, Cards, NetBanking)
+        const payResult = await payWithRazorpay({
+          amount: value,
+          purpose: "Wallet Top-up",
+          description: `Add ₹${value} to QuickPress Wallet via ${selectedMethod.toUpperCase()}`,
+        });
+
+        if (payResult.status === "paid") {
+          toast.success(`₹${value} successfully added to your wallet!`);
+          setAddOpen(false);
+          setAmount("500");
+          await load(true);
+        } else if (payResult.status === "cancelled") {
+          toast.info("Payment cancelled. You can try again anytime.");
+        } else {
+          toast.error(payResult.message || "Payment failed. Please try again.");
+        }
+      }
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Couldn't add money right now");
     } finally {

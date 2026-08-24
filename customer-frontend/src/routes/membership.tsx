@@ -44,6 +44,7 @@ import {
   type MembershipPlans,
 } from "@/api/customer/membership-api";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { payWithRazorpay } from "@/api/payments/razorpay-api";
 
 export const Route = createFileRoute("/membership")({
   head: () => ({
@@ -270,11 +271,33 @@ function MembershipScreen() {
   const handleSubscribe = async (planId: MembershipPlanId) => {
     setPendingPlan(planId);
     try {
-      const result = await subscribeMembership(planId, cycle);
-      toast.success(result.message);
-      setHistory(null);
-      await load({ refresh: true });
-      setTab("overview");
+      const selectedPlan = plans?.plans.find((p) => p.id === planId);
+      const planPrice = selectedPlan ? (cycle === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice) : 0;
+
+      if (planId !== "free" && planPrice > 0) {
+        const payResult = await payWithRazorpay({
+          amount: planPrice,
+          purpose: `Membership: ${planId} (${cycle})`,
+          description: `Subscribe to ${selectedPlan?.name || planId} Plan (${cycle})`,
+        });
+
+        if (payResult.status === "paid") {
+          toast.success(`Welcome to ${selectedPlan?.name || "VIP"} Membership!`);
+          setHistory(null);
+          await load({ refresh: true });
+          setTab("overview");
+        } else if (payResult.status === "cancelled") {
+          toast.info("Payment cancelled.");
+        } else {
+          toast.error(payResult.message || "Payment failed. Please try again.");
+        }
+      } else {
+        const result = await subscribeMembership(planId, cycle);
+        toast.success(result.message);
+        setHistory(null);
+        await load({ refresh: true });
+        setTab("overview");
+      }
     } catch (caught) {
       toast.error(
         isApiError(caught) ? caught.userMessage : "We couldn't update your membership.",

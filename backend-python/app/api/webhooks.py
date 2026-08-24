@@ -61,6 +61,53 @@ async def razorpay_webhook(request: Request) -> dict:
                 payment["gatewayPaymentId"] = gateway_payment_id
                 payment["signatureVerified"] = True
                 await _save_payment(payment)
+                
+                purpose_str = str(payment.get("purpose") or "").lower()
+                if any(k in purpose_str for k in ("top-up", "topup", "add-funds", "add funds", "wallet")):
+                    try:
+                        from app.db.wallet_repositories import wallet_repository
+                        from app.models.user import User
+                        user_doc = await database.collection("users").find_one({"_id": payment["accountId"]})
+                        if user_doc:
+                            target_user = User.from_document(user_doc)
+                            await wallet_repository.credit(
+                                target_user,
+                                payment["amount"],
+                                kind="add-funds",
+                                title="Money added to wallet",
+                                description="Added via Razorpay Online Payment (Webhook)",
+                                method="razorpay",
+                                reference=payment["_id"],
+                            )
+                    except Exception:
+                        pass
+                elif "membership" in purpose_str:
+                    try:
+                        from app.db.membership_repositories import membership_repository
+                        from app.models.user import User
+                        user_doc = await database.collection("users").find_one({"_id": payment["accountId"]})
+                        if user_doc:
+                            target_user = User.from_document(user_doc)
+                            notes = payment.get("notes") or {}
+                            plan_id = str(notes.get("planId") or "").strip()
+                            cycle = str(notes.get("billingCycle") or notes.get("cycle") or "monthly").strip()
+                            if not plan_id:
+                                for p in ("silver", "gold", "premium", "vip"):
+                                    if p in purpose_str:
+                                        plan_id = p
+                                        break
+                            if "yearly" in purpose_str:
+                                cycle = "yearly"
+                            if plan_id:
+                                await membership_repository.subscribe(
+                                    target_user,
+                                    plan_id,
+                                    billing_cycle=cycle,
+                                    payment_reference=gateway_payment_id or payment["_id"],
+                                )
+                    except Exception:
+                        pass
+
                 await mark_order_paid(payment.get("orderId"), payment)
 
     elif event == "payment.failed":

@@ -282,9 +282,9 @@ async def verify_payment(user: User, payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     if verified:
-        # If this payment was a wallet top-up, credit the account ledger and wallet store
         purpose_str = str(payment.get("purpose") or "").lower()
-        if "top-up" in purpose_str or "topup" in purpose_str:
+        # 1. Wallet Top-up handling
+        if any(k in purpose_str for k in ("top-up", "topup", "add-funds", "add funds", "wallet")):
             try:
                 from app.db.wallet_repositories import wallet_repository
                 user_doc = await database.collection("users").find_one({"_id": payment["accountId"]})
@@ -310,6 +310,33 @@ async def verify_payment(user: User, payload: Dict[str, Any]) -> Dict[str, Any]:
                     payment_id=payment["_id"],
                     reference=razorpay_payment_id or payment.get("gatewayOrderId"),
                 )
+
+        # 2. Membership Subscription handling
+        elif "membership" in purpose_str:
+            try:
+                from app.db.membership_repositories import membership_repository
+                user_doc = await database.collection("users").find_one({"_id": payment["accountId"]})
+                if user_doc:
+                    target_user = User.from_document(user_doc)
+                    notes = payment.get("notes") or {}
+                    plan_id = str(notes.get("planId") or "").strip()
+                    cycle = str(notes.get("billingCycle") or notes.get("cycle") or "monthly").strip()
+                    if not plan_id:
+                        for p in ("silver", "gold", "premium", "vip"):
+                            if p in purpose_str:
+                                plan_id = p
+                                break
+                    if "yearly" in purpose_str:
+                        cycle = "yearly"
+                    if plan_id:
+                        await membership_repository.subscribe(
+                            target_user,
+                            plan_id,
+                            billing_cycle=cycle,
+                            payment_reference=razorpay_payment_id or payment["_id"],
+                        )
+            except Exception:
+                pass
 
     await mark_order_paid(payment.get("orderId"), payment)
 
