@@ -60,6 +60,8 @@ function VerificationChip({ status }: { status: ShopProfile["verification"] }) {
   );
 }
 
+import { compressImage } from "../../lib/image-compression";
+
 /** Banner + logo + identity block at the top of Shop Management. */
 export function ShopProfileHeader({
   profile,
@@ -86,41 +88,43 @@ export function ShopProfileHeader({
   const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const dataUrl = evt.target?.result as string;
-      if (!dataUrl) return;
-      setUploadingBanner(true);
-      try {
-        await uploadBanner(dataUrl);
-        toast.success("Shop banner updated successfully! Customers will see this now.");
-      } catch {
-        toast.error("Failed to upload banner.");
-      } finally {
-        setUploadingBanner(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    setUploadingBanner(true);
+    try {
+      const dataUrl = await compressImage(file, {
+        maxWidth: 1600,
+        maxHeight: 1000,
+        quality: 0.85,
+      });
+      await uploadBanner(dataUrl);
+      toast.success("Shop banner updated successfully! Customers will see this now.");
+    } catch (err) {
+      console.error("Banner upload error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to upload banner.");
+    } finally {
+      setUploadingBanner(false);
+      if (bannerInputRef.current) bannerInputRef.current.value = "";
+    }
   };
 
   const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const dataUrl = evt.target?.result as string;
-      if (!dataUrl) return;
-      setUploadingLogo(true);
-      try {
-        await uploadLogo(dataUrl);
-        toast.success("Shop logo updated successfully! Customers will see this now.");
-      } catch {
-        toast.error("Failed to upload logo.");
-      } finally {
-        setUploadingLogo(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    setUploadingLogo(true);
+    try {
+      const dataUrl = await compressImage(file, {
+        maxWidth: 600,
+        maxHeight: 600,
+        quality: 0.85,
+      });
+      await uploadLogo(dataUrl);
+      toast.success("Shop logo updated successfully! Customers will see this now.");
+    } catch (err) {
+      console.error("Logo upload error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to upload logo.");
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
   };
 
   return (

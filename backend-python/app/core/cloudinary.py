@@ -90,6 +90,10 @@ async def upload_image(source: str, *, kind: str, public_id: str) -> str:
     except HTTPException:
         raise
     except Exception as exc:  # network / invalid image / rejected credentials
+        import logging
+        logging.getLogger(__name__).warning(f"Cloudinary upload failed ({exc}), falling back to direct image payload")
+        if value.startswith("data:image/") or value.startswith("http"):
+            return value
         raise HTTPException(status_code=502, detail=f"Cloudinary upload failed: {exc}") from exc
 
 

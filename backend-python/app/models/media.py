@@ -18,8 +18,8 @@ class ImageUploadPayload(BaseModel):
             raise ValueError("An image is required")
         if not (cleaned.startswith("data:image/") or cleaned.startswith("http")):
             raise ValueError("Image must be a data URL or an https URL")
-        if len(cleaned) > 8_000_000:
-            raise ValueError("Image is too large (max ~6 MB)")
+        if len(cleaned) > 25_000_000:
+            raise ValueError("Image is too large (max ~20 MB)")
         return cleaned
 
 

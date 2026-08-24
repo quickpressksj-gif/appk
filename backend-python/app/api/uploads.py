@@ -60,7 +60,14 @@ async def _store_on_role_profile(user: User, field: str, url: str) -> None:
                 *([{"partnerId": str(partner_id)}] if partner_id else []),
             ]
         }
-        await collection.update_many(filter_query, {"$set": updates})
+        try:
+            await database.collection("partner_profiles").update_many(filter_query, {"$set": updates})
+        except Exception:
+            pass
+        try:
+            await database.collection("partners").update_many(filter_query, {"$set": updates})
+        except Exception:
+            pass
     else:
         await collection.update_one(
             {"user_id": user.id},
