@@ -435,19 +435,19 @@ function ProfileScreen() {
                     <img
                       src={data.user.avatarUrl}
                       alt={`${data.user.name}'s profile photo`}
-                      className="size-20 rounded-4xl object-cover shadow-soft"
+                      className="size-20 rounded-3xl object-cover shadow-soft border-2 border-white/60 dark:border-zinc-800"
                     />
                   ) : (
-                    <span className="flex size-20 items-center justify-center rounded-4xl bg-brand-dark text-2xl font-black tracking-tight text-primary shadow-soft">
-                      {data.user.initials}
-                    </span>
+                    <div className="flex size-20 items-center justify-center rounded-3xl bg-card border border-border shadow-soft text-foreground/80">
+                      <User className="size-10 text-primary" strokeWidth={2.2} />
+                    </div>
                   )}
                   <button
                     type="button"
                     aria-label="Upload profile photo"
                     disabled={uploading}
                     onClick={() => photoInput.current?.click()}
-                    className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border-2 border-card bg-secondary text-secondary-foreground shadow-soft transition-transform duration-300 active:scale-[0.9]"
+                    className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground shadow-soft transition-transform duration-300 active:scale-[0.9]"
                   >
                     {uploading ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -779,12 +779,12 @@ function ProfileScreen() {
                 <img
                   src={data.user.avatarUrl}
                   alt=""
-                  className="size-14 shrink-0 rounded-3xl object-cover"
+                  className="size-14 shrink-0 rounded-2xl object-cover"
                 />
               ) : (
-                <span className="flex size-14 shrink-0 items-center justify-center rounded-3xl bg-brand-dark text-lg font-black text-primary">
-                  {data.user.initials}
-                </span>
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 border border-border text-foreground dark:bg-zinc-800">
+                  <User className="size-7 text-primary" strokeWidth={2.2} />
+                </div>
               )}
               <span>
                 <span className="block text-sm font-bold text-foreground">

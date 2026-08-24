@@ -339,7 +339,7 @@ function HomeScreen() {
                   type="button"
                   aria-label="Profile"
                   onClick={() => navigate({ to: "/profile" })}
-                  className="flex size-10 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-sm font-bold text-brand-dark transition-all duration-300 active:scale-[0.94]"
+                  className="flex size-10 items-center justify-center overflow-hidden rounded-2xl bg-card border border-border/80 text-foreground shadow-2xs transition-all duration-300 hover:border-primary/60 active:scale-[0.94]"
                 >
                   {profile?.avatarUrl ? (
                     <img
@@ -352,7 +352,7 @@ function HomeScreen() {
                       decoding="async"
                     />
                   ) : (
-                    (profile?.initials ?? "QP")
+                    <User className="size-5 text-foreground/80" strokeWidth={2.2} />
                   )}
                 </button>
               </div>
