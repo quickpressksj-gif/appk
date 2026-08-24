@@ -301,6 +301,9 @@ class OrderRepository:
             metadata={"code": code, "grandTotal": totals.grandTotal},
             at=created,
         )
+        from app.services.order_notifications import dispatch_order_created_notifications
+
+        await dispatch_order_created_notifications(document)
         # The cart belongs to the order now.
         await cart_repository.clear(user.id)
         return OrderResponse(

@@ -266,6 +266,16 @@ async def transition(
         metadata=metadata,
         at=at,
     )
+    from app.services.order_notifications import dispatch_order_transition_notifications
+
+    await dispatch_order_transition_notifications(
+        updated,
+        target,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        metadata=metadata,
+        changes=changes,
+    )
     return updated
 
 
