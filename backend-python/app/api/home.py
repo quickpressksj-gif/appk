@@ -113,10 +113,13 @@ async def get_offers_page(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer),
 ) -> OffersPageResponse:
     user_id = None
-    if credentials:
-        token_data = decode_token(credentials.credentials)
-        if token_data:
-            user_id = token_data.get("sub")
+    if credentials and credentials.credentials:
+        try:
+            token_data = decode_token(credentials.credentials, expected_type="access")
+            if token_data:
+                user_id = token_data.get("sub")
+        except Exception:
+            user_id = None
     return await catalog.offers_page(user_id=user_id)
 
 
@@ -266,7 +269,7 @@ async def get_locations(creds: Optional[HTTPAuthorizationCredentials] = Depends(
     saved_places = []
     if creds and creds.credentials:
         try:
-            payload = decode_token(creds.credentials)
+            payload = decode_token(creds.credentials, expected_type="access")
             user_id = payload.get("sub")
             if user_id:
                 user_addresses = await database.find_many("customer_addresses", {"userId": user_id})
