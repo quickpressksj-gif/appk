@@ -81,15 +81,24 @@ function OffersScreen() {
 
   useEffect(() => {
     let active = true;
-    // TODO: replace with GET /api/offers and GET /api/coupons
-    void Promise.all([fetchOffers(), fetchCoupons()]).then(([offers, couponList]) => {
-      if (!active) return;
-      setBanners(offers.banners);
-      setSpecialOffers(offers.specialOffers);
-      setScratchCards(offers.scratchCards);
-      setRewardPoints(offers.rewardPoints);
-      setCoupons(couponList);
-    });
+    void Promise.all([fetchOffers(), fetchCoupons()])
+      .then(([offers, couponList]) => {
+        if (!active) return;
+        setBanners(offers.banners || []);
+        setSpecialOffers(offers.specialOffers || []);
+        setScratchCards(offers.scratchCards || []);
+        setRewardPoints(offers.rewardPoints || 0);
+        setCoupons(couponList || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load offers page:", err);
+        if (!active) return;
+        setBanners([]);
+        setSpecialOffers([]);
+        setScratchCards([]);
+        setRewardPoints(0);
+        setCoupons([]);
+      });
     return () => {
       active = false;
     };

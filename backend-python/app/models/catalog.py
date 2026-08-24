@@ -110,9 +110,41 @@ class OfferResponse(BaseModel):
     title: str
     description: str
     kind: str
+    discount: Optional[str] = None
     discountLabel: Optional[str] = None
     expiresAt: Optional[str] = None
+    expiry: Optional[str] = None
+    minOrder: Optional[int] = 0
     banner: Optional[str] = None
+
+
+class OfferBanner(BaseModel):
+    id: str
+    eyebrow: str
+    title: str
+    subtitle: str
+    tone: str = "festival"  # "festival" | "discount" | "cashback"
+
+
+class SpecialOffer(BaseModel):
+    id: str
+    kind: str = "first-order"  # "first-order" | "referral" | "membership" | "festival"
+    title: str
+    description: str
+    highlight: str
+
+
+class ScratchCard(BaseModel):
+    id: str
+    reward: str
+    caption: str
+
+
+class OffersPageResponse(BaseModel):
+    banners: List[OfferBanner]
+    specialOffers: List[SpecialOffer]
+    scratchCards: List[ScratchCard]
+    rewardPoints: int = 0
 
 
 class HomeResponse(BaseModel):

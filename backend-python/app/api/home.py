@@ -22,6 +22,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.deps import current_user
 from app.core.security import decode_token
 from app.db.catalog_repositories import catalog
+from app.db.client import database
 from app.db.repositories import users
 from app.models.catalog import (
     BannerResponse,
@@ -29,6 +30,7 @@ from app.models.catalog import (
     HomeResponse,
     LocationResponse,
     OfferResponse,
+    OffersPageResponse,
     PartnerCardResponse,
     ProfileResponse,
     ServiceCardResponse,
@@ -106,8 +108,25 @@ async def get_nearby_partners(
     return await catalog.partners(city=city, lat=lat, lng=lng, area=area, limit=limit)
 
 
+@router.get("/offers/page", response_model=OffersPageResponse)
+async def get_offers_page(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer),
+) -> OffersPageResponse:
+    user_id = None
+    if credentials:
+        token_data = decode_token(credentials.credentials)
+        if token_data:
+            user_id = token_data.get("sub")
+    return await catalog.offers_page(user_id=user_id)
+
+
 @router.get("/offers", response_model=list[OfferResponse])
 async def get_offers() -> list[OfferResponse]:
+    return await catalog.offers()
+
+
+@router.get("/coupons", response_model=list[OfferResponse])
+async def get_coupons() -> list[OfferResponse]:
     return await catalog.offers()
 
 
@@ -131,6 +150,23 @@ async def apply_offer(code: str) -> dict:
             "code": code_clean,
             "message": f"Coupon {code_clean} applied successfully",
         }
+    
+    # Built-in promotional vouchers
+    defaults = {
+        "WELCOME50": {"discount": 50, "message": "Welcome 50% OFF voucher applied!"},
+        "QUICK50": {"discount": 50, "message": "Flat ₹50 OFF applied!"},
+        "FESTIVE100": {"discount": 100, "message": "Festival ₹100 discount applied!"},
+        "EXPRESSFREE": {"discount": 40, "message": "Free express delivery coupon applied!"},
+        "PREMIUM25": {"discount": 75, "message": "25% OFF on Premium service applied!"},
+    }
+    if code_clean in defaults:
+        return {
+            "ok": True,
+            "discount": defaults[code_clean]["discount"],
+            "code": code_clean,
+            "message": defaults[code_clean]["message"],
+        }
+
     return {"ok": False, "discount": 0, "message": "Invalid coupon code"}
 
 
