@@ -132,9 +132,10 @@ export function ShopManagementScreen() {
       {editOpen ? (
         <ShopEditSheet
           profile={profile}
+          open={editOpen}
           onClose={() => setEditOpen(false)}
-          onSave={(patch) => {
-            updateProfile(patch);
+          onSave={async (patch) => {
+            await updateProfile(patch);
             setEditOpen(false);
             setSuccess("Shop details updated");
           }}
