@@ -129,26 +129,14 @@ async def check_location_availability(
             if all_approved:
                 matched_partners = all_approved[:3]
 
-    # 3. Real nearby serviceable areas ONLY from approved live cities
-    serviceable_areas_set = set()
-    for c in admin_cities:
-        if str(c.get("status") or "").strip().lower() in ("live", "active", "approved"):
-            city_name = str(c.get("city") or c.get("name") or "").strip()
-            if city_name:
-                serviceable_areas_set.add(city_name)
-
-    all_active_profiles = await catalog._approved_partner_profiles()
-    for p in all_active_profiles:
-        c = (p.get("city") or "").strip()
-        a = (p.get("area") or "").strip()
-        if c and any(ac in c.lower() or c.lower() in ac for ac in approved_live_cities):
-            serviceable_areas_set.add(c)
-        if a:
-            first_area = a.split(",")[0].strip()
-            if first_area:
-                serviceable_areas_set.add(first_area)
-
-    nearby_areas = sorted(list(serviceable_areas_set))[:8]
+    # 3. Real nearby serviceable areas ONLY from approved Live cities in Admin Panel
+    live_city_names = [
+        str(c.get("city") or c.get("name") or "").strip()
+        for c in admin_cities
+        if str(c.get("status") or "").strip().lower() in ("live", "active")
+        and str(c.get("city") or c.get("name") or "").strip()
+    ]
+    nearby_areas = sorted(list(set(live_city_names)))
     is_available = is_city_approved
 
     return {

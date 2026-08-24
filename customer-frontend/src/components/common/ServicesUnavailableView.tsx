@@ -1,19 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  ChevronRight,
+  AlertCircle,
+  Building2,
   Compass,
-  Loader2,
   MapPin,
+  MapPinOff,
   RefreshCw,
   Search,
-  Sparkles,
 } from "lucide-react";
-import { useState } from "react";
 
-import { submitWaitlist } from "@/api/customer/services/partner-service";
 import type { SavedLocation } from "@/api/customer/location";
 import { changeLocation } from "@/api/customer/services/location-service";
 
@@ -33,50 +28,24 @@ export function ServicesUnavailableView({
   onSelectArea,
 }: ServicesUnavailableViewProps) {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState("");
-  const [waitlistState, setWaitlistState] = useState<"idle" | "loading" | "success" | "error">(
-    "idle",
-  );
-  const [waitlistMsg, setWaitlistMsg] = useState("");
 
   const hasLocation = Boolean(location?.city || location?.area);
   const displayArea = location?.area || "Current Location";
   const displayCity = location?.city || "";
   const displayState = location?.state || "";
 
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone.trim()) return;
+  // Filter only valid non-empty live cities
+  const liveAdminCities = Array.from(
+    new Set((nearbyAreas || []).filter((c) => c && c.trim().length > 0)),
+  );
 
-    setWaitlistState("loading");
-    try {
-      const res = await submitWaitlist({
-        area: location?.area || "",
-        city: location?.city || "",
-        state: location?.state || "",
-        pincode: (location as any)?.pincode || "",
-        latitude: location?.latitude,
-        longitude: location?.longitude,
-        phone: phone.trim(),
-      });
-      setWaitlistState("success");
-      setWaitlistMsg(
-        res.message ||
-          `We'll notify you as soon as QuickPress is live in ${displayArea || displayCity || "your area"}!`,
-      );
-    } catch {
-      setWaitlistState("error");
-      setWaitlistMsg("Unable to save request right now. Please try again.");
-    }
-  };
-
-  const handleChooseArea = (areaName: string) => {
+  const handleChooseLiveCity = (cityName: string) => {
     if (onSelectArea) {
-      onSelectArea(areaName);
+      onSelectArea(cityName);
     } else {
       const updated: SavedLocation = {
-        area: areaName,
-        city: areaName.includes("Kasganj") ? "Kasganj" : areaName,
+        area: cityName,
+        city: cityName,
         state: "Uttar Pradesh",
       };
       changeLocation(updated);
@@ -86,14 +55,14 @@ export function ServicesUnavailableView({
 
   return (
     <div className="mx-auto w-full max-w-md px-4 py-8 md:max-w-lg md:py-12 animate-in fade-in duration-300">
-      {/* Premium Hero Card */}
+      {/* Premium Error Card */}
       <div className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-8">
-        {/* Subtle Icon Badge */}
+        {/* Prominent Error / Alert Icon Badge */}
         <div className="flex items-center justify-center">
-          <div className="relative flex size-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-inner">
-            <MapPin className="size-8 stroke-[2.2]" />
-            <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-zinc-900 text-[10px] text-white">
-              ✕
+          <div className="relative flex size-18 items-center justify-center rounded-3xl bg-rose-50 border border-rose-200/80 text-rose-600 shadow-inner">
+            <AlertCircle className="size-9 stroke-[2.3]" />
+            <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full bg-rose-600 text-white shadow-xs">
+              <MapPinOff className="size-3.5 stroke-[2.5]" />
             </span>
           </div>
         </div>
@@ -101,22 +70,22 @@ export function ServicesUnavailableView({
         {/* Headings */}
         <div className="mt-5 text-center">
           <h2 className="text-xl font-black tracking-tight text-zinc-900 sm:text-2xl">
-            Services aren&apos;t available here yet
+            Location Unavailable
           </h2>
           <p className="mt-2 text-xs font-medium leading-relaxed text-zinc-500 sm:text-sm">
-            We couldn&apos;t find an active laundry partner serving your current location right now.
+            QuickPress laundry services are currently not operating in your selected location.
           </p>
         </div>
 
-        {/* Current Location Pill Card */}
-        <div className="mt-6 rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 transition-all">
+        {/* Current Selected Location Card */}
+        <div className="mt-6 rounded-2xl border border-zinc-200/80 bg-zinc-50/90 p-4 transition-all">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-zinc-700 shadow-xs">
-              <Compass className="size-4 text-amber-600" />
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-rose-600 shadow-2xs border border-zinc-100">
+              <Compass className="size-4 text-rose-500" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
-                Current Location
+                Your Selected Location
               </p>
               {hasLocation ? (
                 <>
@@ -129,22 +98,55 @@ export function ServicesUnavailableView({
                 </>
               ) : (
                 <p className="mt-0.5 text-xs font-bold text-zinc-700">
-                  Location permission not available
+                  Location details not specified
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Primary & Secondary Action CTAs */}
+        {/* Live Admin Operational Cities Only */}
+        {liveAdminCities.length > 0 ? (
+          <div className="mt-6 rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-2xs">
+                <Building2 className="size-3.5 stroke-[2.2]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-900">
+                  Live Operational Cities
+                </p>
+                <p className="text-[11px] font-medium text-emerald-700">
+                  Services are currently live in:
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {liveAdminCities.map((city) => (
+                <button
+                  key={city}
+                  type="button"
+                  onClick={() => handleChooseLiveCity(city)}
+                  className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white px-3.5 py-1.5 text-xs font-black text-emerald-900 shadow-2xs transition-all hover:bg-emerald-600 hover:text-white active:scale-95"
+                >
+                  <MapPin className="size-3 text-emerald-600" />
+                  <span>{city}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Primary Action Buttons */}
         <div className="mt-6 space-y-2.5">
           <button
             type="button"
             onClick={() => void navigate({ to: "/location-search" })}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 text-sm font-black text-zinc-950 shadow-sm transition-all hover:bg-amber-300 active:scale-[0.98]"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-black text-white shadow-sm transition-all hover:bg-zinc-800 active:scale-[0.98]"
           >
             <Search className="size-4 stroke-[2.5]" />
-            <span>Change Location</span>
+            <span>Select Different Location</span>
           </button>
 
           {onRetry ? (
@@ -154,87 +156,10 @@ export function ServicesUnavailableView({
               onClick={() => void onRetry()}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 text-xs font-bold text-zinc-800 transition-all hover:bg-zinc-50 active:scale-[0.98] disabled:opacity-50"
             >
-              <RefreshCw className={`size-3.5 ${isRetrying ? "animate-spin text-amber-600" : ""}`} />
+              <RefreshCw className={`size-3.5 ${isRetrying ? "animate-spin text-zinc-900" : ""}`} />
               <span>{isRetrying ? "Checking availability…" : "Try Again"}</span>
             </button>
           ) : null}
-        </div>
-
-        {/* Nearby Serviceable Areas (Real Data Only) */}
-        {nearbyAreas && nearbyAreas.length > 0 ? (
-          <div className="mt-8 border-t border-zinc-100 pt-6">
-            <div className="flex items-center gap-1.5 text-xs font-black text-zinc-900">
-              <Sparkles className="size-3.5 text-emerald-600" />
-              <span>Try a nearby serviceable area</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-zinc-500 font-medium">
-              We have active verified laundry partners serving these locations:
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {nearbyAreas.map((area) => (
-                <button
-                  key={area}
-                  type="button"
-                  onClick={() => handleChooseArea(area)}
-                  className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-bold text-zinc-800 shadow-2xs transition-all hover:border-emerald-500 hover:text-emerald-700 active:scale-95"
-                >
-                  <MapPin className="size-3 text-emerald-600" />
-                  <span>{area}</span>
-                  <ChevronRight className="size-3 text-zinc-400" />
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Real Notify Me / Waitlist Section */}
-        <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
-              <Bell className="size-3.5" />
-            </span>
-            <span className="text-xs font-black text-emerald-950">
-              Notify me when QuickPress arrives
-            </span>
-          </div>
-
-          {waitlistState === "success" ? (
-            <div className="mt-3 flex items-start gap-2 rounded-xl bg-white p-3 text-xs font-bold text-emerald-900 shadow-2xs">
-              <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-              <p>{waitlistMsg}</p>
-            </div>
-          ) : (
-            <form onSubmit={handleWaitlistSubmit} className="mt-3">
-              <p className="text-[11px] font-medium leading-normal text-emerald-900/80">
-                Leave your mobile number. We&apos;ll message you when doorstep laundry pickup
-                launches here.
-              </p>
-              <div className="mt-2.5 flex gap-2">
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter 10-digit mobile number"
-                  className="min-w-0 flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={waitlistState === "loading"}
-                  className="flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                >
-                  {waitlistState === "loading" ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    "Notify Me"
-                  )}
-                </button>
-              </div>
-              {waitlistState === "error" ? (
-                <p className="mt-1.5 text-[10px] font-bold text-rose-600">{waitlistMsg}</p>
-              ) : null}
-            </form>
-          )}
         </div>
       </div>
     </div>
