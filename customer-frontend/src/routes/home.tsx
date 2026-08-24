@@ -237,13 +237,11 @@ function HomeScreen() {
 
   return (
     <main
-      className="relative min-h-screen overflow-x-hidden bg-background"
+      className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
-
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center transition-all duration-300"
         style={{ height: pull || (refreshing ? 56 : 0), opacity: pull || refreshing ? 1 : 0 }}
