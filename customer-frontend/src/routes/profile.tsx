@@ -63,6 +63,8 @@ import { isOnline, onNetworkChange } from "@/api/customer/api/network";
 import type { NotificationPreferences, ThemeMode } from "@/api/customer/settings-api";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import defaultAvatar from "@/shared/assets/default-avatar.jpg";
+
 
 const THEME_OPTIONS: { id: ThemeMode; label: string; icon: LucideIcon }[] = [
   { id: "light", label: "Light", icon: Sun },
@@ -431,17 +433,11 @@ function ProfileScreen() {
               <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
               <div className="relative flex items-start gap-4">
                 <div className="relative shrink-0">
-                  {data.user.avatarUrl ? (
-                    <img
-                      src={data.user.avatarUrl}
-                      alt={`${data.user.name}'s profile photo`}
-                      className="size-20 rounded-3xl object-cover shadow-soft border-2 border-white/60 dark:border-zinc-800"
-                    />
-                  ) : (
-                    <div className="flex size-20 items-center justify-center rounded-3xl bg-card border border-border shadow-soft text-foreground/80">
-                      <User className="size-10 text-primary" strokeWidth={2.2} />
-                    </div>
-                  )}
+                  <img
+                    src={data.user.avatarUrl || defaultAvatar}
+                    alt={`${data.user.name}'s profile photo`}
+                    className="size-20 rounded-full object-cover shadow-soft border-2 border-white/80 dark:border-zinc-800 bg-white"
+                  />
                   <button
                     type="button"
                     aria-label="Upload profile photo"
@@ -775,17 +771,11 @@ function ProfileScreen() {
               onClick={() => photoInput.current?.click()}
               className="mt-5 flex w-full items-center gap-3 rounded-3xl bg-muted/70 p-3 text-left transition-colors active:bg-muted disabled:opacity-60"
             >
-              {data.user.avatarUrl ? (
-                <img
-                  src={data.user.avatarUrl}
-                  alt=""
-                  className="size-14 shrink-0 rounded-2xl object-cover"
-                />
-              ) : (
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 border border-border text-foreground dark:bg-zinc-800">
-                  <User className="size-7 text-primary" strokeWidth={2.2} />
-                </div>
-              )}
+              <img
+                src={data.user.avatarUrl || defaultAvatar}
+                alt=""
+                className="size-14 shrink-0 rounded-full object-cover border border-border bg-white"
+              />
               <span>
                 <span className="block text-sm font-bold text-foreground">
                   Upload Profile Photo

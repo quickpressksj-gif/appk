@@ -42,6 +42,7 @@ import {
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
 } from "@/api/customer/services/search-service";
 
+import defaultAvatar from "@/shared/assets/default-avatar.jpg";
 import store1 from "@/shared/assets/store-1.jpg";
 import store2 from "@/shared/assets/store-2.jpg";
 import store3 from "@/shared/assets/store-3.jpg";
@@ -339,21 +340,17 @@ function HomeScreen() {
                   type="button"
                   aria-label="Profile"
                   onClick={() => navigate({ to: "/profile" })}
-                  className="flex size-10 items-center justify-center overflow-hidden rounded-2xl bg-card border border-border/80 text-foreground shadow-2xs transition-all duration-300 hover:border-primary/60 active:scale-[0.94]"
+                  className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-border/80 text-foreground shadow-2xs transition-all duration-300 hover:border-primary/60 active:scale-[0.94] bg-white"
                 >
-                  {profile?.avatarUrl ? (
-                    <img
-                      src={profile.avatarUrl}
-                      alt={profile.name}
-                      width={80}
-                      height={80}
-                      className="size-full object-cover"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <User className="size-5 text-foreground/80" strokeWidth={2.2} />
-                  )}
+                  <img
+                    src={profile?.avatarUrl || defaultAvatar}
+                    alt={profile?.name || "Profile"}
+                    width={80}
+                    height={80}
+                    className="size-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </button>
               </div>
             </header>
