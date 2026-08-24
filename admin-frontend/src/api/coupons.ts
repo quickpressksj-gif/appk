@@ -1,5 +1,5 @@
-/** GET/POST/PUT/DELETE /api/admin/coupons — real coupons from the shared backend. Offers/referrals have no backend endpoint yet. */
-import { apiGetJson, apiPostJson } from "@/api/core/transport";
+/** GET/POST/PUT/DELETE /api/admin/coupons and /api/admin/referrals */
+import { apiGetJson, apiPostJson, apiPutJson } from "@/api/core/transport";
 
 export type Coupon = {
   id: string;
@@ -20,6 +20,53 @@ export type Offer = {
   reward: string;
   window: string;
   status: "Active" | "Draft" | "Ended";
+};
+
+export type ReferralProgramSettings = {
+  id: string;
+  enabled: boolean;
+  refereeDiscountPercent: number;
+  refereeMaxDiscount: number;
+  refereeMinOrderValue: number;
+  referrerRewardAmount: number;
+  referrerRewardType: string;
+  headline: string;
+  subheadline: string;
+  terms: string[];
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+};
+
+export type AdminReferralItem = {
+  id: string;
+  referrerId: string;
+  referrerName: string;
+  referrerPhone: string;
+  refereeId: string;
+  refereeName: string;
+  refereePhone: string;
+  code: string;
+  status: "pending" | "completed" | "expired";
+  rewardAmount: number;
+  discountApplied: number;
+  firstOrderId?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+};
+
+export type AdminReferralStats = {
+  totalInvites: number;
+  totalRegisteredReferrals: number;
+  convertedFirstOrders: number;
+  totalDiscountGiven: number;
+  totalRewardsPaid: number;
+  activeSettings: ReferralProgramSettings;
+};
+
+export type AdminReferralListResponse = {
+  items: AdminReferralItem[];
+  total: number;
+  stats: AdminReferralStats;
 };
 
 type BackendCoupon = {
@@ -51,11 +98,6 @@ export async function fetchCoupons(): Promise<Coupon[]> {
   return rows.map(toCoupon);
 }
 
-/** No referral/offer endpoint exists on the backend yet. */
-export async function fetchOffers(): Promise<Offer[]> {
-  return [];
-}
-
 export function createCoupon(payload: Record<string, string>) {
   return apiPostJson<BackendCoupon>("/api/admin/coupons", {
     code: payload["code"],
@@ -64,3 +106,31 @@ export function createCoupon(payload: Record<string, string>) {
     expiry: payload["expiry"],
   });
 }
+
+// -----------------------------------------------------------------------------
+// Real Referral Engine API Clients
+// -----------------------------------------------------------------------------
+
+export async function fetchReferralSettings(): Promise<ReferralProgramSettings> {
+  return apiGetJson<ReferralProgramSettings>("/api/admin/referrals/settings");
+}
+
+export async function updateReferralSettings(
+  payload: Partial<ReferralProgramSettings>
+): Promise<ReferralProgramSettings> {
+  return apiPutJson<ReferralProgramSettings>("/api/admin/referrals/settings", payload);
+}
+
+export async function fetchReferralStats(): Promise<AdminReferralStats> {
+  return apiGetJson<AdminReferralStats>("/api/admin/referrals/stats");
+}
+
+export async function fetchReferralsList(): Promise<AdminReferralListResponse> {
+  return apiGetJson<AdminReferralListResponse>("/api/admin/referrals/list");
+}
+
+/** Legacy placeholder preserved for backward compat */
+export async function fetchOffers(): Promise<Offer[]> {
+  return [];
+}
+

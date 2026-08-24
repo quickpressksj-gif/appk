@@ -802,3 +802,47 @@ async def broadcast_notification(payload: BroadcastPayload, user: User = Depends
     result = await notification_repository.broadcast(payload.audience or "All", payload.title or "Announcement", payload.message or "")
     await audit_repository.log(await _actor(user), "notifications.broadcast", payload.audience or "All", {"title": payload.title})
     return result
+
+
+# -------------------------------------------------------------- referrals & loyalty
+from app.db.referral_repositories import referral_repository
+from app.models.referral import (
+    AdminReferralListResponse,
+    AdminReferralStats,
+    ReferralProgramSettings,
+    UpdateReferralSettingsPayload,
+)
+
+
+@router.get("/referrals/settings", response_model=ReferralProgramSettings)
+async def get_referral_settings(user: User = Depends(current_user)) -> ReferralProgramSettings:
+    """GET /api/admin/referrals/settings — fetch current dynamic referral program rules."""
+    return await referral_repository.get_settings()
+
+
+@router.put("/referrals/settings", response_model=ReferralProgramSettings)
+async def update_referral_settings(
+    payload: UpdateReferralSettingsPayload, user: User = Depends(current_user)
+) -> ReferralProgramSettings:
+    """PUT /api/admin/referrals/settings — modify discount %, max cap, reward amount, or toggle active."""
+    updated = await referral_repository.update_settings(payload, user)
+    await audit_repository.log(
+        await _actor(user),
+        "referral.settings.update",
+        "global_referral_config",
+        payload.model_dump(exclude_unset=True),
+    )
+    return updated
+
+
+@router.get("/referrals/stats", response_model=AdminReferralStats)
+async def get_referral_stats(user: User = Depends(current_user)) -> AdminReferralStats:
+    """GET /api/admin/referrals/stats — referral KPI metrics."""
+    return await referral_repository.admin_stats()
+
+
+@router.get("/referrals/list", response_model=AdminReferralListResponse)
+async def get_referrals_list(user: User = Depends(current_user)) -> AdminReferralListResponse:
+    """GET /api/admin/referrals/list — full table of referral conversions and rewards."""
+    return await referral_repository.admin_list()
+

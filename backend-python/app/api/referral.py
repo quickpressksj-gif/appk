@@ -22,13 +22,27 @@ from app.models.referral import (
     InviteReferralPayload,
     InviteReferralResponse,
     ReferralHistoryResponse,
+    ReferralProgramSettings,
     ReferralResponse,
     ReferralRewardsResponse,
     ReferralStatsResponse,
+    WelcomeReferralOffer,
 )
 from app.models.user import User
 
 router = APIRouter(tags=["referral"])
+
+
+@router.get("/referral/program", response_model=ReferralProgramSettings)
+async def get_referral_program() -> ReferralProgramSettings:
+    """Public endpoint to fetch active referral offer terms, discounts, and banner copy."""
+    return await referral_repository.get_settings()
+
+
+@router.get("/referral/welcome-offer", response_model=WelcomeReferralOffer)
+async def get_welcome_offer(user: User = Depends(current_user)) -> WelcomeReferralOffer:
+    """Check if current user has an active 50% referral discount on their first order."""
+    return await referral_repository.get_welcome_offer_for_user(user.id)
 
 
 @router.get("/referral", response_model=ReferralResponse)

@@ -128,8 +128,8 @@ type RawDashboard = {
 
 /* -------------------------------- mapping -------------------------------- */
 
-const DEFAULT_REFERRER_REWARD = 50;
-const DEFAULT_REFEREE_REWARD = 25;
+const DEFAULT_REFERRER_REWARD = 150;
+const DEFAULT_REFEREE_REWARD = 150;
 
 export function formatReferralDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -148,8 +148,8 @@ function qrFor(code: string): string {
   )}`;
 }
 
-export function referralShareMessage(code: string): string {
-  return `I use QuickPress for laundry and dry cleaning — use my code ${code} and we both earn wallet credit on your first order. ${linkFor(
+export function referralShareMessage(code: string, reward: number = 150, discount: number = 50): string {
+  return `I use QuickPress for premium laundry & dry cleaning! Use my code ${code} to get ${discount}% OFF on your 1st order. ${linkFor(
     code,
   )}`;
 }

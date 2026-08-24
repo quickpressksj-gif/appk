@@ -103,15 +103,35 @@ class CartRepository:
             discount=discount,
         )
 
-    async def coupons(self) -> List[CartCouponResponse]:
+    async def coupons(self, user_id: Optional[str] = None) -> List[CartCouponResponse]:
+        coupons_list: List[CartCouponResponse] = []
+
+        # Check for user-specific Referral Welcome Offer
+        if user_id:
+            try:
+                from app.db.referral_repositories import referral_repository
+                welcome_offer = await referral_repository.get_welcome_offer_for_user(user_id)
+                if welcome_offer.isEligible:
+                    coupons_list.append(
+                        CartCouponResponse(
+                            id="coupon-referral-welcome",
+                            code="WELCOME50",
+                            title=f"WELCOME50 — {int(welcome_offer.discountPercent)}% OFF",
+                            description=f"First Order Referral Discount: {int(welcome_offer.discountPercent)}% OFF up to ₹{int(welcome_offer.maxDiscount)} (Min Order ₹{int(welcome_offer.minOrderValue)}).",
+                            discount=int(welcome_offer.maxDiscount),
+                            best=True,
+                        )
+                    )
+            except Exception:
+                pass
+
         admin_docs = await database.find_many("admin_coupons", {"status": "Active"})
         if admin_docs:
-            result = []
             for d in admin_docs:
                 raw_discount = str(d.get("discount") or 0)
                 digits = "".join(ch for ch in raw_discount if ch.isdigit())
                 discount_val = int(digits) if digits else 50
-                result.append(
+                coupons_list.append(
                     CartCouponResponse(
                         id=str(d["_id"]),
                         code=d.get("code", ""),
@@ -121,21 +141,22 @@ class CartRepository:
                         best=bool(d.get("best", False)),
                     )
                 )
-            return result
+            return coupons_list
 
         docs = await database.find_many("cart_coupons")
         docs = docs or DEFAULT_COUPONS
-        return [
-            CartCouponResponse(
-                id=d["_id"],
-                code=d.get("code", ""),
-                title=d.get("title", ""),
-                description=d.get("description", ""),
-                discount=int(d.get("discount") or 0),
-                best=bool(d.get("best")),
+        for d in docs:
+            coupons_list.append(
+                CartCouponResponse(
+                    id=d["_id"],
+                    code=d.get("code", ""),
+                    title=d.get("title", ""),
+                    description=d.get("description", ""),
+                    discount=int(d.get("discount") or 0),
+                    best=bool(d.get("best")),
+                )
             )
-            for d in docs
-        ]
+        return coupons_list
 
     # ------------------------------------------------------------------- lines
 
@@ -227,7 +248,7 @@ class CartRepository:
         return CartSummaryResponse(
             store=store or _fallback_store(),
             items=items,
-            coupons=await self.coupons(),
+            coupons=await self.coupons(user_id),
             charges=charges,
             totals=compute_totals(items, charges, coupon_discount),
         )

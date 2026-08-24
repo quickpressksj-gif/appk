@@ -226,8 +226,8 @@ function ReferralScreen() {
                     {data.code}
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-background/75">
-                    Friends get ₹{data.stats.refereeReward} — you get ₹
-                    {data.stats.referrerReward} after their first completed order.
+                    Friends get 50% OFF (up to ₹{data.stats.refereeReward}) — you get ₹
+                    {data.stats.referrerReward} wallet cash after their 1st completed order.
                   </p>
                 </div>
                 <button

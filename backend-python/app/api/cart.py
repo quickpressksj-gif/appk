@@ -44,6 +44,12 @@ async def get_cart_summary(
     return await cart_repository.summary(user.id, couponDiscount)
 
 
+@router.get("/cart/coupons", response_model=list)
+async def get_cart_coupons(user: User = Depends(current_user)):
+    """GET /api/cart/coupons — list available promo codes and active referral welcome discounts."""
+    return await cart_repository.coupons(user.id)
+
+
 @router.post("/cart", response_model=CartResponse)
 async def sync_partner_cart(
     body: dict,
