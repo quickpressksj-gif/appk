@@ -377,7 +377,7 @@ function HomeScreen() {
               <button
                 type="button"
                 onClick={() => void navigate({ to: "/search", search: { q: "", scope: "all" } })}
-                className="card-soft flex w-full items-center gap-3 border border-border p-1.5 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.99]"
+                className="card-soft flex w-full items-center gap-3 border border-border p-1.5 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 active:scale-[0.99]"
               >
                 <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                   <Search className="size-4" />
@@ -395,7 +395,7 @@ function HomeScreen() {
                     onClick={() =>
                       void navigate({ to: "/search", search: { q: "", scope: scope.id } })
                     }
-                    className="shrink-0 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.95]"
+                    className="shrink-0 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:text-zinc-950 dark:hover:text-zinc-100 active:scale-[0.95]"
                   >
                     {scope.label}
                   </button>
@@ -447,7 +447,7 @@ function HomeScreen() {
                       onClick={() =>
                         navigate({ to: "/services/$serviceId", params: { serviceId: category.id } })
                       }
-                      className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.94]"
+                      className="group card-soft flex flex-col items-center gap-2 border border-border/80 bg-card p-3 text-center transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.94]"
                     >
                       <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
                         <img
@@ -460,7 +460,7 @@ function HomeScreen() {
                           decoding="async"
                         />
                       </div>
-                      <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-primary transition-colors">
+                      <span className="text-[12px] font-black leading-tight tracking-tight text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
                         {category.title}
                       </span>
                       <span className="text-[10px] font-medium leading-tight text-muted-foreground">
@@ -494,7 +494,7 @@ function HomeScreen() {
                           params: { serviceId: service.categoryId ?? service.id },
                         })
                       }
-                      className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary hover:shadow-soft active:scale-[0.97]"
+                      className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.97]"
                     >
                       <div className="flex items-start gap-3.5">
                         <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/40 bg-muted/40 shadow-sm transition-transform duration-300 group-hover:scale-105">
@@ -509,7 +509,7 @@ function HomeScreen() {
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-foreground group-hover:text-primary transition-colors">
+                          <p className="truncate text-sm font-black text-foreground group-hover:text-zinc-950 dark:group-hover:text-zinc-100 transition-colors">
                             {service.title}
                           </p>
                           <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
@@ -562,7 +562,7 @@ function HomeScreen() {
                     onClick={() =>
                       navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
                     }
-                    className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary/60 hover:shadow-soft active:scale-[0.985]"
+                    className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.985]"
                   >
                     <div className="flex items-start gap-3.5">
                       <div className="relative shrink-0">
