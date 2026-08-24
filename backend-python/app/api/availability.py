@@ -124,10 +124,7 @@ async def check_location_availability(
         else:
             matched_partners = partners
 
-        if not matched_partners:
-            all_approved = await catalog.partners(limit=10)
-            if all_approved:
-                matched_partners = all_approved[:3]
+        # Strictly keep matched partners for this city only
 
     # 3. Real nearby serviceable areas ONLY from approved Live cities in Admin Panel
     live_city_names = [

@@ -173,24 +173,12 @@ class CatalogRepository:
             ]
         if city:
             c_low = city.strip().lower()
-            admin_cities = await database.find_many("admin_cities")
-            live_cities = {
-                str(c.get("city") or c.get("name") or "").strip().lower()
-                for c in admin_cities
-                if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
-            }
             city_matched = [
                 card
                 for card in cards
                 if c_low in card.city.lower() or card.city.lower() in c_low or c_low in card.area.lower()
             ]
-            if city_matched:
-                cards = city_matched
-            elif any(c_low in lc or lc in c_low for lc in live_cities):
-                # City is approved by Admin, return available platform partners
-                pass
-            else:
-                cards = []
+            cards = city_matched
         if min_rating > 0:
             cards = [card for card in cards if card.rating >= min_rating]
         if max_distance > 0:

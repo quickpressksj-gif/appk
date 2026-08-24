@@ -63,6 +63,7 @@ import { isOnline, onNetworkChange } from "@/api/customer/api/network";
 import type { NotificationPreferences, ThemeMode } from "@/api/customer/settings-api";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { readSavedLocation } from "@/api/customer/services/location-service";
 import defaultAvatar from "@/shared/assets/default-avatar.jpg";
 
 
@@ -225,6 +226,7 @@ function ProfileScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const settings = useAppSettings();
+  const activeLocation = readSavedLocation();
 
   const load = useCallback(async (forceRefresh = false) => {
     setLoadError(null);
@@ -331,7 +333,8 @@ function ProfileScreen() {
     if (Object.keys(errors).length > 0) return;
     setSaving(true);
     try {
-      const saved = await updateProfile(form);
+      const payloadCity = activeLocation?.city || form.city || "Kasganj";
+      const saved = await updateProfile({ name: form.name, email: form.email, city: payloadCity });
       setData({ ...data, user: { ...data.user, ...saved } });
       setEditing(false);
       toast.success("Profile updated");
@@ -470,12 +473,14 @@ function ProfileScreen() {
                     <Mail className="size-3.5 shrink-0" />
                     <span className="truncate">{data.user.email}</span>
                   </p>
-                  {data.user.city ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <MapPin className="size-3.5 shrink-0" />
-                      <span className="truncate">{data.user.city}</span>
-                    </p>
-                  ) : null}
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate">
+                      {activeLocation?.area
+                        ? `${activeLocation.area}, ${activeLocation.city || ""}`
+                        : (activeLocation?.city || data.user.city || "Kasganj, Uttar Pradesh")}
+                    </span>
+                  </p>
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
                     <Clock className="size-3.5 shrink-0" />
                     Member since {data.user.memberSince}
@@ -824,25 +829,37 @@ function ProfileScreen() {
               ) : null}
             </label>
 
-            <label className="mt-3 block">
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                City
-              </span>
-              <input
-                value={form.city}
-                aria-invalid={Boolean(formErrors['city'])}
-                onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))}
-                placeholder="Bengaluru"
-                className={`mt-1.5 h-12 w-full rounded-2xl border bg-background px-4 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary ${
-                  formErrors['city'] ? "border-destructive" : "border-border"
-                }`}
-              />
-              {formErrors['city'] ? (
-                <span className="mt-1 block text-[11px] font-semibold text-destructive">
-                  {formErrors['city']}
-                </span>
-              ) : null}
-            </label>
+            {/* Detected Location Card */}
+            <div className="mt-3.5 rounded-2xl border border-border/80 bg-muted/40 p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <MapPin className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Detected Location
+                    </p>
+                    <p className="mt-0.5 truncate text-xs font-bold text-foreground">
+                      {activeLocation?.area || activeLocation?.city || data.user.city || "Kasganj"}
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {[activeLocation?.city, activeLocation?.state].filter(Boolean).join(", ") || "Uttar Pradesh, India"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    void navigate({ to: "/location-search" });
+                  }}
+                  className="shrink-0 rounded-xl border border-border bg-card px-2.5 py-1.5 text-[11px] font-bold text-foreground shadow-2xs hover:bg-muted active:scale-95"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
 
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Phone className="size-3.5 shrink-0" />
