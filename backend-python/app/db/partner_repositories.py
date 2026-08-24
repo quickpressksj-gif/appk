@@ -407,7 +407,34 @@ class PartnerOrderRepository:
         return lifecycle.to_partner_order(updated)
 
     async def accept(self, partner_id: str, order_id: str) -> Dict[str, Any]:
-        return await self._transition(partner_id, order_id, lifecycle.PARTNER_ACCEPTED)
+        profile = await database.find_one(PROFILES, {"$or": [{"_id": partner_id}, {"partnerId": partner_id}]})
+        partner_name = (profile.get("businessName") or profile.get("name") or "Partner Store") if profile else "Partner Store"
+        partner_phone = profile.get("phone", "") if profile else ""
+
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise PartnerNotFoundError("Order not found")
+
+        current_status = lifecycle.order_status(order)
+        if current_status != lifecycle.PENDING:
+            raise InvalidTransitionError(f"This order is already {current_status} and cannot be accepted again.")
+
+        order_partner = order.get("partner") or {}
+        existing_pid = str(order_partner.get("id") or order.get("partner_id") or order.get("partnerId") or "")
+        if existing_pid and existing_pid != partner_id and existing_pid.lower() != partner_id.lower():
+            raise PartnerAccessError("This order is already accepted by another partner store.")
+
+        changes = {
+            "partner": {
+                "id": partner_id,
+                "name": partner_name,
+                "phone": partner_phone,
+            },
+            "partnerId": partner_id,
+            "partner_id": partner_id,
+            "store_id": partner_id,
+        }
+        return await self._transition(partner_id, order_id, lifecycle.PARTNER_ACCEPTED, changes=changes)
 
     async def reject(self, partner_id: str, order_id: str, reason: str) -> Dict[str, Any]:
         text = reason or "Rejected by store"

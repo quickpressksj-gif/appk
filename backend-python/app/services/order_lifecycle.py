@@ -155,10 +155,12 @@ async def get_order(order_id: str) -> Dict[str, Any]:
 def assert_partner(order: Dict[str, Any], partner_id: str) -> None:
     order_partner = order.get("partner") or {}
     order_p_id = str(order_partner.get("id") or order.get("partner_id") or order.get("partnerId") or order.get("store_id") or "")
-    if order_p_id and (order_p_id == partner_id or order_p_id.lower() == partner_id.lower()):
-        return
-    if not order_p_id:
-        return
+    if order_p_id:
+        if order_p_id == partner_id or order_p_id.lower() == partner_id.lower():
+            return
+        raise OrderAuthorizationError("This order is assigned to another partner store")
+    if order_status(order) != PENDING:
+        raise OrderAuthorizationError("This order has already been accepted by another partner")
 
 
 def assert_rider(order: Dict[str, Any], rider_id: str) -> None:

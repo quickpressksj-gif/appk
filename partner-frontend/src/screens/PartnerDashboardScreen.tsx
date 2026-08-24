@@ -34,12 +34,26 @@ import { fetchEarnings } from "@/api/partner/partner-earnings-api";
 import { usePartnerOrders } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
 
-const STATUS_TO_LIVE: Partial<Record<PartnerOrderStatus, LiveOrder["status"]>> = {
+const STATUS_TO_LIVE: Record<string, LiveOrder["status"]> = {
   new: "pending",
+  placed: "pending",
+  pending: "pending",
   accepted: "accepted",
+  pickup_pending: "pickup",
+  pickup_driver_assigned: "pickup",
+  picked_up: "pickup",
   picked: "pickup",
+  at_partner: "pickup",
+  washing: "washing",
+  dry_cleaning: "washing",
   processing: "washing",
+  ironing: "ironing",
   ready: "ready",
+  delivery_assigned: "ready",
+  out_for_delivery: "ready",
+  completed: "delivered",
+  delivered: "delivered",
+  cancelled: "delivered",
 };
 
 export function PartnerDashboardScreen() {

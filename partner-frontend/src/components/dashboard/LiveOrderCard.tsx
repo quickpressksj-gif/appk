@@ -13,13 +13,23 @@ export type LiveOrder = {
 
 
 const STATUS_STYLE: Record<LiveOrder["status"], string> = {
-  pending: "bg-primary/15 text-brand-dark",
-  accepted: "bg-primary/15 text-brand-dark",
-  pickup: "bg-secondary/10 text-brand-green",
-  washing: "bg-secondary/10 text-brand-green",
-  ironing: "bg-secondary/10 text-brand-green",
-  ready: "bg-secondary/10 text-brand-green",
+  pending: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30",
+  accepted: "bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30",
+  pickup: "bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30",
+  washing: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border border-indigo-500/30",
+  ironing: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border border-cyan-500/30",
+  ready: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30",
   delivered: "bg-muted text-muted-foreground",
+};
+
+const STATUS_LABEL_MAP: Record<LiveOrder["status"], string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  pickup: "Pickup Pending",
+  washing: "Processing",
+  ironing: "Ironing",
+  ready: "Ready for Delivery",
+  delivered: "Delivered",
 };
 
 /**
@@ -56,7 +66,7 @@ export function LiveOrderCard({
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-wider ${STATUS_STYLE[order.status]}`}
         >
-          {order.status}
+          {STATUS_LABEL_MAP[order.status] || order.status}
         </span>
       </div>
 
@@ -82,20 +92,28 @@ export function LiveOrderCard({
           {order.amount.toLocaleString("en-IN")}
         </span>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => onReject(order)}
-            className="flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-2 text-[0.66rem] font-bold text-destructive transition-all duration-300 hover:bg-destructive/20 active:scale-[0.95]"
-          >
-            <X className="size-3.5" /> Reject
-          </button>
-          <button
-            type="button"
-            onClick={() => onAccept(order)}
-            className="flex items-center gap-1 rounded-full bg-secondary/15 px-3 py-2 text-[0.66rem] font-bold text-brand-green transition-all duration-300 hover:bg-secondary/25 active:scale-[0.95]"
-          >
-            <Check className="size-3.5" /> Accept
-          </button>
+          {order.status === "pending" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onReject(order)}
+                className="flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-2 text-[0.66rem] font-bold text-destructive transition-all duration-300 hover:bg-destructive/20 active:scale-[0.95]"
+              >
+                <X className="size-3.5" /> Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => onAccept(order)}
+                className="flex items-center gap-1 rounded-full bg-secondary/15 px-3 py-2 text-[0.66rem] font-bold text-brand-green transition-all duration-300 hover:bg-secondary/25 active:scale-[0.95]"
+              >
+                <Check className="size-3.5" /> Accept
+              </button>
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2.5 py-1 text-[0.62rem] font-bold text-brand-green">
+              <Check className="size-3" /> Accepted
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onView(order)}
