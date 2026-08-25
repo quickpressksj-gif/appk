@@ -27,6 +27,7 @@ import {
   Moon,
   Package,
   Pencil,
+  RefreshCcw,
   RefreshCw,
   Phone,
   Plus,
@@ -657,33 +658,45 @@ function ProfileScreen() {
               />
             </section>
 
-            {/* Legal */}
+            {/* Legal & Company Information */}
             <section className="mt-8">
-              <SectionHeading title="Legal" />
+              <SectionHeading title="Legal & Company" />
               <RowList
                 rows={[
                   {
                     id: "privacy",
                     label: "Privacy Policy",
                     icon: Shield,
-                    action: () => soon("Privacy policy"),
+                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "privacy-policy" } }),
                   },
                   {
                     id: "terms",
-                    label: "Terms & Conditions",
+                    label: "Terms of Service",
                     icon: FileText,
-                    action: () => soon("Terms & conditions"),
+                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "terms-of-service" } }),
+                  },
+                  {
+                    id: "refunds",
+                    label: "Cancellation & Refund Policy",
+                    icon: RefreshCcw,
+                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "cancellation-refund-policy" } }),
                   },
                   {
                     id: "about",
                     label: "About QuickPress",
                     icon: Info,
-                    action: () => soon("About QuickPress"),
+                    action: () => navigate({ to: "/about" }),
+                  },
+                  {
+                    id: "contact",
+                    label: "Contact & Corporate Office",
+                    icon: Headphones,
+                    action: () => navigate({ to: "/contact" }),
                   },
                 ]}
               />
               <p className="mt-3 text-center text-[11px] font-semibold text-muted-foreground">
-                App Version {data.appVersion}
+                QuickPress App Version {data.appVersion} • All Rights Reserved
               </p>
             </section>
 

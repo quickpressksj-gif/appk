@@ -50,7 +50,7 @@ const NAV_GROUPS = [
   },
   {
     title: "SYSTEM & GOVERNANCE",
-    items: ["notifications", "support", "staff", "settings"],
+    items: ["website", "notifications", "support", "staff", "settings"],
   },
 ];
 

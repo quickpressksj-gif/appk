@@ -12,6 +12,8 @@ from app.api.addresses import router as addresses_router
 from app.api.health import router as health_router
 from app.api.admin import router as admin_router
 from app.api.admin_payments import router as admin_payments_router
+from app.api.admin_cms import router as admin_cms_router
+from app.api.public import router as public_router
 from app.api.availability import router as availability_router
 from app.api.auth import router as auth_router
 from app.api.cart import router as cart_router
@@ -45,6 +47,7 @@ from app.db.cart_repositories import CART_SEED
 from app.db.rider_repositories import RIDER_SEED
 from app.db.client import database
 from app.db.catalog_repositories import catalog
+from app.db.cms_repositories import cms_repo
 from app.db.membership_repositories import MEMBERSHIP_SEED
 from app.db.identity_seed import align_partner_identities
 from app.db.partner_repositories import PARTNER_SEED
@@ -83,6 +86,8 @@ async def lifespan(_: FastAPI):
                 )
     # Master administrative catalog (cities, categories, master services)
     await database.upsert_seed(ADMIN_SEED)
+    # QuickPress Website CMS initial seed (Legal documents, FAQs, settings)
+    await cms_repo.ensure_seed()
     yield
     await database.disconnect()
 
@@ -147,6 +152,10 @@ def create_app() -> FastAPI:
     app.include_router(earnings_router, prefix=settings.api_prefix)
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
+
+    # QuickPress Public Website & Admin CMS routes.
+    app.include_router(public_router, prefix=settings.api_prefix)
+    app.include_router(admin_cms_router, prefix=settings.api_prefix)
 
     # Health check + meta (countries list) mounted exactly once under /api.
     app.include_router(health_router, prefix=settings.api_prefix)  # → /api/health, /api/countries

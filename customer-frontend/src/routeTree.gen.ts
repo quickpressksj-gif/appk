@@ -10,10 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AddressesRouteImport } from './routes/addresses'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DevRouteImport } from './routes/dev'
+import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as HomeRouteImport } from './routes/home'
@@ -30,6 +33,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as InvoicesIndexRouteImport } from './routes/invoices.index'
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
+import { Route as LegalDocSlugRouteImport } from './routes/legal.$docSlug'
 import { Route as OrderSuccessOrderIdRouteImport } from './routes/order-success.$orderId'
 import { Route as PartnerPartnerIdRouteImport } from './routes/partner.$partnerId'
 import { Route as ServicesServiceIdRouteImport } from './routes/services.$serviceId'
@@ -38,6 +42,11 @@ import { Route as TrackOrderIdRouteImport } from './routes/track.$orderId'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AddressesRoute = AddressesRouteImport.update({
@@ -55,9 +64,19 @@ const CheckoutRoute = CheckoutRouteImport.update({
   path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DevRoute = DevRouteImport.update({
   id: '/dev',
   path: '/dev',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqsRoute = FaqsRouteImport.update({
+  id: '/faqs',
+  path: '/faqs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpRoute = HelpRouteImport.update({
@@ -140,6 +159,11 @@ const InvoicesInvoiceIdRoute = InvoicesInvoiceIdRouteImport.update({
   path: '/invoices/$invoiceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalDocSlugRoute = LegalDocSlugRouteImport.update({
+  id: '/legal/$docSlug',
+  path: '/legal/$docSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrderSuccessOrderIdRoute = OrderSuccessOrderIdRouteImport.update({
   id: '/order-success/$orderId',
   path: '/order-success/$orderId',
@@ -163,10 +187,13 @@ const TrackOrderIdRoute = TrackOrderIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/dev': typeof DevRoute
+  '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
   '/home': typeof HomeRoute
@@ -182,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
+  '/legal/$docSlug': typeof LegalDocSlugRoute
   '/order-success/$orderId': typeof OrderSuccessOrderIdRoute
   '/partner/$partnerId': typeof PartnerPartnerIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
@@ -190,10 +218,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/dev': typeof DevRoute
+  '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
   '/home': typeof HomeRoute
@@ -209,6 +240,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
+  '/legal/$docSlug': typeof LegalDocSlugRoute
   '/order-success/$orderId': typeof OrderSuccessOrderIdRoute
   '/partner/$partnerId': typeof PartnerPartnerIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
@@ -218,10 +250,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/addresses': typeof AddressesRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/dev': typeof DevRoute
+  '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
   '/home': typeof HomeRoute
@@ -237,6 +272,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
+  '/legal/$docSlug': typeof LegalDocSlugRoute
   '/order-success/$orderId': typeof OrderSuccessOrderIdRoute
   '/partner/$partnerId': typeof PartnerPartnerIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
@@ -247,10 +283,13 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/addresses'
     | '/cart'
     | '/checkout'
+    | '/contact'
     | '/dev'
+    | '/faqs'
     | '/help'
     | '/history'
     | '/home'
@@ -266,6 +305,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/wallet'
     | '/invoices/$invoiceId'
+    | '/legal/$docSlug'
     | '/order-success/$orderId'
     | '/partner/$partnerId'
     | '/services/$serviceId'
@@ -274,10 +314,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/addresses'
     | '/cart'
     | '/checkout'
+    | '/contact'
     | '/dev'
+    | '/faqs'
     | '/help'
     | '/history'
     | '/home'
@@ -293,6 +336,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/wallet'
     | '/invoices/$invoiceId'
+    | '/legal/$docSlug'
     | '/order-success/$orderId'
     | '/partner/$partnerId'
     | '/services/$serviceId'
@@ -301,10 +345,13 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/addresses'
     | '/cart'
     | '/checkout'
+    | '/contact'
     | '/dev'
+    | '/faqs'
     | '/help'
     | '/history'
     | '/home'
@@ -320,6 +367,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/wallet'
     | '/invoices/$invoiceId'
+    | '/legal/$docSlug'
     | '/order-success/$orderId'
     | '/partner/$partnerId'
     | '/services/$serviceId'
@@ -329,10 +377,13 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   AddressesRoute: typeof AddressesRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  ContactRoute: typeof ContactRoute
   DevRoute: typeof DevRoute
+  FaqsRoute: typeof FaqsRoute
   HelpRoute: typeof HelpRoute
   HistoryRoute: typeof HistoryRoute
   HomeRoute: typeof HomeRoute
@@ -348,6 +399,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   WalletRoute: typeof WalletRoute
   InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
+  LegalDocSlugRoute: typeof LegalDocSlugRoute
   OrderSuccessOrderIdRoute: typeof OrderSuccessOrderIdRoute
   PartnerPartnerIdRoute: typeof PartnerPartnerIdRoute
   ServicesServiceIdRoute: typeof ServicesServiceIdRoute
@@ -362,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/addresses': {
@@ -385,11 +444,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dev': {
       id: '/dev'
       path: '/dev'
       fullPath: '/dev'
       preLoaderRoute: typeof DevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faqs': {
+      id: '/faqs'
+      path: '/faqs'
+      fullPath: '/faqs'
+      preLoaderRoute: typeof FaqsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -504,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvoicesInvoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/$docSlug': {
+      id: '/legal/$docSlug'
+      path: '/legal/$docSlug'
+      fullPath: '/legal/$docSlug'
+      preLoaderRoute: typeof LegalDocSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/order-success/$orderId': {
       id: '/order-success/$orderId'
       path: '/order-success/$orderId'
@@ -537,10 +617,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   AddressesRoute: AddressesRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  ContactRoute: ContactRoute,
   DevRoute: DevRoute,
+  FaqsRoute: FaqsRoute,
   HelpRoute: HelpRoute,
   HistoryRoute: HistoryRoute,
   HomeRoute: HomeRoute,
@@ -556,6 +639,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   WalletRoute: WalletRoute,
   InvoicesInvoiceIdRoute: InvoicesInvoiceIdRoute,
+  LegalDocSlugRoute: LegalDocSlugRoute,
   OrderSuccessOrderIdRoute: OrderSuccessOrderIdRoute,
   PartnerPartnerIdRoute: PartnerPartnerIdRoute,
   ServicesServiceIdRoute: ServicesServiceIdRoute,
