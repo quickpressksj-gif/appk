@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "dev:backend": "cd backend-python && ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
-    "dev:customer": "cd customer-frontend && vite dev --port 8081",
+    "dev:customer": "QUICKPRESS_APP=customer vite dev --port 8081",
     "typecheck:customer": "cd customer-frontend && tsc --noEmit -p tsconfig.typecheck.json",
     "build:customer": "cd customer-frontend && vite build",
     "preview:customer": "cd customer-frontend && vite preview",
