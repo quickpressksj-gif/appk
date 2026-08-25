@@ -174,10 +174,10 @@ function RowList({ rows }: { rows: Row[] }) {
           }`}
         >
           <span
-            className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${
+            className={`flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white shadow-xs border border-border/40 dark:bg-zinc-900 dark:border-zinc-800 ${
               row.tone === "danger"
-                ? "bg-destructive/10 text-destructive"
-                : "bg-primary/15 text-brand-dark"
+                ? "text-destructive"
+                : "text-brand-dark"
             }`}
           >
             <row.icon className="size-[1.1rem]" strokeWidth={2} />
@@ -367,7 +367,7 @@ function ProfileScreen() {
               type="button"
               aria-label="Notifications"
               onClick={() => navigate({ to: "/notifications" })}
-              className="relative flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
+              className="relative flex size-10 items-center justify-center rounded-2xl bg-white text-foreground shadow-xs border border-border/50 transition-all duration-300 hover:bg-accent active:scale-[0.94] dark:bg-zinc-900 dark:border-zinc-800"
             >
               <Bell className="size-5" />
               {data && data.user.unreadNotifications > 0 ? (
@@ -380,7 +380,7 @@ function ProfileScreen() {
               type="button"
               aria-label="Settings"
               onClick={() => setSettingsOpen(true)}
-              className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
+              className="flex size-10 items-center justify-center rounded-2xl bg-white text-foreground shadow-xs border border-border/50 transition-all duration-300 hover:bg-accent active:scale-[0.94] dark:bg-zinc-900 dark:border-zinc-800"
             >
               <Settings className="size-5" />
             </button>
@@ -533,7 +533,7 @@ function ProfileScreen() {
                   type="button"
                   onClick={stat.action} className="card-soft ripple flex flex-col items-start gap-3 border border-border p-4 text-left transition-all duration-300 hover:border-primary/60 active:scale-[0.96]"
                 >
-                  <span className="flex size-10 items-center justify-center rounded-2xl bg-secondary/10 text-brand-green">
+                  <span className="flex size-10 items-center justify-center rounded-2xl bg-white text-brand-green shadow-xs border border-border/40 dark:bg-zinc-900 dark:border-zinc-800">
                     <stat.icon className="size-5" />
                   </span>
                   <span>
