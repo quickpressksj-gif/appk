@@ -237,7 +237,21 @@ async def get_public_website_settings() -> Dict[str, Any]:
 
 
 # =========================================================================
-#  7. Public Inbound Contact Form
+#  7. Public Landing Page & Testimonials (CMS-backed)
+# =========================================================================
+
+@router.get("/landing-content")
+async def get_public_landing_content() -> Dict[str, Any]:
+    return await cms_repo.get_landing_content()
+
+
+@router.get("/testimonials")
+async def get_public_testimonials() -> List[Dict[str, Any]]:
+    return await cms_repo.list_testimonials(published_only=True)
+
+
+# =========================================================================
+#  8. Public Inbound Contact Form
 # =========================================================================
 
 @router.post("/contact")
@@ -254,3 +268,4 @@ async def submit_public_contact(payload: ContactFormPayload) -> Dict[str, Any]:
         subject=payload.subject,
         message=payload.message
     )
+

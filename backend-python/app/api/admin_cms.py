@@ -179,3 +179,46 @@ async def get_settings(user: User = Depends(require_roles(Role.admin))) -> Dict[
 @router.put("/settings")
 async def update_settings(payload: Dict[str, Any], user: User = Depends(require_roles(Role.admin))) -> Dict[str, Any]:
     return await cms_repo.update_website_settings_admin(payload)
+
+
+# =========================================================================
+#  6. Landing Page Content Management
+# =========================================================================
+
+@router.get("/landing")
+async def get_landing_content(user: User = Depends(require_roles(Role.admin))) -> Dict[str, Any]:
+    return await cms_repo.get_landing_content()
+
+
+@router.put("/landing")
+async def update_landing_content(
+    payload: Dict[str, Any],
+    user: User = Depends(require_roles(Role.admin))
+) -> Dict[str, Any]:
+    return await cms_repo.update_landing_content_admin(payload)
+
+
+# =========================================================================
+#  7. Testimonials Management
+# =========================================================================
+
+@router.get("/testimonials")
+async def list_testimonials(user: User = Depends(require_roles(Role.admin))) -> List[Dict[str, Any]]:
+    return await cms_repo.list_testimonials(published_only=False)
+
+
+@router.post("/testimonials")
+async def save_testimonial(
+    payload: Dict[str, Any],
+    user: User = Depends(require_roles(Role.admin))
+) -> Dict[str, Any]:
+    return await cms_repo.save_testimonial_admin(payload)
+
+
+@router.delete("/testimonials/{testimonial_id}")
+async def delete_testimonial(
+    testimonial_id: str,
+    user: User = Depends(require_roles(Role.admin))
+) -> Dict[str, Any]:
+    return await cms_repo.delete_testimonial_admin(testimonial_id)
+

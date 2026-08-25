@@ -441,7 +441,7 @@ FAQS_SEED: List[Dict[str, Any]] = [
 
 
 # =========================================================================
-#  Initial Website Settings Seed
+#  Initial Website Settings & Landing Page Content Seed
 # =========================================================================
 
 WEBSITE_SETTINGS_SEED: Dict[str, Any] = {
@@ -452,18 +452,22 @@ WEBSITE_SETTINGS_SEED: Dict[str, Any] = {
     "supportPhone": "1800 012 3456",
     "supportPhoneRaw": "+919000090000",
     "supportEmail": "support@quickpress.in",
+    "supportWhatsapp": "+919000090000",
     "operatingAddress": "QuickPress Laundry Technologies, Kasganj, Uttar Pradesh 207123, India",
+    "registeredOffice": "QuickPress Laundry Technologies Private Limited, Main Market, Kasganj, Uttar Pradesh 207123, India",
     "workingHours": "Monday – Sunday, 8:00 AM – 9:00 PM IST",
     "activeOperatingCity": "Kasganj, Uttar Pradesh",
-    "appStoreUrl": "https://apps.apple.com",  # Coming soon handled gracefully in UI
+    "gstin": "09AAACQ1234F1Z5",
+    "cin": "U74999UP2026PTC123456",
+    "appStoreUrl": "https://apps.apple.com",  # Handled gracefully in UI
     "playStoreUrl": "https://play.google.com",
     "appStoreAvailable": False,
     "playStoreAvailable": True,
     "socialLinks": {
-        "instagram": "https://instagram.com",
-        "twitter": "https://twitter.com",
-        "facebook": "https://facebook.com",
-        "linkedin": "https://linkedin.com"
+        "instagram": "https://instagram.com/quickpress",
+        "twitter": "https://twitter.com/quickpress",
+        "facebook": "https://facebook.com/quickpress",
+        "linkedin": "https://linkedin.com/company/quickpress"
     },
     "seo": {
         "defaultTitle": "QuickPress — Premium Online Laundry & Dry Cleaning Doorstep Service",
@@ -473,6 +477,143 @@ WEBSITE_SETTINGS_SEED: Dict[str, Any] = {
     }
 }
 
+LANDING_CONTENT_SEED: Dict[str, Any] = {
+    "_id": "website_landing_content",
+    "announcement": {
+        "enabled": True,
+        "badge": "LAUNCH OFFER",
+        "text": "🎉 Get 20% OFF your first laundry pickup with code QUICK20!",
+        "linkText": "Book Now",
+        "linkUrl": "/home"
+    },
+    "hero": {
+        "badgeText": "⚡ Lightning-Fast Doorstep Laundry",
+        "headline": "Fastest Laundry & Dry Cleaning at Your Doorstep",
+        "subheadline": "Pickup in 15-30 minutes. Sanitized eco-friendly washing, master fabric care, and crisp steam delivery within 24-48 hours.",
+        "primaryCtaText": "Schedule Free Pickup",
+        "primaryCtaLink": "/home",
+        "secondaryCtaText": "Explore Services & Rates",
+        "secondaryCtaLink": "#services",
+        "highlightBullets": [
+            "Free Doorstep Pickup & Delivery",
+            "100% Antiseptic Isolated Wash",
+            "Live GPS Rider Tracking",
+            "Transparent Per-Piece Pricing"
+        ]
+    },
+    "stats": {
+        "ordersCompleted": "50,000+",
+        "onTimeDeliveryRate": "99.4%",
+        "customerRating": "4.9★",
+        "avgTurnaround": "24 Hours",
+        "partnerHubs": "15+"
+    },
+    "whyUs": [
+        {
+            "id": "why-1",
+            "icon": "ShieldCheck",
+            "title": "100% Antiseptic Sanitization",
+            "description": "Every order is sanitized in isolated drums with hospital-grade eco detergents. Your clothes are never mixed with anyone else's garments."
+        },
+        {
+            "id": "why-2",
+            "icon": "Sparkles",
+            "title": "Master Fabric Protection",
+            "description": "Color-sorted cycles, gentle stain pre-treatment, and temperature-controlled steam finishing tailored to every delicate fabric."
+        },
+        {
+            "id": "why-3",
+            "icon": "Truck",
+            "title": "Live Rider GPS Tracking",
+            "description": "Watch your pickup and delivery riders in real time on the map with precision live ETA and instant doorstep arrival alerts."
+        },
+        {
+            "id": "why-4",
+            "icon": "BadgePercent",
+            "title": "Transparent Per-Piece Pricing",
+            "description": "Calibrated digital weighing and piece inspection at pickup. Instant digital receipts sent to your phone with zero hidden fees."
+        }
+    ],
+    "howItWorks": [
+        {
+            "step": "01",
+            "title": "Schedule Pickup",
+            "desc": "Choose your required services (Wash & Fold, Dry Cleaning, Steam Iron) and pick a convenient morning, afternoon, or evening slot."
+        },
+        {
+            "step": "02",
+            "title": "Doorstep Handover",
+            "desc": "Our verified delivery rider arrives at your doorstep, conducts garment inspection, and seals items safely in protective bags."
+        },
+        {
+            "step": "03",
+            "title": "Master Fabric Care",
+            "desc": "Clothes undergo expert color sorting, stain pre-treatment, hygienic washing, and precision steam ironing in certified partner hubs."
+        },
+        {
+            "step": "04",
+            "title": "Fresh & Fast Delivery",
+            "desc": "Crisply pressed, neatly folded or hung garments are delivered back to your home fresh and ready to wear."
+        }
+    ],
+    "appPromo": {
+        "headline": "Laundry Day, Solved in 2 Taps",
+        "subheadline": "Order on the web or download the QuickPress mobile app for instant live tracking, wallet cashback, and member privileges.",
+        "googlePlayAvailable": True,
+        "appStoreAvailable": True
+    }
+}
+
+TESTIMONIALS_SEED: List[Dict[str, Any]] = [
+    {
+        "_id": "rev-1",
+        "name": "Priya Sharma",
+        "role": "Working Professional",
+        "city": "Bengaluru",
+        "rating": 5,
+        "review": "QuickPress has transformed my weekends! The clothes smell wonderfully fresh, whites are dazzling, and the steam press fold is crisp like brand new.",
+        "avatarUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80",
+        "isFeatured": True,
+        "isPublished": True,
+        "sortOrder": 1
+    },
+    {
+        "_id": "rev-2",
+        "name": "Rahul Verma",
+        "role": "Software Engineer",
+        "city": "Kasganj",
+        "rating": 5,
+        "review": "Super fast pickup within 20 minutes of booking. Being able to track the delivery rider live on the map gave me complete peace of mind. Truly 5-star service!",
+        "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80",
+        "isFeatured": True,
+        "isPublished": True,
+        "sortOrder": 2
+    },
+    {
+        "_id": "rev-3",
+        "name": "Ananya Sen",
+        "role": "Fashion Designer",
+        "city": "Delhi NCR",
+        "rating": 5,
+        "review": "The dry cleaning for my delicate silk sarees and designer blazers was top tier. QuickClub VIP membership saved me plenty on delivery fees too.",
+        "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+        "isFeatured": True,
+        "isPublished": True,
+        "sortOrder": 3
+    },
+    {
+        "_id": "rev-4",
+        "name": "Vikram Malhotra",
+        "role": "Business Owner",
+        "city": "Uttar Pradesh",
+        "rating": 5,
+        "review": "Digital weighing at pickup and transparent itemized receipts right on WhatsApp & SMS. No hidden charges and exceptional customer care.",
+        "avatarUrl": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
+        "isFeatured": True,
+        "isPublished": True,
+        "sortOrder": 4
+    }
+]
 
 # =========================================================================
 #  CMS Repository Class
@@ -480,7 +621,7 @@ WEBSITE_SETTINGS_SEED: Dict[str, Any] = {
 
 class CMSRepository:
     async def ensure_seed(self) -> None:
-        """Seed initial legal documents, FAQs, and website settings into MongoDB."""
+        """Seed initial legal documents, FAQs, settings, landing content, and testimonials into MongoDB."""
         # 1. Legal Docs
         for doc_id, doc_data in LEGAL_DOCS_SEED.items():
             existing = await database.find_one("website_legal_docs", {"_id": doc_id})
@@ -505,7 +646,59 @@ class CMSRepository:
             {"$set": WEBSITE_SETTINGS_SEED},
             upsert=True
         )
+
+        # 4. Landing Page Content
+        await database.collection("website_landing_content").update_one(
+            {"_id": LANDING_CONTENT_SEED["_id"]},
+            {"$set": LANDING_CONTENT_SEED},
+            upsert=True
+        )
+
+        # 5. Testimonials
+        for item in TESTIMONIALS_SEED:
+            await database.collection("website_testimonials").update_one(
+                {"_id": item["_id"]},
+                {"$set": item},
+                upsert=True
+            )
+
         logger.info("QuickPress CMS initial seed verified successfully.")
+
+    # ------------------ Landing Page Content ------------------
+    async def get_landing_content(self) -> Dict[str, Any]:
+        doc = await database.find_one("website_landing_content", {"_id": LANDING_CONTENT_SEED["_id"]})
+        return doc or LANDING_CONTENT_SEED
+
+    async def update_landing_content_admin(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        data["updatedAt"] = utcnow_iso()
+        await database.collection("website_landing_content").update_one(
+            {"_id": LANDING_CONTENT_SEED["_id"]},
+            {"$set": data},
+            upsert=True
+        )
+        return {"ok": True}
+
+    # ------------------ Testimonials ------------------
+    async def list_testimonials(self, published_only: bool = True) -> List[Dict[str, Any]]:
+        query = {"isPublished": True} if published_only else {}
+        docs = await database.find_many("website_testimonials", query)
+        docs.sort(key=lambda x: int(x.get("sortOrder", 999)))
+        return docs or TESTIMONIALS_SEED
+
+    async def save_testimonial_admin(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        t_id = data.get("id") or data.get("_id") or f"rev_{uuid.uuid4().hex[:8]}"
+        data["_id"] = t_id
+        data["updatedAt"] = utcnow_iso()
+        await database.collection("website_testimonials").update_one(
+            {"_id": t_id},
+            {"$set": data},
+            upsert=True
+        )
+        return {"ok": True, "id": t_id}
+
+    async def delete_testimonial_admin(self, testimonial_id: str) -> Dict[str, Any]:
+        await database.collection("website_testimonials").delete_one({"_id": testimonial_id})
+        return {"ok": True, "id": testimonial_id}
 
     # ------------------ Legal Documents ------------------
     async def get_legal_doc(self, doc_slug: str) -> Optional[Dict[str, Any]]:
