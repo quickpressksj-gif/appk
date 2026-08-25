@@ -44,6 +44,10 @@ import {
   Wallet,
   WifiOff,
   X,
+  Building2,
+  ExternalLink,
+  Layers,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -52,6 +56,8 @@ import { toast } from "sonner";
 import { BottomNav } from "@/components/home/BottomNav";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Toaster } from "@/shared/ui/sonner";
+import { getPanelUrls } from "@/lib/panel-urls";
+import { PanelLauncherModal } from "@/components/PanelLauncherModal";
 import {
   fetchProfileData,
   logout,
@@ -225,6 +231,7 @@ function ProfileScreen() {
   const [offline, setOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const settings = useAppSettings();
   const activeLocation = readSavedLocation();
@@ -357,6 +364,11 @@ function ProfileScreen() {
     navigate({ to: "/home" });
   };
 
+  const panels = getPanelUrls("customer");
+  const partnerPanel = panels.find((p) => p.id === "partner");
+  const riderPanel = panels.find((p) => p.id === "rider");
+  const adminPanel = panels.find((p) => p.id === "admin");
+
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950">
       <div className="relative mx-auto w-full max-w-md">
@@ -364,6 +376,15 @@ function ProfileScreen() {
         <header className="glass-panel sticky top-0 z-30 flex items-center justify-between gap-3 border-x-0 border-t-0 px-5 py-3">
           <h1 className="text-lg font-bold tracking-tight text-foreground">My Profile</h1>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              aria-label="QuickPress Ecosystem"
+              title="Switch Panel / Ecosystem"
+              onClick={() => setLauncherOpen(true)}
+              className="flex size-10 items-center justify-center rounded-2xl bg-white text-foreground shadow-xs border border-border/50 transition-all duration-300 hover:bg-accent active:scale-[0.94] dark:bg-zinc-900 dark:border-zinc-800"
+            >
+              <Layers className="size-5 text-primary" />
+            </button>
             <button
               type="button"
               aria-label="Notifications"
@@ -698,6 +719,49 @@ function ProfileScreen() {
               <p className="mt-3 text-center text-[11px] font-semibold text-muted-foreground">
                 QuickPress App Version {data.appVersion} • All Rights Reserved
               </p>
+            </section>
+
+            {/* QuickPress Business & Multi-Panel Ecosystem */}
+            <section className="mt-8">
+              <SectionHeading title="QuickPress Business & Portals" />
+              <RowList
+                rows={[
+                  {
+                    id: "partner-portal",
+                    label: "Partner & Vendor Console",
+                    note: "Manage your laundry store, catalog & orders",
+                    icon: Building2,
+                    action: () => {
+                      if (partnerPanel?.url) window.open(partnerPanel.url, "_blank");
+                    },
+                  },
+                  {
+                    id: "rider-portal",
+                    label: "Rider & Delivery Fleet",
+                    note: "Accept pickup & drop tasks across your city",
+                    icon: Truck,
+                    action: () => {
+                      if (riderPanel?.url) window.open(riderPanel.url, "_blank");
+                    },
+                  },
+                  {
+                    id: "admin-portal",
+                    label: "Admin Command Center",
+                    note: "Super admin & operations staff portal",
+                    icon: ShieldCheck,
+                    action: () => {
+                      if (adminPanel?.url) window.open(adminPanel.url, "_blank");
+                    },
+                  },
+                  {
+                    id: "portal-hub",
+                    label: "Multi-Panel Ecosystem Hub",
+                    note: "Explore all 4 QuickPress apps & switch anytime",
+                    icon: Layers,
+                    action: () => navigate({ to: "/portal" }),
+                  },
+                ]}
+              />
             </section>
 
             {/* Account settings */}
@@ -1115,6 +1179,11 @@ function ProfileScreen() {
       />
 
       {editing || logoutOpen || settingsOpen ? null : <BottomNav active="profile" />}
+      <PanelLauncherModal
+        open={launcherOpen}
+        onClose={() => setLauncherOpen(false)}
+        currentPanel="customer"
+      />
       <Toaster position="top-center" />
     </main>
   );

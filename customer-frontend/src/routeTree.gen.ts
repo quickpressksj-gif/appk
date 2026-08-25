@@ -27,6 +27,7 @@ import { Route as MembershipRouteImport } from './routes/membership'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as PaymentMethodsRouteImport } from './routes/payment-methods'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ReferralRouteImport } from './routes/referral'
 import { Route as SearchRouteImport } from './routes/search'
@@ -129,6 +130,11 @@ const PaymentMethodsRoute = PaymentMethodsRouteImport.update({
   path: '/payment-methods',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/payment-methods': typeof PaymentMethodsRoute
+  '/portal': typeof PortalRoute
   '/profile': typeof ProfileRoute
   '/referral': typeof ReferralRoute
   '/search': typeof SearchRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/payment-methods': typeof PaymentMethodsRoute
+  '/portal': typeof PortalRoute
   '/profile': typeof ProfileRoute
   '/referral': typeof ReferralRoute
   '/search': typeof SearchRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/payment-methods': typeof PaymentMethodsRoute
+  '/portal': typeof PortalRoute
   '/profile': typeof ProfileRoute
   '/referral': typeof ReferralRoute
   '/search': typeof SearchRoute
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offers'
     | '/payment-methods'
+    | '/portal'
     | '/profile'
     | '/referral'
     | '/search'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offers'
     | '/payment-methods'
+    | '/portal'
     | '/profile'
     | '/referral'
     | '/search'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offers'
     | '/payment-methods'
+    | '/portal'
     | '/profile'
     | '/referral'
     | '/search'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   OffersRoute: typeof OffersRoute
   PaymentMethodsRoute: typeof PaymentMethodsRoute
+  PortalRoute: typeof PortalRoute
   ProfileRoute: typeof ProfileRoute
   ReferralRoute: typeof ReferralRoute
   SearchRoute: typeof SearchRoute
@@ -535,6 +548,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaymentMethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -634,6 +654,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   OffersRoute: OffersRoute,
   PaymentMethodsRoute: PaymentMethodsRoute,
+  PortalRoute: PortalRoute,
   ProfileRoute: ProfileRoute,
   ReferralRoute: ReferralRoute,
   SearchRoute: SearchRoute,
