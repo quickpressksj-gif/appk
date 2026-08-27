@@ -22,8 +22,12 @@ if not _real_uri:
     _real_uri = (_env_dict.get("MONGODB_URI") or "").strip()
 
 os.environ["MONGODB_URI"] = ""
+os.environ["USE_IN_MEMORY_DB"] = "true"
 if _real_uri:
     os.environ["REAL_MONGODB_URI"] = _real_uri
+
+from app.config import get_settings
+get_settings.cache_clear()
 
 
 def real_mongodb_uri() -> str:

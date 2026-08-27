@@ -118,15 +118,15 @@ class PartnerProfileUpdate(BaseModel):
 
 
 class BusinessSettingsResponse(BaseModel):
-    isStoreOpen: bool
-    acceptingNewOrders: bool
-    autoAcceptOrders: bool
-    expressDelivery: bool
-    pickupRadiusKm: int
-    openingTime: str
-    closingTime: str
-    weeklyOff: str
-    dailyOrderCap: int
+    isStoreOpen: bool = True
+    acceptingNewOrders: bool = True
+    autoAcceptOrders: bool = True
+    expressDelivery: bool = True
+    pickupRadiusKm: int = 8
+    openingTime: str = "08:00"
+    closingTime: str = "21:00"
+    weeklyOff: str = "None"
+    dailyOrderCap: int = 50
 
 
 class BusinessSettingsUpdate(BaseModel):

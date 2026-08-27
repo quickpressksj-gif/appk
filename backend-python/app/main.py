@@ -48,6 +48,7 @@ from app.db.rider_repositories import RIDER_SEED
 from app.db.client import database
 from app.db.catalog_repositories import catalog
 from app.db.cms_repositories import cms_repo
+from app.db.customer_seed import seed_customer_account
 from app.db.membership_repositories import MEMBERSHIP_SEED
 from app.db.identity_seed import align_partner_identities
 from app.db.partner_repositories import PARTNER_SEED
@@ -58,7 +59,8 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
+    settings = get_settings()
     # Strict startup order — every step must succeed before the next one runs:
     #   a. connect to MongoDB
     #   b/c/d. schema migrations: backfill canonical identity fields and replace
@@ -74,8 +76,8 @@ async def lifespan(_: FastAPI):
     await database.ensure_indexes()
     await catalog.ensure_seed()
 
-    # Editorial service content, availability zones and business hours
-    for seed in (SERVICE_CONTENT_SEED, CART_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
+    # Editorial service definitions, availability zones and membership plans
+    for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
         for name, documents in seed.items():
             collection = database.collection(name)
             for document in documents:
@@ -85,7 +87,6 @@ async def lifespan(_: FastAPI):
                     upsert=True,
                 )
     # Master administrative catalog (cities, categories, master services)
-    await database.upsert_seed(ADMIN_SEED)
     # QuickPress Website CMS initial seed (Legal documents, FAQs, settings)
     await cms_repo.ensure_seed()
     yield

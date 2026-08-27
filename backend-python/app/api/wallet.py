@@ -19,6 +19,7 @@ from app.models.wallet import (
     AddFundsResponse,
     WalletHistoryResponse,
     WalletResponse,
+    WalletTransaction,
 )
 
 router = APIRouter(tags=["wallet"])
@@ -31,12 +32,12 @@ async def wallet_history(
     return await wallet_repository.history(user, limit=limit)
 
 
-@router.get("/wallet/transactions")
+@router.get("/wallet/transactions", response_model=list[WalletTransaction])
 async def wallet_transactions(
     limit: int = Query(default=20, ge=1, le=100), user: User = Depends(current_user)
-) -> list:
+) -> list[WalletTransaction]:
     history = await wallet_repository.history(user, limit=limit)
-    return history.transactions if hasattr(history, "transactions") else []
+    return history.items
 
 
 

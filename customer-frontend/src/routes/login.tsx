@@ -24,9 +24,10 @@ import {
 import { verifyCustomerOtp } from "@/lib/customer-auth";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => {
+    const r = search["redirect"];
+    return typeof r === "string" ? { redirect: r } : {};
+  },
   head: () => ({
     meta: [
       { title: "QuickPress — Sign in with your mobile number" },
@@ -203,7 +204,7 @@ function PhoneStep({
   phone: string;
   setPhone: (v: string) => void;
   sending: boolean;
-  redirectTarget?: string;
+  redirectTarget?: string | undefined;
   onContinue: () => void;
 }) {
   const valid = phone.length === country.digits;
@@ -430,7 +431,7 @@ function OtpStep({
 }: {
   phone: string;
   fullNumber: string;
-  redirectTarget?: string;
+  redirectTarget?: string | undefined;
   onEdit: () => void;
 }) {
   const navigate = useNavigate();

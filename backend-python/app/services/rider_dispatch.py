@@ -273,8 +273,14 @@ class RiderDispatchEngine:
             "trips": str(rider_profile.get("totalTrips", 120)),
         }
 
-        # Secure random 4-digit Pickup OTP generated on server
-        pickup_otp_record = create_otp_record()
+        # Secure random 4-digit Pickup OTP (preserve code if already generated on order)
+        existing_pickup = (order.get("otp") or {}).get("pickup")
+        if isinstance(existing_pickup, dict) and existing_pickup.get("code"):
+            pickup_otp_record = existing_pickup
+        elif isinstance(existing_pickup, str) and existing_pickup:
+            pickup_otp_record = create_otp_record(code=existing_pickup)
+        else:
+            pickup_otp_record = create_otp_record()
 
         now = lifecycle.now_iso()
 

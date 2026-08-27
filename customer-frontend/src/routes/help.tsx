@@ -528,49 +528,6 @@ function HelpScreen() {
               </div>
             </section>
 
-            {/* Footer */}
-            <section className="mt-7 flex flex-col items-center gap-3">
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/legal/$docSlug", params: { docSlug: "privacy-policy" } })}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <Shield className="size-3.5" />
-                  Privacy Policy
-                </button>
-                <span className="text-muted-foreground/50">·</span>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/legal/$docSlug", params: { docSlug: "terms-of-service" } })}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <FileText className="size-3.5" />
-                  Terms & Conditions
-                </button>
-                <span className="text-muted-foreground/50">·</span>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/legal/$docSlug", params: { docSlug: "cancellation-refund-policy" } })}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <RefreshCcw className="size-3.5" />
-                  Refund Policy
-                </button>
-                <span className="text-muted-foreground/50">·</span>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/contact" })}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <Headphones className="size-3.5" />
-                  Contact
-                </button>
-              </div>
-              <p className="text-[11px] font-semibold text-muted-foreground/80">
-                QuickPress · App version {contact?.appVersion} • All Rights Reserved
-              </p>
-            </section>
           </div>
         )}
       </div>

@@ -102,6 +102,16 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     else:
         await users._ensure_role_profile(user)
 
+    if payload.role == Role.customer and settings.app_env.lower() != "production":
+        from app.db.customer_seed import seed_customer_account
+        try:
+            await seed_customer_account(phone)
+            refreshed = await users.by_phone(phone, payload.role)
+            if refreshed:
+                user = refreshed
+        except Exception:
+            pass
+
     return await _issue_session(user)
 
 
@@ -141,8 +151,10 @@ async def refresh(payload: RefreshRequest) -> AuthSessionResponse:
 
 @router.post("/admin/pin", response_model=AuthSessionResponse)
 async def admin_pin_login(payload: dict) -> AuthSessionResponse:
+    settings = get_settings()
     pin = str(payload.get("pin", "")).strip()
-    if pin != "4502":
+    expected_pin = settings.admin_security_pin.strip()
+    if not pin or pin != expected_pin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect Admin Passcode (PIN). Access denied.",
@@ -178,4 +190,12 @@ async def logout(payload: LogoutRequest, user: User = Depends(current_user)) -> 
     await refresh_tokens.revoke_all_for_user(user.id)
     revoke_refresh_tokens(user.firebase_uid)
     return {"ok": True}
+
+
+@router.delete("/account")
+@router.delete("/me")
+async def delete_account(user: User = Depends(current_user)) -> dict:
+    from app.db.profile_repositories import profile_repository
+    return await profile_repository.delete_account(user)
+
 

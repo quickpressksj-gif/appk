@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import current_user
 from app.db.address_repositories import address_repository
@@ -103,12 +103,15 @@ def payment_methods(balance: int, payable: int) -> list[PaymentMethodResponse]:
 
 
 @router.get("/checkout", response_model=CheckoutResponse)
-async def get_checkout(user: User = Depends(current_user)) -> CheckoutResponse:
+async def get_checkout(
+    couponDiscount: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+) -> CheckoutResponse:
     addresses = await address_repository.list(user.id)
     items = await cart_repository.lines(user.id)
     charges = await cart_repository.charges()
-    coupons = await cart_repository.coupons()
-    totals = compute_totals(items, charges)
+    coupons = await cart_repository.coupons(user.id)
+    totals = compute_totals(items, charges, couponDiscount)
     store = await cart_repository._store(items)
     balance = await wallet_balance(user.id)
     schedule = pickup_schedule()

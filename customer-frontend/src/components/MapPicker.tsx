@@ -177,7 +177,7 @@ export function MapPicker({
     try {
       if (suggestion.placeId.startsWith("geo:")) {
         const parts = suggestion.placeId.split(":");
-        if (parts.length >= 3) {
+        if (parts.length >= 3 && parts[1] && parts[2]) {
           const lat = parseFloat(parts[1]);
           const lng = parseFloat(parts[2]);
           if (!isNaN(lat) && !isNaN(lng)) {

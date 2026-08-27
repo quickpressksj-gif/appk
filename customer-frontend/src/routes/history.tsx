@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { BottomNav } from "@/components/home/BottomNav";
+import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import {
   fetchOrderHistory,
   readCachedOrderHistory,
@@ -348,6 +349,7 @@ function HistoryScreen() {
         </div>
       </div>
 
+      <FloatingCartBar />
       <BottomNav active="history" />
     </main>
   );

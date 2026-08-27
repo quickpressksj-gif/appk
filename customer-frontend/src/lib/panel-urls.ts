@@ -48,22 +48,22 @@ export function getPanelUrls(currentPanel: "customer" | "partner" | "rider" | "a
 
   const customerUrl = getUrl(
     8081,
-    import.meta.env.VITE_CUSTOMER_URL,
+    import.meta.env["VITE_CUSTOMER_URL"] as string | undefined,
     "https://www.quickpress.online"
   );
   const partnerUrl = getUrl(
     8082,
-    import.meta.env.VITE_PARTNER_URL,
+    import.meta.env["VITE_PARTNER_URL"] as string | undefined,
     "https://partner.quickpress.online"
   );
   const riderUrl = getUrl(
     8083,
-    import.meta.env.VITE_RIDER_URL,
+    import.meta.env["VITE_RIDER_URL"] as string | undefined,
     "https://rider.quickpress.online"
   );
   const adminUrl = getUrl(
     8084,
-    import.meta.env.VITE_ADMIN_URL,
+    import.meta.env["VITE_ADMIN_URL"] as string | undefined,
     "https://admin.quickpress.online"
   );
 

@@ -44,12 +44,12 @@ type Handler = (payload: AnyRealtimePayload) => void;
 const DEDUPE_LIMIT = 500;
 
 function socketUrl(): string {
-  const raw = import.meta.env["VITE_SOCKET_URL"];
-  return typeof raw === "string" ? raw.trim() : "";
+  const raw = import.meta.env["VITE_SOCKET_URL"] || import.meta.env["VITE_API_BASE_URL"] || "http://localhost:8000";
+  return typeof raw === "string" ? raw.trim() : "http://localhost:8000";
 }
 
 export function isRealtimeConfigured(): boolean {
-  return socketUrl().length > 0;
+  return true;
 }
 
 export function realtimeMode(): RealtimeMode {

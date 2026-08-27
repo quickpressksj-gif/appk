@@ -18,9 +18,13 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed frontend origins.
     cors_origins: str = "http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,https://www.quickpress.online,https://quickpress.online,https://customer-5ys4.onrender.com"
 
-    # --- MongoDB Atlas ------------------------------------------------
-    mongodb_uri: str = ""            # mongodb+srv://... (empty => in-memory preview store)
+    # --- MongoDB / Supabase / PostgreSQL ------------------------------
+    mongodb_uri: str = ""            # mongodb+srv://... (empty => fallback to Supabase / in-memory)
     mongodb_db_name: str = "quickpress"
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
+    database_url: str = ""           # postgresql://...
 
     # --- Firebase Admin ----------------------------------------------
     firebase_project_id: str = ""
@@ -64,6 +68,9 @@ class Settings(BaseSettings):
     delivery_radius_km: float = 8.0
 
 
+    # --- Admin Security --------------------------------------------------
+    admin_security_pin: str = "4502"
+
     @property
     def cors_origin_list(self) -> List[str]:
         raw_origins = [
@@ -72,6 +79,18 @@ class Settings(BaseSettings):
             if origin.strip()
         ]
         origins = [o for o in raw_origins if o != "*"]
+
+        if self.app_env.lower() == "production":
+            # In production, allow ONLY explicit https origins
+            prod_origins = [
+                "https://www.quickpress.online",
+                "https://quickpress.online",
+                "https://customer-5ys4.onrender.com",
+            ]
+            for origin in prod_origins:
+                if origin not in origins:
+                    origins.append(origin)
+            return [o for o in origins if not ("localhost" in o or "127.0.0.1" in o)]
 
         essential_origins = [
             "https://www.quickpress.online",

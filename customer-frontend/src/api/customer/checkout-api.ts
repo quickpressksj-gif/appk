@@ -184,9 +184,9 @@ export type PlaceOrderInput = {
   items: CartData["items"];
   pickup: { day: string; slot: string; express: boolean };
   payment: CheckoutPaymentMethod | undefined;
-  couponCode?: string;
-  couponDiscount?: number;
-  instructions?: string;
+  couponCode?: string | undefined;
+  couponDiscount?: number | undefined;
+  instructions?: string | undefined;
   /** Sent so a double tap or a retry can never create two orders. */
   idempotencyKey: string;
 };

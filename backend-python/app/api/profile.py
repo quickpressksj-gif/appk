@@ -64,3 +64,10 @@ async def update_settings(
     payload: SettingsUpdatePayload, user: User = Depends(current_user)
 ) -> SettingsResponse:
     return await settings_repository.update(user.id, payload)
+
+
+@router.delete("/profile")
+async def delete_profile(user: User = Depends(current_user)) -> dict:
+    """Permanently delete customer account and associated personal data."""
+    return await profile_repository.delete_account(user)
+

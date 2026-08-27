@@ -26,7 +26,7 @@ async def health() -> dict:
 
     try:
         settings = get_settings()
-        db_status = "in-memory" if database.in_memory else "mongodb-atlas"
+        db_status = database.engine_type
         env = settings.app_env
         firebase_ok = _firebase_app() is not None
     except Exception:  # pragma: no cover — defensive; must never kill the route

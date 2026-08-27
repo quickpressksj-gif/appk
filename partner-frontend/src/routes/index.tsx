@@ -1,21 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { partnerRoutes } from "../navigation/partner-routes";
-import { readSession } from "../api/core/session-store";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
-    if (typeof window === "undefined") return;
-    const session = readSession("partner");
-    if (session && session.token) {
-      if (!session.account.isOnboarded) {
-        throw redirect({ to: partnerRoutes.registration });
-      }
-      if (!session.account.isVerified) {
-        throw redirect({ to: partnerRoutes.registrationSubmitted });
-      }
-      throw redirect({ to: partnerRoutes.dashboard });
-    }
     throw redirect({ to: partnerRoutes.auth });
   },
   head: () => ({

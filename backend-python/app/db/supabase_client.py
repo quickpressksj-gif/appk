@@ -1,0 +1,403 @@
+"""Supabase PostgreSQL Document and Relational Store for QuickPress.
+
+Persists documents into Supabase PostgreSQL (JSONB + indexed tables) with full
+support for MongoDB/Document-store query operators ($set, $inc, $in, $regex,
+nested paths, cursor pagination, sort, and upsert).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+import uuid
+
+import asyncpg
+
+logger = logging.getLogger(__name__)
+
+
+def _get_nested(doc: Dict[str, Any], path: str) -> Any:
+    parts = path.split(".")
+    current: Any = doc
+    for part in parts:
+        if isinstance(current, dict):
+            current = current.get(part)
+        else:
+            return None
+    return current
+
+
+def _set_nested(doc: Dict[str, Any], path: str, value: Any) -> None:
+    parts = path.split(".")
+    current = doc
+    for part in parts[:-1]:
+        if part not in current or not isinstance(current[part], dict):
+            current[part] = {}
+        current = current[part]
+    current[parts[-1]] = value
+
+
+def _unset_nested(doc: Dict[str, Any], path: str) -> None:
+    parts = path.split(".")
+    current = doc
+    for part in parts[:-1]:
+        if not isinstance(current, dict) or part not in current:
+            return
+        current = current[part]
+    if isinstance(current, dict):
+        current.pop(parts[-1], None)
+
+
+def _matches(doc: Dict[str, Any], query: Dict[str, Any]) -> bool:
+    if not query:
+        return True
+
+    for key, expected in query.items():
+        if key == "$or":
+            if not any(_matches(doc, branch) for branch in expected):
+                return False
+            continue
+        if key == "$and":
+            if not all(_matches(doc, branch) for branch in expected):
+                return False
+            continue
+
+        actual = _get_nested(doc, key)
+
+        if isinstance(expected, dict):
+            for op, val in expected.items():
+                if op == "$eq" and actual != val:
+                    return False
+                elif op == "$ne" and actual == val:
+                    return False
+                elif op == "$in":
+                    if isinstance(actual, list):
+                        if not any(item in val for item in actual):
+                            return False
+                    elif actual not in val:
+                        return False
+                elif op == "$nin":
+                    if isinstance(actual, list):
+                        if any(item in val for item in actual):
+                            return False
+                    elif actual in val:
+                        return False
+                elif op == "$gt" and not (actual is not None and actual > val):
+                    return False
+                elif op == "$gte" and not (actual is not None and actual >= val):
+                    return False
+                elif op == "$lt" and not (actual is not None and actual < val):
+                    return False
+                elif op == "$lte" and not (actual is not None and actual <= val):
+                    return False
+                elif op == "$regex":
+                    if actual is None:
+                        return False
+                    pattern = str(val)
+                    flags = 0
+                    if "$options" in expected and "i" in expected["$options"]:
+                        flags = re.IGNORECASE
+                    if not re.search(pattern, str(actual), flags=flags):
+                        return False
+                elif op == "$exists":
+                    exists = actual is not None
+                    if exists != bool(val):
+                        return False
+        else:
+            if isinstance(actual, list) and not isinstance(expected, list):
+                if expected not in actual:
+                    return False
+            elif actual != expected:
+                return False
+
+    return True
+
+
+def _apply_update(target: Dict[str, Any], update: Dict[str, Any]) -> None:
+    is_atomic = any(k.startswith("$") for k in update.keys())
+    if not is_atomic:
+        target.clear()
+        target.update(update)
+        return
+
+    if "$set" in update:
+        for k, v in update["$set"].items():
+            _set_nested(target, k, v)
+
+    if "$unset" in update:
+        for k in update["$unset"].keys():
+            _unset_nested(target, k)
+
+    if "$inc" in update:
+        for k, delta in update["$inc"].items():
+            current = _get_nested(target, k) or 0
+            _set_nested(target, k, current + delta)
+
+    if "$push" in update:
+        for k, v in update["$push"].items():
+            arr = _get_nested(target, k)
+            if not isinstance(arr, list):
+                arr = []
+                _set_nested(target, k, arr)
+            if isinstance(v, dict) and "$each" in v:
+                arr.extend(v["$each"])
+            else:
+                arr.append(v)
+
+    if "$pull" in update:
+        for k, v in update["$pull"].items():
+            arr = _get_nested(target, k)
+            if isinstance(arr, list):
+                if isinstance(v, dict):
+                    _set_nested(target, k, [item for item in arr if not _matches(item, v)])
+                else:
+                    _set_nested(target, k, [item for item in arr if item != v])
+
+
+def _sort_key(val: Any) -> Any:
+    if val is None:
+        return ""
+    if isinstance(val, (int, float)):
+        return val
+    return str(val).lower()
+
+
+class SupabaseCursor:
+    """Async cursor mimicking PyMongo/Motor cursor for Supabase PostgreSQL."""
+
+    def __init__(self, collection: SupabaseCollection, query: Dict[str, Any]) -> None:
+        self._collection = collection
+        self._query = query
+        self._sort_fields: List[Tuple[str, int]] = []
+        self._skip = 0
+        self._limit: Optional[int] = None
+
+    def sort(self, key_or_list: Any, direction: int = 1) -> SupabaseCursor:
+        if isinstance(key_or_list, list):
+            self._sort_fields = key_or_list
+        elif isinstance(key_or_list, tuple):
+            self._sort_fields = [key_or_list]
+        elif isinstance(key_or_list, str):
+            self._sort_fields = [(key_or_list, direction)]
+        return self
+
+    def skip(self, n: int) -> SupabaseCursor:
+        self._skip = n
+        return self
+
+    def limit(self, n: int) -> SupabaseCursor:
+        self._limit = n
+        return self
+
+    async def to_list(self, length: Optional[int] = None) -> List[Dict[str, Any]]:
+        docs = await self._collection.find_many(self._query)
+        if self._sort_fields:
+            for key, direction in reversed(self._sort_fields):
+                docs.sort(key=lambda d: _sort_key(_get_nested(d, key)), reverse=(direction < 0))
+        if self._skip:
+            docs = docs[self._skip:]
+        lim = self._limit if self._limit is not None else length
+        if lim is not None:
+            docs = docs[:lim]
+        return docs
+
+
+class SupabaseCollection:
+    """PostgreSQL-backed document collection in Supabase."""
+
+    def __init__(self, db: Any, name: str) -> None:
+        self._db = db
+        self._name = name
+
+    async def _fetch_all(self) -> List[Dict[str, Any]]:
+        pool = await self._db.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT data FROM quickpress_documents WHERE collection = $1", self._name
+            )
+            return [json.loads(r["data"]) for r in rows]
+
+    async def _save_doc(self, doc: Dict[str, Any]) -> None:
+        doc_id = str(doc.get("_id") or doc.get("id") or uuid.uuid4().hex)
+        if "_id" not in doc:
+            doc["_id"] = doc_id
+        payload = json.dumps(doc, default=str)
+        pool = await self._db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO quickpress_documents (id, collection, data, updated_at)
+                VALUES ($1, $2, $3::jsonb, NOW())
+                ON CONFLICT (id) DO UPDATE
+                SET data = EXCLUDED.data, updated_at = NOW();
+                """,
+                f"{self._name}:{doc_id}",
+                self._name,
+                payload,
+            )
+
+    async def _delete_doc_id(self, doc_id: str) -> None:
+        pool = await self._db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM quickpress_documents WHERE id = $1", f"{self._name}:{doc_id}"
+            )
+
+    def find(self, query: Optional[Dict[str, Any]] = None) -> SupabaseCursor:
+        return SupabaseCursor(self, query or {})
+
+    async def find_one(self, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        docs = await self._fetch_all()
+        for d in docs:
+            if _matches(d, query):
+                return d
+        return None
+
+    async def find_many(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+        docs = await self._fetch_all()
+        return [d for d in docs if _matches(d, query)]
+
+    async def count_documents(self, query: Dict[str, Any]) -> int:
+        docs = await self._fetch_all()
+        return sum(1 for d in docs if _matches(d, query))
+
+    async def insert_one(self, document: Dict[str, Any]) -> Any:
+        doc = dict(document)
+        await self._save_doc(doc)
+
+        class InsertResult:
+            inserted_id = doc.get("_id") or doc.get("id")
+
+        return InsertResult()
+
+    async def insert_many(self, documents: Sequence[Dict[str, Any]]) -> None:
+        for doc in documents:
+            await self._save_doc(dict(doc))
+
+    async def update_one(
+        self, query: Dict[str, Any], update: Dict[str, Any], upsert: bool = False
+    ) -> int:
+        docs = await self._fetch_all()
+        target = next((d for d in docs if _matches(d, query)), None)
+        if target is None:
+            if not upsert:
+                return 0
+            target = {**query, **update.get("$setOnInsert", {})}
+            _apply_update(target, update)
+            await self._save_doc(target)
+            return 1
+
+        _apply_update(target, update)
+        await self._save_doc(target)
+        return 1
+
+    async def update_many(self, query: Dict[str, Any], update: Dict[str, Any]) -> int:
+        docs = await self._fetch_all()
+        matched = [d for d in docs if _matches(d, query)]
+        for doc in matched:
+            _apply_update(doc, update)
+            await self._save_doc(doc)
+        return len(matched)
+
+    async def find_one_and_update(
+        self,
+        query: Dict[str, Any],
+        update: Dict[str, Any],
+        return_document: Any = None,
+        upsert: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        docs = await self._fetch_all()
+        target = next((d for d in docs if _matches(d, query)), None)
+        if target is None:
+            if not upsert:
+                return None
+            target = {**query, **update.get("$setOnInsert", {})}
+            _apply_update(target, update)
+            await self._save_doc(target)
+            return dict(target)
+
+        _apply_update(target, update)
+        await self._save_doc(target)
+        return dict(target)
+
+    async def delete_one(self, query: Dict[str, Any]) -> int:
+        docs = await self._fetch_all()
+        target = next((d for d in docs if _matches(d, query)), None)
+        if target:
+            doc_id = target.get("id") or target.get("_id")
+            if doc_id:
+                await self._delete_doc_id(str(doc_id))
+                return 1
+        return 0
+
+    async def delete_many(self, query: Dict[str, Any]) -> int:
+        docs = await self._fetch_all()
+        matched = [d for d in docs if _matches(d, query)]
+        for doc in matched:
+            doc_id = doc.get("id") or doc.get("_id")
+            if doc_id:
+                await self._delete_doc_id(str(doc_id))
+        return len(matched)
+
+
+class SupabaseDatabase:
+    """Supabase PostgreSQL Database Client."""
+
+    def __init__(self, database_url: str) -> None:
+        self.database_url = database_url
+        self._pool: Optional[asyncpg.Pool] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._collections: Dict[str, SupabaseCollection] = {}
+
+    async def get_pool(self) -> asyncpg.Pool:
+        current_loop = asyncio.get_running_loop()
+        if self._pool is None or self._loop != current_loop or self._pool._closed:
+            if self._pool is not None and not self._pool._closed:
+                try:
+                    await self._pool.close()
+                except Exception:
+                    pass
+            self._pool = await asyncpg.create_pool(
+                self.database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=15,
+            )
+            self._loop = current_loop
+        return self._pool
+
+    async def connect(self) -> None:
+        logger.info("Connecting to Supabase PostgreSQL...")
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS quickpress_documents (
+                    id TEXT PRIMARY KEY,
+                    collection TEXT NOT NULL,
+                    data JSONB NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_qp_collection ON quickpress_documents(collection);
+                CREATE INDEX IF NOT EXISTS idx_qp_data_gin ON quickpress_documents USING GIN (data);
+                """
+            )
+        logger.info("Connected to Supabase PostgreSQL successfully.")
+
+    async def disconnect(self) -> None:
+        if self._pool is not None and not self._pool._closed:
+            await self._pool.close()
+            self._pool = None
+            self._loop = None
+
+    def collection(self, name: str) -> SupabaseCollection:
+        if name not in self._collections:
+            self._collections[name] = SupabaseCollection(self, name)
+        return self._collections[name]
+
+    def __getitem__(self, name: str) -> SupabaseCollection:
+        return self.collection(name)

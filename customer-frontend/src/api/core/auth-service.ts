@@ -45,11 +45,11 @@ const MOCK_ENDPOINTS = {
   verifyOtp: "/api/auth/verify-otp",
 } as const;
 
-export type AuthMode = "firebase";
+export type AuthMode = "firebase" | "mock";
 
 /** Real authentication runs only when both Firebase and the API are configured. */
 export function authMode(): AuthMode {
-  return "firebase";
+  return isFirebaseConfigured() && isApiConfigured() ? "firebase" : "mock";
 }
 
 function role(explicit?: AccountRole): AccountRole {

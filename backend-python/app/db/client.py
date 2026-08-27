@@ -99,14 +99,14 @@ def _apply_update(target: Dict[str, Any], update: Dict[str, Any]) -> None:
 
 
 def _sort_key(value: Any) -> Any:
-    """Stable sort key: keeps None out of comparisons across mixed types."""
+    """Stable sort key: keeps None and mixed types from failing comparisons."""
     if value is None:
-        return ""
+        return (0, 0, "")
     if isinstance(value, bool):
-        return int(value)
+        return (1, int(value), "")
     if isinstance(value, (int, float)):
-        return value
-    return str(value)
+        return (1, float(value), "")
+    return (2, 0, str(value))
 
 
 class InMemoryCollection:
@@ -210,41 +210,79 @@ class Database:
     def __init__(self) -> None:
         self._client: Any = None
         self._db: Any = None
+        self._supabase: Any = None
         self._memory: Dict[str, InMemoryCollection] = {}
+        self._fallback_in_memory: bool = False
+        self._engine: str = "in-memory"
 
     @property
     def in_memory(self) -> bool:
-        return get_settings().use_in_memory_db
+        if self._supabase is not None:
+            return False
+        settings = get_settings()
+        if settings.app_env.lower() == "production":
+            return False
+        return settings.use_in_memory_db or self._fallback_in_memory
+
+    @property
+    def engine_type(self) -> str:
+        if self._supabase is not None:
+            return "supabase-postgresql"
+        if self._db is not None:
+            return "mongodb-atlas"
+        return "in-memory"
 
     async def connect(self) -> None:
-        """Connect only. Schema migrations are a separate, explicit step."""
+        """Connect to database (Supabase PostgreSQL / MongoDB Atlas / in-memory)."""
         settings = get_settings()
-        if self.in_memory or self._db is not None:
-            return
-        if not settings.mongodb_uri:
-            return
-        from motor.motor_asyncio import AsyncIOMotorClient  # imported lazily
+        is_prod = settings.app_env.lower() == "production"
+        import logging
 
-        try:
-            self._client = AsyncIOMotorClient(
-                settings.mongodb_uri,
-                uuidRepresentation="standard",
-                serverSelectionTimeoutMS=3000,
-            )
-            self._db = self._client[settings.mongodb_db_name]
-            await self._db.command("ping")
-        except Exception as err:
-            import logging
-            logging.getLogger(__name__).warning("MongoDB connection fallback to in-memory: %s", err)
-            self._client = None
-            self._db = None
+        # 1. Check Supabase PostgreSQL first (DATABASE_URL)
+        if getattr(settings, "database_url", None) and settings.database_url.strip():
+            try:
+                from app.db.supabase_client import SupabaseDatabase
+                sb_db = SupabaseDatabase(settings.database_url)
+                await sb_db.connect()
+                self._supabase = sb_db
+                self._engine = "supabase-postgresql"
+                self._fallback_in_memory = False
+                logging.getLogger(__name__).info("Connected to Supabase PostgreSQL successfully.")
+                return
+            except Exception as err:
+                logging.getLogger(__name__).warning("Supabase PostgreSQL connection failed: %s", err)
+                self._supabase = None
+
+        # 2. Check MongoDB Atlas (MONGODB_URI)
+        if getattr(settings, "mongodb_uri", None) and settings.mongodb_uri.strip():
+            from motor.motor_asyncio import AsyncIOMotorClient  # imported lazily
+            try:
+                self._client = AsyncIOMotorClient(
+                    settings.mongodb_uri,
+                    uuidRepresentation="standard",
+                    serverSelectionTimeoutMS=3000,
+                )
+                self._db = self._client[settings.mongodb_db_name]
+                await self._db.command("ping")
+                self._engine = "mongodb-atlas"
+                self._fallback_in_memory = False
+                logging.getLogger(__name__).info("Connected to MongoDB Atlas successfully.")
+                return
+            except Exception as err:
+                self._client = None
+                self._db = None
+                if is_prod:
+                    logging.getLogger(__name__).error("FATAL: Production database connection to MongoDB Atlas failed: %s", err)
+                    raise RuntimeError(f"FATAL: Production database connection to MongoDB Atlas failed: {err}") from err
+                logging.getLogger(__name__).warning("MongoDB connection fallback to in-memory (dev mode): %s", err)
+
+        self._fallback_in_memory = True
+        self._engine = "in-memory"
 
     async def run_migrations(self) -> Optional[Dict[str, Any]]:
-        """Backfill canonical ids and replace legacy unique indexes.
-
-        MUST run after connect() and BEFORE any seeding. Raises MigrationError
-        (never swallowed) when the database cannot be migrated safely.
-        """
+        """Backfill canonical ids and replace legacy unique indexes."""
+        if self._supabase is not None:
+            return {"status": "ok", "engine": "supabase-postgresql"}
         if self.in_memory or self._db is None:
             return None
         from app.db.migrations import run_identity_migrations
@@ -254,24 +292,26 @@ class Database:
 
     async def verify_migrations(self) -> None:
         """Assert the identity indexes are in their post-migration shape."""
-        if self.in_memory or self._db is None:
+        if self._supabase is not None or self.in_memory or self._db is None:
             return
         from app.db.migrations import verify_identity_indexes
 
         await verify_identity_indexes(self._db)
 
-
     async def disconnect(self) -> None:
+        if self._supabase is not None:
+            await self._supabase.disconnect()
+            self._supabase = None
         if self._client is not None:
             self._client.close()
             self._client = None
             self._db = None
 
-    def collection(self, name: str) -> Collection:
-        if self.in_memory:
+    def collection(self, name: str) -> Any:
+        if self._supabase is not None:
+            return self._supabase.collection(name)
+        if self.in_memory or self._db is None:
             return self._memory.setdefault(name, InMemoryCollection())
-        if self._db is None:
-            raise RuntimeError("Database not connected — call connect() on startup")
         return self._db[name]
 
     async def find_many(
@@ -290,7 +330,7 @@ class Database:
             cursor = collection.find(query)  # type: ignore[attr-defined]
             docs = await cursor.to_list(length=500)
         if sort_key:
-            docs.sort(key=lambda doc: doc.get(sort_key) or 0)
+            docs.sort(key=lambda doc: _sort_key(doc.get(sort_key)))
         return docs
 
     # ------------------------------------------------------------------

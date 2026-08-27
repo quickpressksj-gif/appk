@@ -38,7 +38,7 @@ function FaqsScreen() {
     fetchPublicFaqs()
       .then((data) => {
         setFaqs(data);
-        if (data.length > 0) {
+        if (data.length > 0 && data[0]?.id) {
           setOpenIds({ [data[0].id]: true });
         }
       })

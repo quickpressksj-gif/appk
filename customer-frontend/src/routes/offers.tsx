@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BottomNav } from "@/components/home/BottomNav";
+import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { OffersSkeleton } from "@/components/rewards/RewardsSkeletons";
 import { ScratchCard } from "@/components/rewards/ScratchCard";
 import { NotificationBellAction, ScreenTopBar } from "@/components/rewards/ScreenTopBar";
@@ -343,6 +344,7 @@ function OffersScreen() {
         )}
       </div>
 
+      <FloatingCartBar />
       <BottomNav active="offers" />
       <Toaster position="top-center" />
     </main>

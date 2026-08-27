@@ -83,7 +83,7 @@ def validate(payload: AddressPayload) -> None:
 class AddressRepository:
     async def list(self, user_id: str) -> List[AddressResponse]:
         docs = await database.find_many(COLLECTION, {"userId": user_id})
-        docs.sort(key=lambda d: (not d.get("isDefault"), d.get("createdAt") or 0))
+        docs.sort(key=lambda d: (not d.get("isDefault"), str(d.get("createdAt") or "")))
         return [to_response(d) for d in docs]
 
     async def get(self, user_id: str, address_id: str) -> Optional[AddressResponse]:

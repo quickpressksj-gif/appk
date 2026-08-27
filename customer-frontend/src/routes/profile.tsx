@@ -9,13 +9,11 @@ import {
   Clock,
   CreditCard,
   Crown,
-  FileText,
   Gift,
   Globe,
   Headphones,
   Heart,
   HelpCircle,
-  Info,
   LifeBuoy,
   Loader2,
   Lock,
@@ -27,13 +25,11 @@ import {
   Moon,
   Package,
   Pencil,
-  RefreshCcw,
   RefreshCw,
   Phone,
   Plus,
   Receipt,
   Settings,
-  Shield,
   ShieldAlert,
   Sparkles,
   Star,
@@ -44,10 +40,6 @@ import {
   Wallet,
   WifiOff,
   X,
-  Building2,
-  ExternalLink,
-  Layers,
-  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -56,9 +48,8 @@ import { toast } from "sonner";
 import { BottomNav } from "@/components/home/BottomNav";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Toaster } from "@/shared/ui/sonner";
-import { getPanelUrls } from "@/lib/panel-urls";
-import { PanelLauncherModal } from "@/components/PanelLauncherModal";
 import {
+  deleteCustomerAccount,
   fetchProfileData,
   logout,
   updateProfile,
@@ -226,12 +217,13 @@ function ProfileScreen() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [offline, setOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [launcherOpen, setLauncherOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const settings = useAppSettings();
   const activeLocation = readSavedLocation();
@@ -364,10 +356,19 @@ function ProfileScreen() {
     navigate({ to: "/home" });
   };
 
-  const panels = getPanelUrls("customer");
-  const partnerPanel = panels.find((p) => p.id === "partner");
-  const riderPanel = panels.find((p) => p.id === "rider");
-  const adminPanel = panels.find((p) => p.id === "admin");
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await deleteCustomerAccount();
+      setDeleting(false);
+      setDeleteOpen(false);
+      toast.success("Your QuickPress account has been permanently deleted.");
+      navigate({ to: "/login" });
+    } catch {
+      setDeleting(false);
+      toast.error("Couldn't delete your account. Please try again.");
+    }
+  };
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950">
@@ -376,15 +377,6 @@ function ProfileScreen() {
         <header className="glass-panel sticky top-0 z-30 flex items-center justify-between gap-3 border-x-0 border-t-0 px-5 py-3">
           <h1 className="text-lg font-bold tracking-tight text-foreground">My Profile</h1>
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              aria-label="QuickPress Ecosystem"
-              title="Switch Panel / Ecosystem"
-              onClick={() => setLauncherOpen(true)}
-              className="flex size-10 items-center justify-center rounded-2xl bg-white text-foreground shadow-xs border border-border/50 transition-all duration-300 hover:bg-accent active:scale-[0.94] dark:bg-zinc-900 dark:border-zinc-800"
-            >
-              <Layers className="size-5 text-primary" />
-            </button>
             <button
               type="button"
               aria-label="Notifications"
@@ -679,91 +671,6 @@ function ProfileScreen() {
               />
             </section>
 
-            {/* Legal & Company Information */}
-            <section className="mt-8">
-              <SectionHeading title="Legal & Company" />
-              <RowList
-                rows={[
-                  {
-                    id: "privacy",
-                    label: "Privacy Policy",
-                    icon: Shield,
-                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "privacy-policy" } }),
-                  },
-                  {
-                    id: "terms",
-                    label: "Terms of Service",
-                    icon: FileText,
-                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "terms-of-service" } }),
-                  },
-                  {
-                    id: "refunds",
-                    label: "Cancellation & Refund Policy",
-                    icon: RefreshCcw,
-                    action: () => navigate({ to: "/legal/$docSlug", params: { docSlug: "cancellation-refund-policy" } }),
-                  },
-                  {
-                    id: "about",
-                    label: "About QuickPress",
-                    icon: Info,
-                    action: () => navigate({ to: "/about" }),
-                  },
-                  {
-                    id: "contact",
-                    label: "Contact & Corporate Office",
-                    icon: Headphones,
-                    action: () => navigate({ to: "/contact" }),
-                  },
-                ]}
-              />
-              <p className="mt-3 text-center text-[11px] font-semibold text-muted-foreground">
-                QuickPress App Version {data.appVersion} • All Rights Reserved
-              </p>
-            </section>
-
-            {/* QuickPress Business & Multi-Panel Ecosystem */}
-            <section className="mt-8">
-              <SectionHeading title="QuickPress Business & Portals" />
-              <RowList
-                rows={[
-                  {
-                    id: "partner-portal",
-                    label: "Partner & Vendor Console",
-                    note: "Manage your laundry store, catalog & orders",
-                    icon: Building2,
-                    action: () => {
-                      if (partnerPanel?.url) window.open(partnerPanel.url, "_blank");
-                    },
-                  },
-                  {
-                    id: "rider-portal",
-                    label: "Rider & Delivery Fleet",
-                    note: "Accept pickup & drop tasks across your city",
-                    icon: Truck,
-                    action: () => {
-                      if (riderPanel?.url) window.open(riderPanel.url, "_blank");
-                    },
-                  },
-                  {
-                    id: "admin-portal",
-                    label: "Admin Command Center",
-                    note: "Super admin & operations staff portal",
-                    icon: ShieldCheck,
-                    action: () => {
-                      if (adminPanel?.url) window.open(adminPanel.url, "_blank");
-                    },
-                  },
-                  {
-                    id: "portal-hub",
-                    label: "Multi-Panel Ecosystem Hub",
-                    note: "Explore all 4 QuickPress apps & switch anytime",
-                    icon: Layers,
-                    action: () => navigate({ to: "/portal" }),
-                  },
-                ]}
-              />
-            </section>
-
             {/* Account settings */}
             <section className="mt-8">
               <SectionHeading title="Account Settings" />
@@ -803,7 +710,7 @@ function ProfileScreen() {
                     note: "Permanently remove your data",
                     icon: Trash2,
                     tone: "danger",
-                    action: () => soon("Account deletion"),
+                    action: () => setDeleteOpen(true),
                   },
                 ]}
               />
@@ -1038,6 +945,49 @@ function ProfileScreen() {
         </div>
       ) : null}
 
+      {/* Delete Account confirmation sheet */}
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-[999] flex items-start justify-center p-4 pt-12 sm:pt-16 overflow-y-auto">
+          <div
+            onClick={() => setDeleteOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-sm rounded-3xl bg-card p-6 shadow-2xl border border-destructive/30 z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center">
+              <span className="flex size-14 items-center justify-center rounded-3xl bg-destructive/15 text-destructive ring-8 ring-destructive/10">
+                <Trash2 className="size-6" />
+              </span>
+              <h2 className="mt-4 text-base font-black tracking-tight text-foreground">
+                Delete QuickPress Account?
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                This action is <span className="font-bold text-destructive">permanent and irreversible</span>. All your saved addresses, payment methods, profile details, active orders, and wallet balance will be deleted immediately.
+              </p>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleting}
+                className="ripple h-11 flex-1 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted active:scale-[0.97] disabled:opacity-50"
+              >
+                Keep Account
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteAccount}
+                className="ripple flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-destructive text-xs font-black text-destructive-foreground hover:brightness-105 active:scale-[0.97] disabled:opacity-60 shadow-md"
+              >
+                {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-3.5" />}
+                {deleting ? "Deleting..." : "Delete Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Settings sheet — GET/PUT /api/me/settings */}
       {settingsOpen ? (
         <div className="fixed inset-0 z-[999] flex items-start justify-center p-4 pt-6 sm:pt-10 overflow-y-auto">
@@ -1178,12 +1128,7 @@ function ProfileScreen() {
         onChange={(event) => void handlePhotoFile(event.target.files?.[0])}
       />
 
-      {editing || logoutOpen || settingsOpen ? null : <BottomNav active="profile" />}
-      <PanelLauncherModal
-        open={launcherOpen}
-        onClose={() => setLauncherOpen(false)}
-        currentPanel="customer"
-      />
+      {editing || logoutOpen || settingsOpen || deleteOpen ? null : <BottomNav active="profile" />}
       <Toaster position="top-center" />
     </main>
   );

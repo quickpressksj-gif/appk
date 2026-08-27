@@ -173,6 +173,12 @@ async def apply_offer(code: str) -> dict:
     return {"ok": False, "discount": 0, "message": "Invalid coupon code"}
 
 
+@router.post("/coupon/apply")
+async def apply_coupon_json(body: dict) -> dict:
+    code = body.get("code") or body.get("couponCode") or ""
+    return await apply_offer(code)
+
+
 @router.get("/app-meta")
 async def get_app_meta() -> dict:
     return {
@@ -188,25 +194,32 @@ async def get_location() -> LocationResponse:
     return DEFAULT_LOCATION
 
 
-@router.get("/profile", response_model=ProfileResponse)
-async def get_profile(user: User = Depends(current_user)) -> ProfileResponse:
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    return _profile(user)
-
-
 @router.get("/home", response_model=HomeResponse)
-async def get_home(user: Optional[User] = Depends(optional_user)) -> HomeResponse:
+async def get_home(
+    city: Optional[str] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
+    user: Optional[User] = Depends(optional_user),
+) -> HomeResponse:
     """Single round-trip payload behind the Customer Home screen."""
     banners = await catalog.banners()
     categories = await catalog.categories()
     services = await catalog.services()
-    partners = await catalog.partners()
+    partners = await catalog.partners(city=city, area=area, lat=lat, lng=lng)
     offers = await catalog.offers()
+
+    current_loc = LocationResponse(
+        area=area or "Awas Vikas",
+        city=city or "Kasganj",
+        state="Uttar Pradesh",
+        latitude=lat,
+        longitude=lng,
+    ) if (city or area or lat or lng) else DEFAULT_LOCATION
 
     return HomeResponse(
         profile=_profile(user) if user else GUEST_PROFILE,
-        location=DEFAULT_LOCATION,
+        location=current_loc,
         banners=banners,
         categories=categories,
         services=services,

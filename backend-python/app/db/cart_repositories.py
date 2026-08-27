@@ -291,10 +291,17 @@ class CartRepository:
 
     async def _catalog_defaults(self, item_id: str, payload: CartItemPayload) -> Dict[str, Any]:
         """Fill missing price/name/image from partner_services or catalog."""
-        # 1. Check partner_services directly
-        svc = await database.find_one("partner_services", {"_id": item_id})
-        if not svc and payload.partnerId:
-            svc = await database.find_one("partner_services", {"_id": item_id, "partnerId": payload.partnerId})
+        # 1. Check partner_services directly with item_id, payload.id, payload.serviceId, etc.
+        candidates = [c for c in (item_id, payload.id, payload.itemId, payload.serviceId) if c]
+        svc = None
+        for candidate_id in candidates:
+            svc = await database.find_one("partner_services", {"_id": candidate_id})
+            if not svc:
+                svc = await database.find_one("partner_services", {"id": candidate_id})
+            if not svc and payload.partnerId:
+                svc = await database.find_one("partner_services", {"_id": candidate_id, "partnerId": payload.partnerId})
+            if svc:
+                break
         if not svc:
             svc = await database.find_one("partner_services", {"name": {"$regex": f"^{item_id}$", "$options": "i"}})
         if svc:

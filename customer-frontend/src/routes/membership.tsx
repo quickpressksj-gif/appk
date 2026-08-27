@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { BottomNav } from "@/components/home/BottomNav";
+import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   MembershipHistorySkeleton,
@@ -623,6 +624,7 @@ function MembershipScreen() {
         ) : null}
       </div>
 
+      <FloatingCartBar />
       <BottomNav />
       <Toaster />
     </main>

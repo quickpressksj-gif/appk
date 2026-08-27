@@ -35,6 +35,9 @@ router = APIRouter(tags=["partners"])
 async def list_partners(
     q: Optional[str] = Query(default=None, description="Partner, service, category or city"),
     city: Optional[str] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
     minRating: float = Query(default=0, ge=0),
     maxDistance: float = Query(default=0, ge=0),
     maxPrice: int = Query(default=0, ge=0),
@@ -46,6 +49,9 @@ async def list_partners(
     return await catalog.partner_cards(
         q=q,
         city=city,
+        area=area,
+        lat=lat,
+        lng=lng,
         min_rating=minRating,
         max_distance=maxDistance,
         max_price=maxPrice,

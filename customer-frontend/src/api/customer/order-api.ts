@@ -400,6 +400,10 @@ export type OrderDetail = {
   cancelledReason: string | null;
   /** Invoices arrive in a later sprint — the screen shows a placeholder. */
   invoice: { available: boolean; label: string };
+  otp?: {
+    pickup?: string;
+    delivery?: string;
+  };
 };
 
 export function toOrderDetail(order: Order): OrderDetail {
@@ -446,6 +450,7 @@ export function toOrderDetail(order: Order): OrderDetail {
     cancellable: isCancellable(order.status),
     cancelledReason: order.cancelledReason ?? null,
     invoice: { available: false, label: "Invoice will be available after delivery" },
+    otp: (order as any).otp ?? (order as any).verificationOtp ?? undefined,
     timeline: ORDER_TIMELINE.map((stage, index) => {
       const copy = TIMELINE_COPY[stage];
       const time = timeOfStatus(order, copy.status);

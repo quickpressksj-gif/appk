@@ -285,3 +285,14 @@ export async function logout(): Promise<{ ok: true }> {
   }
   return { ok: true };
 }
+
+/** DELETE /api/profile — permanently wipes the customer account. */
+export async function deleteCustomerAccount(): Promise<{ ok: true; message?: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; message?: string }>("DELETE", PROFILE_API_ENDPOINTS.profile);
+    return res;
+  } finally {
+    clearSession();
+  }
+}
+

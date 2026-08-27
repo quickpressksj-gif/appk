@@ -17,6 +17,7 @@ import {
   PhoneCall,
   Printer,
   Share2,
+  ShieldCheck,
   Sparkles,
   Star,
   User,
@@ -185,6 +186,13 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
       ? (order.assignedRider as any).vehicleNumber || "QuickPress Logistics"
       : "QuickPress Logistics";
 
+  const dispatchOtpCode =
+    typeof (order as any)?.otp?.dispatch === "object"
+      ? (order as any)?.otp?.dispatch?.code
+      : typeof (order as any)?.otp?.dispatch === "string"
+        ? (order as any)?.otp?.dispatch
+        : (order as any)?.dispatchOtp || "";
+
   return (
     <PartnerLayout
       activeTab="orders"
@@ -284,6 +292,38 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 </div>
               </div>
             </div>
+
+            {/* Dispatch OTP Card for Handover to Rider */}
+            {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed") && dispatchOtpCode) ? (
+              <div className="rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-xs">
+                      <ShieldCheck className="size-4.5" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
+                      Store Dispatch OTP
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
+                    Handover Code
+                  </span>
+                </div>
+                <div className="my-3 flex items-center justify-center gap-2.5">
+                  {dispatchOtpCode.split("").map((digit: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="flex size-11 items-center justify-center rounded-xl border border-emerald-300/80 bg-white font-mono text-xl font-black text-emerald-950 shadow-xs"
+                    >
+                      {digit}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-center text-[11px] font-medium text-zinc-600">
+                  Share this 4-digit code with the rider when handing over clean laundry packages.
+                </p>
+              </div>
+            ) : null}
 
             {/* Customer Details Card */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
@@ -463,6 +503,41 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                   </div>
                 ) : null}
               </section>
+
+              {/* Desktop Dispatch OTP Card for Handover */}
+              {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed") && dispatchOtpCode) ? (
+                <section className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-6 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-xs">
+                        <ShieldCheck className="size-5" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-emerald-800">
+                          Store Dispatch OTP for Handover
+                        </h3>
+                        <p className="text-xs font-medium text-zinc-600">
+                          Share this 4-digit code with the rider when handing over clean laundry packages.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-700">
+                      Rider Handover Code
+                    </span>
+                  </div>
+
+                  <div className="my-5 flex items-center justify-center gap-3">
+                    {dispatchOtpCode.split("").map((digit: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="flex size-14 items-center justify-center rounded-2xl border border-emerald-300/80 bg-white font-mono text-2xl font-black text-emerald-950 shadow-xs"
+                      >
+                        {digit}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               {/* Items & Services Card */}
               <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">

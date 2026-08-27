@@ -38,6 +38,8 @@ import { HomeSkeleton } from "@/components/home/HomeSkeleton";
 import { ServicesUnavailableView } from "@/components/common/ServicesUnavailableView";
 import { useHomeData } from "@/hooks/useHomeData";
 import { checkLocationAvailability } from "@/api/customer/services/partner-service";
+import type { SavedLocation } from "@/api/customer/services/location-service";
+import { toast } from "sonner";
 import {
   readRecentSearches,
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
@@ -730,9 +732,9 @@ function HomeScreen() {
                             </div>
                             <span
                               className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                                order.status === "Delivered"
+                                String(order.status) === "Delivered"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : order.status === "Cancelled"
+                                  : String(order.status) === "Cancelled"
                                   ? "bg-rose-50 text-rose-700 border border-rose-200"
                                   : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                               }`}

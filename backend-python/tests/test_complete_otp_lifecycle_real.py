@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.db.identity_seed import align_partner_identities
-from app.main import fastapi_app
+from app.main import create_app
 from app.models.user import Role, User, UserStatus
 from app.db.repositories import users as user_repository
 from app.db.partner_repositories import partner_repository
@@ -54,9 +54,12 @@ def _auth(user: User) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+from tests.conftest import real_mongodb_uri
+
+
 @pytest.fixture()
 def client():
-    with TestClient(fastapi_app) as test_client:
+    with TestClient(create_app()) as test_client:
         yield test_client
 
 
@@ -168,6 +171,7 @@ def _place_real_order(client, customer: User) -> dict:
     return order_res.json()
 
 
+@pytest.mark.skipif(not real_mongodb_uri(), reason="REAL_MONGODB_URI not configured")
 def test_complete_end_to_end_otp_order_and_dispatch(client, actors):
     """Full lifecycle: Customer -> Partner -> Auto-Dispatched Rider -> Partner -> Delivery -> Admin."""
     customer = actors["customer"]

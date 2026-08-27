@@ -121,12 +121,22 @@ class ServiceRepository:
 
     # ------------------------------------------------------------- projections
 
-    async def service_detail(self, service_id: str) -> Optional[ServiceDetailResponse]:
+    async def service_detail(self, service_id: str, city: Optional[str] = None) -> Optional[ServiceDetailResponse]:
         document = await self.resolve(service_id)
         if document is None:
             return None
 
         pairs = await self._menu_matches(document)
+        if city:
+            c_low = city.strip().lower()
+            city_pairs = [
+                (p, item)
+                for p, item in pairs
+                if c_low in str(p.get("city", "")).lower() or str(p.get("city", "")).lower() in c_low or c_low in str(p.get("area", "")).lower()
+            ]
+            if city_pairs:
+                pairs = city_pairs
+
         content = await self._content(str(document.get("categoryId") or ""))
         categories = {c["_id"]: c for c in await database.find_many("categories")}
         category = categories.get(document.get("categoryId"))
@@ -183,7 +193,7 @@ class ServiceRepository:
             careInstructions=list(content.get("careInstructions") or DEFAULT_CARE_INSTRUCTIONS),
             faq=[ServiceFaqResponse(**entry) for entry in (content.get("faq") or DEFAULT_FAQ)],
             related=await self.related_services(document),
-            partners=await self.service_partners(document),
+            partners=await self.service_partners(document, city=city),
             reviews=reviews,
             reviewSummary=ReviewSummaryResponse(
                 average=rating,
@@ -192,10 +202,16 @@ class ServiceRepository:
             ),
         )
 
-    async def service_partners(self, document: Dict[str, Any]) -> List[ServicePartnerResponse]:
+    async def service_partners(self, document: Dict[str, Any], city: Optional[str] = None) -> List[ServicePartnerResponse]:
         """GET /api/services/{id}/partners — logo, name, rating, distance, ETA, price."""
         partners: List[ServicePartnerResponse] = []
         for partner, item in await self._menu_matches(document):
+            p_city = str(partner.get("city") or "")
+            p_area = str(partner.get("area") or "")
+            if city:
+                c_low = city.strip().lower()
+                if c_low not in p_city.lower() and p_city.lower() not in c_low and c_low not in p_area.lower():
+                    continue
             reviews_count = int(partner.get("reviewsCount") or 0)
             pickup = int(partner.get("pickupMinutes") or 30)
             is_open = bool(partner.get("isOpen", True))

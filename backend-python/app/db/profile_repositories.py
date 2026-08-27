@@ -96,6 +96,44 @@ class ProfileRepository:
         refreshed = await users.by_id(user.id)
         return to_profile(refreshed or user)
 
+    async def delete_account(self, user: User) -> Dict[str, Any]:
+        """Permanently delete / wipe the user's account and associated data from MongoDB."""
+        from app.core.firebase import revoke_refresh_tokens
+        from app.db.repositories import refresh_tokens
+
+        # 1. Revoke refresh tokens
+        await refresh_tokens.revoke_all_for_user(user.id)
+        if user.firebase_uid:
+            revoke_refresh_tokens(user.firebase_uid)
+            try:
+                from firebase_admin import auth as firebase_auth
+                from app.core.firebase import _firebase_app
+                if _firebase_app() is not None:
+                    firebase_auth.delete_user(user.firebase_uid)
+            except Exception:
+                pass
+
+        # 2. Delete user settings
+        await database.collection(SETTINGS_COLLECTION).delete_many({"_id": user.id})
+
+        # 3. Delete saved addresses
+        await database.collection("customer_addresses").delete_many({"userId": user.id})
+        await database.collection("addresses").delete_many({"userId": user.id})
+
+        # 4. Delete saved payment methods & active carts
+        await database.collection("payment_methods").delete_many({"$or": [{"user_id": user.id}, {"userId": user.id}]})
+        await database.collection("cart_items").delete_many({"$or": [{"user_id": user.id}, {"userId": user.id}]})
+        await database.collection("carts").delete_many({"$or": [{"_id": user.id}, {"user_id": user.id}, {"userId": user.id}]})
+
+        # 5. Delete role profiles & notifications
+        await database.collection("customers").delete_many({"$or": [{"_id": user.id}, {"user_id": user.id}, {"userId": user.id}]})
+        await database.collection("notifications").delete_many({"$or": [{"user_id": user.id}, {"userId": user.id}]})
+
+        # 6. Delete user record from users collection
+        await database.collection("users").delete_one({"_id": user.id})
+
+        return {"ok": True, "message": "Account successfully deleted"}
+
 
 class SettingsRepository:
     @property

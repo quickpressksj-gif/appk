@@ -95,9 +95,16 @@ class CatalogRepository:
             if st not in ("active", "approved"):
                 continue
             city = str(p.get("city") or "").strip().lower()
-            area = str(p.get("area") or "").strip().lower()
+            area = str(p.get("area") or p.get("address") or "").strip().lower()
             # Partner must be in an admin-approved live city
-            if not any(lc in city or city in lc or lc in area for lc in live_cities):
+            if not city and not area:
+                continue
+            is_live_city = False
+            for lc in live_cities:
+                if (city and (lc in city or city in lc)) or (area and lc in area):
+                    is_live_city = True
+                    break
+            if not is_live_city:
                 continue
             approved.append(p)
         return approved
@@ -107,6 +114,9 @@ class CatalogRepository:
         *,
         q: Optional[str] = None,
         city: Optional[str] = None,
+        area: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
         min_rating: float = 0,
         max_distance: float = 0,
         max_price: int = 0,
@@ -135,6 +145,13 @@ class CatalogRepository:
             service_names = [s.get("name") for s in active_services if s.get("name")]
             min_price = min([int(s.get("price", 0)) for s in active_services if int(s.get("price", 0)) > 0] or [49])
 
+            distance_km = float(p.get("distanceKm") or 1.5)
+            p_lat = p.get("latitude")
+            p_lng = p.get("longitude")
+            if lat is not None and lng is not None and p_lat is not None and p_lng is not None:
+                from app.core.maps import haversine_km
+                distance_km = round(haversine_km((lat, lng), (float(p_lat), float(p_lng))), 1)
+
             card = PartnerCardResponse(
                 id=pid,
                 name=p.get("businessName") or p.get("name") or "QuickPress Partner",
@@ -143,7 +160,7 @@ class CatalogRepository:
                 rating=float(p.get("rating") or 5.0),
                 reviews=reviews,
                 reviewsCount=reviews_count,
-                distanceKm=float(p.get("distanceKm") or 1.5),
+                distanceKm=distance_km,
                 eta=f"{pickup} min pickup",
                 pickupTime=f"{pickup} min",
                 deliveryTime="24 hrs",
@@ -153,8 +170,8 @@ class CatalogRepository:
                 servicesCount=len(service_names),
                 open=is_open,
                 status="open" if is_open else "closed",
-                city=p.get("city", ""),
-                area=p.get("address") or p.get("area") or p.get("city", ""),
+                city=str(p.get("city") or "").strip(),
+                area=str(p.get("area") or p.get("address") or p.get("city") or "").strip(),
                 cover=p.get("bannerUrl") or p.get("cover") or image,
                 verified=bool(p.get("isVerified", True)),
                 offerLabel=p.get("offerLabel"),
@@ -180,9 +197,20 @@ class CatalogRepository:
             city_matched = [
                 card
                 for card in cards
-                if c_low in card.city.lower() or card.city.lower() in c_low or c_low in card.area.lower()
+                if (card.city and (c_low in card.city.lower() or card.city.lower() in c_low))
+                or (card.area and c_low in card.area.lower())
             ]
             cards = city_matched
+        elif area:
+            a_low = area.strip().lower()
+            area_matched = [
+                card
+                for card in cards
+                if (card.area and a_low in card.area.lower())
+                or (card.city and a_low in card.city.lower())
+            ]
+            if area_matched:
+                cards = area_matched
         if min_rating > 0:
             cards = [card for card in cards if card.rating >= min_rating]
         if max_distance > 0:
@@ -198,8 +226,16 @@ class CatalogRepository:
 
         return _sort_cards(cards, sort)
 
-    async def partners(self, *, city: Optional[str] = None, lat: Optional[float] = None, lng: Optional[float] = None, area: Optional[str] = None, limit: int = 10) -> List[PartnerCardResponse]:
-        cards = await self.partner_cards(city=city, sort="distance")
+    async def partners(
+        self,
+        *,
+        city: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+        area: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[PartnerCardResponse]:
+        cards = await self.partner_cards(city=city, area=area, lat=lat, lng=lng, sort="distance")
         return cards[:limit] if limit > 0 else cards
 
     async def partner_document(self, partner_id: str) -> Optional[Dict[str, Any]]:

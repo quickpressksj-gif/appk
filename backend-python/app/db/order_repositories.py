@@ -161,9 +161,9 @@ class OrderRepository:
             **{
                 k: v
                 for k, v in data.items()
-                if k not in ("_id", "userId", "couponCode", "instructions", "idempotencyKey")
+                if k not in ("_id", "id", "userId", "couponCode", "instructions", "idempotencyKey")
             },
-            id=str(document["_id"]),
+            id=str(document.get("id") or document.get("_id")),
         )
 
     async def by_id(self, user_id: str, order_id: str) -> Optional[OrderResponse]:

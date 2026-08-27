@@ -371,11 +371,13 @@ body [data-slot="tabs-content"] {
 /* ---------- Scrolling + one-hand ergonomics ---------- */
 html {
   scroll-behavior: smooth;
+  background-color: #ffffff;
 }
 
 body {
   overscroll-behavior-y: contain;
   -webkit-font-smoothing: antialiased;
+  background-color: #ffffff;
 }
 
 body [data-scroll-x] {
