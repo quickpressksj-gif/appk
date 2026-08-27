@@ -99,8 +99,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="QuickPress API", version="1.0.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.onrender\.com|.*quickpress\.online)(:\d+)?$",
+        allow_origins=["*"] if settings.app_env.lower() != "production" else settings.cors_origin_list,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.up\.railway\.app|.*\.onrender\.com|.*quickpress\.online)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

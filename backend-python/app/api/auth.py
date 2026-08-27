@@ -86,6 +86,7 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
 
 @router.post("/phone/verify", response_model=AuthSessionResponse)
 async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
+    settings = get_settings()
     if payload.id_token and len(payload.id_token) > 50:
         try:
             return await _login_with_firebase(payload.id_token, payload.role, provider="phone")
