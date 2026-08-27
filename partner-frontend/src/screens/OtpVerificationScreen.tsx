@@ -121,35 +121,39 @@ export function OtpVerificationScreen() {
       {/* ========================================================================= */}
       {/* MOBILE OTP SCREEN (< md)                                                  */}
       {/* ========================================================================= */}
-      <div className="relative flex min-h-screen flex-col justify-between p-4 sm:p-6 md:hidden">
+      <div className="relative flex min-h-screen flex-col justify-between p-4 sm:p-6 md:hidden max-w-md mx-auto w-full">
         <div className="pt-2">
-          {/* Top Bar */}
+          {/* Top Bar with Back action & Wordmark */}
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => navigate({ to: partnerRoutes.auth })}
-              className="flex size-9 items-center justify-center rounded-full bg-white border border-zinc-200 text-zinc-700 shadow-2xs active:scale-95"
+              className="flex size-9 items-center justify-center rounded-full bg-white/90 border border-zinc-200 text-zinc-700 shadow-2xs active:scale-95 transition-all"
             >
-              <ArrowLeft className="size-5" />
+              <ArrowLeft className="size-4" />
             </button>
             <span className="text-sm font-black text-[#111827]">
               Quick<span className="text-[#16A34A]">Press</span>
             </span>
           </div>
 
-          <div className="mt-8 rounded-3xl border border-zinc-200/90 bg-white p-6 shadow-sm">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-amber-100/80 text-amber-800 border border-amber-200">
-              <KeyRound className="size-6" />
+          <div className="mt-4 flex flex-col items-center">
+            <PartnerAuthHeader badge="SECURITY" withTagline={false} />
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-zinc-200/90 bg-white/95 backdrop-blur-md p-6 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.07)]">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-100/80 text-amber-900 border border-amber-200 mb-3">
+              <KeyRound className="size-5" />
             </div>
-            <h1 className="mt-4 text-2xl font-black tracking-tight text-[#111827]">
+            <h1 className="text-2xl font-black tracking-tight text-[#111827]">
               Verify OTP Code
             </h1>
             <p className="mt-1 text-xs text-zinc-500 font-medium">
-              Enter the 6-digit verification code sent to{" "}
+              Enter the 6-digit code sent to{" "}
               <span className="font-black text-[#111827]">{displayPhone()}</span>
             </p>
 
-            <form onSubmit={handleVerify} className="mt-7">
+            <form onSubmit={handleVerify} className="mt-6">
               <div className="relative">
                 <input
                   ref={inputRef}
@@ -161,7 +165,7 @@ export function OtpVerificationScreen() {
                   onChange={(e) => setDigits(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="absolute inset-0 z-10 size-full cursor-pointer bg-transparent text-transparent caret-transparent outline-none"
                 />
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-1.5 sm:gap-2">
                   {Array.from({ length: 6 }).map((_, i) => {
                     const filled = Boolean(digits[i]);
                     const active = digits.length === i;
@@ -188,7 +192,7 @@ export function OtpVerificationScreen() {
               <button
                 type="submit"
                 disabled={busy || verified || digits.length !== 6}
-                className="mt-6 flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                className="btn-ripple mt-6 flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-cta transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
               >
                 {busy ? (
                   <>
@@ -221,8 +225,8 @@ export function OtpVerificationScreen() {
         </div>
 
         <div className="py-2 text-center">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-            <ShieldCheck className="size-4 text-[#16A34A]" />
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+            <ShieldCheck className="size-3.5 text-[#16A34A]" />
             <span>Encrypted Mobile Number Verification</span>
           </p>
         </div>

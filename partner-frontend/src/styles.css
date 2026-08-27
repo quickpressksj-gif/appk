@@ -4,3 +4,108 @@
 
 @source "../src";
 @source "./shared";
+
+@keyframes brand-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+@utility brand-sweep {
+  animation: brand-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes qp-logo-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.92); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes qp-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@utility auth-logo-in {
+  animation: qp-logo-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility auth-logo-float {
+  animation: qp-logo-float 4.2s ease-in-out 0.85s infinite;
+}
+
+@keyframes qp-rise {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@utility auth-rise {
+  animation: qp-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes qp-wordmark-shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@utility auth-wordmark {
+  text-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+}
+
+@utility auth-wordmark-accent {
+  background-image: linear-gradient(
+    100deg,
+    #16a34a 0%,
+    #eab308 35%,
+    #86efac 50%,
+    #eab308 65%,
+    #16a34a 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: qp-wordmark-shine 3.6s linear infinite;
+}
+
+@keyframes qp-flow-bubble {
+  0% { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.6); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(0, -18px, 0) scale(1.15); }
+}
+
+@utility auth-flow-bubble {
+  animation: qp-flow-bubble 3.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes qp-ripple-sheen {
+  0% { opacity: 0.45; transform: scale(0); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+
+@utility btn-ripple {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 60%;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.65);
+    opacity: 0;
+    transform: scale(0);
+    pointer-events: none;
+  }
+  &:active:not(:disabled)::after {
+    animation: qp-ripple-sheen 0.55s ease-out;
+  }
+}
+
+@utility shadow-cta {
+  box-shadow: 0 12px 28px -8px rgba(234, 179, 8, 0.45);
+}
+

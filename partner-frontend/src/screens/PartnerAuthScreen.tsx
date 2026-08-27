@@ -185,45 +185,40 @@ export function PartnerAuthScreen() {
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-10 [background-size:24px_24px]" />
 
       {/* ========================================================================= */}
-      {/* MOBILE EXPERIENCE (< 768px / < 1024px)                                    */}
+      {/* MOBILE EXPERIENCE (< 1024px)                                              */}
       {/* ========================================================================= */}
-      <div className="relative flex flex-col justify-between min-h-screen p-4 sm:p-6 lg:hidden">
-        {/* Top Mobile Bar */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-black tracking-tight text-[#111827]">
-              Quick<span className="text-[#16A34A]">Press</span>
-            </span>
-            <span className="rounded-full bg-[#111827] px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
-              Partner
-            </span>
+      <div className="relative flex flex-col justify-between min-h-screen p-4 sm:p-6 lg:hidden max-w-md mx-auto w-full">
+        {/* Top Header with Brand Wordmark */}
+        <div className="pt-2 flex flex-col items-center">
+          <div className="w-full flex justify-end mb-1">
+            {/* Language Selector */}
+            <button
+              type="button"
+              onClick={() => setLang(lang === "en" ? "hi" : "en")}
+              className="flex items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white/90 px-3 py-1.5 text-[11px] font-bold text-zinc-700 shadow-2xs active:scale-95 transition-all backdrop-blur-xs"
+            >
+              <Globe className="size-3.5 text-zinc-500" />
+              <span>{lang === "en" ? "English" : "हिंदी"}</span>
+            </button>
           </div>
 
-          {/* Language Selector */}
-          <button
-            type="button"
-            onClick={() => setLang(lang === "en" ? "hi" : "en")}
-            className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-700 shadow-2xs active:scale-95"
-          >
-            <Globe className="size-3.5 text-zinc-500" />
-            <span>{lang === "en" ? "English" : "हिंदी"}</span>
-          </button>
+          <PartnerAuthHeader badge="PARTNER" withTagline={true} />
         </div>
 
         {/* Mobile Login Card Container */}
-        <div className="my-auto py-6">
-          <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm">
-            {/* Header */}
+        <div className="my-auto py-4">
+          <div className="rounded-3xl border border-zinc-200/80 bg-white/95 backdrop-blur-md p-6 sm:p-7 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.07)]">
+            {/* Card Title */}
             <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-black text-amber-800 border border-amber-200/80 mb-2.5">
-                <Sparkles className="size-3" />
-                <span>PARTNER PANEL</span>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10.5px] font-black text-amber-900 border border-amber-200/80 mb-2">
+                <Sparkles className="size-3 text-amber-600" />
+                <span>PARTNER BUSINESS PORTAL</span>
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-[#111827]">
+              <h2 className="text-2xl font-black tracking-tight text-[#111827]">
                 Welcome Back 👋
-              </h1>
+              </h2>
               <p className="mt-1 text-xs font-medium text-zinc-500">
-                Manage your laundry business with QuickPress.
+                Log in to manage orders, services and earnings.
               </p>
             </div>
 
@@ -237,10 +232,10 @@ export function PartnerAuthScreen() {
                   Mobile Number
                 </label>
                 <div
-                  className={`flex h-[54px] items-center rounded-2xl border-2 bg-zinc-50/80 px-3.5 transition-all ${
+                  className={`flex h-[54px] items-center rounded-2xl border-2 bg-zinc-50/90 px-3.5 transition-all ${
                     error
                       ? "border-red-500 bg-red-50/20"
-                      : "border-zinc-200 focus-within:border-[#111827] focus-within:bg-white"
+                      : "border-zinc-200 focus-within:border-[#111827] focus-within:bg-white focus-within:shadow-sm"
                   }`}
                 >
                   <span className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 text-xs font-black text-[#111827]">
@@ -273,7 +268,7 @@ export function PartnerAuthScreen() {
               <button
                 type="submit"
                 disabled={busy || sent || value.length < 10}
-                className="flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] text-[#111827] font-black text-sm uppercase tracking-wider shadow-sm transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                className="btn-ripple flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-zinc-950 font-black text-sm uppercase tracking-wider shadow-cta transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
               >
                 {busy ? (
                   <>
@@ -292,7 +287,7 @@ export function PartnerAuthScreen() {
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-zinc-200" />
                 </div>
-                <span className="relative bg-white px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="relative bg-white px-3 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
                   OR
                 </span>
               </div>
@@ -302,7 +297,7 @@ export function PartnerAuthScreen() {
                 type="button"
                 onClick={handleGoogle}
                 disabled={googleBusy}
-                className="flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-zinc-200 bg-white font-bold text-xs text-zinc-800 shadow-2xs transition-all active:scale-[0.98] hover:bg-zinc-50 cursor-pointer"
+                className="flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-zinc-200/90 bg-white font-bold text-xs text-zinc-800 shadow-2xs transition-all active:scale-[0.98] hover:bg-zinc-50 cursor-pointer hover:border-zinc-300"
               >
                 {googleBusy ? (
                   <Loader2 className="size-4 animate-spin text-zinc-600" />
@@ -322,9 +317,9 @@ export function PartnerAuthScreen() {
                 <button
                   type="button"
                   onClick={() => navigate({ to: partnerRoutes.registration })}
-                  className="font-black text-emerald-700 hover:underline block sm:inline mt-1 sm:mt-0"
+                  className="font-black text-emerald-700 hover:text-emerald-800 hover:underline block sm:inline mt-1 sm:mt-0 cursor-pointer"
                 >
-                  Become a QuickPress Partner
+                  Become a QuickPress Partner →
                 </button>
               </p>
             </div>
@@ -333,9 +328,9 @@ export function PartnerAuthScreen() {
 
         {/* Bottom Security Footer */}
         <div className="py-2 text-center">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-            <ShieldCheck className="size-4 text-[#16A34A]" />
-            <span>Secure Partner Access · Protected by QuickPress Security</span>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+            <ShieldCheck className="size-3.5 text-[#16A34A]" />
+            <span>Secure 256-bit Encrypted Partner Portal</span>
           </p>
         </div>
       </div>
