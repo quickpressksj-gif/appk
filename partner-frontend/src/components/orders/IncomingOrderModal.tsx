@@ -38,6 +38,10 @@ export function IncomingOrderModal({
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          // Auto-reject on 60-second window expiry
+          stopOrderAlarm();
+          void onReject(order.id, "Auto-rejected: Acceptance window expired (60s)");
+          onDismiss();
           return 0;
         }
         return prev - 1;
@@ -45,7 +49,7 @@ export function IncomingOrderModal({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [order]);
+  }, [order, onReject, onDismiss]);
 
   if (!order) return null;
 

@@ -1,4 +1,5 @@
-import { Check, ChevronRight, Clock3, IndianRupee, X } from "lucide-react";
+import { Check, ChevronRight, Clock3, IndianRupee, Timer, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export type LiveOrder = {
   id: string;
@@ -10,20 +11,18 @@ export type LiveOrder = {
   status: "pending" | "accepted" | "pickup" | "washing" | "ironing" | "ready" | "delivered";
 };
 
-
-
 const STATUS_STYLE: Record<LiveOrder["status"], string> = {
-  pending: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30",
-  accepted: "bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30",
-  pickup: "bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30",
-  washing: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border border-indigo-500/30",
-  ironing: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border border-cyan-500/30",
-  ready: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30",
-  delivered: "bg-muted text-muted-foreground",
+  pending: "bg-amber-50 text-amber-800 border border-amber-300",
+  accepted: "bg-blue-50 text-blue-800 border border-blue-300",
+  pickup: "bg-purple-50 text-purple-800 border border-purple-300",
+  washing: "bg-indigo-50 text-indigo-800 border border-indigo-300",
+  ironing: "bg-cyan-50 text-cyan-800 border border-cyan-300",
+  ready: "bg-emerald-50 text-emerald-800 border border-emerald-300",
+  delivered: "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 const STATUS_LABEL_MAP: Record<LiveOrder["status"], string> = {
-  pending: "Pending",
+  pending: "New Order",
   accepted: "Accepted",
   pickup: "Pickup Pending",
   washing: "Processing",
@@ -33,8 +32,12 @@ const STATUS_LABEL_MAP: Record<LiveOrder["status"], string> = {
 };
 
 /**
- * Sprint 3.2 — premium live order card with Accept / Reject / View actions.
- * UI only: handlers are passed in from the dashboard screen.
+ * Live Order Card for Dashboard (Mobile & Desktop)
+ * Features:
+ * - 60s live countdown with automatic rejection if time expires.
+ * - Accept / Reject actions only in 'pending' stage.
+ * - Forward-only progress once accepted (no status revert/back).
+ * - Direct "View Details" to see full order breakdown.
  */
 export function LiveOrderCard({
   order,
@@ -49,29 +52,83 @@ export function LiveOrderCard({
   onReject: (order: LiveOrder) => void;
   onView: (order: LiveOrder) => void;
 }) {
+  const isPending = order.status === "pending";
+  const [countdown, setCountdown] = useState(60);
+
+  useEffect(() => {
+    if (!isPending) return;
+
+    setCountdown(60);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Auto-reject when 1 minute expires
+          onReject(order);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isPending, order.id]);
+
+  const percent = (countdown / 60) * 100;
+
   return (
     <article
-      className="card-soft animate-rise border border-border p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/60"
+      className="card-soft animate-rise border border-zinc-200 bg-white p-4 shadow-xs transition-all duration-300 hover:border-zinc-300 hover:shadow-md rounded-2xl"
       style={{ animationDelay: `${delay}ms` }}
     >
+      {/* 60-Second Acceptance Alert Banner (Only for pending) */}
+      {isPending && (
+        <div className="mb-3 overflow-hidden rounded-xl bg-amber-50/90 border border-amber-200 p-2.5">
+          <div className="flex items-center justify-between text-xs font-black text-amber-900">
+            <span className="flex items-center gap-1.5">
+              <Timer
+                className={`size-3.5 ${countdown <= 15 ? "text-red-600 animate-spin" : "text-amber-700"}`}
+              />
+              <span>Acceptance Window</span>
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                countdown <= 15
+                  ? "bg-red-500 text-white animate-pulse"
+                  : "bg-amber-200/80 text-amber-900"
+              }`}
+            >
+              {countdown}s remaining
+            </span>
+          </div>
+          {/* Progress countdown bar */}
+          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-amber-200/50">
+            <div
+              className={`h-full transition-all duration-1000 ${
+                countdown <= 15 ? "bg-red-500" : countdown <= 30 ? "bg-amber-500" : "bg-emerald-500"
+              }`}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-black tracking-tight text-foreground">
+          <p className="truncate text-sm font-black tracking-tight text-zinc-900">
             {order.customerName}
           </p>
-          <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-muted-foreground">
-            {order.code}
-          </p>
+          <p className="mt-0.5 truncate text-[0.75rem] font-bold text-zinc-500">#{order.code}</p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-wider ${STATUS_STYLE[order.status]}`}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wider ${STATUS_STYLE[order.status]}`}
         >
           {STATUS_LABEL_MAP[order.status] || order.status}
         </span>
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5 text-[0.7rem] font-semibold text-muted-foreground">
-        <Clock3 className="size-3.5 shrink-0" />
+      <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+        <Clock3 className="size-3.5 shrink-0 text-zinc-400" />
         <span className="truncate">{order.pickupTime}</span>
       </div>
 
@@ -79,47 +136,47 @@ export function LiveOrderCard({
         {order.services.map((service) => (
           <span
             key={service}
-            className="rounded-full bg-muted px-2.5 py-1 text-[0.62rem] font-bold tracking-tight text-foreground"
+            className="rounded-lg bg-zinc-100 px-2 py-1 text-[0.68rem] font-bold tracking-tight text-zinc-700"
           >
             {service}
           </span>
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border pt-3">
-        <span className="flex items-center gap-0.5 text-base font-black tracking-tight text-foreground">
-          <IndianRupee className="size-4" />
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-zinc-100 pt-3">
+        <span className="flex items-center gap-0.5 text-base font-black tracking-tight text-zinc-900">
+          <IndianRupee className="size-4 text-zinc-700" />
           {order.amount.toLocaleString("en-IN")}
         </span>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {order.status === "pending" ? (
+          {isPending ? (
             <>
               <button
                 type="button"
                 onClick={() => onReject(order)}
-                className="flex items-center gap-1 rounded-full bg-destructive/10 px-3 py-2 text-[0.66rem] font-bold text-destructive transition-all duration-300 hover:bg-destructive/20 active:scale-[0.95]"
+                className="flex items-center gap-1 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95"
               >
                 <X className="size-3.5" /> Reject
               </button>
               <button
                 type="button"
                 onClick={() => onAccept(order)}
-                className="flex items-center gap-1 rounded-full bg-secondary/15 px-3 py-2 text-[0.66rem] font-bold text-brand-green transition-all duration-300 hover:bg-secondary/25 active:scale-[0.95]"
+                className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-xs transition-all hover:bg-emerald-700 active:scale-95"
               >
                 <Check className="size-3.5" /> Accept
               </button>
             </>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2.5 py-1 text-[0.62rem] font-bold text-brand-green">
-              <Check className="size-3" /> Accepted
+            <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-black text-emerald-800">
+              <Check className="size-3.5" /> Accepted
             </span>
           )}
           <button
             type="button"
             onClick={() => onView(order)}
-            className="flex items-center gap-1 rounded-full bg-muted px-3 py-2 text-[0.66rem] font-bold text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.95]"
+            className="flex items-center gap-1 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-black text-white transition-all hover:bg-black active:scale-95"
           >
-            View <ChevronRight className="size-3.5" />
+            View Details <ChevronRight className="size-3.5" />
           </button>
         </div>
       </div>

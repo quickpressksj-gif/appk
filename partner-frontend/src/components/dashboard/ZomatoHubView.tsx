@@ -415,12 +415,25 @@ export function ZomatoHubView() {
                         </a>
 
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate({
+                                to: partnerRoutes.orderDetails,
+                                params: { orderId: order.id },
+                              })
+                            }
+                            className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-200 active:scale-95 transition-all"
+                          >
+                            Details
+                          </button>
+
                           {isNew ? (
                             <>
                               <button
                                 type="button"
                                 onClick={() => handleAction(order, "reject")}
-                                className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600 border border-red-200 active:scale-95"
+                                className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-600 border border-rose-200 active:scale-95"
                               >
                                 Reject
                               </button>
@@ -438,7 +451,7 @@ export function ZomatoHubView() {
                               onClick={() => setSelectedManageOrder(order)}
                               className="rounded-full bg-zinc-950 px-3.5 py-1.5 text-xs font-black text-white active:scale-95 shadow-xs flex items-center gap-1"
                             >
-                              <span>Manage Order</span>
+                              <span>Update Stage</span>
                               <ArrowRight className="size-3" />
                             </button>
                           )}
