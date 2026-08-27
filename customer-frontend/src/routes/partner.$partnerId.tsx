@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { PartnerDetailSkeleton } from "@/components/partner/PartnerDetailSkeleton";
+import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { CartPopup } from "@/components/cart/CartPopup";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
@@ -681,67 +682,8 @@ function PartnerDetailScreen() {
         )}
       </div>
 
-      {/* Sticky bottom bar - Portaled to document.body so it is ALWAYS fixed at the bottom viewport above navigation */}
-      {mounted && data && summary.count > 0 ? (
-        createPortal(
-          <aside
-            aria-label="Partner cart summary"
-            className="fixed inset-x-0 bottom-0 z-40 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
-          >
-            <div className="mx-auto w-full max-w-[21.5rem] sm:max-w-xs px-2">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setCartPopupOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setCartPopupOpen(true);
-                  }
-                }}
-                className="pointer-events-auto flex items-center justify-between gap-2.5 rounded-full bg-white dark:bg-zinc-900 p-2 pl-3 pr-2 text-foreground shadow-[0_10px_35px_-6px_rgba(0,0,0,0.18)] border border-zinc-200/90 dark:border-zinc-800 transition-all duration-300 active:scale-[0.985] cursor-pointer hover:border-primary/50"
-              >
-                {/* Left: Bag Icon & Item summary */}
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="relative flex size-8.5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                    <ShoppingBag className="size-4.5" />
-                    <span className="animate-pop absolute -top-1 -right-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white ring-2 ring-white dark:ring-zinc-900">
-                      {summary.count}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm font-black text-zinc-950 dark:text-white">₹{summary.total}</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        · {summary.count} {summary.count === 1 ? "item" : "items"}
-                      </span>
-                    </div>
-                    <p className="text-[10.5px] font-bold text-primary flex items-center gap-0.5">
-                      View Cart <ChevronRight className="size-3" />
-                    </p>
-                  </div>
-                </div>
-
-                {/* Right: Checkout Button */}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void viewCart();
-                  }}
-                  className="ripple shrink-0 flex items-center gap-1 rounded-full bg-primary px-3.5 py-2 text-xs font-black text-primary-foreground shadow-cta transition-transform hover:brightness-105 active:scale-95"
-                >
-                  Checkout
-                  <ChevronRight className="size-3.5" />
-                </button>
-              </div>
-            </div>
-          </aside>,
-          document.body,
-        )
-      ) : null}
-
-      <CartPopup isOpen={cartPopupOpen} onClose={() => setCartPopupOpen(false)} />
+      {/* Sticky bottom bar matching Navbar dimensions & styling */}
+      <FloatingCartBar hasBottomNav={false} />
 
       {/* Service details sheet */}
       {detailService ? (
