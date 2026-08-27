@@ -228,7 +228,9 @@ function WalletScreen() {
         });
 
         if (payResult.status === "paid") {
-          toast.success(`₹${value} successfully added to your wallet!`);
+          const result = await addFunds(value, selectedMethod, payResult.paymentId);
+          setWallet(result.wallet);
+          toast.success(result.message || `₹${value} successfully added to your wallet!`);
           setAddOpen(false);
           setAmount("500");
           await load(true);

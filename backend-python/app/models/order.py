@@ -71,14 +71,14 @@ class OrderDelivery(BaseModel):
 
 
 class OrderPaymentPayload(BaseModel):
-    mode: Literal["online", "cod"] = "cod"
+    mode: Literal["online", "cod", "wallet"] = "cod"
     label: str = "Cash on delivery"
     note: Optional[str] = None
     method: Optional[str] = None
 
 
 class OrderPayment(BaseModel):
-    mode: Literal["online", "cod"] = "cod"
+    mode: Literal["online", "cod", "wallet"] = "cod"
     label: str = "Cash on delivery"
     note: str = ""
     paid: bool = False

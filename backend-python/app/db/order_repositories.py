@@ -241,6 +241,26 @@ class OrderRepository:
         delivery = payload.delivery or delivery_estimate(payload.pickup)
         mode = payload.payment.mode
 
+        # Live wallet debit handling if paying with wallet balance
+        is_wallet_payment = (mode == "wallet") or (payload.payment.label and "wallet" in payload.payment.label.lower())
+        if is_wallet_payment:
+            from app.db.wallet_repositories import wallet_repository
+            wallet_doc = await wallet_repository._wallet_document(user)
+            available_balance = float(wallet_doc.get("balance", 0.0))
+            if available_balance < totals.grandTotal:
+                raise ValueError(
+                    f"Insufficient wallet balance. Available: ₹{available_balance:.2f}, Required: ₹{totals.grandTotal:.2f}. Please add funds to your wallet."
+                )
+            await wallet_repository.debit(
+                user,
+                float(totals.grandTotal),
+                kind="order-payment",
+                title="Order Payment",
+                description=f"Payment for Order #{code}",
+                method="wallet",
+                reference=f"ord-{code}",
+            )
+
         # Permanent item price snapshots — historical order numbers never change on future rate updates
         item_snapshots = []
         for item in items:
@@ -292,11 +312,10 @@ class OrderRepository:
             "pickup": pickup.model_dump(),
             "delivery": delivery.model_dump(),
             "payment": OrderPayment(
-                mode=mode,
-                label=payload.payment.label,
-                note=payload.payment.note
-                or ("Paid from QuickPress wallet" if mode == "online" else "Pay on delivery"),
-                paid=mode == "online",
+                mode="wallet" if is_wallet_payment else mode,
+                label="QuickPress Wallet" if is_wallet_payment else payload.payment.label,
+                note="Paid from QuickPress wallet balance" if is_wallet_payment else (payload.payment.note or ("Paid online" if mode == "online" else "Pay on delivery")),
+                paid=is_wallet_payment or (mode == "online"),
             ).model_dump(),
             "otp": {
                 "pickup": pickup_otp_record,
@@ -356,6 +375,26 @@ class OrderRepository:
             metadata={"reason": reason or "Cancelled by customer"},
             changes={"cancelledReason": reason or "Cancelled by customer"},
         )
+
+        # Automatic instant refund to wallet for prepaid/wallet orders
+        if order.payment and (order.payment.paid or order.payment.mode == "wallet"):
+            try:
+                from app.db.repositories import users
+                from app.db.wallet_repositories import wallet_repository
+                user_obj = await users.by_id(user_id)
+                if user_obj:
+                    await wallet_repository.credit(
+                        user_obj,
+                        float(order.totals.grandTotal),
+                        kind="refund",
+                        title="Order Refund",
+                        description=f"Refund for cancelled Order #{order.code}",
+                        method="wallet",
+                        reference=f"ref-{order.id}",
+                    )
+            except Exception:
+                pass
+
         return await self.by_id(user_id, order_id)
 
     async def history(

@@ -268,10 +268,11 @@ function CheckoutScreen() {
         setPlaced(false);
         void navigate({ to: "/order-success/$orderId", params: { orderId: result.orderId } });
       }, 900);
-    } catch {
+    } catch (err) {
       setPlacing(false);
       setOrderKey(newOrderKey());
-      toast.error("We couldn't place your order. Please try again.");
+      const msg = err instanceof Error ? err.message : "We couldn't place your order. Please try again.";
+      toast.error(msg);
     }
   };
 
