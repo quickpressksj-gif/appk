@@ -91,11 +91,10 @@ function PartnerSplashScreen() {
   }, [navigate]);
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#FFFBF2] px-6 text-[#111827] select-none font-sans">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-white px-6 text-[#111827] select-none font-sans">
       {/* Soft brand glow background ambience */}
-      <div className="pointer-events-none absolute -top-32 left-1/2 size-[30rem] -translate-x-1/2 rounded-full bg-[#F4B400]/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-[#16A34A]/10 blur-3xl" />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-15 [background-size:24px_24px]" />
+      <div className="pointer-events-none absolute -top-32 left-1/2 size-[30rem] -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-emerald-600/5 blur-3xl" />
 
       <div
         className="relative flex flex-col items-center transition-opacity duration-500"

@@ -178,9 +178,10 @@ export function PartnerAuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFBF2] text-[#111827] flex flex-col justify-between font-sans selection:bg-[#F4B400]/30">
-      {/* Background Ambience / Subtle Dotted Grid */}
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-10 [background-size:24px_24px]" />
+    <div className="min-h-screen bg-white text-[#111827] flex flex-col justify-between font-sans selection:bg-[#F4B400]/30">
+      {/* Background Ambience / Clean Modern Glow */}
+      <div className="pointer-events-none fixed -top-32 left-1/2 size-[30rem] -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
+      <div className="pointer-events-none fixed -bottom-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-emerald-600/5 blur-3xl" />
 
       {/* ========================================================================= */}
       {/* MOBILE EXPERIENCE (< 1024px)                                              */}
