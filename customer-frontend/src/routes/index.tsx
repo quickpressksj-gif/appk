@@ -58,8 +58,8 @@ function SplashScreen() {
     let stopRefresh: (() => void) | undefined;
     Promise.all([
       initializeApp(),
-      // Minimum on-screen time so the brand animation reads as smooth, not a flicker
-      new Promise((resolve) => setTimeout(resolve, 600)),
+      // Ultra-fast smooth entry
+      new Promise((resolve) => setTimeout(resolve, 200)),
     ]).then(([{ loggedIn }]) => {
       if (cancelled) return;
       if (loggedIn) stopRefresh = startCustomerAutoRefresh();

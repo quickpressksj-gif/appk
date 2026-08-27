@@ -97,6 +97,8 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="QuickPress API", version="1.0.0", lifespan=lifespan)
+    from fastapi.middleware.gzip import GZipMiddleware
+    app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"] if settings.app_env.lower() != "production" else settings.cors_origin_list,
