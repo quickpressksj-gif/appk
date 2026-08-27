@@ -1038,29 +1038,91 @@ class NotificationRepository:
         return await database.find_sorted(self.collection, sort=[("createdAt", -1)])
 
     async def broadcast(self, audience: str, title: str, message: str) -> Dict[str, Any]:
-        audience = audience or "All"
-        target_role = None if audience == "All" else audience.lower().rstrip("s")
-        accounts: List[Dict[str, Any]] = []
-        for collection, role in (("customers", "customer"), ("partner_profiles", "partner"), ("rider_profiles", "rider")):
-            if target_role and target_role != role:
+        audience = (audience or "All").strip()
+        audience_lower = audience.lower().rstrip("s")
+        
+        # 1. Fetch target users from real users collection
+        all_users = await database.find_many("users", {})
+        
+        target_accounts: List[Dict[str, Any]] = []
+        for u in all_users:
+            user_id = str(u.get("_id") or u.get("id") or "")
+            if not user_id:
                 continue
-            docs = await database.find_many(collection)
-            accounts.extend({"id": d["_id"], "role": role} for d in docs)
-        for account in accounts:
-            await database.insert(
-                self.collection,
-                {
-                    "_id": new_id("ntf"),
-                    "accountId": account["id"],
-                    "role": account["role"],
-                    "kind": "system",
-                    "title": title or "Announcement",
-                    "description": message or "",
-                    "createdAt": now_iso(),
-                    "read": False,
-                },
+            role = str(u.get("role") or "customer").lower()
+            
+            if audience_lower in ("all", "everyone"):
+                target_accounts.append({"id": user_id, "role": role})
+            elif audience_lower in ("customer", "all_customer") and role == "customer":
+                target_accounts.append({"id": user_id, "role": role})
+            elif audience_lower in ("partner", "all_partner") and role == "partner":
+                target_accounts.append({"id": user_id, "role": role})
+            elif audience_lower in ("rider", "all_rider") and role == "rider":
+                target_accounts.append({"id": user_id, "role": role})
+
+        # Also fallback to check partner_profiles & rider_profiles if not in users
+        if audience_lower in ("all", "everyone", "partner", "all_partner"):
+            partners = await database.find_many("partner_profiles", {})
+            for p in partners:
+                pid = str(p.get("userId") or p.get("_id") or "")
+                if pid and not any(a["id"] == pid for a in target_accounts):
+                    target_accounts.append({"id": pid, "role": "partner"})
+
+        if audience_lower in ("all", "everyone", "rider", "all_rider"):
+            riders = await database.find_many("rider_profiles", {})
+            for r in riders:
+                rid = str(r.get("userId") or r.get("_id") or "")
+                if rid and not any(a["id"] == rid for a in target_accounts):
+                    target_accounts.append({"id": rid, "role": "rider"})
+
+        created_at = now_iso()
+        is_promo = any(w in (title + " " + message).lower() for w in ("offer", "off", "discount", "deal", "cashback", "sale", "coupon", "₹", "%"))
+        kind = "promotion" if is_promo else "broadcast"
+
+        # 2. Insert into customer-facing `notifications` collection & `admin_notifications`
+        for account in target_accounts:
+            notif_id = new_id("ntf")
+            
+            # Customer / User feed document
+            user_notif_doc = {
+                "_id": notif_id,
+                "user_id": account["id"],
+                "role": account["role"],
+                "kind": kind,
+                "category": "system",
+                "title": title or "QuickPress Announcement",
+                "description": message or "",
+                "created_at": created_at,
+                "read": False,
+                "read_at": None,
+            }
+            await database.insert("notifications", user_notif_doc)
+
+            # Admin log document
+            admin_notif_doc = {
+                "_id": notif_id,
+                "accountId": account["id"],
+                "role": account["role"],
+                "kind": kind,
+                "title": title or "QuickPress Announcement",
+                "description": message or "",
+                "createdAt": created_at,
+                "read": False,
+            }
+            await database.insert(self.collection, admin_notif_doc)
+
+        # 3. Realtime Socket.IO Broadcast to all connected customer & partner devices
+        try:
+            from app.services.socket_service import broadcast_admin_notification_event
+            await broadcast_admin_notification_event(
+                title=title or "QuickPress Announcement",
+                message=message or "",
+                audience=audience,
             )
-        return {"ok": True, "reached": len(accounts)}
+        except Exception as exc:
+            pass
+
+        return {"ok": True, "reached": len(target_accounts)}
 
 
 notification_repository = NotificationRepository()

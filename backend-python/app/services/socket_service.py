@@ -160,3 +160,35 @@ async def broadcast_wallet_event(
     except Exception as exc:
         logger.warning("Failed to broadcast wallet event to user %s: %s", user_id, exc)
 
+
+EVENT_ADMIN_BROADCAST = "admin_broadcast"
+EVENT_NOTIFICATION_CREATED = "notification_created"
+
+
+async def broadcast_admin_notification_event(
+    title: str,
+    message: str,
+    audience: str = "All",
+    action_url: Optional[str] = None,
+    image_url: Optional[str] = None,
+) -> None:
+    """Broadcast an administrative or promotional notification to all connected clients."""
+    from datetime import datetime, timezone
+
+    payload = {
+        "title": title,
+        "message": message,
+        "description": message,
+        "audience": audience,
+        "actionUrl": action_url,
+        "imageUrl": image_url,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await sio.emit(EVENT_ADMIN_BROADCAST, payload)
+        await sio.emit(EVENT_NOTIFICATION_CREATED, payload)
+        logger.info("Admin notification broadcasted to all active sockets: %s", title)
+    except Exception as exc:
+        logger.warning("Failed to broadcast admin notification event: %s", exc)
+
+
