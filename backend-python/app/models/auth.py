@@ -29,11 +29,13 @@ class VerifyPhoneRequest(BaseModel):
     code: Optional[str] = None
     phone: Optional[str] = None
     role: Role
+    referral_code: Optional[str] = None
 
 
 class SocialLoginRequest(BaseModel):
     id_token: str
     role: Role
+    referral_code: Optional[str] = None
 
 
 class RefreshRequest(BaseModel):

@@ -575,6 +575,137 @@ class ReferralRepository:
             appliedCode=code,
         )
 
+    async def apply_login_referral(
+        self, user: User, raw_code: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Applies referral code upon user login / signup:
+        - Referrer gets +50 Loyalty Points credited immediately.
+        - Referee (new user) gets +25 Loyalty Points credited immediately.
+        - In-app notification sent to both users.
+        - Records in transactions and loyalty_transactions.
+        """
+        if not raw_code:
+            return None
+        code = str(raw_code).strip().upper()
+        if not code:
+            return None
+
+        owner = await self.by_code(code)
+        if not owner:
+            return None
+
+        referrer_id = str(owner.get("user_id"))
+        if referrer_id == user.id:
+            return None  # Cannot refer self
+
+        # Check if referee has already applied any referral
+        existing_tx = await database.collection(TRANSACTIONS).find_one({"referee_id": user.id})
+        if existing_tx:
+            return None  # Already applied
+
+        now = utcnow().isoformat()
+        transaction_id = f"rtx-{uuid.uuid4().hex[:12]}"
+        referee_name = user.display_name or user.phone or "New Customer"
+        referrer_name = owner.get("name") or "Friend"
+
+        # 1. Record Referral Transaction
+        await database.collection(TRANSACTIONS).insert_one({
+            "_id": transaction_id,
+            "kind": "referral",
+            "referrer_id": referrer_id,
+            "referee_id": user.id,
+            "referee_name": referee_name,
+            "referrer_name": referrer_name,
+            "code": code,
+            "status": "completed",
+            "created_at": now,
+            "completed_at": now,
+            "reward_amount": 50,
+            "referrer_points": 50,
+            "referee_points": 25,
+        })
+
+        # 2. Update user profile referral mapping
+        await database.collection(REFERRALS).update_one(
+            {"user_id": user.id},
+            {"$set": {"applied_code": code, "referred_by": referrer_id, "applied_at": now}},
+            upsert=True,
+        )
+
+        # 3. Credit +50 Loyalty Points to Referrer
+        await database.collection("users").update_one(
+            {"_id": referrer_id},
+            {
+                "$inc": {"loyalty_points": 50, "loyaltyPoints": 50},
+                "$set": {"updated_at": now},
+            },
+        )
+        await database.collection("loyalty_transactions").insert_one({
+            "_id": f"ltx-{uuid.uuid4().hex[:12]}",
+            "userId": referrer_id,
+            "user_id": referrer_id,
+            "points": 50,
+            "type": "credit",
+            "reason": f"Referral Bonus: {referee_name} joined using your code {code}",
+            "createdAt": now,
+            "created_at": now,
+        })
+        notif_referrer_id = f"notif-ref-{uuid.uuid4().hex[:10]}"
+        await database.collection("notifications").insert_one({
+            "_id": notif_referrer_id,
+            "id": notif_referrer_id,
+            "user_id": referrer_id,
+            "userId": referrer_id,
+            "title": "🎉 +50 Loyalty Points Earned!",
+            "description": f"{referee_name} joined using your referral code ({code})! 50 Loyalty Points have been added to your account.",
+            "type": "rewards",
+            "read": False,
+            "created_at": now,
+            "createdAt": now,
+        })
+
+        # 4. Credit +25 Loyalty Points to Referee (New User)
+        await database.collection("users").update_one(
+            {"_id": user.id},
+            {
+                "$inc": {"loyalty_points": 25, "loyaltyPoints": 25},
+                "$set": {"updated_at": now},
+            },
+        )
+        await database.collection("loyalty_transactions").insert_one({
+            "_id": f"ltx-{uuid.uuid4().hex[:12]}",
+            "userId": user.id,
+            "user_id": user.id,
+            "points": 25,
+            "type": "credit",
+            "reason": f"Welcome Bonus: Joined with friend referral code {code} (+25 pts)",
+            "createdAt": now,
+            "created_at": now,
+        })
+        notif_referee_id = f"notif-wel-{uuid.uuid4().hex[:10]}"
+        await database.collection("notifications").insert_one({
+            "_id": notif_referee_id,
+            "id": notif_referee_id,
+            "user_id": user.id,
+            "userId": user.id,
+            "title": "🎁 +25 Loyalty Points Welcome Bonus!",
+            "description": f"Welcome to QuickPress! You've received 25 Loyalty Points for joining with referral code {code}.",
+            "type": "rewards",
+            "read": False,
+            "created_at": now,
+            "createdAt": now,
+        })
+
+        try:
+            from app.services.socket_service import emit_to_user
+            await emit_to_user(referrer_id, "loyalty.updated", {"points": 50, "reason": "referral-bonus"})
+            await emit_to_user(user.id, "loyalty.updated", {"points": 25, "reason": "welcome-bonus"})
+        except Exception:
+            pass
+
+        return {"ok": True, "referrer_id": referrer_id, "code": code}
+
     # ------------------------------------------------------------ Admin Reporting
     async def admin_stats(self) -> AdminReferralStats:
         """Admin metrics for the referral engine."""

@@ -4,10 +4,12 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  Gift,
   Loader2,
   MessageSquareLock,
   Smartphone,
   ShieldCheck,
+  Tag,
   Timer,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -70,33 +72,8 @@ function BrandHeader() {
         <span className="text-primary">·</span> Delivery
       </p>
 
-      {/* Flowing wave ribbon + rising bubbles under the tagline */}
-      <div
-        className="auth-rise relative mt-5 h-16 w-full max-w-xs overflow-hidden [animation-delay:200ms]"
-        aria-hidden
-      >
-        <svg
-          className="auth-flow-wave absolute inset-y-0 left-0 h-full"
-          viewBox="0 0 240 40"
-          preserveAspectRatio="none"
-          fill="none"
-        >
-          <path
-            d="M0 24 Q 15 10 30 24 T 60 24 T 90 24 T 120 24 T 150 24 T 180 24 T 210 24 T 240 24"
-            stroke="var(--color-brand-green)"
-            strokeOpacity="0.55"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <path
-            d="M0 32 Q 15 20 30 32 T 60 32 T 90 32 T 120 32 T 150 32 T 180 32 T 210 32 T 240 32"
-            stroke="var(--color-primary)"
-            strokeOpacity="0.3"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-
+      {/* Decorative ambient bubbles */}
+      <div className="pointer-events-none relative mt-2 h-6 w-40 opacity-70">
         <span className="auth-flow-bubble absolute bottom-3 left-[18%] size-2 rounded-full bg-brand-green/60" />
         <span className="auth-flow-bubble absolute bottom-2 left-[46%] size-1.5 rounded-full bg-primary/60 [animation-delay:600ms]" />
         <span className="auth-flow-bubble absolute bottom-4 left-[72%] size-2.5 rounded-full bg-brand-green/40 [animation-delay:1200ms]" />
@@ -110,6 +87,7 @@ function AuthScreen() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [country, setCountry] = useState<Country>(FALLBACK_COUNTRY);
   const [phone, setPhone] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [sending, setSending] = useState(false);
   const navigate = useNavigate();
   const search = Route.useSearch();
@@ -155,6 +133,8 @@ function AuthScreen() {
                 setCountry={setCountry}
                 phone={phone}
                 setPhone={setPhone}
+                referralCode={referralCode}
+                setReferralCode={setReferralCode}
                 sending={sending}
                 redirectTarget={redirectTarget}
                 onContinue={() => {
@@ -172,6 +152,7 @@ function AuthScreen() {
               <OtpStep
                 phone={`${country.code}${phone}`}
                 fullNumber={`${country.code} ${phone}`}
+                referralCode={referralCode}
                 redirectTarget={redirectTarget}
                 onEdit={() => setStep("phone")}
               />
@@ -194,6 +175,8 @@ function PhoneStep({
   setCountry,
   phone,
   setPhone,
+  referralCode,
+  setReferralCode,
   sending,
   redirectTarget,
   onContinue,
@@ -203,12 +186,15 @@ function PhoneStep({
   setCountry: (c: Country) => void;
   phone: string;
   setPhone: (v: string) => void;
+  referralCode: string;
+  setReferralCode: (v: string) => void;
   sending: boolean;
   redirectTarget?: string | undefined;
   onContinue: () => void;
 }) {
   const valid = phone.length === country.digits;
   const navigate = useNavigate();
+  const [showReferral, setShowReferral] = useState(Boolean(referralCode));
   const [social, setSocial] = useState<"google" | "apple" | null>(null);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
@@ -240,7 +226,7 @@ function PhoneStep({
     setSocial(provider);
     try {
       rememberCustomerLogin(true);
-      await (provider === "google" ? loginWithGoogle() : loginWithApple());
+      await (provider === "google" ? loginWithGoogle(referralCode) : loginWithApple(referralCode));
       if (redirectTarget) {
         void navigate({ to: redirectTarget as any });
       } else {
@@ -354,6 +340,58 @@ function PhoneStep({
             : `We'll send a ${6}-digit code to verify it's you`}
         </p>
 
+        {/* Referral Code Box */}
+        <div className="mt-3.5 pt-1">
+          {!showReferral ? (
+            <button
+              type="button"
+              onClick={() => setShowReferral(true)}
+              className="flex items-center gap-1.5 text-xs font-bold text-primary transition-colors hover:underline"
+            >
+              <Gift className="size-3.5" />
+              <span>Have a referral code? (Get +25 pts)</span>
+            </button>
+          ) : (
+            <div className="space-y-1.5 rounded-2xl border border-primary/30 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="qp-referral"
+                  className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-foreground"
+                >
+                  <Gift className="size-3.5 text-primary" />
+                  <span>Referral Code (Optional)</span>
+                </label>
+                <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-black text-brand-dark">
+                  +25 Points
+                </span>
+              </div>
+              <div className="relative flex h-11 items-center overflow-hidden rounded-xl border border-border bg-background px-3 transition-all focus-within:border-primary">
+                <Tag className="mr-2 size-3.5 shrink-0 text-muted-foreground" />
+                <input
+                  id="qp-referral"
+                  type="text"
+                  placeholder="e.g. QP9258 / FRIEND"
+                  value={referralCode}
+                  onChange={(e) =>
+                    setReferralCode(
+                      e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15),
+                    )
+                  }
+                  className="h-full w-full bg-transparent text-xs font-bold uppercase tracking-wider text-foreground placeholder:font-normal placeholder:tracking-normal placeholder:text-muted-foreground/60 outline-none"
+                />
+                {referralCode.trim().length >= 3 && (
+                  <span className="grid size-4 shrink-0 place-items-center rounded-full bg-brand-green text-background">
+                    <Check className="size-2.5" />
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] font-medium text-muted-foreground">
+                Get 25 Loyalty Points instantly on login!
+              </p>
+            </div>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={!valid || sending}
@@ -431,11 +469,13 @@ function PhoneStep({
 function OtpStep({
   phone,
   fullNumber,
+  referralCode,
   redirectTarget,
   onEdit,
 }: {
   phone: string;
   fullNumber: string;
+  referralCode?: string;
   redirectTarget?: string | undefined;
   onEdit: () => void;
 }) {
@@ -481,7 +521,7 @@ function OtpStep({
     setVerifyError(null);
     // POST /api/auth/phone/verify — Firebase ID token → QuickPress JWT pair.
     void Promise.all([
-      verifyCustomerOtp(phone, code),
+      verifyCustomerOtp(phone, code, referralCode),
       router.preloadRoute({ to: "/location" }).catch(() => undefined),
     ])
       .then(() => {

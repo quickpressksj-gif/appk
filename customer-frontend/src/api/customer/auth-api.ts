@@ -62,18 +62,18 @@ export async function requestOtp(phone: string): Promise<RequestOtpResult> {
 }
 
 /** POST /api/auth/phone/verify — stores the JWT pair for every later call. */
-export async function verifyOtp(phone: string, code: string): Promise<AuthSession> {
-  return verifyPhoneOtp(phone, code, ROLE);
+export async function verifyOtp(phone: string, code: string, referralCode?: string): Promise<AuthSession> {
+  return verifyPhoneOtp(phone, code, ROLE, referralCode);
 }
 
 /** POST /api/auth/google */
-export async function loginWithGoogle(): Promise<AuthSession> {
-  return signInWithGoogle(ROLE);
+export async function loginWithGoogle(referralCode?: string): Promise<AuthSession> {
+  return signInWithGoogle(ROLE, referralCode);
 }
 
 /** POST /api/auth/apple (prepared, disabled on Android builds) */
-export async function loginWithApple(): Promise<AuthSession> {
-  return signInWithApple(ROLE);
+export async function loginWithApple(referralCode?: string): Promise<AuthSession> {
+  return signInWithApple(ROLE, referralCode);
 }
 
 /** GET /api/auth/me */

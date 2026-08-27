@@ -99,6 +99,7 @@ export async function verifyPhoneOtp(
   phone: string,
   code: string,
   explicitRole?: AccountRole,
+  referralCode?: string,
 ): Promise<AuthSession> {
   let idToken = "";
   try {
@@ -111,7 +112,13 @@ export async function verifyPhoneOtp(
   return persist(
     await apiPostJson<AuthSession>(
       AUTH_ENDPOINTS.verifyOtp,
-      { id_token: idToken, phone, code, role: role(explicitRole) },
+      {
+        id_token: idToken,
+        phone,
+        code,
+        role: role(explicitRole),
+        referral_code: referralCode ? referralCode.trim().toUpperCase() : undefined,
+      },
       { anonymous: true },
     ),
   );
@@ -123,26 +130,37 @@ async function socialSignIn(
   path: string,
   idToken: string,
   explicitRole?: AccountRole,
+  referralCode?: string,
 ): Promise<AuthSession> {
   return persist(
     await apiPostJson<AuthSession>(
       path,
-      { id_token: idToken, role: role(explicitRole) },
+      {
+        id_token: idToken,
+        role: role(explicitRole),
+        referral_code: referralCode ? referralCode.trim().toUpperCase() : undefined,
+      },
       { anonymous: true },
     ),
   );
 }
 
 /** POST /api/auth/google */
-export async function signInWithGoogle(explicitRole?: AccountRole): Promise<AuthSession> {
+export async function signInWithGoogle(
+  explicitRole?: AccountRole,
+  referralCode?: string,
+): Promise<AuthSession> {
   if (authMode() === "mock") {
     throw new ApiError("unconfigured", "Google Sign In needs Firebase credentials for this build");
   }
-  return socialSignIn(AUTH_ENDPOINTS.google, await signInWithGoogleIdToken(), explicitRole);
+  return socialSignIn(AUTH_ENDPOINTS.google, await signInWithGoogleIdToken(), explicitRole, referralCode);
 }
 
 /** POST /api/auth/apple — prepared; disabled unless VITE_APPLE_SIGN_IN_ENABLED=true. */
-export async function signInWithApple(explicitRole?: AccountRole): Promise<AuthSession> {
+export async function signInWithApple(
+  explicitRole?: AccountRole,
+  referralCode?: string,
+): Promise<AuthSession> {
   if (authMode() === "mock") {
     throw new ApiError("unconfigured", "Apple Sign In needs Firebase credentials for this build");
   }

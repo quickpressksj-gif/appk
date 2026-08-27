@@ -522,10 +522,10 @@ function ProfileScreen() {
                 },
                 {
                   id: "points",
-                  label: "Reward Points",
+                  label: "Loyalty Points",
                   value: (data.stats?.rewardPoints ?? 0).toLocaleString("en-IN"),
                   icon: Star,
-                  action: () => navigate({ to: "/offers" }),
+                  action: () => navigate({ to: "/referral" }),
                 },
                 {
                   id: "wallet",
@@ -567,6 +567,13 @@ function ProfileScreen() {
               <SectionHeading title="Account" />
               <RowList
                 rows={[
+                  {
+                    id: "referral",
+                    label: "Refer & Earn (Loyalty Points)",
+                    note: "Share code, earn 50 Loyalty Points per friend",
+                    icon: Gift,
+                    action: () => navigate({ to: "/referral" }),
+                  },
                   {
                     id: "wallet",
                     label: "QuickPress Wallet & Funds",

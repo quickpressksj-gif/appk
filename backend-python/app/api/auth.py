@@ -36,7 +36,9 @@ async def _issue_session(user: User) -> AuthSessionResponse:
     )
 
 
-async def _login_with_firebase(id_token: str, role: Role, provider: str | None = None) -> AuthSessionResponse:
+async def _login_with_firebase(
+    id_token: str, role: Role, provider: str | None = None, referral_code: str | None = None
+) -> AuthSessionResponse:
     identity = verify_id_token(id_token)
     if provider and identity.get("provider") and provider not in str(identity["provider"]):
         raise HTTPException(status_code=400, detail=f"Expected a {provider} sign-in")
@@ -49,6 +51,12 @@ async def _login_with_firebase(id_token: str, role: Role, provider: str | None =
             display_name=identity.get("display_name"),
             photo_url=identity.get("photo_url"),
         )
+        if referral_code:
+            from app.db.referral_repositories import referral_repository
+            try:
+                await referral_repository.apply_login_referral(user, referral_code)
+            except Exception:
+                pass
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return await _issue_session(user)
@@ -100,7 +108,9 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     # 1. Firebase ID Token Verification (if available)
     if payload.id_token and len(payload.id_token) > 50:
         try:
-            return await _login_with_firebase(payload.id_token, payload.role, provider="phone")
+            return await _login_with_firebase(
+                payload.id_token, payload.role, provider="phone", referral_code=payload.referral_code
+            )
         except Exception:
             pass
 
@@ -139,17 +149,28 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     else:
         await users._ensure_role_profile(user)
 
+    if payload.referral_code:
+        from app.db.referral_repositories import referral_repository
+        try:
+            await referral_repository.apply_login_referral(user, payload.referral_code)
+        except Exception:
+            pass
+
     return await _issue_session(user)
 
 
 @router.post("/google", response_model=AuthSessionResponse)
 async def google_login(payload: SocialLoginRequest) -> AuthSessionResponse:
-    return await _login_with_firebase(payload.id_token, payload.role, provider="google")
+    return await _login_with_firebase(
+        payload.id_token, payload.role, provider="google", referral_code=payload.referral_code
+    )
 
 
 @router.post("/apple", response_model=AuthSessionResponse)
 async def apple_login(payload: SocialLoginRequest) -> AuthSessionResponse:
-    return await _login_with_firebase(payload.id_token, payload.role, provider="apple")
+    return await _login_with_firebase(
+        payload.id_token, payload.role, provider="apple", referral_code=payload.referral_code
+    )
 
 
 @router.get("/me", response_model=AccountResponse)
