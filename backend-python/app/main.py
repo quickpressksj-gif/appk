@@ -161,8 +161,9 @@ def create_app() -> FastAPI:
     # Health check + meta (countries list) mounted exactly once under /api.
     app.include_router(health_router, prefix=settings.api_prefix)  # → /api/health, /api/countries
 
-    # Root health endpoint for Render default health check and probes → /health
+    # Root health endpoint for probes → /health and /
     @app.get("/health", tags=["health"], summary="Health check (root)")
+    @app.get("/", tags=["health"], summary="Root endpoint")
     async def root_health() -> dict:
         from app.api.health import health as get_health_status  # noqa: PLC0415
         return await get_health_status()
