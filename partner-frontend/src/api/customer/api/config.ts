@@ -33,7 +33,18 @@ function readString(key: string): string {
 
 export function apiBaseUrl(): string {
   const custom = readString("VITE_API_BASE_URL").replace(/\/+$/, "");
-  return custom || "http://localhost:8000";
+  if (custom) return custom;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:8000";
+    }
+    if (host.includes("vercel.app") || host.includes("quickpress.online") || host.includes("onrender.com")) {
+      return "https://quickpress-api-production-3292.up.railway.app";
+    }
+    return `http://${host}:8000`;
+  }
+  return "https://quickpress-api-production-3292.up.railway.app";
 }
 
 export function appEnvironment(): AppEnvironment {
