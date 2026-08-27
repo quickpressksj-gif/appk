@@ -225,31 +225,12 @@ class CatalogRepository:
     # ------------------------------------------------------------------
 
     async def _approved_partner_profiles(self) -> List[Dict[str, Any]]:
-        """Fetch all approved, verified, non-suspended partner stores from admin-approved live cities."""
-        admin_cities = await database.find_many("admin_cities")
-        live_cities = {
-            str(c.get("city") or c.get("name") or "").strip().lower()
-            for c in admin_cities
-            if str(c.get("status") or "").strip().lower() in ("live", "active", "approved")
-        }
-
+        """Fetch all approved, verified, non-suspended real partner stores from MongoDB Atlas."""
         profiles = await database.find_many("partner_profiles")
         approved = []
         for p in profiles:
             st = str(p.get("status") or "").lower()
             if st not in ("active", "approved"):
-                continue
-            city = str(p.get("city") or "").strip().lower()
-            area = str(p.get("area") or p.get("address") or "").strip().lower()
-            # Partner must be in an admin-approved live city
-            if not city and not area:
-                continue
-            is_live_city = False
-            for lc in live_cities:
-                if (city and (lc in city or city in lc)) or (area and lc in area):
-                    is_live_city = True
-                    break
-            if not is_live_city:
                 continue
             approved.append(p)
         return approved
@@ -345,7 +326,8 @@ class CatalogRepository:
                 if (card.city and (c_low in card.city.lower() or card.city.lower() in c_low))
                 or (card.area and c_low in card.area.lower())
             ]
-            cards = city_matched
+            if city_matched:
+                cards = city_matched
         elif area:
             a_low = area.strip().lower()
             area_matched = [
