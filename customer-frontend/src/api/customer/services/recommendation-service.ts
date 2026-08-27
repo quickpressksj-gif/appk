@@ -25,14 +25,27 @@ export function fetchRecommendations(
 }
 
 export function fetchPopularServices(
-  options: { forceRefresh?: boolean | undefined; signal?: AbortSignal | undefined } = {},
+  options: {
+    forceRefresh?: boolean | undefined;
+    signal?: AbortSignal | undefined;
+    location?: { city?: string; area?: string; latitude?: number; longitude?: number } | null | undefined;
+  } = {},
 ) {
+  const params = new URLSearchParams();
+  if (options.location?.city) params.set("city", options.location.city);
+  if (options.location?.area) params.set("area", options.location.area);
+  if (options.location?.latitude) params.set("lat", String(options.location.latitude));
+  if (options.location?.longitude) params.set("lng", String(options.location.longitude));
+  const queryString = params.toString();
+  const url = queryString ? `${API_ENDPOINTS.popular}?${queryString}` : API_ENDPOINTS.popular;
+  const cacheKey = queryString ? `${CACHE_KEYS.popular}:${queryString}` : CACHE_KEYS.popular;
+
   return resolveResource<PopularService[]>({
     forceRefresh: options.forceRefresh,
-    request: () => apiGet<PopularService[]>(API_ENDPOINTS.popular, { signal: options.signal }),
-    readCache: () => readCache<PopularService[]>(CACHE_KEYS.popular),
-    readStaleCache: () => readStaleCache<PopularService[]>(CACHE_KEYS.popular),
-    writeCache: (value) => writeCache(CACHE_KEYS.popular, value),
+    request: () => apiGet<PopularService[]>(url, { signal: options.signal }),
+    readCache: () => readCache<PopularService[]>(cacheKey),
+    readStaleCache: () => readStaleCache<PopularService[]>(cacheKey),
+    writeCache: (value) => writeCache(cacheKey, value),
   });
 }
 

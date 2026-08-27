@@ -136,12 +136,16 @@ export async function loadHome(options: LoadHomeOptions): Promise<void> {
     settle("partners", fetchNearbyPartners({ ...shared, location }), onSection),
   );
 
+  const popularPromise = locationPromise.then((location) =>
+    settle("popular", fetchPopularServices({ ...shared, location }), onSection),
+  );
+
   await Promise.all([
     profilePromise,
     partnersPromise,
+    popularPromise,
     settle("banners", fetchBanners(shared), onSection),
     settle("categories", fetchCategories(shared), onSection),
-    settle("popular", fetchPopularServices(shared), onSection),
     settle("recommendations", fetchRecommendations(shared), onSection),
     settle("offers", fetchOffers(shared), onSection),
     settle("recentOrders", fetchRecentOrders(shared), onSection),

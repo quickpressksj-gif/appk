@@ -65,19 +65,92 @@ class CatalogRepository:
         *,
         category_id: Optional[str] = None,
         popular_only: bool = False,
+        city: Optional[str] = None,
+        area: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
     ) -> List[ServiceCardResponse]:
         # 1. Fetch approved live partners
-        approved_partners = await self._approved_partner_profiles()
-        total_partners = len(approved_partners) if approved_partners else len(await database.find_many("partner_profiles")) or 1
+        all_approved = await self._approved_partner_profiles()
+        if not all_approved:
+            all_approved = await database.find_many("partner_profiles")
 
-        # 2. Fetch all active partner services
+        # Filter by customer city / area if requested
+        approved_partners = list(all_approved)
+        city_clean = str(city or area or "").strip().lower()
+        if city_clean:
+            scoped = [
+                p for p in all_approved
+                if city_clean in str(p.get("city") or "").lower()
+                or city_clean in str(p.get("area") or "").lower()
+                or city_clean in str(p.get("address") or "").lower()
+            ]
+            if scoped:
+                approved_partners = scoped
+
+        total_partners = len(approved_partners) or 1
+        approved_ids = {str(p["_id"]) for p in approved_partners}
+
+        # 2. Fetch active partner services
         partner_services_docs = await database.find_many("partner_services")
         active_partner_services = [
             s for s in partner_services_docs
             if s.get("isActive", True) is not False and s.get("enabled", True) is not False
         ]
 
+        # Prioritize services offered by partners in this city
+        if approved_ids:
+            city_services = [s for s in active_partner_services if str(s.get("partnerId")) in approved_ids]
+            if city_services:
+                active_partner_services = city_services
+
         cards: List[ServiceCardResponse] = []
+
+        # Category mapping helper
+        def _resolve_category(name: str, existing_cat: Optional[str]) -> str:
+            if existing_cat and existing_cat in _ICONS:
+                return existing_cat
+            nl = name.lower()
+            if "iron" in nl and "wash" not in nl:
+                return "c3"
+            if "dry" in nl or "suit" in nl:
+                return "c2"
+            if "shoe" in nl or "sneaker" in nl:
+                return "c5"
+            if "curtain" in nl:
+                return "c6"
+            if "blanket" in nl or "quilt" in nl:
+                return "c7"
+            if "carpet" in nl:
+                return "c8"
+            if "saree" in nl or "silk" in nl or "premium" in nl:
+                return "c4"
+            if "express" in nl:
+                return "c9"
+            return "c1"
+
+        # Popularity score for ranking high selling services
+        def _sales_rank(name: str) -> int:
+            nl = name.lower()
+            if "steam iron" in nl:
+                return 100
+            if "wash & fold" in nl:
+                return 95
+            if "wash & iron" in nl or "wash & steam" in nl:
+                return 90
+            if "dry clean" in nl or "suit" in nl:
+                return 85
+            if "shoe" in nl or "sneaker" in nl:
+                return 80
+            if "curtain" in nl:
+                return 75
+            if "saree" in nl:
+                return 70
+            if "express" in nl:
+                return 65
+            if "blanket" in nl:
+                return 60
+            return 50
 
         if active_partner_services:
             # Group services by normalized name
@@ -101,13 +174,21 @@ class CatalogRepository:
                 min_price = min(valid_prices) if valid_prices else int(s.get("price") or 49)
                 discount = int(s.get("discountPercent") or 0)
                 final_price = round(min_price * (100 - discount) / 100) if discount else min_price
-                cat_id = str(s.get("categoryId") or "c1")
+                service_name = str(s.get("name") or s.get("title"))
+                cat_id = _resolve_category(service_name, s.get("categoryId"))
+
+                badge = None
+                rank = _sales_rank(service_name)
+                if rank >= 95:
+                    badge = "Best Seller"
+                elif rank >= 80:
+                    badge = "Trending"
 
                 card = ServiceCardResponse(
                     id=str(s.get("_id") or s.get("id")),
-                    title=str(s.get("name") or s.get("title")),
-                    name=str(s.get("name") or s.get("title")),
-                    description=str(s.get("description") or f"Professional {s.get('name')} by verified partner stores."),
+                    title=service_name,
+                    name=service_name,
+                    description=str(s.get("description") or f"Professional {service_name} by verified partner stores."),
                     icon=_ICONS.get(cat_id, "sparkles"),
                     image=s.get("image") or s.get("imageUrl"),
                     categoryId=cat_id,
@@ -119,10 +200,13 @@ class CatalogRepository:
                     finalPrice=final_price,
                     processingTime=str(s.get("processingTime") or s.get("turnaroundHours") or "24 hrs"),
                     partnerCount=p_count,
-                    badge=s.get("badge"),
-                    popular=bool(s.get("popular", True) or discount > 0 or p_count > 1),
+                    badge=badge,
+                    popular=True,
                 )
                 cards.append(card)
+
+            # Sort cards by sales demand rank
+            cards.sort(key=lambda c: -_sales_rank(c.title))
 
         # Fallback to master catalog seed with real partner count
         if not cards:

@@ -88,13 +88,35 @@ async def get_categories() -> list[CategoryResponse]:
 async def get_services(
     categoryId: Optional[str] = Query(default=None),
     popular: bool = Query(default=False),
+    city: Optional[str] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
 ) -> list[ServiceCardResponse]:
-    return await catalog.services(category_id=categoryId, popular_only=popular)
+    return await catalog.services(
+        category_id=categoryId,
+        popular_only=popular,
+        city=city,
+        area=area,
+        lat=lat,
+        lng=lng,
+    )
 
 
 @router.get("/services/popular", response_model=list[ServiceCardResponse])
-async def get_popular_services() -> list[ServiceCardResponse]:
-    return await catalog.services(popular_only=True)
+async def get_popular_services(
+    city: Optional[str] = Query(default=None),
+    area: Optional[str] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
+) -> list[ServiceCardResponse]:
+    return await catalog.services(
+        popular_only=True,
+        city=city,
+        area=area,
+        lat=lat,
+        lng=lng,
+    )
 
 
 @router.get("/partners/nearby", response_model=list[PartnerCardResponse])
