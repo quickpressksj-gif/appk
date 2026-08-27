@@ -77,11 +77,14 @@ class ProfileRepository:
     async def update(self, user: User, payload: ProfileUpdatePayload) -> ProfileResponse:
         changes: Dict[str, Any] = {}
         if payload.name is not None:
-            changes["display_name"] = payload.name
+            name_val = payload.name.strip()
+            changes["display_name"] = name_val
+            changes["name"] = name_val
+            changes["is_onboarded"] = True
         if payload.email is not None:
-            changes["email"] = payload.email
+            changes["email"] = payload.email.strip()
         if payload.city is not None:
-            changes["city"] = payload.city
+            changes["city"] = payload.city.strip()
         if changes:
             await users.update(user.id, changes)
         refreshed = await users.by_id(user.id)

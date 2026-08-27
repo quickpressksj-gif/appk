@@ -238,14 +238,14 @@ export async function fetchProfileData(
   }
 }
 
-export type ProfileEdit = { name: string; email: string; city?: string };
+export type ProfileEdit = { name: string; email?: string; city?: string };
 
 /** PUT /api/profile — name, email and city; the phone number is immutable. */
 export async function updateProfile(payload: ProfileEdit): Promise<ProfileEdit> {
   const account = await apiRequest<ProfileAccount>("PUT", PROFILE_API_ENDPOINTS.updateProfile, {
     body: payload,
   });
-  const saved = { name: account.name, email: account.email, city: account.city ?? "" };
+  const saved = { name: account.name, email: account.email || "", city: account.city ?? "" };
   patchCachedProfile((data) => ({ ...data, user: { ...data.user, ...saved } }));
   return saved;
 }

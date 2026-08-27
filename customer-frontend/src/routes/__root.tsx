@@ -14,6 +14,7 @@ import { PageTransition } from "@/components/motion/PageTransition";
 import { PullToRefresh } from "@/components/motion/PullToRefresh";
 import { RippleLayer } from "@/components/motion/RippleLayer";
 import { NotificationManager } from "@/components/notifications/NotificationManager";
+import { NamePromptModal } from "@/components/profile/NamePromptModal";
 import { reportLovableError } from "@/shared/lib/lovable-error-reporting";
 import { initTheme } from "@/lib/theme";
 
@@ -148,6 +149,7 @@ function RootComponent() {
       <RippleLayer />
       <PullToRefresh />
       <NotificationManager />
+      <NamePromptModal />
       <PageTransition>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />

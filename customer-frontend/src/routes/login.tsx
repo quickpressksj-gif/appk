@@ -486,6 +486,7 @@ function OtpStep({
     ])
       .then(() => {
         setVerified(true);
+        window.dispatchEvent(new Event("qp:prompt-name"));
         window.setTimeout(() => {
           if (redirectTarget) {
             void navigate({ to: redirectTarget as any });
