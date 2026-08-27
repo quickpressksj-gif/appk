@@ -5,12 +5,14 @@ import {
   Check,
   ChevronRight,
   Clock,
-  Headphones,
+  ExternalLink,
+  HelpCircle,
   Loader2,
   MapPin,
   MessageCircle,
-  Navigation,
   Phone,
+  Receipt,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   Star,
@@ -18,7 +20,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-
+import { toast } from "sonner";
+import { OrderReviewModal } from "@/components/orders/OrderReviewModal";
 import { useCustomerOrderRealtime } from "@/shared/hooks/use-customer-realtime";
 
 import { TrackingSkeleton } from "@/components/order/OrderSkeleton";
@@ -66,6 +69,7 @@ function TrackOrderScreen() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0]);
   const [cancelling, setCancelling] = useState(false);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
   /* GET /api/orders/{id} + /tracking — polled every 20s until the order is
      delivered or cancelled, so the timeline advances from real backend data. */
@@ -440,6 +444,37 @@ function TrackOrderScreen() {
               </div>
             </section>
 
+            {/* Rate & Review Card for Delivered Orders */}
+            {stageIndex >= 3 || detail?.status === "delivered" ? (
+              <section className="mt-6">
+                <div className="relative overflow-hidden rounded-3xl border-2 border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-9 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-xs">
+                        <Star className="size-5 fill-white text-white" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-300">
+                          How was your experience?
+                        </p>
+                        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Rate {tracking.storeName} & your delivery rider
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReviewModalOpen(true)}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 py-3 text-xs font-black text-white shadow-md shadow-amber-500/25 hover:bg-amber-600 active:scale-[0.98]"
+                  >
+                    <Sparkles className="size-4" />
+                    Leave Rating & Review
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
             {/* Delivery address */}
             <section className="mt-8">
               <SectionHeading title="Delivery address" />
@@ -590,6 +625,20 @@ function TrackOrderScreen() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {reviewModalOpen && tracking ? (
+        <OrderReviewModal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          orderId={orderId}
+          partnerName={tracking.storeName}
+          riderName={tracking.rider?.name}
+          onSuccess={() => {
+            setReloadKey((k) => k + 1);
+            toast.success("Thank you for your rating!");
+          }}
+        />
       ) : null}
     </main>
   );

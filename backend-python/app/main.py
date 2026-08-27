@@ -33,6 +33,7 @@ from app.api.payments import router as payments_router
 from app.api.profile import router as profile_router
 from app.api.razorpay import router as razorpay_router
 from app.api.referral import router as referral_router
+from app.api.reviews import router as reviews_router
 from app.api.rider import public_router as rider_public_router
 from app.api.rider import router as rider_router
 from app.api.services import router as services_router
@@ -145,6 +146,7 @@ def create_app() -> FastAPI:
     # Sprint 2.11: GST invoices and the Help Center (FAQs + support tickets).
     app.include_router(invoices_router, prefix=settings.api_prefix)
     app.include_router(help_router, prefix=settings.api_prefix)
+    app.include_router(reviews_router, prefix=settings.api_prefix)
     # Sprint 5.2: partner domain — dashboard, profile, orders, services, wallet.
     app.include_router(partner_router, prefix=settings.api_prefix)
     # Sprint 5.2: rider domain (dashboard, orders, wallet, notifications).

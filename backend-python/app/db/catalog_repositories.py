@@ -380,7 +380,7 @@ class CatalogRepository:
         area: Optional[str] = None,
         limit: int = 10,
     ) -> List[PartnerCardResponse]:
-        cards = await self.partner_cards(city=city, area=area, lat=lat, lng=lng, sort="distance")
+        cards = await self.partner_cards(city=city, area=area, lat=lat, lng=lng, sort="recommended")
         return cards[:limit] if limit > 0 else cards
 
     async def partner_document(self, partner_id: str) -> Optional[Dict[str, Any]]:
@@ -916,20 +916,20 @@ _ICONS = {
 
 
 def _sort_cards(cards: List[PartnerCardResponse], sort: str) -> List[PartnerCardResponse]:
-    """Sorting contract shared with the mock backend."""
+    """Sorting contract prioritizing top-rated, highly-reviewed active partners."""
     if sort == "distance" or sort == "nearest":
-        return sorted(cards, key=lambda c: c.distanceKm)
+        return sorted(cards, key=lambda c: (not c.open, c.distanceKm, -c.rating))
     if sort == "rating":
-        return sorted(cards, key=lambda c: -c.rating)
+        return sorted(cards, key=lambda c: (-c.rating, -c.reviewsCount, c.distanceKm))
     if sort == "price-low":
-        return sorted(cards, key=lambda c: c.minPrice)
+        return sorted(cards, key=lambda c: (c.minPrice, -c.rating))
     if sort == "price-high":
-        return sorted(cards, key=lambda c: -c.minPrice)
+        return sorted(cards, key=lambda c: (-c.minPrice, -c.rating))
     if sort in {"pickup", "delivery", "fastest"}:
-        return sorted(cards, key=lambda c: c.pickupMinutes)
+        return sorted(cards, key=lambda c: (c.pickupMinutes, -c.rating))
     if sort == "popular":
-        return sorted(cards, key=lambda c: -c.popularity)
-    return sorted(cards, key=lambda c: (not c.open, -c.rating, c.distanceKm))
+        return sorted(cards, key=lambda c: (-c.popularity, -c.reviewsCount, -c.rating))
+    return sorted(cards, key=lambda c: (not c.open, -c.rating, -c.reviewsCount, c.distanceKm))
 
 
 def _partner_service(item: Dict[str, Any]) -> PartnerServiceResponse:

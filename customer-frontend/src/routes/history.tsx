@@ -7,6 +7,7 @@ import {
   Receipt,
   Repeat2,
   Search,
+  Star,
   Truck,
   XCircle,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BottomNav } from "@/components/home/BottomNav";
 import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
+import { OrderReviewModal } from "@/components/orders/OrderReviewModal";
 import {
   fetchOrderHistory,
   readCachedOrderHistory,
@@ -70,6 +72,7 @@ function HistoryScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [reordering, setReordering] = useState<string | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<OrderRecord | null>(null);
 
   // Debounce the search box so every keystroke doesn't hit the API.
   useEffect(() => {
@@ -305,22 +308,35 @@ function HistoryScreen() {
                       </div>
                       <div className="flex items-center gap-2">
                         {order.status === "delivered" ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void openInvoice(order);
-                            }}
-                            disabled={invoiceBusy === order.id}
-                            className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white px-4 py-2.5 text-xs font-bold tracking-tight text-foreground shadow-xs transition-all duration-300 hover:bg-zinc-50 hover:shadow-sm active:scale-[0.95] disabled:opacity-70"
-                          >
-                            {invoiceBusy === order.id ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Receipt className="size-4" />
-                            )}
-                            Invoice
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setReviewTarget(order);
+                              }}
+                              className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50/80 px-3.5 py-2.5 text-xs font-bold tracking-tight text-amber-800 shadow-xs transition-all duration-300 hover:bg-amber-100 hover:shadow-sm active:scale-[0.95]"
+                            >
+                              <Star className="size-3.5 fill-amber-500 text-amber-500" />
+                              Rate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void openInvoice(order);
+                              }}
+                              disabled={invoiceBusy === order.id}
+                              className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white px-4 py-2.5 text-xs font-bold tracking-tight text-foreground shadow-xs transition-all duration-300 hover:bg-zinc-50 hover:shadow-sm active:scale-[0.95] disabled:opacity-70"
+                            >
+                              {invoiceBusy === order.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Receipt className="size-4" />
+                              )}
+                              Invoice
+                            </button>
+                          </>
                         ) : null}
                         <button
                           type="button"
@@ -348,6 +364,16 @@ function HistoryScreen() {
           )}
         </div>
       </div>
+
+      {reviewTarget ? (
+        <OrderReviewModal
+          isOpen={Boolean(reviewTarget)}
+          onClose={() => setReviewTarget(null)}
+          orderId={reviewTarget.orderId || reviewTarget.id}
+          partnerName={reviewTarget.store}
+          onSuccess={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
 
       <FloatingCartBar />
       <BottomNav active="history" />
