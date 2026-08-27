@@ -108,14 +108,30 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number is required")
 
+    from app.core.rate_limiter import rate_limiter
+    locked, remaining = rate_limiter.is_locked(f"otp:{phone}")
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Security Lockout: Too many failed attempts. Please try again in {remaining // 60 + 1} minutes.",
+        )
+
     # 2. Twilio OTP Code Verification
     if payload.code:
         is_valid = verify_stored_otp(phone, payload.code)
         if not is_valid:
+            failures, lock_time = rate_limiter.record_failed_attempt(f"otp:{phone}", max_failures=5, lock_duration=900)
+            if lock_time:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Account locked for 15 minutes due to 5 consecutive failed OTP attempts.",
+                )
+            remaining_attempts = max(0, 5 - failures)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired verification code. Please check your SMS and try again.",
+                detail=f"Invalid verification code. {remaining_attempts} attempt(s) remaining.",
             )
+        rate_limiter.reset_failed_attempts(f"otp:{phone}")
 
     user = await users.by_phone(phone, payload.role)
     if user is None:

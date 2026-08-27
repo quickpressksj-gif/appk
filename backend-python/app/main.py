@@ -98,6 +98,13 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="QuickPress API", version="1.0.0", lifespan=lifespan)
     from fastapi.middleware.gzip import GZipMiddleware
+    from app.core.security_headers import SecurityHeadersMiddleware
+    from app.core.rate_limiter import GlobalRateLimiterMiddleware
+    from app.core.sanitizer import InputSanitizerMiddleware
+
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(GlobalRateLimiterMiddleware)
+    app.add_middleware(InputSanitizerMiddleware)
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(
         CORSMiddleware,
