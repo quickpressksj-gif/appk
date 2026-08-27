@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">QuickPress Customer</string>
-    <string name="title_activity_main">QuickPress Customer</string>
+    <string name="app_name">QuickPress</string>
+    <string name="title_activity_main">QuickPress</string>
     <string name="package_name">com.quickpress.customer</string>
     <string name="custom_url_scheme">com.quickpress.customer</string>
     <string name="default_notification_channel_id">quickpress_default</string>
