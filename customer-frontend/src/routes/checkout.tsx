@@ -46,6 +46,7 @@ import {
   type CheckoutPaymentMethod,
 } from "@/api/customer/checkout-api";
 import { fetchRazorpayConfig, payWithRazorpay, type PayResult } from "@/api/payments/razorpay-api";
+import { fetchWallet } from "@/api/customer/wallet-api";
 import { fetchWalletLedger } from "@/api/payments/wallet-ledger-api";
 
 export const Route = createFileRoute("/checkout")({
@@ -113,15 +114,16 @@ function CheckoutScreen() {
   const [applying, setApplying] = useState(false);
 
   // Live wallet balance + gateway mode for the real payment step.
-  const walletLedgerQuery = useQuery({
-    queryKey: ["wallet", "ledger", "checkout"],
-    queryFn: () => fetchWalletLedger({ limit: 1 }),
+  const walletQuery = useQuery({
+    queryKey: ["wallet", "live", "checkout"],
+    queryFn: () => fetchWallet(),
   });
   const razorpayConfigQuery = useQuery({
     queryKey: ["razorpay", "config"],
     queryFn: fetchRazorpayConfig,
   });
-  const liveWalletBalance = walletLedgerQuery.data?.balance ?? walletBalance;
+  const liveWalletBalance =
+    walletQuery.data?.balances?.currentBalance ?? walletBalance;
 
   type PayMode = "razorpay" | "wallet" | "mixed" | "cod";
   const [payMode, setPayMode] = useState<PayMode>("razorpay");
@@ -662,7 +664,7 @@ function CheckoutScreen() {
                       </div>
                       <p className="truncate text-[11px] text-muted-foreground">
                         {method.kind === "wallet" && method.enabled
-                          ? `Balance ₹${walletBalance}`
+                          ? `Balance ₹${liveWalletBalance}`
                           : method.note}
                       </p>
                     </div>

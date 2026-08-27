@@ -64,9 +64,10 @@ def pickup_schedule() -> PickupScheduleResponse:
     )
 
 
-async def wallet_balance(user_id: str) -> int:
-    document = await database.collection("customer_wallets").find_one({"_id": user_id})
-    return int((document or {}).get("balance") or 0)
+async def wallet_balance(user: User) -> int:
+    from app.db.wallet_repositories import wallet_repository
+    wlt = await wallet_repository._wallet_document(user)
+    return int(wlt.get("balance", 0.0))
 
 
 def payment_methods(balance: int, payable: int) -> list[PaymentMethodResponse]:
@@ -113,7 +114,7 @@ async def get_checkout(
     coupons = await cart_repository.coupons(user.id)
     totals = compute_totals(items, charges, couponDiscount)
     store = await cart_repository._store(items)
-    balance = await wallet_balance(user.id)
+    balance = await wallet_balance(user)
     schedule = pickup_schedule()
     delivery = delivery_estimate(OrderPickup(date=schedule.selectedDay, slot=schedule.selectedSlot))
     selected = next((a.id for a in addresses if a.isDefault), addresses[0].id if addresses else "")
