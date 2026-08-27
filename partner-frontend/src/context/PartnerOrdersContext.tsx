@@ -180,44 +180,73 @@ const PartnerOrdersContext = createContext<OrdersStore | null>(null);
 
 let cachedPartnerOrders: ManagedOrder[] | null = null;
 
+const CACHE_KEY = "qp.partner.cachedOrders";
+
+function getCachedOrders(): ManagedOrder[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<ManagedOrder[]>(() => cachedPartnerOrders ?? []);
-  const [isLoading, setIsLoading] = useState(() => cachedPartnerOrders === null);
+  const [orders, setOrders] = useState<ManagedOrder[]>(getCachedOrders);
+  const [isLoading, setIsLoading] = useState(() => orders.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [incomingOrder, setIncomingOrder] = useState<ManagedOrder | null>(null);
-  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(new Set());
+  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => {
+    // Initialise seen IDs from cached orders so existing orders do not trigger alarm on reload
+    const cached = getCachedOrders();
+    return new Set(cached.map((o) => o.id));
+  });
 
-  const load = useCallback(async (opts: { refreshing?: boolean } = {}) => {
-    if (opts.refreshing) setIsRefreshing(true);
-    else if (!cachedPartnerOrders) setIsLoading(true);
-    setError(null);
-    try {
-      const remote = await fetchPartnerOrders();
-      const mapped = remote.map(toManagedOrder);
-      cachedPartnerOrders = mapped;
-      setOrders(mapped);
+  const load = useCallback(
+    async (opts: { refreshing?: boolean } = {}) => {
+      if (opts.refreshing) setIsRefreshing(true);
+      else if (orders.length === 0) setIsLoading(true);
+      setError(null);
+      try {
+        const remote = await fetchPartnerOrders();
+        const mapped = remote.map(toManagedOrder);
+        setOrders(mapped);
 
-      // Check for new unacknowledged orders (Zomato style order alert)
-      const unacknowledgedNew = mapped.find(
-        (o) => o.stage === "new" && !seenOrderIds.has(o.id)
-      );
+        // Cache in localStorage for 0ms instant loading next time
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(CACHE_KEY, JSON.stringify(mapped));
+          } catch {
+            /* ignore */
+          }
+        }
 
-      if (unacknowledgedNew && !incomingOrder) {
-        setSeenOrderIds((prev) => new Set([...prev, unacknowledgedNew.id]));
-        setIncomingOrder(unacknowledgedNew);
-        startOrderAlarm(unacknowledgedNew.code);
+        // Check for new unacknowledged orders (Zomato style order alert)
+        const unacknowledgedNew = mapped.find(
+          (o) => o.stage === "new" && !seenOrderIds.has(o.id)
+        );
+
+        if (unacknowledgedNew && !incomingOrder) {
+          setSeenOrderIds((prev) => new Set([...prev, unacknowledgedNew.id]));
+          setIncomingOrder(unacknowledgedNew);
+          startOrderAlarm(unacknowledgedNew.code);
+        }
+      } catch (err) {
+        if (orders.length === 0) {
+          setError(err instanceof Error ? err.message : "Failed to load orders");
+        }
+      } finally {
+        if (opts.refreshing) setIsRefreshing(false);
+        setIsLoading(false);
       }
-    } catch (err) {
-      if (!cachedPartnerOrders) {
-        setError(err instanceof Error ? err.message : "Failed to load orders");
-      }
-    } finally {
-      if (opts.refreshing) setIsRefreshing(false);
-      else setIsLoading(false);
-    }
-  }, [seenOrderIds, incomingOrder]);
+    },
+    [seenOrderIds, incomingOrder, orders.length],
+  );
 
   // Initial load
   useEffect(() => {
@@ -225,11 +254,11 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Background polling every 8 seconds for instantaneous order notification
+  // Background polling every 5 seconds for instantaneous order notification
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void load({ refreshing: true });
-    }, 8000);
+    }, 5000);
     return () => clearInterval(pollInterval);
   }, [load]);
 

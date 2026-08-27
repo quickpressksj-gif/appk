@@ -56,21 +56,44 @@ const STATUS_TO_LIVE: Record<string, LiveOrder["status"]> = {
   cancelled: "delivered",
 };
 
+const DASHBOARD_CACHE_KEY = "qp.partner.cachedDashboard";
+
+function getCachedDashboard(): {
+  shop: DashboardShop | null;
+  summary: DashboardSummaryCard | null;
+  quickStats: QuickStat[];
+  earnings: EarningsSummary | null;
+  isOnline: boolean;
+} {
+  if (typeof window === "undefined") {
+    return { shop: null, summary: null, quickStats: [], earnings: null, isOnline: true };
+  }
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (!raw) return { shop: null, summary: null, quickStats: [], earnings: null, isOnline: true };
+    return JSON.parse(raw);
+  } catch {
+    return { shop: null, summary: null, quickStats: [], earnings: null, isOnline: true };
+  }
+}
+
 export function PartnerDashboardScreen() {
   const navigate = useNavigate();
   const { orders, isLoading: ordersLoading, refresh: refreshOrders } = usePartnerOrders();
   const { handleAction, sheetNode, overlay } = useOrderActionHandler();
 
-  const [shop, setShop] = useState<DashboardShop | null>(null);
-  const [summary, setSummary] = useState<DashboardSummaryCard | null>(null);
-  const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
-  const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
-  const [isOnline, setIsOnline] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
+  const cached = useMemo(getCachedDashboard, []);
+
+  const [shop, setShop] = useState<DashboardShop | null>(cached.shop);
+  const [summary, setSummary] = useState<DashboardSummaryCard | null>(cached.summary);
+  const [quickStats, setQuickStats] = useState<QuickStat[]>(cached.quickStats);
+  const [earnings, setEarnings] = useState<EarningsSummary | null>(cached.earnings);
+  const [isOnline, setIsOnline] = useState(cached.isOnline);
+  const [isLoading, setIsLoading] = useState(() => !cached.shop && !cached.summary);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setIsLoading(true);
+    if (!shop && !summary) setIsLoading(true);
     setError(null);
     try {
       const [profile, dashboard, earningsSummary] = await Promise.all([
@@ -82,32 +105,56 @@ export function PartnerDashboardScreen() {
         navigate({ to: partnerRoutes.registrationSubmitted });
         return;
       }
-      setShop({
-        shopName: profile.businessName,
-        partnerName: profile.ownerName,
-        logoInitials: profile.businessName.slice(0, 2).toUpperCase(),
+      const newShop: DashboardShop = {
+        shopName: profile.businessName || "QuickPress Store",
+        partnerName: profile.ownerName || "Partner",
+        logoInitials: (profile.businessName || "QP").slice(0, 2).toUpperCase(),
         isVerified: true,
         notifications: 0,
-      });
-      setSummary({
+      };
+      const newSummary: DashboardSummaryCard = {
         totalOrders: profile.totalOrders,
         earnings: dashboard.todayEarnings,
         activeOrders: dashboard.newOrders + dashboard.inProcess + dashboard.readyForDelivery,
-      });
-      setQuickStats([
+      };
+      const newStats: QuickStat[] = [
         { id: "new", label: "New Orders", value: dashboard.newOrders, tone: "primary" },
         { id: "processing", label: "Processing", value: dashboard.inProcess, tone: "primary" },
         { id: "ready", label: "Ready", value: dashboard.readyForDelivery, tone: "green" },
         { id: "completed", label: "Completed", value: dashboard.completedToday, tone: "green" },
-      ]);
+      ];
+
+      setShop(newShop);
+      setSummary(newSummary);
+      setQuickStats(newStats);
       setEarnings(earningsSummary);
       setIsOnline(dashboard.isStoreOpen);
+
+      // Save to localStorage for instant 0ms next load
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            DASHBOARD_CACHE_KEY,
+            JSON.stringify({
+              shop: newShop,
+              summary: newSummary,
+              quickStats: newStats,
+              earnings: earningsSummary,
+              isOnline: dashboard.isStoreOpen,
+            }),
+          );
+        } catch {
+          /* ignore */
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
+      if (!shop) {
+        setError(err instanceof Error ? err.message : "Failed to load dashboard");
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, shop, summary]);
 
   useEffect(() => {
     void load();
@@ -162,7 +209,7 @@ export function PartnerDashboardScreen() {
     navigate({ to: partnerRoutes.orderDetails, params: { orderId: order.id } });
   };
 
-  const showSkeleton = isLoading || ordersLoading || !shop || !summary;
+  const showSkeleton = (isLoading && !shop && !summary) || (ordersLoading && orders.length === 0 && !shop);
 
   return (
     <PartnerLayout

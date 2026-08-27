@@ -61,32 +61,25 @@ function session(): Storage | null {
 /* --------------------------------------------------------- remember login */
 
 /**
- * Remember this login across browser restarts (default: true).
- * Called by the auth screens' "Remember me" checkbox.
+ * Remember this login across browser restarts (always permanently saved in localStorage).
  */
 export function setRememberSession(remember: boolean, role: string = activeRole): void {
   const store = local();
   if (!store) return;
   try {
-    store.setItem(`${REMEMBER_PREFIX}${role}`, remember ? "1" : "0");
+    store.setItem(`${REMEMBER_PREFIX}${role}`, "1");
   } catch {
     /* ignore */
   }
 }
 
-/** True when this role's session should survive a browser restart. */
+/** Always true — QuickPress Partner sessions never expire prematurely on reload or restart. */
 export function isSessionRemembered(role: string = activeRole): boolean {
-  const store = local();
-  if (!store) return true;
-  try {
-    return store.getItem(`${REMEMBER_PREFIX}${role}`) !== "0";
-  } catch {
-    return true;
-  }
+  return true;
 }
 
 function targetStorage(role: string): Storage | null {
-  return isSessionRemembered(role) ? local() : (session() ?? local());
+  return local() ?? session();
 }
 
 /* ------------------------------------------------------------- read/write */
@@ -111,21 +104,13 @@ export function readSession(role: string = activeRole): AuthSession | null {
 
 export function writeSession(session_: AuthSession, role: string = activeRole): void {
   memory.set(role, session_);
-  const store = targetStorage(role);
-  if (store) {
-    try {
-      store.setItem(storageKey(role), JSON.stringify(session_));
-    } catch {
-      /* ignore */
-    }
-  }
-  // When "remember me" is off, make sure no long-lived copy survives.
-  if (!isSessionRemembered(role) && store !== local()) {
-    try {
-      local()?.removeItem(storageKey(role));
-    } catch {
-      /* ignore */
-    }
+  // Always write to both localStorage and sessionStorage for permanent persistence
+  try {
+    local()?.setItem(storageKey(role), JSON.stringify(session_));
+    local()?.setItem(`${REMEMBER_PREFIX}${role}`, "1");
+    session()?.setItem(storageKey(role), JSON.stringify(session_));
+  } catch {
+    /* ignore */
   }
   for (const listener of listeners) listener();
 }

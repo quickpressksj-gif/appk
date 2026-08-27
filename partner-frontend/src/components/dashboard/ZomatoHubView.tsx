@@ -87,7 +87,7 @@ const FEED_PILLS = [
 
 export function ZomatoHubView() {
   const navigate = useNavigate();
-  const { orders, counts, refresh: refreshOrders } = usePartnerOrders();
+  const { orders, counts, refresh: refreshOrders, testIncomingOrderAlarm } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
   const [activeFeedPill, setActiveFeedPill] = useState("feed");
@@ -182,6 +182,19 @@ export function ZomatoHubView() {
               />
               <span>{isOnline ? "Online" : "Offline"}</span>
               <ChevronRight className="size-3" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                testIncomingOrderAlarm();
+                toast.info("🚨 Simulating Zomato-style incoming order alert...");
+              }}
+              className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-900 active:scale-95 transition-all cursor-pointer hover:bg-amber-100"
+              title="Test Order Ring Alert"
+            >
+              <Volume2 className="size-3.5 text-amber-700" />
+              <span>Test Ring</span>
             </button>
 
             <Link
