@@ -287,9 +287,8 @@ function PhoneStep({
         </label>
 
         <div
-          className={`auth-field flex h-14 items-center overflow-hidden rounded-2xl border-2 bg-background ${
-            invalid ? "input-invalid" : "border-border"
-          }`}
+          className={`auth-field flex h-14 items-center overflow-hidden rounded-2xl border-2 bg-background ${invalid ? "input-invalid" : "border-border"
+            }`}
         >
           <div className="relative flex h-full items-center border-r border-border pl-3.5">
             <Smartphone
@@ -576,13 +575,12 @@ function OtpStep({
                 if (event.key === "ArrowLeft") inputs.current[index - 1]?.focus();
                 if (event.key === "ArrowRight") inputs.current[index + 1]?.focus();
               }}
-              className={`h-14 w-full rounded-xl border-2 bg-background text-center text-[20px] font-black text-foreground outline-none transition-all ${
-                verified
+              className={`h-14 w-full rounded-xl border-2 bg-background text-center text-[20px] font-black text-foreground outline-none transition-all ${verified
                   ? "border-brand-green text-brand-green"
                   : digit
                     ? "border-foreground/70"
                     : "border-border"
-              }`}
+                }`}
             />
           ))}
         </div>
@@ -599,9 +597,8 @@ function OtpStep({
         <button
           type="submit"
           disabled={code.length !== 6 || verifying}
-          className={`btn-ripple mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-[15.5px] font-black tracking-tight shadow-cta transition-all duration-300 active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${
-            verified ? "bg-brand-green text-background" : "bg-primary text-primary-foreground"
-          }`}
+          className={`btn-ripple mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-[15.5px] font-black tracking-tight shadow-cta transition-all duration-300 active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${verified ? "bg-brand-green text-background" : "bg-primary text-primary-foreground"
+            }`}
         >
           {verified ? (
             <>
