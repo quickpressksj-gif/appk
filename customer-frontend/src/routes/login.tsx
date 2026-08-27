@@ -246,12 +246,18 @@ function PhoneStep({
       } else {
         void navigate({ to: "/location" });
       }
-    } catch (cause) {
-      setSocialError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : `${label} sign-in complete nahi hua. Dobara try karein.`,
-      );
+    } catch (cause: any) {
+      const code = String(cause?.code || "");
+      const msg = String(cause?.message || "");
+      if (code.includes("popup-closed") || msg.includes("popup-closed")) {
+        setSocialError(null);
+      } else if (code.includes("unauthorized-domain") || msg.includes("unauthorized-domain")) {
+        setSocialError("Firebase Console me ye domain (Authorized Domains) me add karein.");
+      } else {
+        setSocialError(
+          msg ? msg : `${label} sign-in complete nahi hua. Dobara try karein.`,
+        );
+      }
       setSocial(null);
     }
   };
