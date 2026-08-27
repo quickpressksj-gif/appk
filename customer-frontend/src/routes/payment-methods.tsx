@@ -113,43 +113,61 @@ function PaymentMethodsScreen() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    if (editingId) {
-      // PUT /api/payment-methods/{id}
-      await updatePaymentMethod(editingId, { kind, name, masked });
-      setMethods((prev) =>
-        prev
-          ? prev.map((item) => (item.id === editingId ? { ...item, kind, name, masked } : item))
-          : prev,
-      );
-      toast.success("Payment method updated");
-    } else {
-      // POST /api/payment-methods
-      const created = await addPaymentMethod({ kind, name, masked });
-      setMethods((prev) => (prev ? [...prev, created] : [created]));
-      toast.success("Payment method added");
+    if (!name.trim()) {
+      toast.error("Please enter a name for this payment method");
+      return;
     }
-    setSaving(false);
-    setSheetOpen(false);
+    setSaving(true);
+    try {
+      if (editingId) {
+        // PUT /api/payment-methods/{id}
+        await updatePaymentMethod(editingId, { kind, name, masked });
+        setMethods((prev) =>
+          prev
+            ? prev.map((item) => (item.id === editingId ? { ...item, kind, name, masked } : item))
+            : prev,
+        );
+        toast.success("Payment method updated");
+      } else {
+        // POST /api/payment-methods
+        const created = await addPaymentMethod({ kind, name, masked });
+        setMethods((prev) => (prev ? [...prev, created] : [created]));
+        toast.success("Payment method added");
+      }
+      setSheetOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save payment method");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRemove = async (id: string) => {
     setBusyId(id);
-    // TODO: replace with DELETE /api/payment-methods/{id}
-    await removePaymentMethod(id);
-    setMethods((prev) => (prev ? prev.filter((item) => item.id !== id) : prev));
-    setBusyId(null);
-    toast.success("Payment method removed");
+    try {
+      await removePaymentMethod(id);
+      setMethods((prev) => (prev ? prev.filter((item) => item.id !== id) : prev));
+      toast.success("Payment method removed");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove payment method");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const handleDefault = async (id: string) => {
     setBusyId(id);
-    await setDefaultPaymentMethod(id);
-    setMethods((prev) =>
-      prev ? prev.map((item) => ({ ...item, isDefault: item.id === id })) : prev,
-    );
-    setBusyId(null);
-    toast.success("Default payment updated");
+    try {
+      await setDefaultPaymentMethod(id);
+      setMethods((prev) =>
+        prev ? prev.map((item) => ({ ...item, isDefault: item.id === id })) : prev,
+      );
+      toast.success("Default payment updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to set default payment method");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const handleLinkProvider = (providerName: string) => {

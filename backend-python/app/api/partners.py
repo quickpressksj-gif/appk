@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.core.deps import current_user
 from app.db.catalog_repositories import catalog
 from app.models.catalog import (
     FilterOptionsResponse,
@@ -27,8 +28,35 @@ from app.models.catalog import (
     PartnerServiceResponse,
     SearchResultResponse,
 )
+from app.models.user import User
 
 router = APIRouter(tags=["partners"])
+
+
+# ------------------------------------------------------------------
+# Favourite Stores
+# ------------------------------------------------------------------
+
+@router.get("/partners/favourites")
+async def get_favourite_partners(user: User = Depends(current_user)) -> list[dict]:
+    """List all favourite laundry stores for the logged-in customer."""
+    return await catalog.favourite_partners(user.id)
+
+
+@router.post("/partners/favourites/{partner_id}")
+async def toggle_favourite_partner(
+    partner_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Toggle a laundry store into or out of the customer's favourite stores."""
+    return await catalog.toggle_favourite_partner(user.id, partner_id)
+
+
+@router.delete("/partners/favourites/{partner_id}")
+async def delete_favourite_partner(
+    partner_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Remove a laundry store from the customer's favourite stores."""
+    return await catalog.remove_favourite_partner(user.id, partner_id)
 
 
 @router.get("/partners", response_model=list[PartnerCardResponse])

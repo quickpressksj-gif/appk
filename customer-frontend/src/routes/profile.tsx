@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
   BadgeCheck,
   Bell,
@@ -33,6 +34,7 @@ import {
   ShieldAlert,
   Sparkles,
   Star,
+  Store,
   Sun,
   Trash2,
   Truck,
@@ -44,6 +46,15 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import {
+  fetchSavedServices,
+  removeSavedService,
+  fetchFavouritePartners,
+  removeFavouritePartner,
+  type SavedServiceItem,
+  type FavouritePartnerItem,
+} from "@/api/customer/favourites-api";
 
 import { BottomNav } from "@/components/home/BottomNav";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
@@ -224,6 +235,8 @@ function ProfileScreen() {
   const [offline, setOffline] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savedServicesOpen, setSavedServicesOpen] = useState(false);
+  const [favouriteStoresOpen, setFavouriteStoresOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const settings = useAppSettings();
   const activeLocation = readSavedLocation();
@@ -619,16 +632,16 @@ function ProfileScreen() {
                   {
                     id: "services",
                     label: "Saved Services",
-                    note: "Your go-to laundry services",
+                    note: "Your favourite & bookmarked services",
                     icon: Heart,
-                    action: () => soon("Saved services"),
+                    action: () => setSavedServicesOpen(true),
                   },
                   {
                     id: "stores",
                     label: "Favourite Laundry Stores",
-                    note: "Partners you order from most",
+                    note: "Partners you love ordering from",
                     icon: Sparkles,
-                    action: () => soon("Favourite stores"),
+                    action: () => setFavouriteStoresOpen(true),
                   },
                 ]}
               />
@@ -1135,8 +1148,279 @@ function ProfileScreen() {
         onChange={(event) => void handlePhotoFile(event.target.files?.[0])}
       />
 
-      {editing || logoutOpen || settingsOpen || deleteOpen ? null : <BottomNav active="profile" />}
+      {/* Saved Services Drawer */}
+      <SavedServicesDrawer
+        open={savedServicesOpen}
+        onClose={() => setSavedServicesOpen(false)}
+      />
+
+      {/* Favourite Laundry Stores Drawer */}
+      <FavouriteStoresDrawer
+        open={favouriteStoresOpen}
+        onClose={() => setFavouriteStoresOpen(false)}
+      />
+
+      {editing || logoutOpen || settingsOpen || deleteOpen || savedServicesOpen || favouriteStoresOpen ? null : <BottomNav active="profile" />}
       <Toaster position="top-center" />
     </main>
+  );
+}
+
+function SavedServicesDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [services, setServices] = useState<SavedServiceItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchSavedServices()
+      .then((res) => setServices(res))
+      .catch(() => setServices([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      load();
+    }
+  }, [open, load]);
+
+  const handleRemove = async (serviceId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await removeSavedService(serviceId);
+      setServices((prev) => prev.filter((s) => s.serviceId !== serviceId && s.id !== serviceId));
+      toast.success("Service removed from favourites");
+    } catch {
+      toast.error("Failed to remove service");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs sm:items-center">
+      <div className="animate-in fade-in slide-in-from-bottom-6 max-h-[85vh] w-full max-w-md overflow-hidden rounded-t-[2rem] bg-card border border-border shadow-2xl flex flex-col sm:rounded-[2rem]">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+              <Heart className="size-4.5 fill-current" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Saved Services</h2>
+              <p className="text-xs text-muted-foreground">{services.length} services bookmarked</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground active:scale-95"
+          >
+            <X className="size-4.5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          {loading ? (
+            <div className="py-12 text-center">
+              <Loader2 className="mx-auto size-6 animate-spin text-primary" />
+              <p className="mt-3 text-xs font-semibold text-muted-foreground">Loading saved services…</p>
+            </div>
+          ) : services.length === 0 ? (
+            <div className="py-10 text-center">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-3">
+                <Heart className="size-7" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">No saved services yet</h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
+                Bookmark your frequent laundry services to quickly book them anytime.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  void navigate({ to: "/home" });
+                }}
+                className="mt-5 inline-flex h-10 items-center justify-center rounded-2xl bg-primary px-5 text-xs font-bold text-primary-foreground shadow-cta"
+              >
+                Browse All Services
+              </button>
+            </div>
+          ) : (
+            services.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  onClose();
+                  void navigate({ to: "/services/$serviceId", params: { serviceId: item.serviceId } });
+                }}
+                className="group relative flex items-center gap-3.5 rounded-2xl border border-border bg-background p-3.5 transition-all hover:border-primary/50 cursor-pointer active:scale-[0.99]"
+              >
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Sparkles className="size-6 text-brand-dark" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="truncate text-sm font-bold text-foreground">{item.title || item.name}</h4>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-brand-green">₹{item.finalPrice || item.price}</span>
+                    <span className="text-[11px] text-muted-foreground">· {item.processingTime || "24 hrs"}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemove(item.serviceId, e)}
+                    className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <ArrowRight className="size-4" />
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FavouriteStoresDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [stores, setStores] = useState<FavouritePartnerItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchFavouritePartners()
+      .then((res) => setStores(res))
+      .catch(() => setStores([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      load();
+    }
+  }, [open, load]);
+
+  const handleRemove = async (partnerId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await removeFavouritePartner(partnerId);
+      setStores((prev) => prev.filter((s) => s.partnerId !== partnerId && s.id !== partnerId));
+      toast.success("Store removed from favourites");
+    } catch {
+      toast.error("Failed to remove store");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs sm:items-center">
+      <div className="animate-in fade-in slide-in-from-bottom-6 max-h-[85vh] w-full max-w-md overflow-hidden rounded-t-[2rem] bg-card border border-border shadow-2xl flex flex-col sm:rounded-[2rem]">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/15 text-brand-dark">
+              <Store className="size-4.5" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Favourite Stores</h2>
+              <p className="text-xs text-muted-foreground">{stores.length} preferred partner stores</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground active:scale-95"
+          >
+            <X className="size-4.5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          {loading ? (
+            <div className="py-12 text-center">
+              <Loader2 className="mx-auto size-6 animate-spin text-primary" />
+              <p className="mt-3 text-xs font-semibold text-muted-foreground">Loading favourite stores…</p>
+            </div>
+          ) : stores.length === 0 ? (
+            <div className="py-10 text-center">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/15 text-brand-dark mb-3">
+                <Store className="size-7" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">No favourite stores yet</h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
+                Mark your trusted laundry partners as favourite to quickly view their menu and order.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  void navigate({ to: "/home" });
+                }}
+                className="mt-5 inline-flex h-10 items-center justify-center rounded-2xl bg-primary px-5 text-xs font-bold text-primary-foreground shadow-cta"
+              >
+                Find Nearby Partners
+              </button>
+            </div>
+          ) : (
+            stores.map((store) => (
+              <div
+                key={store.id}
+                onClick={() => {
+                  onClose();
+                  void navigate({ to: "/partner/$partnerId", params: { partnerId: store.partnerId } });
+                }}
+                className="group relative flex items-center gap-3.5 rounded-2xl border border-border bg-background p-3.5 transition-all hover:border-primary/50 cursor-pointer active:scale-[0.99]"
+              >
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted overflow-hidden border border-border">
+                  <Store className="size-6 text-muted-foreground" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="truncate text-sm font-bold text-foreground">{store.name}</h4>
+                    <span className="flex items-center gap-0.5 rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-black text-amber-600 dark:text-amber-400">
+                      <Star className="size-2.5 fill-current" />
+                      {store.rating.toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {store.area ? `${store.area}, ${store.city}` : store.city}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemove(store.partnerId, e)}
+                    className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <ArrowRight className="size-4" />
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

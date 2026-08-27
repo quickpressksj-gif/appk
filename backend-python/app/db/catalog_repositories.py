@@ -6,6 +6,7 @@ Documents live in MongoDB (`banners`, `categories`, `services`,
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, List, Optional
 
 from app.db.catalog_seed import SEED
@@ -34,6 +35,7 @@ from app.models.catalog import (
     ServiceCardResponse,
     SpecialOffer,
 )
+from app.models.user import utcnow
 
 
 class CatalogRepository:
@@ -817,6 +819,170 @@ class CatalogRepository:
             scratchCards=scratch_cards,
             rewardPoints=reward_points,
         )
+
+    # ------------------------------------------------------------------
+    # Customer Saved Services (MongoDB Atlas: `customer_saved_services`)
+    # ------------------------------------------------------------------
+
+    async def saved_services(self, user_id: str) -> List[Dict[str, Any]]:
+        docs = await database.find_many("customer_saved_services", {"userId": user_id})
+        docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
+        items = []
+        for d in docs:
+            items.append({
+                "id": str(d.get("_id") or d.get("id")),
+                "serviceId": str(d.get("serviceId")),
+                "title": d.get("title") or d.get("name") or "Laundry Service",
+                "name": d.get("name") or d.get("title") or "Laundry Service",
+                "price": int(d.get("price") or d.get("basePrice") or 49),
+                "basePrice": int(d.get("basePrice") or d.get("price") or 49),
+                "finalPrice": int(d.get("finalPrice") or d.get("price") or 49),
+                "discountLabel": d.get("discountLabel"),
+                "image": d.get("image") or "",
+                "icon": d.get("icon") or "sparkles",
+                "categoryId": d.get("categoryId") or "c1",
+                "processingTime": d.get("processingTime") or "24 hrs",
+                "savedAt": d.get("createdAt") or "",
+                "isSaved": True,
+            })
+        return items
+
+    async def toggle_saved_service(self, user_id: str, service_id: str) -> Dict[str, Any]:
+        collection = database.collection("customer_saved_services")
+        existing = await collection.find_one({"userId": user_id, "serviceId": service_id})
+        if existing:
+            await collection.delete_many({"userId": user_id, "serviceId": service_id})
+            return {"ok": True, "isSaved": False, "message": "Removed from saved services."}
+
+        service_doc = await database.find_one("services", {"_id": service_id})
+        if not service_doc:
+            service_doc = await database.find_one("partner_services", {"_id": service_id})
+
+        title = (service_doc.get("name") if service_doc else None) or service_id.replace("-", " ").title()
+        price = int(service_doc.get("price") or 49) if service_doc else 49
+        icon = (service_doc.get("icon") or "sparkles") if service_doc else "sparkles"
+        image = (service_doc.get("image") or "") if service_doc else ""
+        category_id = (service_doc.get("categoryId") or "c1") if service_doc else "c1"
+
+        now = utcnow().isoformat()
+        new_id = f"ss-{uuid.uuid4().hex[:10]}"
+        doc = {
+            "_id": new_id,
+            "id": new_id,
+            "userId": user_id,
+            "serviceId": service_id,
+            "title": title,
+            "name": title,
+            "price": price,
+            "basePrice": price,
+            "finalPrice": price,
+            "icon": icon,
+            "image": image,
+            "categoryId": category_id,
+            "processingTime": "24 hrs",
+            "createdAt": now,
+        }
+        await collection.insert_one(doc)
+        return {"ok": True, "isSaved": True, "message": "Saved to your favourites.", "service": doc}
+
+    async def remove_saved_service(self, user_id: str, service_id: str) -> Dict[str, Any]:
+        await database.collection("customer_saved_services").delete_many(
+            {"userId": user_id, "serviceId": service_id}
+        )
+        return {"ok": True, "isSaved": False}
+
+    # ------------------------------------------------------------------
+    # Customer Favourite Stores (MongoDB Atlas: `customer_favourite_partners`)
+    # ------------------------------------------------------------------
+
+    async def favourite_partners(self, user_id: str) -> List[Dict[str, Any]]:
+        docs = await database.find_many("customer_favourite_partners", {"userId": user_id})
+        docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
+        items = []
+        for d in docs:
+            pid = str(d.get("partnerId") or d.get("_id"))
+            store = (
+                await database.find_one("partner_profiles", {"_id": pid})
+                or await database.find_one("partner_profiles", {"partnerId": pid})
+                or {}
+            )
+            name = d.get("name") or store.get("businessName") or store.get("name") or "Laundry Store"
+            rating = float(store.get("rating") or d.get("rating") or 5.0)
+            reviews_count = int(store.get("reviewsCount") or d.get("reviewsCount") or 1)
+            city = store.get("city") or d.get("city") or "Kasganj"
+            area = store.get("area") or d.get("area") or "Main Market"
+            is_open = bool(store.get("isOnline", True))
+            logo = store.get("logo") or store.get("logoUrl") or d.get("logo") or d.get("image") or "store-1"
+            image = store.get("bannerUrl") or store.get("cover") or d.get("image") or "store-1"
+            min_price = int(d.get("minPrice") or 49)
+
+            items.append({
+                "id": str(d.get("_id") or pid),
+                "partnerId": pid,
+                "name": name,
+                "rating": rating,
+                "reviews": f"{reviews_count} reviews",
+                "reviewsCount": reviews_count,
+                "city": city,
+                "area": area,
+                "open": is_open,
+                "status": "open" if is_open else "closed",
+                "logo": logo,
+                "image": image,
+                "minPrice": min_price,
+                "eta": "30 min pickup",
+                "isFavourite": True,
+                "savedAt": d.get("createdAt") or "",
+            })
+        return items
+
+    async def toggle_favourite_partner(self, user_id: str, partner_id: str) -> Dict[str, Any]:
+        collection = database.collection("customer_favourite_partners")
+        existing = await collection.find_one({"userId": user_id, "partnerId": partner_id})
+        if existing:
+            await collection.delete_many({"userId": user_id, "partnerId": partner_id})
+            return {"ok": True, "isFavourite": False, "message": "Removed from favourite stores."}
+
+        store = (
+            await database.find_one("partner_profiles", {"_id": partner_id})
+            or await database.find_one("partner_profiles", {"partnerId": partner_id})
+            or {}
+        )
+        name = store.get("businessName") or store.get("name") or "QuickPress Partner Store"
+        rating = float(store.get("rating") or 5.0)
+        city = store.get("city") or "Kasganj"
+        area = store.get("area") or "Main Market"
+        logo = store.get("logo") or store.get("logoUrl") or "store-1"
+        image = store.get("bannerUrl") or store.get("cover") or "store-1"
+
+        now = utcnow().isoformat()
+        new_id = f"fp-{uuid.uuid4().hex[:10]}"
+        doc = {
+            "_id": new_id,
+            "id": new_id,
+            "userId": user_id,
+            "partnerId": partner_id,
+            "name": name,
+            "rating": rating,
+            "city": city,
+            "area": area,
+            "logo": logo,
+            "image": image,
+            "createdAt": now,
+        }
+        await collection.insert_one(doc)
+        return {
+            "ok": True,
+            "isFavourite": True,
+            "message": f"Added {name} to your favourite stores ❤️",
+            "partner": doc,
+        }
+
+    async def remove_favourite_partner(self, user_id: str, partner_id: str) -> Dict[str, Any]:
+        await database.collection("customer_favourite_partners").delete_many(
+            {"userId": user_id, "partnerId": partner_id}
+        )
+        return {"ok": True, "isFavourite": False}
 
 
 def _without_id(document: Dict[str, Any]) -> Dict[str, Any]:

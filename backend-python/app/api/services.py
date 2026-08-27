@@ -23,7 +23,37 @@ from app.models.cart import (
     ServicePartnerResponse,
 )
 
+from app.core.deps import current_user
+from app.db.catalog_repositories import catalog
+from app.models.user import User
+
 router = APIRouter(tags=["services"])
+
+
+# ------------------------------------------------------------------
+# Saved Services
+# ------------------------------------------------------------------
+
+@router.get("/services/saved")
+async def get_saved_services(user: User = Depends(current_user)) -> list[dict]:
+    """List all saved / favourite services for the logged-in customer."""
+    return await catalog.saved_services(user.id)
+
+
+@router.post("/services/saved/{service_id}")
+async def toggle_saved_service(
+    service_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Toggle a service into or out of the customer's saved list."""
+    return await catalog.toggle_saved_service(user.id, service_id)
+
+
+@router.delete("/services/saved/{service_id}")
+async def delete_saved_service(
+    service_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Remove a service from the customer's saved list."""
+    return await catalog.remove_saved_service(user.id, service_id)
 
 
 async def _document_or_404(service_id: str) -> dict:

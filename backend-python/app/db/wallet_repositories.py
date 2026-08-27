@@ -502,7 +502,6 @@ class WalletRepository:
     ) -> PaymentMethod:
         if kind not in KIND_LABELS:
             raise WalletError("Unsupported payment method.", 400)
-        self._assert_method_available(kind)
         await self._ensure_default_methods(user)
         collection = database.collection(PAYMENT_METHODS)
         existing = await database.find_many(PAYMENT_METHODS, {"user_id": user.id})

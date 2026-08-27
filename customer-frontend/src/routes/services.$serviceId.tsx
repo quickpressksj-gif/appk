@@ -1,7 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Search, Store, WifiOff } from "lucide-react";
+import { ArrowLeft, Heart, Search, Store, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import {
+  fetchSavedServices,
+  toggleSavedService,
+} from "@/api/customer/favourites-api";
 import { FloatingCartBar } from "@/components/cart/FloatingCartBar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ServicesUnavailableView } from "@/components/common/ServicesUnavailableView";
@@ -137,6 +142,30 @@ function ServiceListingScreen() {
   );
 
 
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchSavedServices()
+      .then((list) => {
+        const found = list.some((s) => s.serviceId === serviceId || s.id === serviceId);
+        setSaved(found);
+      })
+      .catch(() => undefined);
+  }, [serviceId]);
+
+  const handleToggleSaved = async () => {
+    const next = !saved;
+    setSaved(next);
+    try {
+      const res = await toggleSavedService(serviceId);
+      setSaved(res.isSaved);
+      toast.success(res.isSaved ? "Saved to favourite services ❤️" : "Removed from saved services");
+    } catch {
+      setSaved(!next);
+      toast.error("Couldn't update saved service");
+    }
+  };
+
   const openPartner = useCallback(
     (partnerId: string) => navigate({ to: "/partner/$partnerId", params: { partnerId } }),
     [navigate],
@@ -163,6 +192,19 @@ function ServiceListingScreen() {
                 {data ? `Starting at ₹${data.service.startingPrice}` : "Loading nearby stores…"}
               </p>
             </div>
+            <button
+              type="button"
+              aria-label={saved ? "Remove from saved services" : "Save service to favourites"}
+              aria-pressed={saved}
+              onClick={() => void handleToggleSaved()}
+              className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted transition-all duration-300 hover:bg-accent active:scale-[0.9]"
+            >
+              <Heart
+                className={`size-5 transition-all duration-300 ${
+                  saved ? "scale-110 fill-current text-destructive" : "text-foreground"
+                }`}
+              />
+            </button>
           </div>
         </header>
 

@@ -28,6 +28,11 @@ import { createPortal } from "react-dom";
 import { PartnerDetailSkeleton } from "@/components/partner/PartnerDetailSkeleton";
 import { CartPopup } from "@/components/cart/CartPopup";
 import { useCart } from "@/hooks/useCart";
+import { toast } from "sonner";
+import {
+  fetchFavouritePartners,
+  toggleFavouritePartner,
+} from "@/api/customer/favourites-api";
 import {
   fetchPartnerDetail,
   invalidatePartnerDetail,
@@ -269,6 +274,28 @@ function PartnerDetailScreen() {
     }, 400);
   };
 
+  useEffect(() => {
+    fetchFavouritePartners()
+      .then((list) => {
+        const found = list.some((p) => p.partnerId === partnerId || p.id === partnerId);
+        setFavorite(found);
+      })
+      .catch(() => undefined);
+  }, [partnerId]);
+
+  const toggleFavorite = async () => {
+    const next = !favorite;
+    setFavorite(next);
+    try {
+      const res = await toggleFavouritePartner(partnerId);
+      setFavorite(res.isFavourite);
+      toast.success(res.isFavourite ? "Added store to favourites ❤️" : "Removed store from favourites");
+    } catch {
+      setFavorite(!next);
+      toast.error("Couldn't update favourite store");
+    }
+  };
+
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950 scroll-smooth">
       <div className="relative mx-auto w-full max-w-md">
@@ -290,7 +317,7 @@ function PartnerDetailScreen() {
               type="button"
               aria-label={favorite ? "Remove partner from favourites" : "Add partner to favourites"}
               aria-pressed={favorite}
-              onClick={() => setFavorite((prev) => !prev)}
+              onClick={() => void toggleFavorite()}
               className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted transition-all duration-300 hover:bg-accent active:scale-[0.9]"
             >
               <Heart
