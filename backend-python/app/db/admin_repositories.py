@@ -68,17 +68,22 @@ def to_admin_order_row(order: Dict[str, Any]) -> Dict[str, Any]:
     rider = order.get("rider")
     totals = order.get("totals") or {}
     payment = order.get("payment") or {}
+    customer_name = order.get("customerName") or customer.get("name") or "QuickPress Customer"
+    customer_phone = order.get("customerPhone") or customer.get("phone") or (order.get("address") or {}).get("phone", "")
     return {
         "id": str(order.get("_id") or order.get("id")),
         "code": order.get("code"),
-        "customer": customer.get("name", ""),
+        "customer": customer_name,
+        "customerName": customer_name,
+        "customerPhone": customer_phone,
+        "phone": customer_phone,
         "partner": partner.get("name", ""),
         "rider": (rider or {}).get("name", "Unassigned"),
         "status": order.get("status"),
         "statusLabel": status_label(order),
         "amount": totals.get("grandTotal", 0),
         "placedOn": (order.get("createdAt") or "")[:10],
-        "city": partner.get("city", ""),
+        "city": partner.get("city", "") or (order.get("address") or {}).get("city", ""),
         "paymentMode": payment.get("mode", "cod"),
     }
 
@@ -197,30 +202,47 @@ admin_order_repository = AdminOrderRepository()
 
 
 class AdminCustomerRepository:
-    collection = "customers"
+    collection = "users"
 
     async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None) -> Dict[str, Any]:
-        query: Dict[str, Any] = {}
+        query: Dict[str, Any] = {"$or": [{"role": "customer"}, {"role": None}]}
         if q:
-            query["$or"] = [
-                {"name": {"$regex": q, "$options": "i"}},
-                {"phone": {"$regex": q, "$options": "i"}},
-                {"email": {"$regex": q, "$options": "i"}},
-            ]
+            q_regex = {"$regex": q, "$options": "i"}
+            query = {
+                "$and": [
+                    query,
+                    {
+                        "$or": [
+                            {"name": q_regex},
+                            {"phone": q_regex},
+                            {"email": q_regex},
+                            {"displayName": q_regex},
+                        ]
+                    },
+                ]
+            }
         if city:
             query["city"] = city
-        envelope = await database.paginate(self.collection, query, sort=[("name", 1)], page=page, page_size=page_size)
+        envelope = await database.paginate(self.collection, query, sort=[("createdAt", -1)], page=page, page_size=page_size)
         envelope["items"] = [await self._with_stats(d) for d in envelope["items"]]
         return envelope
 
     async def _with_stats(self, doc: Dict[str, Any]) -> Dict[str, Any]:
-        orders = await database.find_many("customer_orders", {"customer.id": doc["_id"]})
+        user_id = str(doc.get("_id") or doc.get("id"))
+        orders = await database.find_many("customer_orders", {"$or": [{"userId": user_id}, {"customer.id": user_id}]})
+        latest_order = orders[0] if orders else {}
+        latest_addr = latest_order.get("address") or {}
+
+        name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name") or "QuickPress Customer"
+        phone = doc.get("phone") or (latest_order.get("customer") or {}).get("phone") or latest_addr.get("phone", "")
+        city = doc.get("city") or latest_addr.get("city", "")
+
         return {
-            "id": doc["_id"],
-            "name": doc.get("name", ""),
-            "phone": doc.get("phone", ""),
+            "id": user_id,
+            "name": name,
+            "phone": phone,
             "email": doc.get("email", ""),
-            "city": doc.get("city", ""),
+            "city": city,
             "orders": len(orders),
             "spend": sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders),
             "status": doc.get("status", "active"),

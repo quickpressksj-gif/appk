@@ -181,6 +181,8 @@ export async function fetchCheckoutCompat(couponDiscount = 0): Promise<CheckoutD
 export type PlaceOrderInput = {
   addressId: string;
   address: Address | undefined;
+  customerName?: string | undefined;
+  customerPhone?: string | undefined;
   items: CartData["items"];
   pickup: { day: string; slot: string; express: boolean };
   payment: CheckoutPaymentMethod | undefined;
@@ -205,6 +207,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
     Partial<PlacedOrder> & { order?: Order; id?: string; code?: string }
   >(CHECKOUT_API_ENDPOINTS.orders, {
     serviceLabel: input.items[0]?.name ?? "Laundry",
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
     items: input.items.map((item) => ({
       id: item.id,
       name: item.name,
@@ -217,13 +221,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
           label: input.address.label,
           line: input.address.line,
           city: input.address.city,
-          phone: input.address.phone,
+          phone: input.customerPhone || input.address.phone,
         }
       : undefined,
     pickup: {
-      date: input.pickup.day,
-      slot: input.pickup.slot,
-      express: input.pickup.express,
+      date: input.pickup?.day || "today",
+      slot: input.pickup?.slot || "08:00 AM - 08:00 PM",
+      express: Boolean(input.pickup?.express),
     },
     payment: {
       mode: method?.kind === "cod" ? "cod" : "online",

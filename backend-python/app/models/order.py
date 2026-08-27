@@ -127,7 +127,8 @@ class PlaceOrderPayload(BaseModel):
     pickup: OrderPickup = OrderPickup()
     delivery: Optional[OrderDelivery] = None
     payment: OrderPaymentPayload = OrderPaymentPayload()
-    totals: Optional[OrderTotals] = None
+    customerName: Optional[str] = None
+    customerPhone: Optional[str] = None
     couponCode: Optional[str] = None
     couponDiscount: int = 0
     instructions: str = ""

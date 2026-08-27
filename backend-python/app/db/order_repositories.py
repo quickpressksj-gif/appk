@@ -283,6 +283,22 @@ class OrderRepository:
         pickup_otp_record = create_otp_record()
         delivery_otp_record = create_otp_record()
 
+        customer_name = (payload.customerName or user.display_name or "").strip() or "QuickPress Customer"
+        customer_phone = (payload.customerPhone or user.phone or "").strip()
+
+        if payload.customerName or payload.customerPhone:
+            user_updates = {}
+            if payload.customerName and payload.customerName.strip():
+                user_updates["name"] = payload.customerName.strip()
+                user_updates["displayName"] = payload.customerName.strip()
+            if payload.customerPhone and payload.customerPhone.strip():
+                user_updates["phone"] = payload.customerPhone.strip()
+            if user_updates:
+                await database.collection("users").update_one(
+                    {"_id": user.id},
+                    {"$set": user_updates}
+                )
+
         document: Dict[str, Any] = {
             "_id": f"ord-{code}",
             "userId": user.id,
@@ -290,8 +306,10 @@ class OrderRepository:
             "status": lifecycle.PENDING,
             "createdAt": created,
             "updatedAt": created,
+            "customerName": customer_name,
+            "customerPhone": customer_phone,
             "customer": OrderParty(
-                id=user.id, name=user.display_name or "QuickPress customer", phone=user.phone or ""
+                id=user.id, name=customer_name, phone=customer_phone
             ).model_dump(),
             "partner": partner.model_dump(),
             "partner_id": partner.id,

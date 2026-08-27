@@ -20,6 +20,7 @@ import {
   Sparkles,
   Tag,
   Truck,
+  User,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { CheckoutSkeleton } from "@/components/cart/CartSkeleton";
+import { fetchProfile } from "@/api/customer/services/profile-service";
 import { Toaster } from "@/shared/ui/sonner";
 import { Textarea } from "@/shared/ui/textarea";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -95,8 +97,10 @@ function CheckoutScreen() {
   const [days, setDays] = useState<PickupOption[]>([]);
   const [slots, setSlots] = useState<PickupOption[]>([]);
   const [addressId, setAddressId] = useState("");
-  const [day, setDay] = useState<string>("");
-  const [slot, setSlot] = useState<string>("");
+  const [day, setDay] = useState<string>("today");
+  const [slot, setSlot] = useState<string>("08:00 AM - 08:00 PM");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [express, setExpress] = useState(false);
   const [paymentId, setPaymentId] = useState("");
   const [placing, setPlacing] = useState(false);
@@ -139,6 +143,32 @@ function CheckoutScreen() {
         description: "QuickPress laundry order",
       }),
   });
+
+  // Auto-fill customer name & phone from profile
+  useEffect(() => {
+    let alive = true;
+    void fetchProfile().then((res) => {
+      if (!alive) return;
+      const profile = "data" in res ? res.data : res;
+      if (profile?.name && !customerName) {
+        setCustomerName(profile.name);
+      }
+      if (profile?.phone && !customerPhone) {
+        setCustomerPhone(profile.phone);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Auto-fill phone from selected address if profile phone is empty
+  useEffect(() => {
+    const selected = addresses?.find((a) => a.id === addressId);
+    if (selected?.phone && !customerPhone) {
+      setCustomerPhone(selected.phone);
+    }
+  }, [addressId, addresses, customerPhone]);
 
   // Load instructions chips
   useEffect(() => {
@@ -250,13 +280,27 @@ function CheckoutScreen() {
 
   // Creates the QuickPress order once the payment step has settled
   const finalizeOrder = async (method: CheckoutPaymentMethod) => {
+    if (!customerName.trim()) {
+      toast.error("Please enter your full name.");
+      setPlacing(false);
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      setPlacing(false);
+      return;
+    }
+
     setPlacing(true);
     try {
       const result = await postOrder({
         addressId,
         address: addresses.find((entry) => entry.id === addressId),
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
         items: data.items,
-        pickup: { day, slot, express },
+        pickup: { day: day || "today", slot: slot || "08:00 AM - 08:00 PM", express },
         payment: method,
         couponCode: appliedCode ?? undefined,
         couponDiscount,
@@ -285,8 +329,13 @@ function CheckoutScreen() {
       toast.error("Add a pickup address to place your order.");
       return;
     }
-    if (!day || !slot) {
-      toast.error("Choose a pickup day and time slot.");
+    if (!customerName.trim()) {
+      toast.error("Please enter your full name.");
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
       return;
     }
 
@@ -454,59 +503,80 @@ function CheckoutScreen() {
             </button>
           </section>
 
-          {/* 2. Pickup Schedule & Express */}
+          {/* 2. Contact Details (Required) */}
           <section>
-            <SectionHeading title="2. Pickup Schedule" />
-            <div className="mt-3 grid grid-cols-3 gap-2.5">
-              {days.map((entry) => (
-                <Chip
-                  key={entry.id}
-                  active={day === entry.id}
-                  onClick={() => setDay(entry.id)}
-                  label={entry.label}
-                  sub={entry.sub}
-                  icon={CalendarDays}
-                />
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2.5">
-              {slots.map((entry) => (
-                <Chip
-                  key={entry.id}
-                  active={slot === entry.id}
-                  onClick={() => setSlot(entry.id)}
-                  label={entry.label}
-                  sub={entry.sub}
-                  icon={Clock}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setExpress((prev) => !prev)}
-              className={`card-soft mt-3 flex w-full items-center gap-3 border p-4 text-left transition-all duration-300 active:scale-[0.985] ${
-                express ? "border-primary bg-primary/5" : "border-border hover:border-primary/60"
-              }`}
-            >
-              <span
-                className={`flex size-10 shrink-0 items-center justify-center rounded-2xl transition-colors duration-300 ${
-                  express ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                }`}
-              >
-                <Zap className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-foreground">Express pickup</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Rider reaches you within 30 minutes
+            <SectionHeading title="2. Contact Details (Required)" />
+            <div className="card-soft mt-3 space-y-3.5 border border-border p-4">
+              <div>
+                <label
+                  htmlFor="checkout-customer-name"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Full Name <span className="text-destructive">*</span>
+                </label>
+                <div className="relative mt-1.5 flex items-center">
+                  <span className="absolute left-3 flex size-5 items-center justify-center text-muted-foreground">
+                    <User className="size-4" />
+                  </span>
+                  <input
+                    id="checkout-customer-name"
+                    type="text"
+                    required
+                    placeholder="Enter your full name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-input bg-background pl-10 pr-4 text-sm font-medium text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="checkout-customer-phone"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Mobile Number <span className="text-destructive">*</span>
+                </label>
+                <div className="relative mt-1.5 flex items-center">
+                  <span className="absolute left-3 flex size-5 items-center justify-center text-muted-foreground">
+                    <Smartphone className="size-4" />
+                  </span>
+                  <input
+                    id="checkout-customer-phone"
+                    type="tel"
+                    required
+                    maxLength={14}
+                    placeholder="Enter 10-digit mobile number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-input bg-background pl-10 pr-4 text-sm font-medium text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  ⚡ Auto-saved to your profile & order receipts
                 </p>
               </div>
-              {express ? (
-                <Check className="animate-pop size-4 shrink-0 text-primary" />
-              ) : (
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-              )}
-            </button>
+
+              {/* Instant Doorstep Pickup Info */}
+              <div className="pt-2 border-t border-border/60 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-7 items-center justify-center rounded-lg bg-brand-green/15 text-brand-green">
+                    <Zap className="size-3.5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">
+                      Instant Doorstep Pickup
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Nearby delivery partner assigned immediately
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-brand-green/15 px-2.5 py-0.5 text-[10px] font-bold text-brand-green">
+                  Fastest
+                </span>
+              </div>
+            </div>
           </section>
 
           {/* 3. Delivery Schedule */}
