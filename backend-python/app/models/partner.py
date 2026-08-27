@@ -19,32 +19,33 @@ BusinessCategory = Literal["laundry", "dry-clean", "premium", "shoe-care"]
 
 
 class PartnerOrderItem(BaseModel):
-    id: str
-    name: str
-    qty: int
-    price: int
+    id: str = ""
+    name: str = "Laundry Item"
+    qty: int = 1
+    price: float = 0
 
 
 class PartnerOrderTimelineStage(BaseModel):
-    id: str
-    label: str
-    time: str
-    done: bool
+    id: str = ""
+    label: str = ""
+    time: str = "—"
+    done: bool = False
 
 
 class PartnerOrderResponse(BaseModel):
     id: str
-    code: str
-    customerName: str
-    customerPhone: str
-    status: PartnerOrderStatus
-    placedAt: str
-    slot: str
-    address: str
-    itemCount: int
-    amount: int
-    paymentMode: Literal["online", "cod"]
-    serviceLabel: str
+    code: str = ""
+    customerName: str = "Customer"
+    customerPhone: str = ""
+    status: str = "new"
+    placedAt: str = ""
+    slot: str = ""
+    address: str = ""
+    itemCount: int = 1
+    amount: float = 0
+    paymentMode: str = "cod"
+    paymentStatus: Optional[str] = "pending"
+    serviceLabel: str = "Laundry"
     dispatchOtp: Optional[str] = ""
     items: List[PartnerOrderItem] = []
     timeline: List[PartnerOrderTimelineStage] = []

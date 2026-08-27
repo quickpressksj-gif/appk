@@ -179,6 +179,32 @@ def create_app() -> FastAPI:
         from app.api.health import health as get_health_status  # noqa: PLC0415
         return await get_health_status()
 
+    from fastapi.responses import JSONResponse
+    from fastapi.exceptions import RequestValidationError
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request, exc):
+        logger.exception("Unhandled error on %s %s: %s", request.method, request.url.path, exc)
+        origin = request.headers.get("origin") or "*"
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal Server Error: {str(exc)}"},
+        )
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request, exc):
+        origin = request.headers.get("origin") or "*"
+        response = JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
+        )
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
     return app
 
 

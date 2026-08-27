@@ -93,7 +93,13 @@ async def _verified_partner_id(user: User = Depends(current_user)) -> str:
 
 
 def _order_response(doc: dict) -> PartnerOrderResponse:
-    return PartnerOrderResponse(**{k: v for k, v in doc.items() if k in PartnerOrderResponse.model_fields})
+    if not isinstance(doc, dict):
+        return PartnerOrderResponse(id=str(doc))
+    data = dict(doc)
+    if "id" not in data or not data["id"]:
+        data["id"] = str(data.get("_id") or data.get("orderId") or "ord-unknown")
+    filtered = {k: v for k, v in data.items() if k in PartnerOrderResponse.model_fields and v is not None}
+    return PartnerOrderResponse(**filtered)
 
 
 def _service_response(doc: dict) -> PartnerServiceResponse:
