@@ -66,13 +66,74 @@ class CatalogRepository:
         category_id: Optional[str] = None,
         popular_only: bool = False,
     ) -> List[ServiceCardResponse]:
-        docs = await database.find_many("services")
-        partner_count = len(await database.find_many("catalog_partners"))
-        cards = [_service_card(d, partner_count) for d in docs]
+        # 1. Fetch approved live partners
+        approved_partners = await self._approved_partner_profiles()
+        total_partners = len(approved_partners) if approved_partners else len(await database.find_many("partner_profiles")) or 1
+
+        # 2. Fetch all active partner services
+        partner_services_docs = await database.find_many("partner_services")
+        active_partner_services = [
+            s for s in partner_services_docs
+            if s.get("isActive", True) is not False and s.get("enabled", True) is not False
+        ]
+
+        cards: List[ServiceCardResponse] = []
+
+        if active_partner_services:
+            # Group services by normalized name
+            grouped: Dict[str, List[Dict[str, Any]]] = {}
+            for s in active_partner_services:
+                key = str(s.get("name") or s.get("title") or s.get("_id")).strip().lower()
+                grouped.setdefault(key, []).append(s)
+
+            seen_keys = set()
+            for s in active_partner_services:
+                key = str(s.get("name") or s.get("title") or s.get("_id")).strip().lower()
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+
+                siblings = grouped.get(key, [s])
+                distinct_partner_ids = {str(item.get("partnerId")) for item in siblings if item.get("partnerId")}
+                p_count = len(distinct_partner_ids) or max(1, total_partners)
+
+                valid_prices = [int(item.get("price", 0)) for item in siblings if int(item.get("price", 0)) > 0]
+                min_price = min(valid_prices) if valid_prices else int(s.get("price") or 49)
+                discount = int(s.get("discountPercent") or 0)
+                final_price = round(min_price * (100 - discount) / 100) if discount else min_price
+                cat_id = str(s.get("categoryId") or "c1")
+
+                card = ServiceCardResponse(
+                    id=str(s.get("_id") or s.get("id")),
+                    title=str(s.get("name") or s.get("title")),
+                    name=str(s.get("name") or s.get("title")),
+                    description=str(s.get("description") or f"Professional {s.get('name')} by verified partner stores."),
+                    icon=_ICONS.get(cat_id, "sparkles"),
+                    image=s.get("image") or s.get("imageUrl"),
+                    categoryId=cat_id,
+                    unit=str(s.get("unit") or "piece"),
+                    price=min_price,
+                    basePrice=min_price,
+                    discountPercent=discount,
+                    discountLabel=f"{discount}% OFF" if discount else None,
+                    finalPrice=final_price,
+                    processingTime=str(s.get("processingTime") or s.get("turnaroundHours") or "24 hrs"),
+                    partnerCount=p_count,
+                    badge=s.get("badge"),
+                    popular=bool(s.get("popular", True) or discount > 0 or p_count > 1),
+                )
+                cards.append(card)
+
+        # Fallback to master catalog seed with real partner count
+        if not cards:
+            docs = await database.find_many("services")
+            cards = [_service_card(d, total_partners) for d in docs]
+
         if category_id:
             cards = [card for card in cards if card.categoryId == category_id]
         if popular_only:
             cards = [card for card in cards if card.popular]
+
         return cards
 
     # ------------------------------------------------------------------

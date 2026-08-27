@@ -76,8 +76,8 @@ async def lifespan(app: FastAPI):
     await database.ensure_indexes()
     await catalog.ensure_seed()
 
-    # Editorial service definitions, availability zones and membership plans
-    for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
+    # Editorial service definitions, availability zones, membership plans and partner stores
+    for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED, PARTNER_SEED):
         for name, documents in seed.items():
             collection = database.collection(name)
             for document in documents:
