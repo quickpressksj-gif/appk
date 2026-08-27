@@ -63,7 +63,7 @@ function persist(session: AuthSession): AuthSession {
 
 /* ------------------------------------------------------------------ phone */
 
-/** POST /api/auth/phone/send-otp — Firebase sends the SMS, backend audits it. */
+/** POST /api/auth/phone/send-otp — Twilio backend sends the SMS, Firebase client can assist. */
 export async function sendPhoneOtp(
   phone: string,
   explicitRole?: AccountRole,
@@ -81,16 +81,22 @@ export async function sendPhoneOtp(
     { phone, role: role(explicitRole) },
     { anonymous: true },
   );
-  await sendFirebaseOtp(phone);
+  try {
+    if (isFirebaseConfigured()) {
+      await sendFirebaseOtp(phone);
+    }
+  } catch {
+    // Graceful fallback
+  }
   return {
     ok: true,
     devOtp: "",
-    expiresInSeconds: audit.expiresInSeconds ?? 60,
+    expiresInSeconds: audit.expiresInSeconds ?? 300,
     isNewAccount: audit.isNewAccount ?? false,
   };
 }
 
-/** POST /api/auth/phone/verify — exchanges the Firebase ID token for our JWTs. */
+/** POST /api/auth/phone/verify — verifies Twilio SMS OTP or Firebase ID token. */
 export async function verifyPhoneOtp(
   phone: string,
   code: string,
@@ -106,11 +112,18 @@ export async function verifyPhoneOtp(
     );
   }
 
-  const idToken = await confirmFirebaseOtp(code);
+  let idToken = "";
+  try {
+    if (isFirebaseConfigured()) {
+      idToken = await confirmFirebaseOtp(code);
+    }
+  } catch {
+    // Direct backend verification fallback
+  }
   return persist(
     await apiPostJson<AuthSession>(
       AUTH_ENDPOINTS.verifyOtp,
-      { id_token: idToken, phone, role: role(explicitRole) },
+      { id_token: idToken, phone, code, role: role(explicitRole) },
       { anonymous: true },
     ),
   );

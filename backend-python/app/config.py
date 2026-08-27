@@ -46,8 +46,14 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str = ""
 
     # --- OTP ------------------------------------------------------------
-    otp_ttl_seconds: int = 60
+    otp_ttl_seconds: int = 300
     otp_max_sends_per_hour: int = 50
+
+    # --- Twilio SMS / OTP ------------------------------------------------
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+    twilio_verify_service_sid: str = ""
 
     # --- Razorpay (Phase 5 · Sprint 5.6) ---------------------------------
     # Both the key id and the secret come from the environment. Nothing is

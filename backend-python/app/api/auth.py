@@ -66,7 +66,9 @@ def _normalize_phone(phone: str) -> str:
 
 @router.post("/phone/send-otp", response_model=SendOtpResponse)
 async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
-    """Audits + rate limits the request. Firebase delivers the SMS client-side."""
+    """Dispatches real OTP via Twilio SMS and audits the attempt."""
+    from app.core.twilio_sms import send_twilio_sms_otp
+
     settings = get_settings()
     phone = _normalize_phone(payload.phone)
     recent = await otp_attempts.sends_in_last_hour(phone)
@@ -78,6 +80,10 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
         )
     await otp_attempts.record(phone, payload.role)
     existing = await users.by_phone(phone, payload.role)
+
+    # Dispatch SMS via Twilio (or fallback if keys not configured)
+    await send_twilio_sms_otp(phone, payload.role.value)
+
     return SendOtpResponse(
         expiresInSeconds=settings.otp_ttl_seconds,
         isNewAccount=existing is None,
@@ -86,7 +92,12 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
 
 @router.post("/phone/verify", response_model=AuthSessionResponse)
 async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
+    """Verifies Twilio OTP code or Firebase ID token and returns session."""
+    from app.core.twilio_sms import verify_stored_otp
+
     settings = get_settings()
+
+    # 1. Firebase ID Token Verification (if available)
     if payload.id_token and len(payload.id_token) > 50:
         try:
             return await _login_with_firebase(payload.id_token, payload.role, provider="phone")
@@ -96,6 +107,15 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     phone = _normalize_phone(payload.phone or "")
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number is required")
+
+    # 2. Twilio OTP Code Verification
+    if payload.code:
+        is_valid = verify_stored_otp(phone, payload.code)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code. Please check your SMS and try again.",
+            )
 
     user = await users.by_phone(phone, payload.role)
     if user is None:
