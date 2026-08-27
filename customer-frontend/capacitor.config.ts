@@ -7,6 +7,10 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
+  server: {
+    url: "https://appk-mu.vercel.app",
+    cleartext: true,
+  },
 };
 
 export default config;
