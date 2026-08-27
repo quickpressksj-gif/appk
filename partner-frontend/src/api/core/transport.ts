@@ -76,7 +76,13 @@ async function httpRequest<T>(
     });
 
     if (response.status === 401) {
-      throw new ApiError("unauthorized", "Authentication required", 401);
+      if (typeof window !== "undefined") {
+        clearSession(activeSessionRole());
+        if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+          window.location.href = "/auth";
+        }
+      }
+      throw new ApiError("unauthorized", "Session expired. Please log in again.", 401);
     }
     if (response.status === 403) {
       let forbiddenMsg = "Access restricted";

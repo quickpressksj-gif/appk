@@ -109,11 +109,11 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.app_env.lower() != "production" else settings.cors_origin_list,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.up\.railway\.app|.*\.onrender\.com|.*quickpress\.online)(:\d+)?$",
+        allow_origin_regex=r"^https?://.*$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
     app.include_router(auth_router, prefix=settings.api_prefix)
     # Sprint 2.6: profile / photo / settings. Registered before the home router
