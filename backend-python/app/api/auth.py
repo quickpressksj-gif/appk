@@ -139,16 +139,6 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
     else:
         await users._ensure_role_profile(user)
 
-    if payload.role == Role.customer and settings.app_env.lower() != "production":
-        from app.db.customer_seed import seed_customer_account
-        try:
-            await seed_customer_account(phone)
-            refreshed = await users.by_phone(phone, payload.role)
-            if refreshed:
-                user = refreshed
-        except Exception:
-            pass
-
     return await _issue_session(user)
 
 

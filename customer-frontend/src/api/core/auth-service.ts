@@ -56,7 +56,13 @@ function role(explicit?: AccountRole): AccountRole {
   return (explicit ?? (activeSessionRole() as AccountRole)) satisfies AccountRole;
 }
 
+import { clearCache } from "../customer/api/cache";
+
 function persist(session: AuthSession): AuthSession {
+  const previous = readSession(session.account.role);
+  if (!previous || previous.account?.id !== session.account.id) {
+    clearCache();
+  }
   writeSession(session, session.account.role);
   return session;
 }
@@ -214,5 +220,6 @@ export async function logout(explicitRole?: AccountRole): Promise<void> {
     }
   }
   await firebaseSignOut();
+  clearCache();
   clearSession(target);
 }
