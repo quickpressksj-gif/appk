@@ -95,13 +95,13 @@ function resolveServiceImage(title?: string | null, img?: string | null): string
 export const Route = createFileRoute("/partner/$partnerId")({
   head: () => ({
     meta: [
-      { title: "Fresh Fold Laundry — Nearby QuickPress Partner Details" },
+      { title: "Partner Store — QuickPress Laundry Services & Pricing" },
       {
         name: "description",
         content:
           "Browse services, pricing, reviews and photos of your nearby QuickPress laundry partner. Add wash & fold, dry cleaning or express laundry straight to your cart.",
       },
-      { property: "og:title", content: "Fresh Fold Laundry — Nearby QuickPress Partner Details" },
+      { property: "og:title", content: "Partner Store — QuickPress Laundry Services" },
       {
         property: "og:description",
         content:
