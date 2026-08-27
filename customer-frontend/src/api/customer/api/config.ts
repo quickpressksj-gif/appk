@@ -33,7 +33,14 @@ function readString(key: string): string {
 
 export function apiBaseUrl(): string {
   const custom = readString("VITE_API_BASE_URL").replace(/\/+$/, "");
-  return custom || "http://localhost:8000";
+  if (custom) return custom;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const host = window.location.hostname;
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
+      return `http://${host}:8000`;
+    }
+  }
+  return "http://localhost:8000";
 }
 
 export function appEnvironment(): AppEnvironment {
