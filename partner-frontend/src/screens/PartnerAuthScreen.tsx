@@ -104,10 +104,8 @@ export function PartnerAuthScreen() {
   // Redirect if already authenticated
   useEffect(() => {
     if (hydrating || !session) return;
-    if (!session.isOnboarded) {
+    if (session.isOnboarded === false) {
       navigate({ to: partnerRoutes.registration });
-    } else if (!session.isVerified) {
-      navigate({ to: partnerRoutes.registrationSubmitted });
     } else {
       navigate({ to: partnerRoutes.dashboard });
     }

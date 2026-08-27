@@ -15,12 +15,6 @@ export function requirePartnerAuth() {
   if (!sess || !sess.token) {
     throw redirect({ to: partnerRoutes.auth });
   }
-  if (sess.account && sess.account.isOnboarded === false) {
-    throw redirect({ to: partnerRoutes.registration });
-  }
-  if (sess.account && sess.account.isVerified === false) {
-    throw redirect({ to: partnerRoutes.registrationSubmitted });
-  }
 }
 
 /**
