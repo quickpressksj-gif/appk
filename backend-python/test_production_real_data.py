@@ -159,7 +159,9 @@ async def run_production_e2e_tests():
     print(f"  ✓ Rider accepted order.")
     
     # Rider pickup with OTP
-    pickup_otp = order_doc.get("otp", {}).get("pickup", "1234")
+    current_order = await lifecycle.get_order(order_id)
+    p_raw = (current_order.get("otp") or {}).get("pickup")
+    pickup_otp = p_raw.get("code") if isinstance(p_raw, dict) else str(p_raw or "")
     await rider_delivery_repository.pickup(order_id, pickup_otp, rider_id)
     print(f"  ✓ Rider verified pickup OTP ({pickup_otp}) and picked up items.")
     
@@ -172,15 +174,20 @@ async def run_production_e2e_tests():
     print(f"  ✓ Partner started [PROCESSING] laundry.")
     
     # Partner marks laundry completed (ready for pickup)
-    await lifecycle.transition(order_id, lifecycle.COMPLETED, actor_id=partner_id, actor_role="partner")
-    print(f"  ✓ Partner marked laundry [COMPLETED] & packaged.")
+    await lifecycle.transition(order_id, lifecycle.READY, actor_id=partner_id, actor_role="partner")
+    print(f"  ✓ Partner marked laundry [READY] & packaged.")
     
     # Rider starts delivery
-    await rider_delivery_repository.start_delivery(order_id, rider_id)
-    print(f"  ✓ Rider is [OUT_FOR_DELIVERY].")
+    ready_order = await lifecycle.get_order(order_id)
+    disp_raw = (ready_order.get("otp") or {}).get("dispatch")
+    dispatch_otp = disp_raw.get("code") if isinstance(disp_raw, dict) else str(disp_raw or "")
+    await rider_delivery_repository.start_delivery(order_id, rider_id, otp=dispatch_otp)
+    print(f"  ✓ Rider verified dispatch OTP ({dispatch_otp}) and is [OUT_FOR_DELIVERY].")
     
     # Rider completes delivery with delivery OTP
-    delivery_otp = order_doc.get("otp", {}).get("delivery", "5678")
+    out_order = await lifecycle.get_order(order_id)
+    d_raw = (out_order.get("otp") or {}).get("delivery")
+    delivery_otp = d_raw.get("code") if isinstance(d_raw, dict) else str(d_raw or "")
     delivered_order = await rider_delivery_repository.deliver(order_id, delivery_otp, rider_id)
     print(f"  ✓ Rider verified delivery OTP ({delivery_otp}) and marked [DELIVERED]!")
     

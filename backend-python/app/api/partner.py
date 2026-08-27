@@ -229,6 +229,19 @@ async def reject_order(
     return _order_response(doc)
 
 
+@router.post("/orders/{order_id}/receive-laundry", response_model=PartnerOrderResponse)
+async def receive_laundry(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
+    try:
+        doc = await partner_order_repository.receive_laundry(partner_id, order_id)
+    except PartnerAccessError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+    except PartnerNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    except InvalidTransitionError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    return _order_response(doc)
+
+
 @router.post("/orders/{order_id}/start-processing", response_model=PartnerOrderResponse)
 async def start_processing(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:

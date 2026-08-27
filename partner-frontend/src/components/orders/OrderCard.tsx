@@ -160,12 +160,19 @@ export function OrderCard({
       </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <OrderActionBar
-          order={order}
-          size="compact"
-          onAction={(actionId) => onAction(order, actionId)}
-          busyAction={busyAction ?? null}
-        />
+        {order.stage === "accepted" ? (
+          <div className="flex flex-1 items-center gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/20 px-3.5 py-2.5 text-xs font-bold text-amber-800 dark:text-amber-300">
+            <span>🛵</span>
+            <span className="truncate">Rider heading to customer for pickup</span>
+          </div>
+        ) : (
+          <OrderActionBar
+            order={order}
+            size="compact"
+            onAction={(actionId) => onAction(order, actionId)}
+            busyAction={busyAction ?? null}
+          />
+        )}
         <Link
           to={partnerRoutes.orderDetails}
           params={{ orderId: order.id }}

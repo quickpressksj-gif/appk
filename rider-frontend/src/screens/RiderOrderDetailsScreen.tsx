@@ -26,7 +26,13 @@ import { RiderTopBar } from "../components/RiderTopBar";
 import { STATUS_LABEL, STATUS_TONE } from "../components/RiderOrderCard";
 import { useRiderResource } from "../hooks/use-rider-resource";
 import { riderRoutes } from "../navigation/rider-routes";
-import { confirmDelivery, confirmPickup, fetchRiderOrder } from "@/api/rider/rider-orders-api";
+import {
+  confirmDelivery,
+  confirmDropAtPartner,
+  confirmPickup,
+  fetchRiderOrder,
+  startDelivery,
+} from "@/api/rider/rider-orders-api";
 
 export function RiderOrderDetailsScreen() {
   const navigate = useNavigate();

@@ -474,21 +474,84 @@ class PartnerOrderRepository:
             changes={"cancelledReason": text},
         )
 
-    async def start_processing(self, partner_id: str, order_id: str) -> Dict[str, Any]:
-        from app.services.rider_dispatch import rider_dispatch_engine
+    async def receive_laundry(self, partner_id: str, order_id: str) -> Dict[str, Any]:
+        """Partner store confirms receipt of laundry dropped by rider or customer."""
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise PartnerNotFoundError("Order not found")
         try:
-            res = await rider_dispatch_engine.partner_start_processing(order_id, partner_id)
-            return lifecycle.to_partner_order(res)
-        except Exception:
-            return await self._transition(partner_id, order_id, lifecycle.PROCESSING)
+            lifecycle.assert_partner(order, partner_id)
+        except lifecycle.OrderAuthorizationError as error:
+            raise PartnerAccessError(str(error)) from error
+
+        current_status = lifecycle.order_status(order)
+        if current_status not in (lifecycle.PICKED_UP, lifecycle.RIDER_ACCEPTED, lifecycle.RIDER_ASSIGNED):
+            if current_status == lifecycle.AT_PARTNER:
+                return lifecycle.to_partner_order(order)
+            raise InvalidTransitionError(f"Cannot receive laundry when order status is {current_status}. Order must be picked up first.")
+
+        now = lifecycle.now_iso()
+        updated = await lifecycle.transition(
+            order_id,
+            lifecycle.AT_PARTNER,
+            actor_id=partner_id,
+            actor_role="partner",
+            metadata={"receivedAtStoreAt": now},
+            changes={"receivedAtStoreAt": now, "droppedAtPartnerAt": now},
+        )
+        return lifecycle.to_partner_order(updated)
+
+    async def start_processing(self, partner_id: str, order_id: str) -> Dict[str, Any]:
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise PartnerNotFoundError("Order not found")
+        try:
+            lifecycle.assert_partner(order, partner_id)
+        except lifecycle.OrderAuthorizationError as error:
+            raise PartnerAccessError(str(error)) from error
+
+        current_status = lifecycle.order_status(order)
+        if current_status not in (lifecycle.AT_PARTNER, lifecycle.PICKED_UP):
+            raise InvalidTransitionError(
+                f"Cannot start processing before laundry is picked up from customer and received at store (Current status: {current_status})."
+            )
+
+        if current_status == lifecycle.PICKED_UP:
+            await lifecycle.transition(
+                order_id,
+                lifecycle.AT_PARTNER,
+                actor_id=partner_id,
+                actor_role="partner",
+                metadata={"receivedAtStoreAt": lifecycle.now_iso()},
+            )
+
+        from app.services.rider_dispatch import rider_dispatch_engine
+        res = await rider_dispatch_engine.partner_start_processing(order_id, partner_id)
+        return lifecycle.to_partner_order(res)
 
     async def complete(self, partner_id: str, order_id: str) -> Dict[str, Any]:
-        from app.services.rider_dispatch import rider_dispatch_engine
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise PartnerNotFoundError("Order not found")
         try:
-            res = await rider_dispatch_engine.partner_mark_ready(order_id, partner_id)
-            return lifecycle.to_partner_order(res)
-        except Exception:
-            return await self._transition(partner_id, order_id, lifecycle.READY)
+            lifecycle.assert_partner(order, partner_id)
+        except lifecycle.OrderAuthorizationError as error:
+            raise PartnerAccessError(str(error)) from error
+
+        current_status = lifecycle.order_status(order)
+        if current_status not in (lifecycle.PROCESSING, "washing", "ironing", "dry_cleaning"):
+            raise InvalidTransitionError(
+                f"Cannot mark order ready before processing is started (Current status: {current_status})."
+            )
+
+        from app.services.rider_dispatch import rider_dispatch_engine
+        res = await rider_dispatch_engine.partner_mark_ready(order_id, partner_id)
+        # Automatically trigger delivery rider search/offer dispatch
+        try:
+            await rider_dispatch_engine.search_and_offer_riders(order_id)
+        except Exception as e:
+            logger.warning("Delivery rider dispatch offer failed for order %s: %s", order_id, e)
+        return lifecycle.to_partner_order(res)
 
     async def history(self, partner_id: str) -> List[Dict[str, Any]]:
         return [

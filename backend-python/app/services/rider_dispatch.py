@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -283,10 +284,30 @@ class RiderDispatchEngine:
             pickup_otp_record = create_otp_record()
 
         now = lifecycle.now_iso()
+        current_status = lifecycle.order_status(order)
+        is_delivery_phase = current_status in (lifecycle.READY, lifecycle.COMPLETED, lifecycle.DISPATCH_OTP_PENDING)
 
-        # Atomic find_one_and_update ensures only ONE rider can win the order
-        updated_doc = await database.collection(ORDERS_COLLECTION).find_one_and_update(
-            {
+        if is_delivery_phase:
+            match_query = {
+                "_id": canonical_id,
+                "status": {
+                    "$in": [
+                        lifecycle.READY,
+                        lifecycle.COMPLETED,
+                        lifecycle.DISPATCH_OTP_PENDING,
+                    ]
+                },
+            }
+            update_fields: Dict[str, Any] = {
+                "rider": rider_party,
+                "riderId": rider_id,
+                "rider_id": rider_id,
+                "deliveryRider": rider_party,
+                "updatedAt": now,
+            }
+            evt_label = "Delivery Rider assigned & heading to partner store"
+        else:
+            match_query = {
                 "_id": canonical_id,
                 "status": {
                     "$in": [
@@ -305,21 +326,28 @@ class RiderDispatchEngine:
                     {"riderId": ""},
                     {"riderId": rider_id},
                 ],
-            },
+            }
+            update_fields = {
+                "rider": rider_party,
+                "riderId": rider_id,
+                "rider_id": rider_id,
+                "pickupRider": rider_party,
+                "status": lifecycle.RIDER_ASSIGNED,
+                "updatedAt": now,
+                "otp.pickup": pickup_otp_record,
+            }
+            evt_label = "Pickup Rider assigned & heading for customer pickup"
+
+        # Atomic find_one_and_update ensures concurrency safety
+        updated_doc = await database.collection(ORDERS_COLLECTION).find_one_and_update(
+            match_query,
             {
-                "$set": {
-                    "rider": rider_party,
-                    "riderId": rider_id,
-                    "rider_id": rider_id,
-                    "status": lifecycle.RIDER_ASSIGNED,
-                    "updatedAt": now,
-                    "otp.pickup": pickup_otp_record,
-                },
+                "$set": update_fields,
                 "$push": {
                     "events": {
-                        "id": f"{order.get('code', canonical_id)}-evt-assigned",
-                        "status": lifecycle.RIDER_ASSIGNED,
-                        "label": "Rider assigned & heading for pickup",
+                        "id": f"{order.get('code', canonical_id)}-evt-rdr-{uuid.uuid4().hex[:6]}",
+                        "status": current_status if is_delivery_phase else lifecycle.RIDER_ASSIGNED,
+                        "label": evt_label,
                         "at": now,
                         "actor": "rider",
                     }
@@ -329,13 +357,12 @@ class RiderDispatchEngine:
         )
 
         if updated_doc is None:
-            # Order was already assigned to another rider or not in assignable state
             current_order = await lifecycle.get_order(canonical_id)
             current_status = lifecycle.order_status(current_order)
             if current_status == lifecycle.PENDING:
                 raise lifecycle.OrderAuthorizationError("Cannot claim an order before store acceptance.")
             current_rider = (current_order.get("rider") or {}).get("id")
-            if current_rider and current_rider != rider_id:
+            if current_rider and current_rider != rider_id and not is_delivery_phase:
                 raise lifecycle.OrderAuthorizationError("Order is no longer available. Another rider already accepted.")
             raise ValueError("This order cannot be claimed at its current stage.")
 

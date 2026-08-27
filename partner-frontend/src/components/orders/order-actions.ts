@@ -57,16 +57,8 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
         { id: "reject", label: "Reject", icon: X, intent: "danger", nextStage: "cancelled" },
       ];
     case "accepted":
-      return [
-        {
-          id: "start_washing",
-          label: isDryClean ? "Start Dry Cleaning" : "Start Washing & Processing",
-          icon: isDryClean ? Shirt : WashingMachine,
-          intent: "primary",
-          nextStage: isDryClean ? "dry_cleaning" : "washing",
-          timelineLabel: "Processing started",
-        },
-      ];
+      // Laundry is still with customer/rider. Processing cannot start until laundry reaches store.
+      return [];
     case "pickup_pending":
       return [
         {
