@@ -17,6 +17,7 @@ import { NotificationManager } from "@/components/notifications/NotificationMana
 import { NamePromptModal } from "@/components/profile/NamePromptModal";
 import { reportLovableError } from "@/shared/lib/lovable-error-reporting";
 import { initTheme } from "@/lib/theme";
+import { useBackNavigation } from "@/hooks/useBackNavigation";
 
 
 function NotFoundComponent() {
@@ -128,6 +129,9 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  // Handles Android hardware back button and swipe back gestures gracefully step-by-step
+  useBackNavigation();
 
   // Applies the stored Light / Dark / System choice and follows the OS live.
   useEffect(() => initTheme(), []);
