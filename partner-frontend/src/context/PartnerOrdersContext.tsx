@@ -96,12 +96,24 @@ export function sortOrders(list: ManagedOrder[], sort: OrderSortId) {
 /* Backend → view-model adapter                                        */
 /* ------------------------------------------------------------------ */
 
-const STATUS_TO_STAGE: Record<PartnerOrderStatus, OrderStage> = {
+const STATUS_TO_STAGE: Record<string, OrderStage> = {
+  placed: "new",
+  pending_partner_acceptance: "new",
   new: "new",
   accepted: "accepted",
+  partner_accepted: "accepted",
+  rider_accepted: "accepted",
+  rider_assigned: "accepted",
   picked: "pickup_pending",
+  picked_up: "pickup_pending",
+  at_partner: "pickup_pending",
   processing: "washing",
+  washing: "washing",
+  ironing: "ironing",
+  dry_cleaning: "dry_cleaning",
   ready: "ready",
+  completed: "ready",
+  out_for_delivery: "ready",
   delivered: "completed",
   cancelled: "cancelled",
 };
@@ -254,11 +266,11 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Background polling every 5 seconds for instantaneous order notification
+  // Background polling every 3 seconds for instantaneous order notification
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void load({ refreshing: true });
-    }, 5000);
+    }, 3000);
     return () => clearInterval(pollInterval);
   }, [load]);
 

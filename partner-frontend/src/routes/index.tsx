@@ -43,7 +43,7 @@ async function initializePartnerApp(): Promise<{ loggedIn: boolean; isOnboarded:
   // 2. Async restore check
   try {
     const restored = await restorePartnerSession();
-    if (restored && restored.partnerId) {
+    if (restored && (restored.token || (restored as any).partnerId || (restored as any).account)) {
       return {
         loggedIn: true,
         isOnboarded: restored.isOnboarded !== false,

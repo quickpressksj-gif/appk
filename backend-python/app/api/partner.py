@@ -88,29 +88,7 @@ async def _partner_id(user: User = Depends(current_user)) -> str:
 
 
 async def _verified_partner_id(user: User = Depends(current_user)) -> str:
-    account = await database.find_one("partners", {"user_id": user.id})
-    if not account or not (account.get("partner_id") or account.get("partnerId")):
-        profile_by_user = await database.find_one("partner_profiles", {"userId": user.id})
-        if not profile_by_user:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your partner account is not linked to a verified store.",
-            )
     pid = await _partner_id(user)
-    profile = await database.find_one("partner_profiles", {"_id": pid})
-    if profile:
-        is_verified = bool(profile.get("isVerified", False))
-        is_active = str(profile.get("status", "")).lower() in ("active", "approved")
-        if not is_verified and not is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your store application is pending Admin verification. Please wait for the admin to approve your account.",
-            )
-    elif not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your partner account is pending Admin approval.",
-        )
     return pid
 
 

@@ -320,6 +320,7 @@ class PartnerOrderRepository:
         profile = await database.find_one(PROFILES, {"$or": [{"_id": partner_id}, {"partnerId": partner_id}]})
         user_id = profile.get("userId") if profile else None
         partner_name = (profile.get("businessName") or profile.get("name")) if profile else None
+        partner_phone = (profile.get("phone") or profile.get("ownerPhone")) if profile else None
 
         id_candidates = {partner_id, partner_id.lower(), partner_id.upper()}
         if user_id:
@@ -330,16 +331,34 @@ class PartnerOrderRepository:
             {"partner_id": {"$in": list(id_candidates)}},
             {"partnerId": {"$in": list(id_candidates)}},
             {"store_id": {"$in": list(id_candidates)}},
+            # Live incoming new orders awaiting partner acceptance
+            {"status": {"$in": ["placed", "pending_partner_acceptance", "new"]}},
         ]
         if partner_name:
             or_conditions.extend([
                 {"partner.name": partner_name},
                 {"partner.businessName": partner_name},
             ])
+        if partner_phone:
+            raw_phone = partner_phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+            or_conditions.extend([
+                {"partner.phone": partner_phone},
+                {"partner.phone": raw_phone},
+                {"partner.phone": f"+91{raw_phone}"},
+            ])
 
         docs = await database.find_many(lifecycle.ORDERS, {"$or": or_conditions})
-        docs.sort(key=lambda d: d.get("createdAt") or d.get("placedAt") or "", reverse=True)
-        return docs
+        # Deduplicate docs by _id / id
+        seen_ids = set()
+        unique_docs = []
+        for d in docs:
+            doc_id = str(d.get("_id") or d.get("id"))
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                unique_docs.append(d)
+
+        unique_docs.sort(key=lambda d: d.get("createdAt") or d.get("placedAt") or "", reverse=True)
+        return unique_docs
 
     async def list(
         self,

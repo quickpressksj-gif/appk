@@ -75,14 +75,18 @@ async function httpRequest<T>(
       signal: controller.signal,
     });
 
-    if (response.status === 401 || response.status === 403) {
-      if (typeof window !== "undefined") {
-        clearSession(activeSessionRole());
-        if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
-          window.location.href = "/auth";
-        }
+    if (response.status === 401) {
+      throw new ApiError("unauthorized", "Authentication required", 401);
+    }
+    if (response.status === 403) {
+      let forbiddenMsg = "Access restricted";
+      try {
+        const errorData = await response.json();
+        if (errorData?.detail) forbiddenMsg = String(errorData.detail);
+      } catch {
+        /* ignore */
       }
-      throw new ApiError("unauthorized", "Session expired or access denied", response.status);
+      throw new ApiError("http", forbiddenMsg, 403);
     }
     if (response.status === 404) throw new ApiError("not-found", `${path} not found`, 404);
     if (!response.ok) {
