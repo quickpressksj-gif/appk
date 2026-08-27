@@ -3,12 +3,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.quickpress.partner",
   appName: "QuickPress Partner",
-  webDir: "www",
+  webDir: ".output/public",
   android: {
     allowMixedContent: true,
   },
   server: {
-    androidScheme: "https",
+    url: "https://quickpress-partner.vercel.app",
+    cleartext: true,
   },
 };
 
