@@ -46,18 +46,6 @@ export async function requestOtp(phone: string) {
 
 export async function verifyOtp(phone: string, code: string): Promise<PartnerSession> {
   const e164 = toE164(phone);
-  if (authMode() === "mock") {
-    return delay(
-      {
-        partnerId: "PRT-10482",
-        phone: e164,
-        businessName: "",
-        isVerified: code.length === 6,
-        isOnboarded: false,
-      },
-      700,
-    );
-  }
   return toPartnerSession(await verifyPhoneOtp(e164, code, ROLE));
 }
 
@@ -82,18 +70,6 @@ export async function logout(): Promise<void> {
 export async function registerBusiness(
   payload: BusinessRegistrationPayload,
 ): Promise<PartnerSession> {
-  if (authMode() === "mock") {
-    return delay(
-      {
-        partnerId: "PRT-10482",
-        phone: "+91 98765 43210",
-        businessName: payload.businessName,
-        isVerified: false,
-        isOnboarded: true,
-      },
-      820,
-    );
-  }
   return apiPostJson<PartnerSession>("/api/partner/onboarding", payload);
 }
 

@@ -78,3 +78,18 @@ async def delete_notification(
         id=notification_id,
         unread=await notification_repository.unread_count(user.id),
     )
+
+
+@router.post("/notifications/fcm-token")
+async def save_fcm_token(
+    payload: dict,
+    user: User = Depends(current_user),
+) -> dict:
+    """Save user FCM push notification token."""
+    token = str(payload.get("token") or payload.get("fcmToken") or "").strip()
+    device = str(payload.get("device") or payload.get("deviceType") or "web").strip()
+    if token:
+        from app.core.fcm import register_fcm_token
+        await register_fcm_token(user.id, token, device)
+    return {"ok": True, "registered": bool(token)}
+

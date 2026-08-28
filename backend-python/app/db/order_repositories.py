@@ -167,11 +167,30 @@ class OrderRepository:
         )
 
     async def by_id(self, user_id: str, order_id: str) -> Optional[OrderResponse]:
+        if not order_id:
+            return None
         document = await database.collection(COLLECTION).find_one({"_id": order_id})
         if document is None:
+            document = await database.collection(COLLECTION).find_one({"id": order_id})
+        if document is None:
             document = await database.collection(COLLECTION).find_one({"code": order_id})
-        if document is None or document.get("userId") != user_id:
+        if document is None and order_id.upper() != order_id:
+            document = await database.collection(COLLECTION).find_one({"code": order_id.upper()})
+        if document is None:
             return None
+
+        order_user_id = str(
+            document.get("userId")
+            or document.get("user_id")
+            or (document.get("customer") or {}).get("id")
+            or ""
+        )
+        if order_user_id and str(user_id) != order_user_id:
+            user_doc = await database.find_one("users", {"_id": user_id}) or {}
+            role = str(user_doc.get("role") or "")
+            if role != "admin":
+                return None
+
         return self._to_order_response(document)
 
     async def list(self, user_id: str) -> List[OrderResponse]:

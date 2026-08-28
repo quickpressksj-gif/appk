@@ -42,17 +42,11 @@ from app.api.wallet import router as wallet_router
 from app.api.wallet_ledger import router as wallet_ledger_router
 from app.api.webhooks import router as webhooks_router
 from app.config import get_settings
-from app.db.admin_repositories import ADMIN_SEED
 from app.db.availability_seed import AVAILABILITY_SEED
-from app.db.cart_repositories import CART_SEED
-from app.db.rider_repositories import RIDER_SEED
 from app.db.client import database
 from app.db.catalog_repositories import catalog
 from app.db.cms_repositories import cms_repo
-from app.db.customer_seed import seed_customer_account
 from app.db.membership_repositories import MEMBERSHIP_SEED
-from app.db.identity_seed import align_partner_identities
-from app.db.partner_repositories import PARTNER_SEED
 from app.db.service_content import SERVICE_CONTENT_SEED
 from app.db.support_repositories import SUPPORT_SEED
 

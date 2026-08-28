@@ -361,11 +361,12 @@ RIDER_STATUS = {
 }
 
 _PARTNER_STAGES = [
-    ("placed", "Order placed", (PENDING,)),
+    ("pending", "Pending", (PENDING,)),
     ("accepted", "Accepted", (PARTNER_ACCEPTED, RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
-    ("picked", "Picked up by rider", (PICKED_UP, AT_PARTNER)),
-    ("processing", "In cleaning", (PROCESSING,)),
-    ("ready", "Laundry completed", (READY, COMPLETED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
+    ("picked", "Picked Up", (PICKED_UP, AT_PARTNER)),
+    ("processing", "Processing", (PROCESSING,)),
+    ("ironing", "Ironing", ("ironing",)),
+    ("ready", "Ready", (READY, COMPLETED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
     ("delivered", "Delivered", (DELIVERED,)),
 ]
 

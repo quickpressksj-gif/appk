@@ -37,11 +37,12 @@ CATEGORIES = "admin_categories"
 SERVICES_CATALOG = "admin_services"
 
 ORDER_STAGES: List[Dict[str, str]] = [
-    {"id": "placed", "label": "Order placed", "status": "new"},
+    {"id": "pending", "label": "Pending", "status": "new"},
     {"id": "accepted", "label": "Accepted", "status": "accepted"},
-    {"id": "picked", "label": "Picked up by rider", "status": "picked"},
-    {"id": "processing", "label": "In cleaning", "status": "processing"},
-    {"id": "ready", "label": "Laundry completed", "status": "ready"},
+    {"id": "picked", "label": "Picked Up", "status": "picked"},
+    {"id": "processing", "label": "Processing", "status": "processing"},
+    {"id": "ironing", "label": "Ironing", "status": "ironing"},
+    {"id": "ready", "label": "Ready", "status": "ready"},
     {"id": "delivered", "label": "Delivered", "status": "delivered"},
 ]
 

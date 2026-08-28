@@ -31,7 +31,7 @@ async def send_customer_notification(
     order_id: Optional[str] = None,
     order_code: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Insert an in-app notification for the customer."""
+    """Insert an in-app notification and trigger real FCM push for the customer."""
     if not user_id:
         return {}
     doc = {
@@ -49,6 +49,20 @@ async def send_customer_notification(
         "order_code": order_code,
     }
     await database.collection("notifications").insert_one(doc)
+
+    # Real FCM push dispatch with deep link
+    try:
+        from app.core.fcm import send_fcm_push
+        deep_link = f"/track/{order_id}" if order_id else "/history"
+        await send_fcm_push(
+            user_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "kind": kind},
+        )
+    except Exception:
+        pass
+
     return doc
 
 
@@ -61,7 +75,7 @@ async def send_partner_notification(
     order_id: Optional[str] = None,
     order_code: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Insert an in-app notification for the partner."""
+    """Insert an in-app notification and trigger real FCM push for the partner."""
     if not partner_id:
         return {}
     now = _now_iso()
@@ -83,6 +97,19 @@ async def send_partner_notification(
         "orderCode": order_code,
     }
     await database.collection("notifications").insert_one(doc)
+
+    try:
+        from app.core.fcm import send_fcm_push
+        deep_link = f"/orders/{order_id}" if order_id else "/orders"
+        await send_fcm_push(
+            partner_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "role": "partner"},
+        )
+    except Exception:
+        pass
+
     return doc
 
 
@@ -93,7 +120,7 @@ async def send_rider_notification(
     message: str = "",
     order_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Insert an in-app notification for the assigned rider."""
+    """Insert an in-app notification and trigger real FCM push for the assigned rider."""
     if not rider_id:
         return {}
     now = _now_iso()
@@ -111,7 +138,6 @@ async def send_rider_notification(
         "orderId": order_id,
     }
     await database.collection("rider_notifications").insert_one(doc)
-    # Also mirror into notifications
     await database.collection("notifications").insert_one(
         {
             "_id": doc["_id"],
@@ -126,6 +152,19 @@ async def send_rider_notification(
             "order_id": order_id,
         }
     )
+
+    try:
+        from app.core.fcm import send_fcm_push
+        deep_link = f"/deliveries/{order_id}" if order_id else "/deliveries"
+        await send_fcm_push(
+            rider_id,
+            title=title,
+            body=message,
+            data={"orderId": str(order_id or ""), "url": deep_link, "role": "rider"},
+        )
+    except Exception:
+        pass
+
     return doc
 
 

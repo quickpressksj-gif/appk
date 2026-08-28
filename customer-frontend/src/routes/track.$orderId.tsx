@@ -79,17 +79,17 @@ function TrackOrderScreen() {
 
     const load = async (initial: boolean) => {
       try {
-        const [next, live] = await Promise.all([
-          fetchOrderDetail(orderId, { signal: controller.signal, forceRefresh: !initial }),
-          fetchTracking(orderId),
-        ]);
+        const next = await fetchOrderDetail(orderId, { signal: controller.signal, forceRefresh: !initial });
         if (!alive) return;
         setDetail(next);
+        const live = toTracking(next as any);
         setTracking(live);
         setEta(live.etaMinutes);
         setError(null);
-      } catch {
-        if (alive && initial) setError("We couldn't load this order. Check your connection.");
+      } catch (err: any) {
+        if (alive && initial) {
+          setError(err?.message || "We couldn't load this order. Check your connection.");
+        }
       }
     };
 
@@ -377,12 +377,16 @@ function TrackOrderScreen() {
                   >
                     <Phone className="size-4" /> Call rider
                   </a>
-                  <button
-                    type="button"
+                  <a
+                    href={`https://wa.me/${tracking.rider.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                      `Hi ${tracking.rider.name}, I am reaching out regarding my QuickPress Order #${orderId}.`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
                     className="flex h-11 items-center justify-center gap-2 rounded-3xl border border-border bg-muted/60 text-xs font-bold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
                   >
-                    <MessageCircle className="size-4" /> Chat
-                  </button>
+                    <MessageCircle className="size-4 text-emerald-500" /> WhatsApp Chat
+                  </a>
                 </div>
               </div>
             </section>

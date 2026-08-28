@@ -46,18 +46,17 @@ export async function apiPost<T>(
 }
 
 /**
- * Shared service helper: cache-first read, live fetch, graceful fallback.
+ * Shared service helper: cache-first read, live fetch, strict error propagation.
  *
- * `fallback` is only used when the request fails and no cache exists at all
- * (e.g. the device is offline on a cold start). Once the mock/live backend
- * answers, its response always wins.
+ * ZERO MOCK / ZERO FALLBACK POLICY:
+ * When the live backend request fails and no valid cache exists, it strictly
+ * throws the ApiError so the UI presents the proper Error / Retry state.
  */
 export async function resolveResource<T>(options: {
   request: () => Promise<T>;
   readCache: () => T | null;
   readStaleCache: () => T | null;
   writeCache: (value: T) => void;
-  fallback?: (() => T) | undefined;
   forceRefresh?: boolean | undefined;
 }): Promise<T> {
   if (!options.forceRefresh) {
@@ -72,7 +71,6 @@ export async function resolveResource<T>(options: {
   } catch (error) {
     const stale = options.readStaleCache();
     if (stale !== null) return stale;
-    if (options.fallback) return options.fallback();
     throw error;
   }
 }

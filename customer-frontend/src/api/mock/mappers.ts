@@ -93,11 +93,12 @@ const PARTNER_STATUS_BY_STATUS: Record<OrderLifecycleStatus, PartnerOrderStatus>
 
 export function toPartnerOrder(order: Order): PartnerOrder {
   const stages: { id: string; label: string; status: OrderLifecycleStatus }[] = [
-    { id: "placed", label: "Order placed", status: "placed" },
+    { id: "pending", label: "Pending", status: "placed" },
     { id: "accepted", label: "Accepted", status: "partner_accepted" },
-    { id: "picked", label: "Picked up by rider", status: "picked_up" },
-    { id: "processing", label: "In cleaning", status: "processing" },
-    { id: "ready", label: "Laundry completed", status: "completed" },
+    { id: "picked", label: "Picked Up", status: "picked_up" },
+    { id: "processing", label: "Processing", status: "processing" },
+    { id: "ironing", label: "Ironing", status: "processing" },
+    { id: "ready", label: "Ready", status: "completed" },
     { id: "delivered", label: "Delivered", status: "delivered" },
   ];
 

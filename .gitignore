@@ -48,9 +48,11 @@ coverage/
 # ==================================================
 *.apk
 *.aab
-customer-frontend/android/.gradle/
-customer-frontend/android/app/build/
-customer-frontend/android/build/
+.gradle/
+**/android/.gradle/
+**/android/app/build/
+**/android/build/
+**/android/capacitor-cordova-android-plugins/build/
 
 # ==================================================
 # Audit reports (local only)

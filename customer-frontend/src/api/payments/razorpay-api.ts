@@ -178,27 +178,6 @@ export async function fetchRefundStatus(refundId: string): Promise<GatewayRefund
   return apiGetJson<GatewayRefund>(RAZORPAY_ENDPOINTS.refundStatus(refundId));
 }
 
-/* ------------------------- end-to-end checkout flow ------------------------ */
-
-/**
- * Mock-mode stand-in for Razorpay Checkout. The mock gateway signs the payload
- * exactly the way Razorpay does, so verification still runs for real.
- */
-async function simulateMockCheckout(gatewayOrderId: string): Promise<CheckoutOutcome> {
-  try {
-    const payload = await apiPostJson<RazorpaySuccessPayload>(RAZORPAY_ENDPOINTS.simulate, {
-      gatewayOrderId,
-    });
-    return { status: "success", payload };
-  } catch (error) {
-    return {
-      status: "failed",
-      reason: error instanceof ApiError ? error.message : "Payment could not be completed.",
-      code: "payment_failed",
-    };
-  }
-}
-
 export type PayResult =
   | { status: "paid"; payment: GatewayPayment; verified: boolean; message: string }
   | { status: "failed"; payment: GatewayPayment | null; message: string; code: string }
@@ -228,14 +207,10 @@ export async function payWithRazorpay(
     };
   }
 
-  // Preview runs against the mock gateway: there is no real Razorpay order to
-  // hand to Checkout, so the mock returns the payload Checkout would have.
-  const outcome = isApiConfigured()
-    ? await openRazorpayCheckout(order, {
-        ...(input.description === undefined ? {} : { description: input.description }),
-        ...(input.profile === undefined ? {} : { profile: input.profile }),
-      })
-    : await simulateMockCheckout(order.gatewayOrderId);
+  const outcome = await openRazorpayCheckout(order, {
+    ...(input.description === undefined ? {} : { description: input.description }),
+    ...(input.profile === undefined ? {} : { profile: input.profile }),
+  });
 
   if (outcome.status === "success") {
     const verification = await verifyRazorpayPayment({

@@ -16,7 +16,7 @@ type RawTransaction = {
 export async function fetchEarnings(): Promise<EarningsSummary> {
   const [earnings, transactions] = await Promise.all([
     apiGetJson<RawEarnings>("/api/partner/earnings"),
-    apiGetJson<RawTransaction[]>("/api/wallet/transactions"),
+    apiGetJson<RawTransaction[]>("/api/partner/wallet/transactions").catch(() => []),
   ]);
 
   const payoutTxns = transactions.filter((txn) => txn.kind === "payout" || txn.kind === "commission");

@@ -1,3 +1,4 @@
+
 /**
  * QuickPress authentication service — the single real auth layer for all four
  * apps (customer / partner / rider / admin).
@@ -45,11 +46,11 @@ const MOCK_ENDPOINTS = {
   verifyOtp: "/api/auth/verify-otp",
 } as const;
 
-export type AuthMode = "firebase" | "mock";
+export type AuthMode = "firebase";
 
-/** Real authentication runs only when both Firebase and the API are configured. */
+/** Real authentication strictly communicates with FastAPI backend and Firebase Admin. */
 export function authMode(): AuthMode {
-  return isFirebaseConfigured() && isApiConfigured() ? "firebase" : "mock";
+  return "firebase";
 }
 
 function role(explicit?: AccountRole): AccountRole {

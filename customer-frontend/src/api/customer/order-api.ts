@@ -176,35 +176,38 @@ function toSummary(order: Order): OrderSummary {
   };
 }
 
-function toTracking(order: Order): TrackingData {
-  const stageIndex = customerStageIndex(order);
+export function toTracking(order: Order): TrackingData {
+  const stageIndex = TIMELINE_INDEX_BY_STATUS[order?.status] ?? 0;
   const eta = ETA_COPY[stageIndex] ?? ETA_COPY[0]!;
+  const partnerName = order?.partner?.name || (order as any)?.storeName || "QuickPress Partner";
+  const partnerImage = order?.partner?.image || store1;
+  const addressLine = order?.address ? `${order.address.line || ""}, ${order.address.city || ""}` : "Doorstep Delivery";
 
   return {
-    orderId: order.id,
+    orderId: String(order?.code || order?.id || ""),
     stageIndex,
     etaLabel: eta.label,
     etaMinutes: eta.minutes,
-    storeName: order.partner.name,
-    storeImage: order.partner.image ?? store1,
-    address: `${order.address.line}, ${order.address.city}`,
-    liveNote: order.status === "cancelled" ? "This order was cancelled." : eta.note,
+    storeName: partnerName,
+    storeImage: partnerImage,
+    address: addressLine,
+    liveNote: order?.status === "cancelled" ? "This order was cancelled." : eta.note,
     rider: {
-      name: order.rider?.name ?? "Assigning rider",
-      vehicle: order.rider?.vehicle ?? "—",
-      plate: order.rider?.plate ?? "—",
-      rating: order.rider?.rating ?? 0,
-      trips: order.rider?.trips ?? "—",
-      phone: order.rider?.phone ?? "—",
+      name: order?.rider?.name ?? "Assigning rider",
+      vehicle: order?.rider?.vehicle ?? "—",
+      plate: order?.rider?.plate ?? "—",
+      rating: Number(order?.rider?.rating || 0),
+      trips: String(order?.rider?.trips || "—"),
+      phone: String(order?.rider?.phone || "—"),
     },
-    steps: CUSTOMER_STAGES.map((stage, index) => {
-      const copy = STEP_COPY[stage];
-      const time = timeOfStatus(order, STAGE_STATUS[stage]);
+    steps: ORDER_TIMELINE.map((stage, index) => {
+      const copy = TIMELINE_COPY[stage] || { label: stage, description: "", pending: "" };
+      const time = timeOfStatus(order, copy.status);
       return {
         id: stage,
         label: copy.label,
         description: index <= stageIndex ? copy.description : copy.pending,
-        time: time === "\u2014" ? copy.pending : time,
+        time: time === "—" ? copy.pending : time,
       };
     }),
   };
@@ -260,21 +263,19 @@ export const ORDER_TRACKING_ENDPOINTS = {
 export type OrderTimelineStage =
   | "pending"
   | "accepted"
-  | "pickup-assigned"
   | "picked-up"
   | "processing"
+  | "ironing"
   | "ready"
-  | "out-for-delivery"
   | "delivered";
 
 export const ORDER_TIMELINE: OrderTimelineStage[] = [
   "pending",
   "accepted",
-  "pickup-assigned",
   "picked-up",
   "processing",
+  "ironing",
   "ready",
-  "out-for-delivery",
   "delivered",
 ];
 
@@ -294,40 +295,34 @@ const TIMELINE_COPY: Record<
     pending: "Not accepted yet",
     status: "partner_accepted",
   },
-  "pickup-assigned": {
-    label: "Pickup Assigned",
-    description: "A QuickPress rider is assigned for pickup",
-    pending: "Assigning a rider",
-    status: "rider_assigned",
-  },
   "picked-up": {
     label: "Picked Up",
-    description: "Items counted, tagged and collected",
-    pending: "Pickup pending",
+    description: "Items counted, tagged and collected by rider",
+    pending: "Pending pickup",
     status: "picked_up",
   },
   processing: {
     label: "Processing",
-    description: "Wash, dry clean and steam press in progress",
+    description: "Washing and specialized cleaning in progress",
     pending: "Cleaning not started",
+    status: "processing",
+  },
+  ironing: {
+    label: "Ironing",
+    description: "Steam press, ironing and wrinkle-free finishing",
+    pending: "Ironing pending",
     status: "processing",
   },
   ready: {
     label: "Ready",
-    description: "Quality checked and packed",
-    pending: "Pending quality check",
+    description: "Quality checked, packed and ready for delivery",
+    pending: "Pending quality check & packing",
     status: "completed",
-  },
-  "out-for-delivery": {
-    label: "Out For Delivery",
-    description: "Rider heading back to your address",
-    pending: "Delivery not started",
-    status: "out_for_delivery",
   },
   delivered: {
     label: "Delivered",
-    description: "Fresh, folded and delivered to your door",
-    pending: "Expected soon",
+    description: "Fresh, folded and delivered to your doorstep",
+    pending: "Delivery pending",
     status: "delivered",
   },
 };
@@ -335,13 +330,13 @@ const TIMELINE_COPY: Record<
 const TIMELINE_INDEX_BY_STATUS: Record<OrderLifecycleStatus, number> = {
   placed: 0,
   partner_accepted: 1,
-  rider_assigned: 2,
-  picked_up: 3,
-  at_partner: 3,
-  processing: 4,
+  rider_assigned: 1,
+  picked_up: 2,
+  at_partner: 2,
+  processing: 3,
   completed: 5,
-  out_for_delivery: 6,
-  delivered: 7,
+  out_for_delivery: 5,
+  delivered: 6,
   cancelled: 0,
 };
 
@@ -407,22 +402,28 @@ export type OrderDetail = {
 };
 
 export function toOrderDetail(order: Order): OrderDetail {
-  const stageIndex = TIMELINE_INDEX_BY_STATUS[order.status] ?? 0;
-  const cancelled = order.status === "cancelled";
-  const rider = order.rider ?? null;
+  const stageIndex = TIMELINE_INDEX_BY_STATUS[order?.status] ?? 0;
+  const cancelled = order?.status === "cancelled";
+  const rider = order?.rider ?? null;
+  const partner = order?.partner ?? (order as any)?.store ?? {};
+  const address = order?.address ?? { label: "Home", line: "Doorstep Delivery", city: "", phone: "" };
+  const pickup = order?.pickup ?? { date: "Today", slot: "Morning", express: false };
+  const delivery = order?.delivery ?? { date: "Tomorrow", slot: "Evening" };
+  const payment = order?.payment ?? { label: "Payment", note: "", paid: false, mode: "cod" };
+  const totals = order?.totals ?? { count: 0, itemsTotal: 0, pickup: 0, delivery: 0, handling: 0, gst: 0, discount: 0, couponDiscount: 0, grandTotal: 0 };
 
   return {
-    id: order.id,
-    code: order.code,
-    status: order.status,
-    statusLabel: ORDER_STATUS_LABEL[order.status] ?? "Order placed",
-    placedAt: `${fmtDate(order.createdAt)}, ${fmtTime(order.createdAt)}`,
+    id: String(order?.id || ""),
+    code: String(order?.code || order?.id || ""),
+    status: order?.status || "pending",
+    statusLabel: ORDER_STATUS_LABEL[order?.status] ?? "Order placed",
+    placedAt: order?.createdAt ? `${fmtDate(order.createdAt)}, ${fmtTime(order.createdAt)}` : "Recently",
     partner: {
-      id: order.partner.id,
-      name: order.partner.name || "QuickPress Partner",
-      image: order.partner.image ?? store1,
-      phone: order.partner.phone ?? "",
-      city: order.partner.city ?? "",
+      id: String(partner.id || (order as any)?.partnerId || ""),
+      name: partner.name || "QuickPress Partner",
+      image: partner.image ?? store1,
+      phone: partner.phone ?? "",
+      city: partner.city ?? "",
     },
     rider: {
       assigned: Boolean(rider),
@@ -430,27 +431,27 @@ export function toOrderDetail(order: Order): OrderDetail {
       vehicle: rider?.vehicle ?? "Assigning",
       plate: rider?.plate ?? "—",
       phone: rider?.phone ?? "",
-      rating: rider?.rating ?? 0,
+      rating: Number(rider?.rating || 0),
       trips: rider?.trips ?? "—",
     },
-    pickup: order.pickup,
-    delivery: order.delivery,
-    deliveryEstimate: `${order.delivery.date} · ${order.delivery.slot}`,
-    address: order.address,
-    items: order.items,
-    totals: order.totals,
+    pickup,
+    delivery,
+    deliveryEstimate: delivery?.date ? `${delivery.date} · ${delivery.slot || ""}` : "Scheduled",
+    address,
+    items: Array.isArray(order?.items) ? order.items : [],
+    totals,
     payment: {
-      label: order.payment.label,
-      note: order.payment.note,
-      paid: order.payment.paid,
-      mode: order.payment.mode,
+      label: payment.label || "Payment",
+      note: payment.note || "",
+      paid: Boolean(payment.paid),
+      mode: payment.mode || "cod",
     },
     stageIndex,
     cancelled,
-    cancellable: isCancellable(order.status),
-    cancelledReason: order.cancelledReason ?? null,
+    cancellable: isCancellable(order?.status),
+    cancelledReason: order?.cancelledReason ?? null,
     invoice: { available: false, label: "Invoice will be available after delivery" },
-    otp: (order as any).otp ?? (order as any).verificationOtp ?? undefined,
+    otp: (order as any)?.otp ?? (order as any)?.verificationOtp ?? undefined,
     timeline: ORDER_TIMELINE.map((stage, index) => {
       const copy = TIMELINE_COPY[stage];
       const time = timeOfStatus(order, copy.status);

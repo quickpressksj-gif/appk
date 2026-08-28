@@ -69,6 +69,15 @@ import { usePartnerResource } from "../hooks/use-partner-resource";
 import { partnerRoutes } from "../navigation/partner-routes";
 import { fetchPartnerProfile, toggleStoreStatus } from "@/api/partner/partner-profile-api";
 
+function normalizeDisplayPhone(p?: string): string {
+  if (!p) return "";
+  const cleaned = p.replace(/\+91/g, "").replace(/\D/g, "");
+  if (cleaned.length === 10) {
+    return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+  }
+  return p;
+}
+
 export function PartnerProfileScreen() {
   const navigate = useNavigate();
   const { signOut } = usePartnerContext();
@@ -79,10 +88,10 @@ export function PartnerProfileScreen() {
   const [autoAccept, setAutoAccept] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const storeName = profile?.businessName || profile?.ownerName || "QuickPress Partner Store";
-  const city = profile?.city || "Bengaluru";
-  const partnerId = profile?.partnerId || "QP-STORE-8291";
-  const phone = profile?.phone || "+91 98765 43210";
+  const storeName = profile?.businessName || profile?.name || profile?.ownerName || "QuickPress Partner Store";
+  const city = profile?.city || "Kasganj";
+  const partnerId = profile?.partnerId || (profile as any)?.id || "PRT-390624";
+  const phone = normalizeDisplayPhone(profile?.phone || profile?.ownerPhone) || "+91 92587 30561";
 
   return (
     <PartnerLayout

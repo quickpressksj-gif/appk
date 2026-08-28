@@ -576,7 +576,6 @@ async def _seed_settlements_if_needed(user: User) -> None:
 # ---------------------------------------------------------------- settlement
 
 async def settlements_for(user: User) -> Dict[str, Any]:
-    await _seed_settlements_if_needed(user)
     docs = await database.find_sorted(SETTLEMENTS, {"accountId": user.id}, sort=[("createdAt", -1)])
     items = [_payment_out(d) for d in docs]
     return {
