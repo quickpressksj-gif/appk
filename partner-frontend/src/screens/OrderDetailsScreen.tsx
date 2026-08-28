@@ -81,6 +81,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
   const [fetchedOrder, setFetchedOrder] = useState<ManagedOrder | null>(null);
   const [fetchLoading, setFetchLoading] = useState(false);
+  const [showRiderLocationModal, setShowRiderLocationModal] = useState(false);
 
   const matchedOrder = orders.find(
     (item) =>
@@ -359,6 +360,21 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
               </div>
             </div>
 
+            {/* Customer Special Care Instructions / Notes */}
+            {order.specialInstructions ? (
+              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm">
+                <div className="flex items-center gap-2 text-amber-900">
+                  <MessageSquareQuote className="size-4 text-amber-700" />
+                  <h2 className="text-[11px] font-black uppercase tracking-wider text-amber-800">
+                    Customer Instructions
+                  </h2>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-zinc-800 bg-white/80 p-2.5 rounded-xl border border-amber-200/50">
+                  “{order.specialInstructions}”
+                </p>
+              </div>
+            ) : null}
+
             {/* Booked Services & Items */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
               <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
@@ -377,7 +393,9 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                         </span>
                         <div>
                           <p className="text-xs font-black text-zinc-900">{item.name || "Laundry Service"}</p>
-                          <p className="text-[10px] text-zinc-400 font-medium">₹{item.price || 0} per unit</p>
+                          <p className="text-[10px] text-zinc-400 font-medium">
+                            {item.service && item.service !== item.name ? `${item.service} · ` : ""}₹{item.price || 0} per {item.unit || "item"}
+                          </p>
                         </div>
                       </div>
                       <span className="text-xs font-black text-zinc-900">
@@ -402,21 +420,55 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
               </div>
             </div>
 
-            {/* Delivery Rider Card */}
-            <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
-                Delivery Logistics
-              </h2>
-              <div className="mt-3 flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
-                  <Bike className="size-5" />
+            {/* Assigned Rider & Location Card */}
+            {order.assignedRider || order.rider ? (
+              <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
+                    Assigned Rider
+                  </h2>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    Active Logistics
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-black text-zinc-900">{riderName}</p>
-                  <p className="text-[10px] font-semibold text-zinc-500">{riderVehicle}</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 font-black">
+                      <Bike className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-black text-zinc-900">{riderName}</p>
+                        <span className="flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-800 border border-amber-200/50">
+                          <Star className="size-2.5 fill-current text-amber-500" />
+                          4.9
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-semibold text-zinc-500">{riderVehicle}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {order.assignedRider?.phone ? (
+                      <a
+                        href={`tel:${order.assignedRider.phone}`}
+                        className="flex size-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 active:scale-95"
+                      >
+                        <PhoneCall className="size-3.5" />
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowRiderLocationModal(true)}
+                      className="flex items-center gap-1 rounded-full bg-zinc-950 px-3 py-1.5 text-[11px] font-black text-white active:scale-95 shadow-xs"
+                    >
+                      <Navigation className="size-3" />
+                      <span>Track</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Live Order Timeline */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
@@ -426,6 +478,62 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
               <div className="mt-3">
                 <OrderTimeline timeline={timeline} stage={order.stage} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rider Location Modal */}
+        {showRiderLocationModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+            <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                    <Navigation className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-zinc-900">Rider Live Location</h3>
+                    <p className="text-[11px] font-semibold text-zinc-500">{riderName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRiderLocationModal(false)}
+                  className="rounded-full bg-zinc-100 p-1.5 text-zinc-500 hover:bg-zinc-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {order?.assignedRider?.lat && order?.assignedRider?.lng ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-emerald-50 p-4 border border-emerald-200/60 text-center">
+                    <p className="text-xs font-black text-emerald-900">Rider is en route</p>
+                    <p className="text-[11px] text-emerald-700 mt-1">
+                      Coordinates: {order.assignedRider.lat.toFixed(4)}, {order.assignedRider.lng.toFixed(4)}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 mt-0.5">
+                      Updated: {order.assignedRider.lastLocationAt ? formatOrderTime(order.assignedRider.lastLocationAt) : "Just now"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-zinc-50 p-6 text-center border border-zinc-200/60 space-y-2">
+                  <MapPin className="size-8 text-zinc-400 mx-auto" />
+                  <p className="text-xs font-black text-zinc-800">Rider location unavailable</p>
+                  <p className="text-[11px] text-zinc-500">
+                    GPS updates will appear automatically as the rider moves towards destination.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowRiderLocationModal(false)}
+                className="w-full rounded-2xl bg-zinc-950 py-2.5 text-xs font-black text-white active:scale-95"
+              >
+                Close Tracking
+              </button>
             </div>
           </div>
         )}
@@ -624,14 +732,34 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
               {/* Assigned Delivery Rider */}
               <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
-                <SectionHeading title="Delivery Rider" />
-                <div className="mt-3.5 flex items-center gap-3.5">
-                  <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark">
-                    <Bike className="size-5" />
+                <SectionHeading title="Assigned Rider" />
+                <div className="mt-3.5 flex items-center justify-between gap-3.5">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/20 text-brand-dark">
+                      <Bike className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{riderName}</p>
+                      <p className="text-[10px] text-muted-foreground">{riderVehicle}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{riderName}</p>
-                    <p className="text-[10px] text-muted-foreground">{riderVehicle}</p>
+                  <div className="flex items-center gap-2">
+                    {order.assignedRider?.phone ? (
+                      <a
+                        href={`tel:${order.assignedRider.phone}`}
+                        className="flex size-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 active:scale-95"
+                      >
+                        <PhoneCall className="size-3.5" />
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowRiderLocationModal(true)}
+                      className="flex items-center gap-1.5 rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-black text-white active:scale-95 shadow-xs"
+                    >
+                      <Navigation className="size-3" />
+                      <span>Track Location</span>
+                    </button>
                   </div>
                 </div>
               </section>

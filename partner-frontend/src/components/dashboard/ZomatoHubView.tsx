@@ -90,7 +90,7 @@ export function ZomatoHubView() {
   const { orders, counts, refresh: refreshOrders, testIncomingOrderAlarm } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
-  const [activeFeedPill, setActiveFeedPill] = useState("feed");
+  const [activeFilterTab, setActiveFilterTab] = useState<PartnerOrderFilterTab>("all");
   const [shopName, setShopName] = useState("QuickPress Laundry Store");
   const [locationName, setLocationName] = useState("Bengaluru");
   const [isOnline, setIsOnline] = useState(true);
@@ -110,7 +110,7 @@ export function ZomatoHubView() {
       if (!alive) return;
       if (profile) {
         setShopName(profile.businessName || profile.ownerName || "QuickPress Laundry Store");
-        setLocationName(profile.city ? `${profile.city}` : "Bengaluru");
+        setLocationName(profile.city ? `${profile.city}` : "Kasganj");
       }
       if (summary) {
         setIsOnline(summary.isStoreOpen);
@@ -134,18 +134,26 @@ export function ZomatoHubView() {
       const next = !isOnline;
       setIsOnline(next);
       await setStoreOpen(next);
-      toast.success(next ? "Store is now Online" : "Store is now Closed");
     } catch {
       setIsOnline(!isOnline);
       toast.error("Failed to update store status");
     }
   };
 
-  // Find incoming new orders and active processing orders
-  const newIncomingOrders = orders.filter((o) => o.stage === "new");
-  const activeProcessingOrders = orders.filter(
-    (o) => o.stage !== "completed" && o.stage !== "cancelled"
-  );
+  const FILTER_TABS: { id: PartnerOrderFilterTab; label: string; count: number }[] = useMemo(() => [
+    { id: "all", label: "All", count: orders.length },
+    { id: "active", label: "Active", count: orders.filter((o) => isOrderMatchingTab(o, "active")).length },
+    { id: "pickup", label: "Pickup", count: orders.filter((o) => isOrderMatchingTab(o, "pickup")).length },
+    { id: "processing", label: "Processing", count: orders.filter((o) => isOrderMatchingTab(o, "processing")).length },
+    { id: "ready", label: "Ready", count: orders.filter((o) => isOrderMatchingTab(o, "ready")).length },
+    { id: "dispatch", label: "Dispatch", count: orders.filter((o) => isOrderMatchingTab(o, "dispatch")).length },
+    { id: "out_for_delivery", label: "Out for Delivery", count: orders.filter((o) => isOrderMatchingTab(o, "out_for_delivery")).length },
+    { id: "delivered", label: "Delivered", count: orders.filter((o) => isOrderMatchingTab(o, "delivered")).length },
+  ], [orders]);
+
+  const displayedOrders = useMemo(() => {
+    return orders.filter((order) => isOrderMatchingTab(order, activeFilterTab));
+  }, [orders, activeFilterTab]);
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] pb-28 text-zinc-900">
@@ -213,115 +221,129 @@ export function ZomatoHubView() {
           </div>
         </div>
 
-        {/* Feed Filter Pills Bar */}
+        {/* Canonical Order Status Filter Pills Bar */}
         <div className="no-scrollbar mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-          {FEED_PILLS.map((pill) => (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => setActiveFeedPill(pill.id)}
-              className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-black transition-all ${
-                activeFeedPill === pill.id
-                  ? "bg-zinc-900 text-white shadow-xs"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
+          {FILTER_TABS.map((tab) => {
+            const isActive = activeFilterTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveFilterTab(tab.id)}
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black transition-all active:scale-95 ${
+                  isActive
+                    ? "bg-zinc-950 text-white shadow-xs"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[9px] font-black ${
+                    isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-700"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </header>
 
       {/* ========================================================================= */}
-      {/* 1. MY FEED VIEW                                                           */}
+      {/* 1. OPERATIONAL DASHBOARD VIEW                                             */}
       {/* ========================================================================= */}
-      {activeFeedPill === "feed" && (
-        <div className="space-y-4 px-4 pt-3">
-          {/* Today So Far Card */}
-          <div>
-            <h2 className="text-xs font-black tracking-wider text-zinc-500 uppercase">
-              Today so far
-            </h2>
-            <div className="mt-1.5 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="flex items-baseline gap-6">
-                  <div>
-                    <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                      Total sales
-                    </p>
-                    <p className="mt-0.5 text-2xl font-black text-zinc-900">
-                      ₹{todayEarnings.toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                      Total orders
-                    </p>
-                    <p className="mt-0.5 text-2xl font-black text-zinc-900">
-                      {todayOrdersCount}
-                    </p>
-                  </div>
+      <div className="space-y-4 px-4 pt-3">
+        {/* Today So Far Card */}
+        <div>
+          <h2 className="text-xs font-black tracking-wider text-zinc-500 uppercase">
+            Today so far
+          </h2>
+          <div className="mt-1.5 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex items-baseline gap-6">
+                <div>
+                  <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+                    Total sales
+                  </p>
+                  <p className="mt-0.5 text-2xl font-black text-zinc-900">
+                    ₹{todayEarnings.toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+                    Total orders
+                  </p>
+                  <p className="mt-0.5 text-2xl font-black text-zinc-900">
+                    {todayOrdersCount}
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Order Flow Progress */}
-              <div className="mt-5 grid grid-cols-4 gap-2 pt-3 border-t border-zinc-100 text-center">
-                <div className="rounded-xl bg-zinc-50 p-2">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">New</p>
-                  <p className="text-sm font-black text-zinc-900">{counts.new || 0}</p>
-                </div>
-                <div className="rounded-xl bg-zinc-50 p-2">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">Accepted</p>
-                  <p className="text-sm font-black text-zinc-900">
-                    {(counts.accepted || 0) + (counts.pickup_pending || 0)}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-zinc-50 p-2">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">Wash/Prep</p>
-                  <p className="text-sm font-black text-zinc-900">
-                    {(counts.washing || 0) + (counts.dry_cleaning || 0) + (counts.ironing || 0)}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-zinc-50 p-2">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">Ready</p>
-                  <p className="text-sm font-black text-zinc-900">{counts.ready || 0}</p>
-                </div>
+            {/* Order Flow Progress */}
+            <div className="mt-5 grid grid-cols-4 gap-2 pt-3 border-t border-zinc-100 text-center">
+              <div className="rounded-xl bg-zinc-50 p-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase">New</p>
+                <p className="text-sm font-black text-zinc-900">{counts.new || 0}</p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 p-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase">Accepted</p>
+                <p className="text-sm font-black text-zinc-900">
+                  {(counts.accepted || 0) + (counts.pickup_pending || 0)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 p-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase">Processing</p>
+                <p className="text-sm font-black text-zinc-900">
+                  {(counts.washing || 0) + (counts.dry_cleaning || 0) + (counts.ironing || 0)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 p-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase">Ready</p>
+                <p className="text-sm font-black text-zinc-900">{counts.ready || 0}</p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Active Orders Queue (Real Operational Queue) */}
-          <div>
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-black tracking-tight text-zinc-900">
-                Active Order Queue ({activeProcessingOrders.length})
-              </h2>
-              <button
-                type="button"
-                onClick={() => navigate({ to: partnerRoutes.orders })}
-                className="text-xs font-black text-emerald-700 hover:underline flex items-center gap-1"
-              >
-                View all orders <ArrowRight className="size-3.5" />
-              </button>
-            </div>
+        {/* Orders Queue according to selected filter */}
+        <div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-black tracking-tight text-zinc-900">
+              Orders Queue · {activeFilterTab.toUpperCase()} ({displayedOrders.length})
+            </h2>
+            <button
+              type="button"
+              onClick={() => navigate({ to: partnerRoutes.orders })}
+              className="text-xs font-black text-emerald-700 hover:underline flex items-center gap-1"
+            >
+              View all orders <ArrowRight className="size-3.5" />
+            </button>
+          </div>
 
-            <div className="mt-2.5 space-y-3">
-              {activeProcessingOrders.length === 0 ? (
-                <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 text-center shadow-sm">
-                  <ShoppingBag className="mx-auto size-8 text-zinc-300" />
-                  <p className="mt-2 text-xs font-bold text-zinc-600">No processing orders right now</p>
-                  <p className="text-[10px] text-zinc-400">New customer bookings will appear here instantly.</p>
-                </div>
-              ) : (
-                activeProcessingOrders.map((order) => {
-                  const stepIdx = getStageTimelineIndex(order.stage);
-                  const isNew = order.stage === "new";
+          <div className="mt-2.5 space-y-3">
+            {displayedOrders.length === 0 ? (
+              <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 text-center shadow-sm">
+                <ShoppingBag className="mx-auto size-8 text-zinc-300" />
+                <p className="mt-2 text-xs font-bold text-zinc-600">No orders in "{activeFilterTab}" status</p>
+                <p className="text-[10px] text-zinc-400">Incoming customer orders will appear here in real-time.</p>
+              </div>
+            ) : (
+              displayedOrders.map((order) => {
+                const stepIdx = getStageTimelineIndex(order.stage);
+                const isNew = order.stage === "new";
 
-                  return (
-                    <div
-                      key={order.id}
-                      className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm space-y-3 transition-all hover:border-emerald-300"
-                    >
+                return (
+                  <div
+                    key={order.id}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.closest("button, a, input")) return;
+                      navigate({ to: partnerRoutes.orderDetails, params: { orderId: order.id } });
+                    }}
+                    className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm space-y-3 transition-all hover:border-emerald-300 cursor-pointer"
+                  >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -464,136 +486,6 @@ export function ZomatoHubView() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 2. SALES FILTER VIEW                                                      */}
-      {/* ========================================================================= */}
-      {activeFeedPill === "sales" && (
-        <div className="space-y-4 px-4 pt-3">
-          <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              Gross Sales Performance
-            </h3>
-            <p className="mt-1 text-3xl font-black text-zinc-900">
-              ₹{earningsData ? earningsData.week.toLocaleString("en-IN") : "0"}
-            </p>
-            <p className="mt-0.5 text-xs font-semibold text-emerald-700">
-              Avg Order Value: ₹{earningsData?.avgOrderValue || 0}
-            </p>
-
-            {/* Daily Trend Bars */}
-            <div className="mt-5 flex h-36 items-end justify-between gap-2 border-b border-zinc-100 pb-2">
-              {(earningsData?.trend || []).map((t: any) => (
-                <div key={t.label} className="flex flex-1 flex-col items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-zinc-600">₹{t.amount}</span>
-                  <div
-                    style={{ height: `${Math.max(15, Math.min(100, (t.amount / 500) * 100))}%` }}
-                    className="w-full max-w-[28px] rounded-t-lg bg-amber-400"
-                  />
-                  <span className="text-[9px] font-bold uppercase text-zinc-400">{t.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 3. FUNNEL FILTER VIEW                                                     */}
-      {/* ========================================================================= */}
-      {activeFeedPill === "funnel" && (
-        <div className="space-y-4 px-4 pt-3">
-          <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              Order Fulfillment Funnel
-            </h3>
-            <div className="mt-4 space-y-3.5">
-              <div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span>Orders Received</span>
-                  <span>100% ({orders.length})</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-zinc-100">
-                  <div className="h-full rounded-full bg-blue-500 w-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span>Accepted & Washed</span>
-                  <span>95%</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-zinc-100">
-                  <div className="h-full rounded-full bg-amber-500 w-[95%]" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span>Delivered On-Time</span>
-                  <span>98.5%</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-zinc-100">
-                  <div className="h-full rounded-full bg-emerald-500 w-[98.5%]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. SERVICE QUALITY FILTER VIEW                                            */}
-      {/* ========================================================================= */}
-      {activeFeedPill === "quality" && (
-        <div className="space-y-4 px-4 pt-3">
-          <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              Customer Experience & Quality
-            </h3>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-amber-50 p-3 text-center border border-amber-100">
-                <Star className="mx-auto size-5 text-amber-500 fill-current" />
-                <p className="mt-1 text-lg font-black text-zinc-900">4.9 / 5.0</p>
-                <p className="text-[10px] font-bold text-zinc-500">Customer Rating</p>
-              </div>
-              <div className="rounded-xl bg-emerald-50 p-3 text-center border border-emerald-100">
-                <CheckCircle2 className="mx-auto size-5 text-emerald-600" />
-                <p className="mt-1 text-lg font-black text-zinc-900">98.5%</p>
-                <p className="text-[10px] font-bold text-zinc-500">On-time Dispatch</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 5. OPERATIONS FILTER VIEW                                                 */}
-      {/* ========================================================================= */}
-      {activeFeedPill === "operations" && (
-        <div className="space-y-4 px-4 pt-3">
-          <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              Operational Configuration
-            </h3>
-            <div className="mt-3 divide-y divide-zinc-100 text-xs">
-              <div className="flex justify-between py-2.5">
-                <span className="text-zinc-500">Working Hours:</span>
-                <span className="font-bold text-zinc-900">08:00 AM - 09:00 PM</span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-zinc-500">Pickup Radius:</span>
-                <span className="font-bold text-zinc-900">8.0 KM</span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-zinc-500">Auto Accept Orders:</span>
-                <span className="font-bold text-emerald-600">Enabled ✓</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* 📱 QUICK MANAGE ORDER POPUP MODAL (Opens directly on Home Page!)          */}

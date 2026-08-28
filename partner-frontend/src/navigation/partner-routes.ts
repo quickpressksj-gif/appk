@@ -46,7 +46,6 @@ export const partnerRoutes = {
 export const partnerTabs = [
   { id: "dashboard", label: "Home", icon: LayoutDashboard, to: partnerRoutes.dashboard },
   { id: "orders", label: "Orders", icon: ListOrdered, to: partnerRoutes.orders },
-  { id: "services", label: "Services", icon: Sparkles, to: partnerRoutes.services },
   { id: "earnings", label: "Payouts", icon: BarChart3, to: partnerRoutes.earnings },
   { id: "profile", label: "More", icon: UserRound, to: partnerRoutes.profile },
 ] as const;
@@ -78,4 +77,4 @@ export const partnerMenuLinks = [
   { id: "registration", label: "Business Profile", icon: Building2, to: partnerRoutes.registration },
 ] as const;
 
-export type PartnerTabId = (typeof partnerTabs)[number]["id"];
+export type PartnerTabId = (typeof partnerTabs)[number]["id"] | "services";

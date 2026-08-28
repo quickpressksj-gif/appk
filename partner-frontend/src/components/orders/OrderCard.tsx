@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   Clock,
@@ -58,11 +58,17 @@ export function OrderCard({
   onAction: (order: ManagedOrder, actionId: OrderActionId) => void;
   busyAction?: OrderActionId | null;
 }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
 
   return (
     <article
-      className="card-soft animate-rise border border-border p-4 transition-all duration-300 hover:border-primary/60"
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("button, a, input, select, textarea")) return;
+        navigate({ to: partnerRoutes.orderDetails, params: { orderId: order.id } });
+      }}
+      className="card-soft animate-rise border border-border p-4 transition-all duration-300 hover:border-primary/60 cursor-pointer"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">

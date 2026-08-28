@@ -672,8 +672,12 @@ class RiderDispatchEngine:
                 metadata={"completedAt": now},
                 changes={"completedAt": now},
             )
-        except Exception:
-            completed_order = updated
+        # Auto-credit immutable financial ledger for Partner & Rider
+        from app.services.wallet_ledger import record_delivered_order_earnings
+        try:
+            await record_delivered_order_earnings(completed_order)
+        except Exception as e:
+            logger.error("Failed to credit ledger for delivered order %s: %s", order_id, e)
 
         await broadcast_order_event(
             EVENT_ORDER_DELIVERED,

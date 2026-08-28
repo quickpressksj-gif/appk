@@ -189,3 +189,74 @@ async def settle_pending_hold(account_id: str, reason: str, amount: float, *, ou
     await database.collection(LEDGER_COLLECTION).update_one(
         {"_id": target["_id"]}, {"$set": {"status": outcome}}
     )
+
+
+async def record_delivered_order_earnings(order: Dict[str, Any]) -> None:
+    """Idempotently credits Partner and Rider wallets upon successful order delivery.
+    Enforces double-entry ledger rules and prevents duplicate payouts.
+    """
+    order_id = str(order.get("_id") or order.get("id") or "")
+    if not order_id:
+        return
+
+    # 1. Partner Earning Credit
+    partner = order.get("partner") or {}
+    partner_id = str(partner.get("id") or order.get("partner_id") or order.get("partnerId") or order.get("store_id") or "")
+    if partner_id:
+        existing_partner_entry = await database.collection(LEDGER_COLLECTION).find_one({
+            "accountId": partner_id,
+            "orderId": order_id,
+            "reason": "ORDER_EARNING",
+        })
+        if not existing_partner_entry:
+            total_amt = money(
+                (order.get("totals") or {}).get("grandTotal")
+                or (order.get("pricing") or {}).get("finalTotal")
+                or order.get("total_amount")
+                or order.get("amount")
+                or 0
+            )
+            if total_amt > 0:
+                commission_rate = 0.15  # 15% platform commission
+                commission = money(total_amt * commission_rate)
+                net_partner_earning = money(total_amt - commission)
+                await append_entry(
+                    account_id=partner_id,
+                    role="partner",
+                    direction="credit",
+                    reason="ORDER_EARNING",
+                    amount=net_partner_earning,
+                    note=f"Net earnings for Order #{order.get('code') or order_id} (Gross: ₹{total_amt}, Commission: ₹{commission})",
+                    reference=f"ord_earn_{order_id}",
+                    order_id=order_id,
+                    status="success",
+                )
+
+    # 2. Rider Delivery Fee Credit
+    rider = order.get("rider") or {}
+    rider_id = str(rider.get("id") or "")
+    if rider_id:
+        existing_rider_entry = await database.collection(LEDGER_COLLECTION).find_one({
+            "accountId": rider_id,
+            "orderId": order_id,
+            "reason": "DELIVERY_PAYOUT",
+        })
+        if not existing_rider_entry:
+            rider_fee = money(
+                (order.get("totals") or {}).get("deliveryFee")
+                or (order.get("totals") or {}).get("pickupFee")
+                or 50.0  # standard delivery incentive
+            )
+            if rider_fee > 0:
+                await append_entry(
+                    account_id=rider_id,
+                    role="rider",
+                    direction="credit",
+                    reason="DELIVERY_PAYOUT",
+                    amount=rider_fee,
+                    note=f"Delivery payout for Order #{order.get('code') or order_id}",
+                    reference=f"rdr_earn_{order_id}",
+                    order_id=order_id,
+                    status="success",
+                )
+

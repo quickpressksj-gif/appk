@@ -59,7 +59,6 @@ export function PartnerLayout({
       const next = !isOnline;
       setIsOnline(next);
       await toggleStoreStatus(next);
-      toast.success(next ? "Store is now Online & accepting orders" : "Store is now Closed");
     } catch {
       setIsOnline(!isOnline);
       toast.error("Failed to update store status");

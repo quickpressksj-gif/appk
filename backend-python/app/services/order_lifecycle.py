@@ -484,6 +484,22 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         else str(dispatch_otp_val or "")
     )
 
+    rider = order.get("rider") or {}
+    rider_obj = None
+    if isinstance(rider, dict) and (rider.get("name") or rider.get("id")):
+        rider_obj = {
+            "id": str(rider.get("id") or ""),
+            "name": str(rider.get("name") or "QuickPress Rider"),
+            "phone": str(rider.get("phone") or ""),
+            "vehicleNumber": str(rider.get("vehicle") or rider.get("vehicleNumber") or rider.get("plate") or "Delivery Bike"),
+            "rating": float(rider.get("rating") or 4.9),
+            "image": str(rider.get("image") or rider.get("avatar") or ""),
+            "status": str(rider.get("status") or "assigned"),
+            "lat": rider.get("lat") or (rider.get("location") or {}).get("lat"),
+            "lng": rider.get("lng") or (rider.get("location") or {}).get("lng"),
+            "lastLocationAt": rider.get("lastLocationAt") or rider.get("updatedAt") or "",
+        }
+
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
@@ -496,20 +512,35 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         "placedAtRaw": order.get("createdAt") or order.get("placedAt") or "",
         "slot": (order.get("pickup") or {}).get("slot", "") if isinstance(order.get("pickup"), dict) else "",
         "address": address_str,
+        "pickupAddress": address_str,
+        "deliveryAddress": address_str,
+        "specialInstructions": str(order.get("notes") or order.get("specialInstructions") or order.get("careInstructions") or ""),
         "itemCount": sum(int(item.get("qty", 1)) for item in items) if items else 1,
         "amount": int(grand_total),
+        "charges": {
+            "subtotal": int(totals.get("subtotal") or grand_total),
+            "pickupFee": int(totals.get("pickupFee") or totals.get("deliveryFee") or 0),
+            "taxes": int(totals.get("tax") or totals.get("taxes") or 0),
+            "discount": int(totals.get("discount") or 0),
+            "total": int(grand_total),
+        },
         "paymentMode": payment.get("mode", "cod"),
         "paymentStatus": "paid" if payment.get("paid") else "pending",
         "serviceLabel": order.get("serviceLabel", "Laundry"),
-        "riderName": (order.get("rider") or {}).get("name", "") if isinstance(order.get("rider"), dict) else "",
+        "services": [str(item.get("service") or item.get("name") or "Laundry") for item in items] if items else ["Laundry"],
+        "riderName": rider_obj.get("name", "") if rider_obj else "",
+        "assignedRider": rider_obj,
+        "rider": rider_obj,
         "dispatchOtp": dispatch_code if status in (READY, READY_FOR_DELIVERY, COMPLETED, DISPATCH_OTP_PENDING) else "",
         "cancelledReason": order.get("cancelledReason"),
         "items": [
             {
                 "id": str(item.get("id") or item.get("_id") or ""),
                 "name": str(item.get("name") or "Laundry Service"),
+                "service": str(item.get("service") or item.get("name") or "Laundry"),
                 "qty": int(item.get("qty", 1)),
                 "price": int(item.get("price", 0)),
+                "unit": str(item.get("unit") or "items"),
             }
             for item in items
         ],

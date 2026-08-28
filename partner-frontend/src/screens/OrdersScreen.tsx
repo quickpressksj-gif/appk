@@ -47,34 +47,34 @@ export function OrdersScreen() {
   const { orders, counts, isLoading, isOffline, refresh } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
 
-  const [stage, setStage] = useState<OrderStage | "all">("all");
+  const [filterTab, setFilterTab] = useState<PartnerOrderFilterTab>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<OrderSortId>("latest");
 
-  const STAGE_TABS: { id: OrderStage | "all"; label: string; count: number }[] = [
-    { id: "all", label: "All Orders", count: orders.length },
-    { id: "new", label: "New", count: counts.new || 0 },
-    { id: "accepted", label: "Accepted", count: counts.accepted || 0 },
-    { id: "picked", label: "Picked Up", count: counts.picked || 0 },
-    { id: "processing", label: "Processing", count: counts.processing || 0 },
-    { id: "ready", label: "Ready", count: counts.ready || 0 },
-    { id: "completed", label: "Completed", count: counts.completed || 0 },
-  ];
+  const STAGE_TABS: { id: PartnerOrderFilterTab; label: string; count: number }[] = useMemo(() => {
+    return [
+      { id: "all", label: "All", count: orders.length },
+      { id: "active", label: "Active", count: orders.filter((o) => isOrderMatchingTab(o, "active")).length },
+      { id: "pickup", label: "Pickup", count: orders.filter((o) => isOrderMatchingTab(o, "pickup")).length },
+      { id: "processing", label: "Processing", count: orders.filter((o) => isOrderMatchingTab(o, "processing")).length },
+      { id: "ready", label: "Ready", count: orders.filter((o) => isOrderMatchingTab(o, "ready")).length },
+      { id: "dispatch", label: "Dispatch", count: orders.filter((o) => isOrderMatchingTab(o, "dispatch")).length },
+      { id: "out_for_delivery", label: "Out for Delivery", count: orders.filter((o) => isOrderMatchingTab(o, "out_for_delivery")).length },
+      { id: "delivered", label: "Delivered", count: orders.filter((o) => isOrderMatchingTab(o, "delivered")).length },
+    ];
+  }, [orders]);
 
   const visible = useMemo(() => {
-    let list = orders;
-    if (stage !== "all") {
-      list = list.filter((order) => order.stage === stage);
-    }
+    let list = orders.filter((order) => isOrderMatchingTab(order, filterTab));
     const filtered = list.filter((order) => matchesQuery(order, query));
     return sortOrders(filtered, sort);
-  }, [orders, stage, query, sort]);
+  }, [orders, filterTab, query, sort]);
 
   const isSearching = query.trim().length > 0;
 
   const resetSearch = () => {
     setQuery("");
-    setStage("all");
+    setFilterTab("all");
   };
 
   return (
@@ -115,12 +115,12 @@ export function OrdersScreen() {
           {/* Horizontal Stage Badge Filter Carousel */}
           <div className="no-scrollbar -mx-4 mt-2.5 flex items-center gap-2 overflow-x-auto px-4 pb-1">
             {STAGE_TABS.map((tab) => {
-              const isActive = stage === tab.id;
+              const isActive = filterTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setStage(tab.id)}
+                  onClick={() => setFilterTab(tab.id)}
                   className={`shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black transition-all active:scale-95 ${
                     isActive
                       ? "bg-zinc-950 text-white shadow-sm"
@@ -149,7 +149,7 @@ export function OrdersScreen() {
             <div className="my-8 rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm">
               <ShoppingBag className="mx-auto size-10 text-zinc-300" />
               <h3 className="mt-3 text-sm font-black text-zinc-900">
-                {isSearching ? "No matching orders found" : `No orders in "${stage}" queue`}
+                {isSearching ? "No matching orders found" : `No orders in "${filterTab}" queue`}
               </h3>
               <p className="mt-1 text-xs text-zinc-500">
                 {isSearching ? "Try searching for a different code or customer name." : "Incoming orders will appear here automatically."}

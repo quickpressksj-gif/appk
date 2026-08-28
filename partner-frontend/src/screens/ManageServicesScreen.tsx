@@ -91,7 +91,6 @@ export function ManageServicesScreen() {
       const next = !isStoreOnline;
       setIsStoreOnline(next);
       await toggleStoreStatus(next);
-      toast.success(next ? "Store is now Online & accepting orders" : "Store is now Closed");
     } catch {
       setIsStoreOnline(!isStoreOnline);
       toast.error("Failed to update store status");
