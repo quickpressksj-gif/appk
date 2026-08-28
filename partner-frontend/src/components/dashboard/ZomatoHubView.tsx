@@ -44,8 +44,8 @@ import { fetchEarnings } from "../../api/partner/partner-earnings-api";
 import { fetchPartnerProfile } from "../../api/partner/partner-profile-api";
 import { usePartnerOrders } from "../../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../../hooks/use-order-action-handler";
-import type { ManagedOrder } from "../../data/partner-orders-mock";
-import { STAGE_LABEL } from "../../data/partner-orders-mock";
+import type { ManagedOrder, PartnerOrderFilterTab } from "../../data/partner-orders-mock";
+import { STAGE_LABEL, isOrderMatchingTab } from "../../data/partner-orders-mock";
 import { OrderTimeline } from "../orders/OrderTimeline";
 
 function getStageTimelineIndex(stage: string): number {
