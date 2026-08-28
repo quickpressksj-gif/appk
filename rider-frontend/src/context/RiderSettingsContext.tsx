@@ -8,7 +8,12 @@ import {
   type ReactNode,
 } from "react";
 
-import { fetchRiderProfile } from "@/api/rider/rider-profile-api";
+import {
+  fetchRiderProfile,
+  updateRiderProfile,
+  fetchWorkSettings,
+  updateWorkSettings,
+} from "@/api/rider/rider-profile-api";
 
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -173,15 +178,18 @@ export function RiderSettingsProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = useCallback((patch: Partial<RiderAccountProfile>) => {
     setState((prev) => ({ ...prev, profile: { ...prev.profile, ...patch } }));
+    void updateRiderProfile(patch).catch(() => undefined);
   }, []);
 
   const updateVehicle = useCallback((patch: Partial<RiderVehicleInfo>) => {
     setState((prev) => ({ ...prev, vehicle: { ...prev.vehicle, ...patch } }));
+    void updateRiderProfile(patch).catch(() => undefined);
   }, []);
 
   const updateWork = useCallback(
     <K extends keyof WorkSettings>(key: K, value: WorkSettings[K]) => {
       setState((prev) => ({ ...prev, work: { ...prev.work, [key]: value } }));
+      void updateWorkSettings({ [key]: value }).catch(() => undefined);
     },
     [],
   );

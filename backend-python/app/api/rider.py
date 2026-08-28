@@ -561,3 +561,102 @@ async def analytics(
 ) -> list:
     rider_id = await _rider_id(user)
     return await rider_analytics_repository.list(rider_id, limit=limit)
+
+
+# --------------------------------------------------------------------------
+# Bank & Direct Payout Settings
+# --------------------------------------------------------------------------
+
+
+@router.get("/bank")
+async def get_rider_bank(user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    doc = await database.find_one("rider_bank_accounts", {"_id": rider_id})
+    profile = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
+    if not doc:
+        doc = {
+            "_id": rider_id,
+            "riderId": rider_id,
+            "bankName": profile.get("bankName", "State Bank of India"),
+            "accountNumber": profile.get("accountNumber", "••••••••4821"),
+            "ifsc": profile.get("ifsc", "SBIN0001234"),
+            "accountHolder": profile.get("accountHolder", profile.get("fullName", "Delivery Partner")),
+            "upiId": profile.get("upiId", f"{rider_id.lower()}@okhdfcbank"),
+            "isVerified": True,
+        }
+        await database.insert("rider_bank_accounts", doc)
+    return _public(doc)
+
+
+@router.patch("/bank")
+async def update_rider_bank(body: dict, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    update_data = {
+        "bankName": body.get("bankName", ""),
+        "accountNumber": body.get("accountNumber", ""),
+        "ifsc": body.get("ifsc", ""),
+        "accountHolder": body.get("accountHolder", ""),
+        "upiId": body.get("upiId", ""),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await database.update("rider_bank_accounts", {"_id": rider_id}, update_data, upsert=True)
+    await database.update(
+        "rider_profiles",
+        {"_id": rider_id},
+        {
+            "bankName": update_data["bankName"],
+            "accountNumber": update_data["accountNumber"],
+            "ifsc": update_data["ifsc"],
+            "accountHolder": update_data["accountHolder"],
+            "upiId": update_data["upiId"],
+        },
+    )
+    return {"ok": True, "bank": update_data}
+
+
+# --------------------------------------------------------------------------
+# Shift & Operational Zone Settings
+# --------------------------------------------------------------------------
+
+
+@router.get("/work-settings")
+async def get_work_settings(user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    profile = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
+    settings_doc = await database.find_one("rider_settings", {"_id": rider_id}) or {}
+    return {
+        "riderId": rider_id,
+        "shift": profile.get("shift", "full_time"),
+        "preferredCity": profile.get("preferredCity", profile.get("city", "Kasganj")),
+        "preferredArea": profile.get("preferredArea", "Kasganj Hub & Market"),
+        "maxActiveDeliveries": settings_doc.get("maxActiveDeliveries", 2),
+        "autoAccept": settings_doc.get("autoAccept", False),
+        "voiceNavigation": settings_doc.get("voiceNavigation", True),
+    }
+
+
+@router.patch("/work-settings")
+async def update_work_settings(body: dict, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    profile_updates = {}
+    if "shift" in body:
+        profile_updates["shift"] = body["shift"]
+    if "preferredCity" in body:
+        profile_updates["preferredCity"] = body["preferredCity"]
+    if "preferredArea" in body:
+        profile_updates["preferredArea"] = body["preferredArea"]
+    if profile_updates:
+        await database.update("rider_profiles", {"_id": rider_id}, profile_updates)
+
+    settings_updates = {}
+    if "maxActiveDeliveries" in body:
+        settings_updates["maxActiveDeliveries"] = int(body["maxActiveDeliveries"])
+    if "autoAccept" in body:
+        settings_updates["autoAccept"] = bool(body["autoAccept"])
+    if "voiceNavigation" in body:
+        settings_updates["voiceNavigation"] = bool(body["voiceNavigation"])
+    if settings_updates:
+        await database.update("rider_settings", {"_id": rider_id}, settings_updates, upsert=True)
+
+    return {"ok": True, "message": "Work settings updated successfully"}
+

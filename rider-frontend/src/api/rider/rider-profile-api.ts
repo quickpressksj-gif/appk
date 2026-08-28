@@ -49,7 +49,35 @@ export async function fetchRiderProfile(): Promise<RiderProfile> {
               status: res.isVerified ? "verified" : "pending",
             },
           ],
-    isOnline: Boolean(res.isOnline),
-    onlineMinutes: typeof res.onlineMinutes === "number" ? res.onlineMinutes : 0,
-  } as RiderProfile;
+} as RiderProfile;
 }
+
+export async function updateRiderProfile(patch: Record<string, any>) {
+  return apiPatchJson<{ ok: boolean }>("/api/rider/profile", patch);
+}
+
+export interface RiderBankAccount {
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  accountHolder: string;
+  upiId: string;
+  isVerified?: boolean;
+}
+
+export async function fetchRiderBank(): Promise<RiderBankAccount> {
+  return apiGetJson<RiderBankAccount>("/api/rider/bank");
+}
+
+export async function updateRiderBank(bank: Partial<RiderBankAccount>) {
+  return apiPatchJson<{ ok: boolean; bank: RiderBankAccount }>("/api/rider/bank", bank);
+}
+
+export async function fetchWorkSettings() {
+  return apiGetJson<any>("/api/rider/work-settings");
+}
+
+export async function updateWorkSettings(settings: Record<string, any>) {
+  return apiPatchJson<{ ok: boolean }>("/api/rider/work-settings", settings);
+}
+
