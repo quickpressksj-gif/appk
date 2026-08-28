@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import type { DeliveryOrder } from "../../data/rider-delivery-mock";
 import { riderRoutes } from "../../navigation/rider-routes";
+import { SwipeActionButton } from "../common/SwipeActionButton";
 
 type ActionTone = "primary" | "outline" | "danger" | "green";
 
@@ -36,8 +37,7 @@ const TONE: Record<ActionTone, string> = {
 };
 
 /**
- * Status-aware action bar. Rendered compactly inside delivery cards and
- * full-width inside the Delivery Details screen.
+ * Status-aware action bar with Swipe to Confirm for Rider.
  */
 export function DeliveryActionBar({
   delivery,
@@ -60,6 +60,93 @@ export function DeliveryActionBar({
 
   const openNavigation = () =>
     navigate({ to: riderRoutes.liveNavigation, params: { deliveryId: delivery.id } });
+
+  // Swipe-to-confirm for full delivery screens & key transitions
+  if (!compact) {
+    if (delivery.status === "new") {
+      return (
+        <div className="mt-3 flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => onReject(delivery)}
+            className="flex h-13 shrink-0 items-center justify-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-4 text-xs font-black text-destructive transition-all active:scale-95 shadow-xs"
+          >
+            <X className="size-4" />
+            <span>Reject</span>
+          </button>
+          <div className="flex-1 min-w-0">
+            <SwipeActionButton
+              label="Swipe to Accept Offer"
+              onConfirm={() => onAdvance(delivery)}
+              color="emerald"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (delivery.status === "reached-partner") {
+      return (
+        <div className="mt-3">
+          <SwipeActionButton
+            label="Swipe to Confirm Arrival / Pickup"
+            onConfirm={() => onAdvance(delivery)}
+            color="blue"
+          />
+        </div>
+      );
+    }
+
+    if (delivery.status === "picked-up") {
+      return (
+        <div className="mt-3">
+          <SwipeActionButton
+            label="Swipe to Start Delivery / Transit"
+            onConfirm={() => onAdvance(delivery)}
+            color="emerald"
+          />
+        </div>
+      );
+    }
+
+    if (delivery.status === "on-the-way") {
+      return (
+        <div className="mt-3 space-y-2.5">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => toast("Calling customer")}
+              className="flex items-center justify-center gap-1.5 rounded-2xl border border-border bg-card py-2.5 text-xs font-bold text-foreground active:scale-95"
+            >
+              <Phone className="size-3.5 text-brand-green" />
+              <span>Call</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => toast("Chat opens")}
+              className="flex items-center justify-center gap-1.5 rounded-2xl border border-border bg-card py-2.5 text-xs font-bold text-foreground active:scale-95"
+            >
+              <MessageCircle className="size-3.5 text-blue-500" />
+              <span>Chat</span>
+            </button>
+            <button
+              type="button"
+              onClick={openNavigation}
+              className="flex items-center justify-center gap-1.5 rounded-2xl border border-border bg-card py-2.5 text-xs font-bold text-foreground active:scale-95"
+            >
+              <Navigation2 className="size-3.5 text-amber-500" />
+              <span>Maps</span>
+            </button>
+          </div>
+          <SwipeActionButton
+            label="Swipe to Confirm Delivery"
+            onConfirm={() => onAdvance(delivery)}
+            color="emerald"
+          />
+        </div>
+      );
+    }
+  }
 
   const actions: Action[] = (() => {
     switch (delivery.status) {
@@ -124,14 +211,14 @@ export function DeliveryActionBar({
             label: "Call Customer",
             icon: Phone,
             tone: "green",
-            onPress: () => toast("Calling customer (mock)"),
+            onPress: () => toast("Calling customer"),
           },
           {
             id: "chat",
             label: "Chat Customer",
             icon: MessageCircle,
             tone: "outline",
-            onPress: () => toast("Chat opens with the messaging sprint"),
+            onPress: () => toast("Chat opens"),
           },
           {
             id: "navigation",
@@ -155,14 +242,14 @@ export function DeliveryActionBar({
             label: "Delivery Proof",
             icon: Camera,
             tone: "outline",
-            onPress: () => (onProof ? onProof() : toast("Delivery proof capture — coming soon")),
+            onPress: () => (onProof ? onProof() : toast("Delivery proof capture")),
           },
           {
             id: "otp",
             label: "OTP Verification",
             icon: ShieldCheck,
             tone: "outline",
-            onPress: () => (onOtp ? onOtp() : toast("OTP verification — coming soon")),
+            onPress: () => (onOtp ? onOtp() : toast("OTP verification")),
           },
         ];
       case "cancelled":
