@@ -19,6 +19,7 @@ from app.api.auth import router as auth_router
 from app.api.cart import router as cart_router
 from app.api.checkout import router as checkout_router
 from app.api.earnings import router as earnings_router
+from app.api.financial import router as financial_router
 from app.api.help import router as help_router
 from app.api.home import router as home_router
 from app.api.invoices import router as invoices_router
@@ -158,6 +159,7 @@ def create_app() -> FastAPI:
     app.include_router(wallet_ledger_router, prefix=settings.api_prefix)
     app.include_router(admin_payments_router, prefix=settings.api_prefix)
     app.include_router(earnings_router, prefix=settings.api_prefix)
+    app.include_router(financial_router, prefix=settings.api_prefix)
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
 

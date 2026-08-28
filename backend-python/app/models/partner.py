@@ -193,6 +193,10 @@ class PartnerDashboardResponse(BaseModel):
 class PartnerEarningsResponse(BaseModel):
     total: int
     orders: int
+    grossSales: Optional[int] = None
+    commissionDeducted: Optional[int] = None
+    commissionRate: Optional[float] = None
+    tcsDeducted: Optional[int] = None
 
 
 class PartnerWalletResponse(BaseModel):

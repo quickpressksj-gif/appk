@@ -318,6 +318,31 @@ class OrderRepository:
                     {"$set": user_updates}
                 )
 
+        from app.services.financial_engine import financial_engine
+
+        fin_calc = financial_engine.compute_checkout_pricing(
+            items=item_snapshots,
+            coupon_discount=float(payload.couponDiscount or 0),
+            is_express=bool(payload.pickup.express if payload.pickup else False),
+            city=str(address.cityLine or "Kasganj"),
+        )
+
+        financial_snapshot = {
+            "itemsSubtotal": fin_calc.itemsSubtotal,
+            "couponDiscount": fin_calc.couponDiscount,
+            "membershipDiscount": fin_calc.membershipDiscount,
+            "taxableLaundrySubtotal": fin_calc.taxableLaundrySubtotal,
+            "laundryGst": fin_calc.laundryGst,
+            "serviceGst": fin_calc.serviceGst,
+            "deliveryFee": fin_calc.deliveryFee,
+            "handlingFee": fin_calc.handlingFee,
+            "grandTotal": fin_calc.grandTotal,
+            "partnerNetEarnings": fin_calc.partnerEstimatedEarnings,
+            "platformCommission": fin_calc.platformEstimatedCommission,
+            "estimatedRiderPayout": fin_calc.estimatedRiderPayout,
+            "platformNetMargin": fin_calc.platformNetMargin,
+        }
+
         document: Dict[str, Any] = {
             "_id": f"ord-{code}",
             "userId": user.id,
@@ -336,6 +361,7 @@ class OrderRepository:
             "rider": None,
             "serviceLabel": payload.serviceLabel or (items[0].name if items else "Laundry"),
             "items": item_snapshots,
+            "financialSnapshot": financial_snapshot,
             "totals": OrderTotals(
                 itemsTotal=totals.itemsTotal,
                 pickup=totals.pickup,

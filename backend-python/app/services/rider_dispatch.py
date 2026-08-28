@@ -164,7 +164,12 @@ class RiderDispatchEngine:
         pricing = order.get("pricing") or {}
         totals = order.get("totals") or {}
         grand_total = pricing.get("finalTotal") or totals.get("grandTotal") or order.get("amount") or 100
-        est_earning = max(35, round(int(grand_total) * 0.12))
+        from app.services.financial_engine import financial_engine
+        
+        # Calculate dynamic trip fare based on delivery distance
+        dist_km = float(order.get("distanceKm") or (order.get("delivery") or {}).get("distanceKm") or 2.8)
+        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=dist_km, city=order_city)
+        est_earning = max(35, int(round(fare_calc.totalTripEarnings)))
 
         address_line = (
             order.get("address", {}).get("line")

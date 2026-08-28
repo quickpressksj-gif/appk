@@ -580,9 +580,11 @@ class PartnerOrderRepository:
             if lifecycle.order_status(d) in (lifecycle.DELIVERED, lifecycle.CANCELLED)
         ]
 
-    async def dashboard(self, partner_id: str) -> Dict[str, Any]:
-        orders = [lifecycle.to_partner_order(d) for d in await self._orders_for(partner_id)]
-        delivered = [o for o in orders if o["status"] == "delivered"]
+        from app.services.financial_engine import financial_engine
+        monthly_orders = len(orders)
+        comm_rate = financial_engine.get_commission_rate(monthly_orders)
+        net_rate = 1.0 - comm_rate - 0.01  # minus commission and 1% TCS
+
         return {
             "newOrders": sum(1 for o in orders if o["status"] == "new"),
             "inProgress": sum(
@@ -590,16 +592,34 @@ class PartnerOrderRepository:
             ),
             "readyForDelivery": sum(1 for o in orders if o["status"] == "ready"),
             "delivered": len(delivered),
-            "earningsToday": sum(round(o["amount"] * 0.8) for o in delivered),
+            "earningsToday": sum(round(o["amount"] * net_rate) for o in delivered),
+            "commissionRate": round(comm_rate * 100, 1),
         }
 
     async def earnings(self, partner_id: str) -> Dict[str, Any]:
+        all_orders = await self._orders_for(partner_id)
         delivered = [
             lifecycle.to_partner_order(d)
-            for d in await self._orders_for(partner_id)
+            for d in all_orders
             if lifecycle.order_status(d) == lifecycle.DELIVERED
         ]
-        return {"total": sum(round(o["amount"] * 0.8) for o in delivered), "orders": len(delivered)}
+        from app.services.financial_engine import financial_engine
+        comm_rate = financial_engine.get_commission_rate(len(all_orders))
+        net_rate = 1.0 - comm_rate - 0.01
+
+        gross = sum(o["amount"] for o in delivered)
+        commission = round(gross * comm_rate)
+        tcs = round(gross * 0.01)
+        net = gross - commission - tcs
+
+        return {
+            "total": net,
+            "grossSales": gross,
+            "commissionDeducted": commission,
+            "commissionRate": round(comm_rate * 100, 1),
+            "tcsDeducted": tcs,
+            "orders": len(delivered),
+        }
 
 
 class PartnerWalletRepository:
