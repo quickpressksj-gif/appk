@@ -216,7 +216,24 @@ export function BusinessRegistrationScreen() {
     }
   }, [session, phone]);
 
-  const [services, setServices] = useState<string[]>(["Wash & Fold", "Steam Ironing"]);
+  const [services, setServices] = useState<string[]>(["Wash & Fold", "Steam Ironing", "Wash & Iron", "Dry Cleaning"]);
+  const [servicePrices, setServicePrices] = useState<Record<string, number>>({
+    "Wash & Fold": 79,
+    "Wash & Iron": 99,
+    "Steam Ironing": 19,
+    "Dry Cleaning": 149,
+    "Shoe Cleaning": 249,
+    "Curtain Cleaning": 199,
+  });
+  const [serviceTurnarounds, setServiceTurnarounds] = useState<Record<string, number>>({
+    "Wash & Fold": 24,
+    "Wash & Iron": 24,
+    "Steam Ironing": 12,
+    "Dry Cleaning": 48,
+    "Shoe Cleaning": 48,
+    "Curtain Cleaning": 48,
+  });
+
   const [weeklyOff, setWeeklyOff] = useState<string[]>(["Sun"]);
   const [uploads, setUploads] = useState<Uploads>({ logo: "", banner: "", gallery: [] });
 
@@ -242,6 +259,9 @@ export function BusinessRegistrationScreen() {
 
   const toggleService = (id: string) =>
     setServices((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+
+  const updateServicePrice = (id: string, price: number) =>
+    setServicePrices((prev) => ({ ...prev, [id]: Math.max(1, price) }));
 
   const toggleDay = (day: string) =>
     setWeeklyOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -544,6 +564,17 @@ export function BusinessRegistrationScreen() {
       const category =
         BUSINESS_TYPES.find((t) => t.id === form.businessType)?.category ?? "laundry";
 
+      const customServices = services.map((name) => {
+        const found = SERVICES.find((s) => s.id === name);
+        return {
+          name,
+          price: servicePrices[name] ?? found?.price ?? 79,
+          unit: found?.unit ?? "item",
+          turnaroundHours: serviceTurnarounds[name] ?? 24,
+          enabled: true,
+        };
+      });
+
       const updated = await registerBusiness({
         businessName: form.shopName,
         ownerName: form.ownerName,
@@ -571,7 +602,7 @@ export function BusinessRegistrationScreen() {
         logo: uploads.logo || undefined,
         banner: uploads.banner || undefined,
         gallery: uploads.gallery,
-        services,
+        services: customServices as any,
         latitude: shopCoords?.latitude ?? undefined,
         longitude: shopCoords?.longitude ?? undefined,
       });
@@ -890,22 +921,78 @@ export function BusinessRegistrationScreen() {
             ) : null}
 
             {step === 2 ? (
-              <SectionCard title="Select Provided Services & Rate Card">
+              <SectionCard title="Store Service Rate Card & Custom Pricing">
                 <p className="text-xs text-zinc-500 font-medium -mt-2 mb-4">
-                  Select the laundry and dry cleaning services your store fulfills:
+                  Enable the services your store fulfills and set your own custom prices (₹) that customers will see:
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {SERVICES.map((s) => (
-                    <ServiceCard
-                      key={s.id}
-                      title={s.id}
-                      icon={s.icon}
-                      price={s.price}
-                      unit={s.unit}
-                      selected={services.includes(s.id)}
-                      onToggle={() => toggleService(s.id)}
-                    />
-                  ))}
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                  {SERVICES.map((s) => {
+                    const isSelected = services.includes(s.id);
+                    const currentPrice = servicePrices[s.id] ?? s.price;
+                    const Icon = s.icon;
+
+                    return (
+                      <div
+                        key={s.id}
+                        className={`rounded-2xl border p-4 transition-all ${
+                          isSelected
+                            ? "border-amber-400 bg-amber-50/50 shadow-sm ring-1 ring-amber-300"
+                            : "border-zinc-200 bg-white opacity-70 hover:opacity-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                                isSelected ? "bg-amber-400 text-black shadow-sm" : "bg-zinc-100 text-zinc-600"
+                              }`}
+                            >
+                              <Icon className="size-5" />
+                            </span>
+                            <div>
+                              <h4 className="text-sm font-black text-zinc-900">{s.id}</h4>
+                              <span className="text-[11px] font-bold text-zinc-500 uppercase">
+                                Unit: Per {s.unit}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleService(s.id)}
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-all cursor-pointer ${
+                              isSelected
+                                ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                                : "border-zinc-300 bg-white"
+                            }`}
+                          >
+                            {isSelected && <Check className="size-3.5 stroke-[3]" />}
+                          </button>
+                        </div>
+
+                        {/* Editable Custom Price Input */}
+                        {isSelected && (
+                          <div className="mt-3.5 pt-3 border-t border-amber-200/80 flex items-center justify-between gap-3 animate-fade-in">
+                            <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
+                              <span>Your Custom Price:</span>
+                            </label>
+                            <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
+                              <span className="text-xs font-black text-emerald-800">₹</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={9999}
+                                value={currentPrice}
+                                onChange={(e) => updateServicePrice(s.id, Number(e.target.value))}
+                                className="w-16 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
+                              />
+                              <span className="text-[11px] font-bold text-zinc-500">/ {s.unit}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {errors["services"] ? (
                   <p className="text-xs font-bold text-red-600 mt-2">{errors["services"]}</p>
