@@ -76,12 +76,6 @@ async function httpRequest<T>(
     });
 
     if (response.status === 401) {
-      if (typeof window !== "undefined") {
-        clearSession(activeSessionRole());
-        if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
-          window.location.href = "/auth";
-        }
-      }
       throw new ApiError("unauthorized", "Session expired. Please log in again.", 401);
     }
     if (response.status === 403) {
@@ -153,10 +147,26 @@ export async function apiRequest<T>(
         error instanceof ApiError &&
         error.kind === "unauthorized" &&
         !path.startsWith("/api/auth/");
-      if (!retryable) throw error;
+      if (!retryable) {
+        if (error instanceof ApiError && error.kind === "unauthorized" && typeof window !== "undefined") {
+          clearSession(activeSessionRole());
+          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+            window.location.href = "/auth";
+          }
+        }
+        throw error;
+      }
       const { refreshSession } = await import("./auth-service");
       const refreshed = await refreshSession();
-      if (!refreshed) throw error;
+      if (!refreshed) {
+        if (typeof window !== "undefined") {
+          clearSession(activeSessionRole());
+          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+            window.location.href = "/auth";
+          }
+        }
+        throw error;
+      }
       result = await runOnce();
     }
     recordApiCall({

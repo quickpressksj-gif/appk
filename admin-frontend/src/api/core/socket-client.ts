@@ -20,7 +20,7 @@
 
 import { io, type Socket } from "socket.io-client";
 
-import { appEnvironment } from "../customer/api/config";
+import { apiBaseUrl, appEnvironment } from "../customer/api/config";
 import { readToken, activeSessionRole } from "./session-store";
 import type { AnyRealtimePayload } from "./socket-events";
 import { startRealtimeSimulator } from "./realtime-simulator";
@@ -42,8 +42,6 @@ export type ConnectionState = {
 type Handler = (payload: AnyRealtimePayload) => void;
 
 const DEDUPE_LIMIT = 500;
-
-import { apiBaseUrl, appEnvironment } from "../customer/api/config";
 
 function socketUrl(): string {
   const raw = import.meta.env["VITE_SOCKET_URL"] || import.meta.env["VITE_API_BASE_URL"];

@@ -75,14 +75,18 @@ async function httpRequest<T>(
       signal: controller.signal,
     });
 
-    if (response.status === 401 || response.status === 403) {
-      if (typeof window !== "undefined") {
-        clearSession(activeSessionRole());
-        if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
-          window.location.href = "/auth";
-        }
+    if (response.status === 401) {
+      throw new ApiError("unauthorized", "Session expired. Please log in again.", 401);
+    }
+    if (response.status === 403) {
+      let forbiddenMsg = "Access restricted";
+      try {
+        const errorData = await response.json();
+        if (errorData?.detail) forbiddenMsg = String(errorData.detail);
+      } catch {
+        /* ignore */
       }
-      throw new ApiError("unauthorized", "Session expired or access denied", response.status);
+      throw new ApiError("http", forbiddenMsg, 403);
     }
     if (response.status === 404) throw new ApiError("not-found", `${path} not found`, 404);
     if (!response.ok) {
@@ -143,10 +147,26 @@ export async function apiRequest<T>(
         error instanceof ApiError &&
         error.kind === "unauthorized" &&
         !path.startsWith("/api/auth/");
-      if (!retryable) throw error;
+      if (!retryable) {
+        if (error instanceof ApiError && error.kind === "unauthorized" && typeof window !== "undefined") {
+          clearSession(activeSessionRole());
+          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+            window.location.href = "/auth";
+          }
+        }
+        throw error;
+      }
       const { refreshSession } = await import("./auth-service");
       const refreshed = await refreshSession();
-      if (!refreshed) throw error;
+      if (!refreshed) {
+        if (typeof window !== "undefined") {
+          clearSession(activeSessionRole());
+          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
+            window.location.href = "/auth";
+          }
+        }
+        throw error;
+      }
       result = await runOnce();
     }
     recordApiCall({

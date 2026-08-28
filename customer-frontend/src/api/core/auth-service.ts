@@ -198,7 +198,7 @@ function isExpired(session: AuthSession, skewMs = 60_000): boolean {
 }
 
 /**
- * Splash → Firebase → stored JWT → Home | Auth.
+ * Splash → Stored JWT Session → Fast API /api/auth/me → Home | Auth.
  * Returns the restored session, or null when the user must sign in again.
  */
 export async function restoreSession(explicitRole?: AccountRole): Promise<AuthSession | null> {
@@ -206,13 +206,6 @@ export async function restoreSession(explicitRole?: AccountRole): Promise<AuthSe
   const stored = readSession(target);
   if (!stored) return null;
   if (authMode() === "mock") return stored;
-
-  // Firebase user must still exist, otherwise the identity was revoked.
-  const firebaseToken = await currentFirebaseIdToken();
-  if (!firebaseToken) {
-    clearSession(target);
-    return null;
-  }
 
   if (isExpired(stored)) return refreshSession(target);
 
