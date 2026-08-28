@@ -27,6 +27,7 @@ from app.api.membership import router as membership_router
 from app.api.notifications import router as notifications_router
 from app.api.orders import router as orders_router
 # Sprint 5.2: partner domain (orders, profile, services, wallet, reviews).
+from app.api.partner import public_router as partner_public_router
 from app.api.partner import router as partner_router
 from app.api.partners import router as partners_router
 from app.api.payments import router as payments_router
@@ -142,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(help_router, prefix=settings.api_prefix)
     app.include_router(reviews_router, prefix=settings.api_prefix)
     # Sprint 5.2: partner domain — dashboard, profile, orders, services, wallet.
+    app.include_router(partner_public_router, prefix=settings.api_prefix)
     app.include_router(partner_router, prefix=settings.api_prefix)
     # Sprint 5.2: rider domain (dashboard, orders, wallet, notifications).
     app.include_router(rider_public_router, prefix=settings.api_prefix)

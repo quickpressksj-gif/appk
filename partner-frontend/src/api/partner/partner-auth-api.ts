@@ -136,3 +136,107 @@ export function rememberPartnerLogin(remember: boolean): void {
 export function startPartnerAutoRefresh(): () => void {
   return startSessionAutoRefresh(ROLE);
 }
+
+export async function sendPartnerAadhaarOtp(aadhaarNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    clientId: string;
+    aadhaar: string;
+    maskedAadhaar: string;
+    otpSent: boolean;
+    source: string;
+    message: string;
+  }>("/api/partner/verify/aadhaar/send-otp", { aadhaarNumber });
+}
+
+export async function verifyPartnerAadhaarOtp(
+  aadhaarNumber: string,
+  otp: string,
+  clientId?: string,
+  fullName = ""
+) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    aadhaar: string;
+    maskedAadhaar: string;
+    fullName?: string;
+    gender?: string;
+    dob?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    photo?: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/partner/verify/aadhaar/verify-otp", { aadhaarNumber, otp, clientId, fullName });
+}
+
+export async function verifyPartnerPan(panNumber: string, ownerName = "") {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    pan: string;
+    fullName?: string;
+    category: string;
+    status?: string;
+    aadhaarLinked?: boolean;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/partner/verify/pan", { panNumber, ownerName });
+}
+
+export async function verifyPartnerGst(gstin: string, shopName = "", ownerName = "") {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    gstin: string;
+    tradeName?: string;
+    legalName?: string;
+    status?: string;
+    taxpayerType?: string;
+    state?: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/partner/verify/gst", { gstin, shopName, ownerName });
+}
+
+export async function verifyPartnerIfsc(ifsc: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    ifsc: string;
+    bankName: string;
+    branch: string;
+    city: string;
+    state: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/partner/verify/ifsc", { ifsc });
+}
+
+export async function verifyPartnerBankAccount(
+  accountNumber: string,
+  ifsc: string,
+  accountHolder = ""
+) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    accountNumber: string;
+    ifsc: string;
+    registeredName: string;
+    pennyDropStatus: string;
+    utrNumber?: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/partner/verify/bank", { accountNumber, ifsc, accountHolder });
+}
+
