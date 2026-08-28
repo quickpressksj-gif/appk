@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { DeliveryOrder } from "../../data/rider-delivery-mock";
 import { riderRoutes } from "../../navigation/rider-routes";
 import { SwipeActionButton } from "../common/SwipeActionButton";
+import { DualSwipeActionButton } from "../common/DualSwipeActionButton";
 
 type ActionTone = "primary" | "outline" | "danger" | "green";
 
@@ -37,7 +38,7 @@ const TONE: Record<ActionTone, string> = {
 };
 
 /**
- * Status-aware action bar with Swipe to Confirm for Rider.
+ * Status-aware action bar with Swipe to Confirm & Dual-Direction Swipe for Rider.
  */
 export function DeliveryActionBar({
   delivery,
@@ -65,22 +66,13 @@ export function DeliveryActionBar({
   if (!compact) {
     if (delivery.status === "new") {
       return (
-        <div className="mt-3 flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => onReject(delivery)}
-            className="flex h-13 shrink-0 items-center justify-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-4 text-xs font-black text-destructive transition-all active:scale-95 shadow-xs"
-          >
-            <X className="size-4" />
-            <span>Reject</span>
-          </button>
-          <div className="flex-1 min-w-0">
-            <SwipeActionButton
-              label="Swipe to Accept Offer"
-              onConfirm={() => onAdvance(delivery)}
-              color="emerald"
-            />
-          </div>
+        <div className="mt-3 w-full">
+          <DualSwipeActionButton
+            acceptLabel="Swipe Right to Accept"
+            rejectLabel="Swipe Left to Reject"
+            onAccept={() => onAdvance(delivery)}
+            onReject={() => onReject(delivery)}
+          />
         </div>
       );
     }

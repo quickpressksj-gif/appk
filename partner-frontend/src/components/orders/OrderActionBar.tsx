@@ -3,8 +3,9 @@ import { Loader2, X } from "lucide-react";
 import type { ManagedOrder } from "../../data/partner-orders-mock";
 import { ACTION_INTENT_CLASS, getOrderActions, type OrderActionId } from "./order-actions";
 import { SwipeActionButton } from "../common/SwipeActionButton";
+import { DualSwipeActionButton } from "../common/DualSwipeActionButton";
 
-/** Stage-aware action buttons with Swipe To Confirm support */
+/** Stage-aware action buttons with Swipe To Confirm & Dual Swipe Left-Reject/Right-Accept */
 export function OrderActionBar({
   order,
   onAction,
@@ -25,39 +26,54 @@ export function OrderActionBar({
   const dangerAction = actions.find((a) => a.intent === "danger");
 
   // In full-screen mode (Order Details bottom bar), render swipe-to-confirm button
-  if (size === "full" && primaryAction) {
-    const swipeLabel =
-      primaryAction.id === "accept"
-        ? "Swipe to Accept Order"
-        : primaryAction.id === "processing" || primaryAction.id === "wash" || primaryAction.id === "dry_clean"
-        ? "Swipe to Start Processing"
-        : primaryAction.id === "ready"
-        ? "Swipe to Mark Ready for Delivery"
-        : `Swipe to ${primaryAction.label}`;
-
-    return (
-      <div className="flex w-full items-center gap-2.5">
-        {dangerAction && (
-          <button
-            type="button"
-            disabled={Boolean(busyAction)}
-            onClick={() => onAction(dangerAction.id)}
-            className="flex h-13 shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95 shadow-xs"
-          >
-            <X className="size-4" />
-            <span>Reject</span>
-          </button>
-        )}
-        <div className="flex-1 min-w-0">
-          <SwipeActionButton
-            label={swipeLabel}
-            onConfirm={() => onAction(primaryAction.id)}
-            loading={busyAction === primaryAction.id}
-            color="emerald"
+  if (size === "full") {
+    // If order has both Accept and Reject (New / Placed incoming order) -> DUAL SWIPE
+    if (primaryAction && dangerAction && primaryAction.id === "accept") {
+      return (
+        <div className="w-full">
+          <DualSwipeActionButton
+            acceptLabel="Swipe Right to Accept"
+            rejectLabel="Swipe Left to Reject"
+            onAccept={() => onAction(primaryAction.id)}
+            onReject={() => onAction(dangerAction.id)}
+            loading={Boolean(busyAction)}
           />
         </div>
-      </div>
-    );
+      );
+    }
+
+    if (primaryAction) {
+      const swipeLabel =
+        primaryAction.id === "processing" || primaryAction.id === "wash" || primaryAction.id === "dry_clean"
+          ? "Swipe to Start Processing"
+          : primaryAction.id === "ready"
+          ? "Swipe to Mark Ready for Delivery"
+          : `Swipe to ${primaryAction.label}`;
+
+      return (
+        <div className="flex w-full items-center gap-2.5">
+          {dangerAction && (
+            <button
+              type="button"
+              disabled={Boolean(busyAction)}
+              onClick={() => onAction(dangerAction.id)}
+              className="flex h-13 shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-700 transition-all hover:bg-rose-100 active:scale-95 shadow-xs"
+            >
+              <X className="size-4" />
+              <span>Reject</span>
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <SwipeActionButton
+              label={swipeLabel}
+              onConfirm={() => onAction(primaryAction.id)}
+              loading={busyAction === primaryAction.id}
+              color="emerald"
+            />
+          </div>
+        </div>
+      );
+    }
   }
 
   const sizeClass = size === "full" ? "h-12 text-sm shadow-md" : "py-2.5 text-xs shadow-xs";
