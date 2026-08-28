@@ -59,7 +59,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
@@ -68,6 +68,24 @@ import { usePartnerContext } from "../context/PartnerContext";
 import { usePartnerResource } from "../hooks/use-partner-resource";
 import { partnerRoutes } from "../navigation/partner-routes";
 import { fetchPartnerProfile, toggleStoreStatus } from "@/api/partner/partner-profile-api";
+import {
+  fetchOperationsConfig,
+  updateOperationsConfig,
+  fetchStaffList,
+  addStaffMember,
+  removeStaffMember,
+  fetchBankDetails,
+  updateBankDetails,
+  fetchGstReport,
+  fetchOffersList,
+  createOffer,
+  deleteOffer,
+  type PartnerOperationsConfig,
+  type PartnerStaffMember,
+  type PartnerBankAccount,
+  type PartnerGstReport,
+  type PartnerOffer,
+} from "../api/partner/partner-operations-api";
 
 function normalizeDisplayPhone(p?: string): string {
   if (!p) return "";
@@ -81,17 +99,210 @@ function normalizeDisplayPhone(p?: string): string {
 export function PartnerProfileScreen() {
   const navigate = useNavigate();
   const { signOut } = usePartnerContext();
-  const { data: profile } = usePartnerResource(fetchPartnerProfile);
+  const { data: profile, reload: reloadProfile } = usePartnerResource(fetchPartnerProfile);
 
-  const [rushHour, setRushHour] = useState(false);
-  const [soundAlerts, setSoundAlerts] = useState(true);
-  const [autoAccept, setAutoAccept] = useState(true);
+  // Live Operations Config
+  const [opsConfig, setOpsConfig] = useState<PartnerOperationsConfig>({
+    rushHour: false,
+    soundAlerts: true,
+    autoAccept: true,
+    pickupRadiusKm: 8.0,
+    openingTime: "08:00",
+    closingTime: "21:00",
+    weeklyOff: "None",
+    slotCapacity: 25,
+  });
+
+  // Modals
+  const [showTimingsModal, setShowTimingsModal] = useState(false);
+  const [showRadiusModal, setShowRadiusModal] = useState(false);
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [showGstModal, setShowGstModal] = useState(false);
+  const [showOffersModal, setShowOffersModal] = useState(false);
+  const [showQrStandeeModal, setShowQrStandeeModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Sub-data states
+  const [staffList, setStaffList] = useState<PartnerStaffMember[]>([]);
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState("Store Manager");
+
+  const [bankData, setBankData] = useState<PartnerBankAccount>({
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    accountHolderName: "",
+    upiId: "",
+    isVerified: false,
+  });
+
+  const [gstReport, setGstReport] = useState<PartnerGstReport | null>(null);
+
+  const [offersList, setOffersList] = useState<PartnerOffer[]>([]);
+  const [newOfferCode, setNewOfferCode] = useState("");
+  const [newOfferDiscount, setNewOfferDiscount] = useState("15");
+  const [newOfferMinAmount, setNewOfferMinAmount] = useState("299");
+
+  // Load operations from database on mount
+  useEffect(() => {
+    fetchOperationsConfig()
+      .then((cfg) => setOpsConfig(cfg))
+      .catch(() => undefined);
+  }, []);
 
   const storeName = profile?.businessName || profile?.name || profile?.ownerName || "QuickPress Partner Store";
   const city = profile?.city || "Kasganj";
   const partnerId = profile?.partnerId || (profile as any)?.id || "PRT-390624";
   const phone = normalizeDisplayPhone(profile?.phone || profile?.ownerPhone) || "+91 92587 30561";
+
+  // Toggle Rush Hour in DB
+  const handleToggleRushHour = async () => {
+    const next = !opsConfig.rushHour;
+    setOpsConfig((prev) => ({ ...prev, rushHour: next }));
+    try {
+      await updateOperationsConfig({ rushHour: next });
+      toast.success(next ? "Rush hour (+30 min buffer) enabled" : "Rush hour mode disabled");
+    } catch {
+      toast.error("Failed to update rush hour settings");
+    }
+  };
+
+  // Toggle Sound Alerts in DB
+  const handleToggleSound = async () => {
+    const next = !opsConfig.soundAlerts;
+    setOpsConfig((prev) => ({ ...prev, soundAlerts: next }));
+    try {
+      await updateOperationsConfig({ soundAlerts: next });
+      toast.success(next ? "Order sound alerts enabled" : "Order sound alerts silenced");
+    } catch {
+      toast.error("Failed to update sound settings");
+    }
+  };
+
+  // Open & load Staff modal
+  const handleOpenStaff = async () => {
+    setShowStaffModal(true);
+    try {
+      const list = await fetchStaffList();
+      setStaffList(list);
+    } catch {}
+  };
+
+  const handleAddStaff = async () => {
+    if (!newStaffName.trim() || !newStaffPhone.trim()) {
+      toast.error("Please enter staff name and phone number");
+      return;
+    }
+    try {
+      const added = await addStaffMember({
+        name: newStaffName,
+        phone: newStaffPhone,
+        role: newStaffRole,
+      });
+      setStaffList((prev) => [...prev, added]);
+      setNewStaffName("");
+      setNewStaffPhone("");
+      toast.success(`Staff member ${added.name} added successfully!`);
+    } catch {
+      toast.error("Failed to add staff member");
+    }
+  };
+
+  const handleRemoveStaff = async (id: string) => {
+    try {
+      await removeStaffMember(id);
+      setStaffList((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Staff member removed");
+    } catch {
+      toast.error("Failed to remove staff member");
+    }
+  };
+
+  // Open & load Bank details
+  const handleOpenBank = async () => {
+    setShowBankModal(true);
+    try {
+      const b = await fetchBankDetails();
+      setBankData(b);
+    } catch {}
+  };
+
+  const handleSaveBank = async () => {
+    if (!bankData.accountNumber || !bankData.ifscCode) {
+      toast.error("Account Number and IFSC Code are required");
+      return;
+    }
+    try {
+      await updateBankDetails(bankData);
+      setShowBankModal(false);
+      toast.success("Bank & Payout details saved to database successfully!");
+    } catch {
+      toast.error("Failed to save bank details");
+    }
+  };
+
+  // Open & load GST report
+  const handleOpenGst = async () => {
+    setShowGstModal(true);
+    try {
+      const rep = await fetchGstReport();
+      setGstReport(rep);
+    } catch {}
+  };
+
+  const handleDownloadCsv = () => {
+    if (!gstReport) return;
+    const csvContent = `data:text/csv;charset=utf-8,Period,Gross Sales,Taxable Value,CGST (9%),SGST (9%),Total GST (18%),Platform Commission,Net Partner Payout\n"${gstReport.period}",${gstReport.grossSales},${gstReport.taxableValue},${gstReport.cgst},${gstReport.sgst},${gstReport.totalGst},${gstReport.platformCommission},${gstReport.netPartnerPayout}`;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `QuickPress_GST_Report_${storeName.replace(/\s+/g, "_")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("GST Tax Summary Report CSV downloaded!");
+  };
+
+  // Open & load Offers modal
+  const handleOpenOffers = async () => {
+    setShowOffersModal(true);
+    try {
+      const list = await fetchOffersList();
+      setOffersList(list);
+    } catch {}
+  };
+
+  const handleCreateOffer = async () => {
+    if (!newOfferCode.trim()) {
+      toast.error("Offer Code is required");
+      return;
+    }
+    try {
+      const created = await createOffer({
+        code: newOfferCode.toUpperCase(),
+        discountPercent: parseInt(newOfferDiscount, 10) || 10,
+        minOrderAmount: parseFloat(newOfferMinAmount) || 199,
+        validTill: "31 Dec 2026",
+      });
+      setOffersList((prev) => [...prev, created]);
+      setNewOfferCode("");
+      toast.success(`Promo coupon ${created.code} activated!`);
+    } catch {
+      toast.error("Failed to create offer");
+    }
+  };
+
+  const handleDeleteOffer = async (id: string) => {
+    try {
+      await deleteOffer(id);
+      setOffersList((prev) => prev.filter((o) => o.id !== id));
+      toast.success("Offer coupon removed");
+    } catch {
+      toast.error("Failed to remove offer");
+    }
+  };
 
   return (
     <PartnerLayout
@@ -223,18 +434,14 @@ export function PartnerProfileScreen() {
 
               <button
                 type="button"
-                onClick={() => {
-                  const next = !rushHour;
-                  setRushHour(next);
-                  toast.success(next ? "Rush hour mode enabled" : "Rush hour mode disabled");
-                }}
+                onClick={handleToggleRushHour}
                 className={`flex h-6 w-11 items-center rounded-full p-0.5 transition-colors ${
-                  rushHour ? "bg-amber-500" : "bg-zinc-200"
+                  opsConfig.rushHour ? "bg-amber-500" : "bg-zinc-200"
                 }`}
               >
                 <div
                   className={`size-5 rounded-full bg-white shadow-md transition-transform ${
-                    rushHour ? "translate-x-5" : "translate-x-0"
+                    opsConfig.rushHour ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -254,18 +461,14 @@ export function PartnerProfileScreen() {
 
               <button
                 type="button"
-                onClick={() => {
-                  const next = !soundAlerts;
-                  setSoundAlerts(next);
-                  toast.success(next ? "Order chime enabled" : "Order chime silenced");
-                }}
+                onClick={handleToggleSound}
                 className={`flex h-6 w-11 items-center rounded-full p-0.5 transition-colors ${
-                  soundAlerts ? "bg-emerald-500" : "bg-zinc-200"
+                  opsConfig.soundAlerts ? "bg-emerald-500" : "bg-zinc-200"
                 }`}
               >
                 <div
                   className={`size-5 rounded-full bg-white shadow-md transition-transform ${
-                    soundAlerts ? "translate-x-5" : "translate-x-0"
+                    opsConfig.soundAlerts ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -278,26 +481,57 @@ export function PartnerProfileScreen() {
               Outlet & Operations
             </h3>
             <div className="mt-2 grid grid-cols-4 gap-2.5">
-              {[
-                { label: "Outlet Info", icon: Store, to: partnerRoutes.shop },
-                { label: "Timings & Slots", icon: Clock, to: partnerRoutes.settings },
-                { label: "Pickup Radius", icon: MapPin, to: partnerRoutes.settings },
-                { label: "Staff Access", icon: Users, to: partnerRoutes.customers },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => navigate({ to: item.to })}
-                  className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
-                >
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-50 text-zinc-800">
-                    <item.icon className="size-5" />
-                  </div>
-                  <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
-                    {item.label}
-                  </p>
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.shop })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-50 text-zinc-800">
+                  <Store className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Outlet Info
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTimingsModal(true)}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-50 text-zinc-800">
+                  <Clock className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Timings & Slots
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowRadiusModal(true)}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-50 text-zinc-800">
+                  <MapPin className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Pickup Radius
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenStaff}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-50 text-zinc-800">
+                  <Users className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Staff Access
+                </p>
+              </button>
             </div>
           </div>
 
@@ -307,26 +541,57 @@ export function PartnerProfileScreen() {
               Finance & Settlements
             </h3>
             <div className="mt-2 grid grid-cols-4 gap-2.5">
-              {[
-                { label: "Weekly Payouts", icon: Coins, to: partnerRoutes.earnings },
-                { label: "Store Wallet", icon: Wallet, to: partnerRoutes.wallet },
-                { label: "Bank Account", icon: CreditCard, to: partnerRoutes.wallet },
-                { label: "GST & Tax Reports", icon: Receipt, to: partnerRoutes.earnings },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => navigate({ to: item.to })}
-                  className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
-                >
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
-                    <item.icon className="size-5" />
-                  </div>
-                  <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
-                    {item.label}
-                  </p>
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.earnings })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
+                  <Coins className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Weekly Payouts
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.wallet })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
+                  <Wallet className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Store Wallet
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenBank}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
+                  <CreditCard className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Bank Account
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenGst}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
+                  <Receipt className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  GST & Tax Reports
+                </p>
+              </button>
             </div>
           </div>
 
@@ -336,26 +601,57 @@ export function PartnerProfileScreen() {
               Catalog & Growth
             </h3>
             <div className="mt-2 grid grid-cols-4 gap-2.5">
-              {[
-                { label: "Rate Card", icon: Utensils, to: partnerRoutes.services },
-                { label: "Growth Analytics", icon: BarChart3, to: partnerRoutes.analytics },
-                { label: "Customer Reviews", icon: MessageSquare, to: partnerRoutes.customers },
-                { label: "Special Offers", icon: Percent, to: partnerRoutes.services },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => navigate({ to: item.to })}
-                  className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
-                >
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
-                    <item.icon className="size-5" />
-                  </div>
-                  <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
-                    {item.label}
-                  </p>
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.services })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <Utensils className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Rate Card
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.analytics })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <BarChart3 className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Growth Analytics
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: partnerRoutes.customers })}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <MessageSquare className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Customer Reviews
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenOffers}
+                className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
+              >
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <Percent className="size-5" />
+                </div>
+                <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
+                  Special Offers
+                </p>
+              </button>
             </div>
           </div>
 
@@ -373,7 +669,7 @@ export function PartnerProfileScreen() {
               </div>
               <button
                 type="button"
-                onClick={() => toast.success("Store QR Standee downloaded in PDF format")}
+                onClick={() => setShowQrStandeeModal(true)}
                 className="flex items-center gap-1 rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-black text-white active:scale-95"
               >
                 <Download className="size-3.5" />
@@ -395,7 +691,7 @@ export function PartnerProfileScreen() {
                 </div>
               </div>
               <a
-                href="tel:18002008899"
+                href="tel:+919258730561"
                 className="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 active:scale-95"
               >
                 <PhoneCall className="size-3.5" />
@@ -416,6 +712,480 @@ export function PartnerProfileScreen() {
             </button>
           </div>
         </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 1: Timings & Slot Capacity                              */}
+        {/* ------------------------------------------------------------- */}
+        {showTimingsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowTimingsModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-zinc-900">Store Timings & Slots</h3>
+                <button type="button" onClick={() => setShowTimingsModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-bold text-zinc-600">Opening Time</label>
+                  <input
+                    type="time"
+                    value={opsConfig.openingTime}
+                    onChange={(e) => setOpsConfig({ ...opsConfig, openingTime: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">Closing Time</label>
+                  <input
+                    type="time"
+                    value={opsConfig.closingTime}
+                    onChange={(e) => setOpsConfig({ ...opsConfig, closingTime: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">Weekly Off Day</label>
+                  <select
+                    value={opsConfig.weeklyOff}
+                    onChange={(e) => setOpsConfig({ ...opsConfig, weeklyOff: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  >
+                    <option value="None">None (Open 7 Days)</option>
+                    <option value="Sunday">Sunday</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">Slot Order Capacity</label>
+                  <input
+                    type="number"
+                    value={opsConfig.slotCapacity}
+                    onChange={(e) => setOpsConfig({ ...opsConfig, slotCapacity: parseInt(e.target.value, 10) || 20 })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await updateOperationsConfig(opsConfig);
+                  setShowTimingsModal(false);
+                  toast.success("Store timings saved to database!");
+                }}
+                className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
+              >
+                Save Timings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 2: Pickup Radius & Auto-Accept                          */}
+        {/* ------------------------------------------------------------- */}
+        {showRadiusModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowRadiusModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-zinc-900">Serviceable Pickup Radius</h3>
+                <button type="button" onClick={() => setShowRadiusModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-zinc-500">Select maximum distance from store for order acceptance:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[3, 5, 8, 10, 12, 15].map((km) => (
+                    <button
+                      key={km}
+                      type="button"
+                      onClick={() => setOpsConfig({ ...opsConfig, pickupRadiusKm: km })}
+                      className={`rounded-xl py-2.5 font-black border transition-all ${
+                        opsConfig.pickupRadiusKm === km
+                          ? "bg-zinc-950 text-white border-zinc-950"
+                          : "bg-zinc-50 text-zinc-700 border-zinc-200"
+                      }`}
+                    >
+                      {km} KM
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-zinc-50 p-3 border border-zinc-100 mt-2">
+                  <div>
+                    <p className="font-black text-zinc-900">Auto-Accept Orders</p>
+                    <p className="text-[10px] text-zinc-500">Automatically accept orders within radius</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={opsConfig.autoAccept}
+                    onChange={(e) => setOpsConfig({ ...opsConfig, autoAccept: e.target.checked })}
+                    className="size-4 accent-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await updateOperationsConfig(opsConfig);
+                  setShowRadiusModal(false);
+                  toast.success(`Service radius updated to ${opsConfig.pickupRadiusKm} KM!`);
+                }}
+                className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
+              >
+                Save Radius Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 3: Staff Management & Permissions                       */}
+        {/* ------------------------------------------------------------- */}
+        {showStaffModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowStaffModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900">Store Staff Members</h3>
+                  <p className="text-[11px] text-zinc-500">Manage employee permissions</p>
+                </div>
+                <button type="button" onClick={() => setShowStaffModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              {/* Staff List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 space-y-2">
+                {staffList.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-zinc-400">No staff members added yet.</p>
+                ) : (
+                  staffList.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-xs font-black text-zinc-900">{s.name}</p>
+                        <p className="text-[10px] text-zinc-500">{s.phone} · <span className="font-bold text-emerald-700">{s.role}</span></p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveStaff(s.id)}
+                        className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add New Staff Form */}
+              <div className="shrink-0 rounded-2xl bg-zinc-50 p-3 border border-zinc-200 space-y-2 text-xs">
+                <p className="font-black text-zinc-800">Add New Staff</p>
+                <input
+                  type="text"
+                  placeholder="Staff Name (e.g. Rahul Sharma)"
+                  value={newStaffName}
+                  onChange={(e) => setNewStaffName(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs"
+                />
+                <input
+                  type="tel"
+                  placeholder="Mobile Phone (+91 ...)"
+                  value={newStaffPhone}
+                  onChange={(e) => setNewStaffPhone(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs"
+                />
+                <select
+                  value={newStaffRole}
+                  onChange={(e) => setNewStaffRole(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold"
+                >
+                  <option value="Store Manager">Store Manager</option>
+                  <option value="Master Washer">Master Washer</option>
+                  <option value="Steam Presser">Steam Presser</option>
+                  <option value="Front Desk">Front Desk</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleAddStaff}
+                  className="w-full rounded-xl bg-zinc-950 py-2 font-black text-white active:scale-95"
+                >
+                  + Add Staff to Store
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 4: Bank Account & UPI Details                           */}
+        {/* ------------------------------------------------------------- */}
+        {showBankModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowBankModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900">Bank Account & UPI</h3>
+                  <p className="text-[11px] text-zinc-500">For direct weekly payout settlements</p>
+                </div>
+                <button type="button" onClick={() => setShowBankModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <label className="font-bold text-zinc-600">Bank Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. State Bank of India / HDFC"
+                    value={bankData.bankName}
+                    onChange={(e) => setBankData({ ...bankData, bankName: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">Account Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 501002348912"
+                    value={bankData.accountNumber}
+                    onChange={(e) => setBankData({ ...bankData, accountNumber: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">IFSC Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. HDFC0001234"
+                    value={bankData.ifscCode}
+                    onChange={(e) => setBankData({ ...bankData, ifscCode: e.target.value.toUpperCase() })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">Account Holder Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. QuickPress Store Services"
+                    value={bankData.accountHolderName}
+                    onChange={(e) => setBankData({ ...bankData, accountHolderName: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-zinc-600">UPI ID (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. store@okaxis"
+                    value={bankData.upiId}
+                    onChange={(e) => setBankData({ ...bankData, upiId: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveBank}
+                className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
+              >
+                Save Bank Details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 5: GST & Tax Reports Summary Generator                  */}
+        {/* ------------------------------------------------------------- */}
+        {showGstModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowGstModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900">GST & Tax Summary</h3>
+                  <p className="text-[11px] text-zinc-500">{gstReport?.period || "Current Month"}</p>
+                </div>
+                <button type="button" onClick={() => setShowGstModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              <div className="space-y-2 rounded-2xl bg-zinc-50 p-4 border border-zinc-200 text-xs">
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500">Delivered Orders:</span>
+                  <span className="font-black text-zinc-900">{gstReport?.orderCount || 0}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500">Gross Sales:</span>
+                  <span className="font-black text-zinc-900">₹{gstReport?.grossSales || 0}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500">Taxable Value:</span>
+                  <span className="font-bold text-zinc-800">₹{gstReport?.taxableValue || 0}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500">CGST (9%):</span>
+                  <span className="font-bold text-zinc-800">₹{gstReport?.cgst || 0}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-zinc-500">SGST (9%):</span>
+                  <span className="font-bold text-zinc-800">₹{gstReport?.sgst || 0}</span>
+                </div>
+                <div className="flex justify-between py-1 border-t border-zinc-200 pt-1.5">
+                  <span className="text-zinc-600 font-bold">Platform Fee (15%):</span>
+                  <span className="font-bold text-rose-600">-₹{gstReport?.platformCommission || 0}</span>
+                </div>
+                <div className="flex justify-between py-1 border-t border-zinc-200 pt-1.5">
+                  <span className="text-zinc-900 font-black">Net Partner Settlement:</span>
+                  <span className="font-black text-emerald-700 text-sm">₹{gstReport?.netPartnerPayout || 0}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadCsv}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white active:scale-95 shadow-md shadow-emerald-600/20"
+              >
+                <Download className="size-4" />
+                <span>Download Tax Summary CSV</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 6: Special Offers & Promo Codes Manager                 */}
+        {/* ------------------------------------------------------------- */}
+        {showOffersModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowOffersModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900">Special Offers & Coupons</h3>
+                  <p className="text-[11px] text-zinc-500">Boost store orders with promo discounts</p>
+                </div>
+                <button type="button" onClick={() => setShowOffersModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              {/* Active Coupons List */}
+              <div className="flex-1 overflow-y-auto space-y-2">
+                {offersList.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-zinc-400">No active promo offers.</p>
+                ) : (
+                  offersList.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between rounded-xl bg-emerald-50/60 p-3 border border-emerald-200/60">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-xs text-emerald-950">{o.code}</span>
+                          <span className="rounded bg-emerald-600 px-1.5 py-0.2 text-[9px] font-black text-white">
+                            {o.discountPercent}% OFF
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">Min Order: ₹{o.minOrderAmount} · Till {o.validTill}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOffer(o.id)}
+                        className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Create Coupon Form */}
+              <div className="shrink-0 rounded-2xl bg-zinc-50 p-3 border border-zinc-200 space-y-2 text-xs">
+                <p className="font-black text-zinc-800">Create New Coupon</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="CODE (e.g. FESTIVE20)"
+                    value={newOfferCode}
+                    onChange={(e) => setNewOfferCode(e.target.value.toUpperCase())}
+                    className="rounded-xl border border-zinc-200 bg-white p-2 text-xs font-mono uppercase"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Discount % (e.g. 15)"
+                    value={newOfferDiscount}
+                    onChange={(e) => setNewOfferDiscount(e.target.value)}
+                    className="rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold"
+                  />
+                </div>
+                <input
+                  type="number"
+                  placeholder="Min Order Amount ₹ (e.g. 299)"
+                  value={newOfferMinAmount}
+                  onChange={(e) => setNewOfferMinAmount(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleCreateOffer}
+                  className="w-full rounded-xl bg-zinc-950 py-2 font-black text-white active:scale-95"
+                >
+                  + Launch Promo Coupon
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 7: Printable Store QR Standee                           */}
+        {/* ------------------------------------------------------------- */}
+        {showQrStandeeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowQrStandeeModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl text-center space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-zinc-900">Store QR Standee</h3>
+                <button type="button" onClick={() => setShowQrStandeeModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              {/* Printable Standee Preview */}
+              <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-gradient-to-b from-amber-500/10 via-white to-emerald-500/10 p-6 space-y-3">
+                <div className="flex items-center justify-center gap-1.5">
+                  <Sparkles className="size-4 text-emerald-600" />
+                  <p className="text-sm font-black tracking-tight text-zinc-950">QuickPress Laundry Hub</p>
+                </div>
+                <h4 className="text-base font-black text-zinc-900">{storeName}</h4>
+                <p className="text-[11px] font-semibold text-zinc-500">Partner Store ID: {partnerId}</p>
+
+                {/* QR Code */}
+                <div className="mx-auto flex size-44 items-center justify-center rounded-2xl bg-white p-3 shadow-md border border-zinc-200">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://quickpress.in/store/${partnerId}`}
+                    alt="QuickPress Store QR"
+                    className="size-full rounded-xl"
+                  />
+                </div>
+                <p className="text-xs font-black text-emerald-800">Scan & Book Laundry Pickup</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.print();
+                  toast.success("Printing Store Standee QR!");
+                }}
+                className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Download className="size-4" />
+                <span>Print Standee Document</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Logout Confirmation Modal */}
         {showLogoutModal ? (

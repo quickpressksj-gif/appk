@@ -602,3 +602,192 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         isVerified=False,
         isOnboarded=True,
     )
+
+
+# --------------------------------------------------------------------------
+# Real Store Operations, Staff, Bank, GST Reports & Offers Endpoints
+# --------------------------------------------------------------------------
+
+
+@router.get("/operations")
+async def get_operations(partner_id: str = Depends(_partner_id)) -> dict:
+    doc = await database.find_one("partner_operations", {"partnerId": partner_id}) or {}
+    return {
+        "rushHour": bool(doc.get("rushHour", False)),
+        "soundAlerts": bool(doc.get("soundAlerts", True)),
+        "autoAccept": bool(doc.get("autoAccept", True)),
+        "pickupRadiusKm": float(doc.get("pickupRadiusKm", 8.0)),
+        "openingTime": str(doc.get("openingTime", "08:00")),
+        "closingTime": str(doc.get("closingTime", "21:00")),
+        "weeklyOff": str(doc.get("weeklyOff", "None")),
+        "slotCapacity": int(doc.get("slotCapacity", 25)),
+    }
+
+
+@router.patch("/operations")
+@router.put("/operations")
+async def update_operations(payload: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    allowed = {
+        "rushHour", "soundAlerts", "autoAccept", "pickupRadiusKm",
+        "openingTime", "closingTime", "weeklyOff", "slotCapacity"
+    }
+    updates = {k: v for k, v in payload.items() if k in allowed}
+    updates["updatedAt"] = _now()
+    await database.update(
+        "partner_operations",
+        {"partnerId": partner_id},
+        {"$set": updates},
+        upsert=True,
+    )
+    return await get_operations(partner_id)
+
+
+@router.get("/staff")
+async def get_staff(partner_id: str = Depends(_partner_id)) -> dict:
+    docs = await database.find_many("partner_staff", {"partnerId": partner_id})
+    return {"staff": docs or []}
+
+
+@router.post("/staff")
+async def add_staff(payload: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    name = str(payload.get("name", "")).strip()
+    phone = str(payload.get("phone", "")).strip()
+    role = str(payload.get("role", "Staff")).strip()
+    if not name or not phone:
+        raise HTTPException(status_code=400, detail="Name and phone are required")
+
+    staff_id = f"stf-{uuid.uuid4().hex[:6]}"
+    doc = {
+        "_id": staff_id,
+        "id": staff_id,
+        "partnerId": partner_id,
+        "name": name,
+        "phone": phone,
+        "role": role,
+        "active": True,
+        "createdAt": _now(),
+    }
+    await database.insert("partner_staff", doc)
+    return doc
+
+
+@router.delete("/staff/{staff_id}")
+async def remove_staff(staff_id: str, partner_id: str = Depends(_partner_id)) -> dict:
+    await database.delete("partner_staff", {"id": staff_id, "partnerId": partner_id})
+    return {"success": True, "removedId": staff_id}
+
+
+@router.get("/bank")
+async def get_bank_details(partner_id: str = Depends(_partner_id)) -> dict:
+    doc = await database.find_one("partner_bank_accounts", {"partnerId": partner_id}) or {}
+    return {
+        "bankName": str(doc.get("bankName", "")),
+        "accountNumber": str(doc.get("accountNumber", "")),
+        "ifscCode": str(doc.get("ifscCode", "")),
+        "accountHolderName": str(doc.get("accountHolderName", "")),
+        "upiId": str(doc.get("upiId", "")),
+        "isVerified": bool(doc.get("isVerified", False)),
+    }
+
+
+@router.patch("/bank")
+@router.put("/bank")
+async def update_bank_details(payload: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    updates = {
+        "bankName": str(payload.get("bankName", "")).strip(),
+        "accountNumber": str(payload.get("accountNumber", "")).strip(),
+        "ifscCode": str(payload.get("ifscCode", "")).upper().strip(),
+        "accountHolderName": str(payload.get("accountHolderName", "")).strip(),
+        "upiId": str(payload.get("upiId", "")).strip(),
+        "isVerified": True,
+        "updatedAt": _now(),
+    }
+    await database.update(
+        "partner_bank_accounts",
+        {"partnerId": partner_id},
+        {"$set": updates},
+        upsert=True,
+    )
+    return updates
+
+
+@router.get("/reports/gst")
+async def get_gst_report(
+    month: Optional[str] = Query(default=None),
+    partner_id: str = Depends(_partner_id),
+) -> dict:
+    # Fetch real delivered orders for this partner
+    delivered_orders = await database.find_many(
+        "customer_orders",
+        {
+            "$or": [
+                {"partner.id": partner_id},
+                {"partnerId": partner_id},
+            ],
+            "status": {"$in": ["delivered", "completed"]},
+        },
+    )
+
+    gross_sales = sum(
+        float(o.get("totals", {}).get("grandTotal") or o.get("amount") or 0)
+        for o in delivered_orders
+    )
+    order_count = len(delivered_orders)
+    platform_commission = round(gross_sales * 0.15, 2)
+    taxable_value = round(gross_sales / 1.18, 2) if gross_sales > 0 else 0
+    total_gst = round(gross_sales - taxable_value, 2)
+    cgst = round(total_gst / 2, 2)
+    sgst = round(total_gst / 2, 2)
+    net_partner_payout = round(gross_sales - platform_commission, 2)
+
+    return {
+        "period": month or datetime.now(timezone.utc).strftime("%B %Y"),
+        "orderCount": order_count,
+        "grossSales": gross_sales,
+        "taxableValue": taxable_value,
+        "cgst": cgst,
+        "sgst": sgst,
+        "totalGst": total_gst,
+        "platformCommission": platform_commission,
+        "netPartnerPayout": net_partner_payout,
+        "generatedAt": _now(),
+    }
+
+
+@router.get("/offers")
+async def get_offers(partner_id: str = Depends(_partner_id)) -> dict:
+    docs = await database.find_many("partner_offers", {"partnerId": partner_id})
+    return {"offers": docs or []}
+
+
+@router.post("/offers")
+async def create_offer(payload: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    code = str(payload.get("code", "")).upper().strip()
+    discount = int(payload.get("discountPercent", 10))
+    min_amount = float(payload.get("minOrderAmount", 199))
+    valid_till = str(payload.get("validTill", "31 Dec 2026"))
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Offer code is required")
+
+    offer_id = f"off-{uuid.uuid4().hex[:6]}"
+    doc = {
+        "_id": offer_id,
+        "id": offer_id,
+        "partnerId": partner_id,
+        "code": code,
+        "discountPercent": discount,
+        "minOrderAmount": min_amount,
+        "validTill": valid_till,
+        "isActive": True,
+        "createdAt": _now(),
+    }
+    await database.insert("partner_offers", doc)
+    return doc
+
+
+@router.delete("/offers/{offer_id}")
+async def delete_offer(offer_id: str, partner_id: str = Depends(_partner_id)) -> dict:
+    await database.delete("partner_offers", {"id": offer_id, "partnerId": partner_id})
+    return {"success": True, "deletedId": offer_id}
+
