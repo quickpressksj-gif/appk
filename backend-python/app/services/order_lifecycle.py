@@ -222,9 +222,14 @@ def assert_partner(order: Dict[str, Any], partner_id: str) -> None:
     if order_p_id:
         if order_p_id == partner_id or order_p_id.lower() == partner_id.lower():
             return
+        st = order_status(order)
+        if st in (PLACED, PENDING, "new"):
+            return
         raise OrderAuthorizationError("This order is assigned to another partner store")
-    if order_status(order) != PENDING:
-        raise OrderAuthorizationError("This order has already been accepted by another partner")
+    st = order_status(order)
+    if st in (PLACED, PENDING, "new"):
+        return
+    raise OrderAuthorizationError("This order has already been accepted by another partner")
 
 
 def assert_rider(order: Dict[str, Any], rider_id: str) -> None:
