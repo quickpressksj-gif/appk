@@ -35,7 +35,7 @@ import { OrderTimeline } from "../components/orders/OrderTimeline";
 import { usePartnerOrders } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
 import { partnerRoutes } from "../navigation/partner-routes";
-import { STAGE_LABEL } from "../data/partner-orders-mock";
+import { STAGE_LABEL, type ManagedOrder } from "../data/partner-orders-mock";
 
 import { useEffect, useState } from "react";
 import { fetchPartnerOrder } from "@/api/partner/partner-orders-api";

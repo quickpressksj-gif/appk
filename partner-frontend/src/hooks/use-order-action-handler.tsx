@@ -72,7 +72,7 @@ export function useOrderActionHandler() {
           break;
       }
     },
-    [run, acceptOrder, startProcessing, startIroning, completeOrder],
+    [run, acceptOrder, startProcessing, completeOrder],
   );
 
   const overlay = <OrderSuccessOverlay message={success} onDone={() => setSuccess(null)} />;
