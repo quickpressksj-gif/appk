@@ -1,26 +1,33 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   Bell,
+  CheckCircle2,
   ClipboardList,
   Clock3,
   History,
   IndianRupee,
   LifeBuoy,
+  MapPin,
   Navigation,
+  Package,
   PackageCheck,
   PackageSearch,
   Route as RouteIcon,
+  Sparkles,
   Star,
+  Store,
   Truck,
+  User,
   Wallet,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 
 import { RiderBottomNav } from "../components/RiderBottomNav";
+import { DualSwipeActionButton } from "../components/common/DualSwipeActionButton";
 import {
   ActiveDeliveryCard,
   AnnouncementCard,
@@ -32,15 +39,22 @@ import {
 import { RiderEmptyState, SectionHeading } from "../components/RiderPrimitives";
 import { RiderCardsSkeleton } from "../components/RiderSkeletons";
 import { useRiderContext } from "../context/RiderContext";
+import { useRiderLocation } from "../hooks/use-rider-location";
 import { loadRiderDashboard } from "../data/rider-dashboard-adapter";
 import type { RiderDashboardData, RiderWorkStatus } from "../data/rider-dashboard-mock";
+import {
+  acceptRiderOrder,
+  fetchRiderOrders,
+  rejectRiderOrder,
+} from "@/api/rider/rider-orders-api";
+import type { RiderOrder } from "@/shared/types/rider";
 import { riderRoutes } from "../navigation/rider-routes";
 
 const QUICK_ACTIONS = [
   { id: "orders", label: "Orders", icon: ClipboardList, to: riderRoutes.orders },
   { id: "earnings", label: "Earnings", icon: IndianRupee, to: riderRoutes.wallet },
   { id: "history", label: "History", icon: History, to: riderRoutes.history },
-  { id: "wallet", label: "Wallet", icon: Wallet, to: riderRoutes.wallet },
+  { id: "wallet", label: "Payouts", icon: Wallet, to: riderRoutes.wallet },
   { id: "notifications", label: "Alerts", icon: Bell, to: riderRoutes.notifications },
   { id: "support", label: "Support", icon: LifeBuoy, to: riderRoutes.settings },
 ] as const;
@@ -52,18 +66,40 @@ export function RiderDashboardScreen() {
   const { isOnline, setOnline } = useRiderContext();
   const [data, setData] = useState<RiderDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingOrders, setPendingOrders] = useState<RiderOrder[]>([]);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  // 📍 Real-time GPS Location Ping & Tracking
+  const locationState = useRiderLocation(isOnline);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [next, ordersList] = await Promise.all([
+        loadRiderDashboard(),
+        fetchRiderOrders().catch(() => [] as RiderOrder[]),
+      ]);
+      setData(next);
+      const assigned = ordersList.filter(
+        (o) => o.status === "assigned" || (o.stage as any) === "pickup_assigned"
+      );
+      setPendingOrders(assigned);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    void loadRiderDashboard().then((next) => {
-      if (!active) return;
-      setData(next);
-      setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadData();
+    // Refresh active orders every 8s when online
+    if (isOnline) {
+      const timer = setInterval(() => {
+        void loadData();
+      }, 8000);
+      return () => clearInterval(timer);
+    }
+  }, [loadData, isOnline]);
 
   const status: RiderWorkStatus = !isOnline
     ? "offline"
@@ -76,6 +112,39 @@ export function RiderDashboardScreen() {
     setOnline(next);
     toast.success(next ? "You are Online — Ready for Deliveries 🚀" : "You are Offline");
   };
+
+  const handleAcceptOffer = async (order: RiderOrder) => {
+    setActionBusy(true);
+    try {
+      await acceptRiderOrder(order.code || order.id);
+      toast.success(`Trip Offer #${order.code} Accepted! 🚀`);
+      await loadData();
+      navigate({
+        to: riderRoutes.orderDetails,
+        params: { orderId: order.code || order.id },
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to accept trip offer");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleRejectOffer = async (order: RiderOrder) => {
+    setActionBusy(true);
+    try {
+      await rejectRiderOrder(order.code || order.id);
+      toast.info(`Offer #${order.code} declined`);
+      setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to decline offer");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const activePendingOffer = isOnline && pendingOrders.length > 0 ? pendingOrders[0] : null;
 
   return (
     <main className="relative min-h-screen bg-slate-50/50 pb-28 text-slate-900">
@@ -92,6 +161,12 @@ export function RiderDashboardScreen() {
                   {data?.rider.name ?? "Delivery Partner"}
                 </p>
                 <StatusBadge status={status} />
+                {isOnline && locationState.isTracking && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 border border-emerald-200">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    GPS Live
+                  </span>
+                )}
               </div>
               <p className="truncate text-[11px] font-semibold text-slate-500">
                 ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "Kasganj"}
@@ -133,7 +208,10 @@ export function RiderDashboardScreen() {
                     {(data.kpis?.earningsToday ?? 0).toLocaleString("en-IN")}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-slate-300">
-                    <span className="text-emerald-400 font-bold">{data.kpis?.deliveriesToday ?? 0}</span> orders completed · {data.kpis?.workingHours ?? 0}h online
+                    <span className="text-emerald-400 font-bold">
+                      {data.kpis?.deliveriesToday ?? 0}
+                    </span>{" "}
+                    orders completed · {data.kpis?.workingHours ?? 0}h online
                   </p>
                 </div>
 
@@ -167,6 +245,83 @@ export function RiderDashboardScreen() {
                 </button>
               </div>
             </section>
+
+            {/* 🚀 NEW DELIVERY JOB OFFER CARD (IF ANY NEW ASSIGNED ORDER) */}
+            {activePendingOffer ? (
+              <section className="animate-rise overflow-hidden rounded-3xl border-2 border-emerald-500/70 bg-gradient-to-b from-slate-900 to-slate-950 p-5 text-white shadow-xl">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30">
+                    <Sparkles className="size-3 text-emerald-400 animate-spin" />
+                    New Laundry Trip Offer
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">
+                    #{activePendingOffer.code}
+                  </span>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400">Trip Earnings</p>
+                    <p className="flex items-center text-2xl font-black text-emerald-400">
+                      <IndianRupee className="size-5" />
+                      {activePendingOffer.estimatedEarning || 55}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-semibold text-slate-400">Estimated Distance</p>
+                    <p className="text-sm font-black text-white">
+                      {activePendingOffer.distanceKm || "2.4"} KM
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pickup & Drop Points */}
+                <div className="mt-3.5 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-400/20 text-amber-400">
+                      <Store className="size-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Store Pickup</p>
+                      <p className="truncate text-xs font-bold text-white">
+                        {activePendingOffer.partnerName || "Partner Outlet"}
+                      </p>
+                      <p className="truncate text-[11px] text-slate-400">
+                        {activePendingOffer.pickupAddress || "Kasganj Hub"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-400">
+                      <MapPin className="size-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">
+                        Customer Drop-off
+                      </p>
+                      <p className="truncate text-xs font-bold text-white">
+                        {activePendingOffer.customerName || "Customer"}
+                      </p>
+                      <p className="truncate text-[11px] text-slate-400">
+                        {activePendingOffer.deliveryAddress || "Customer Address"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dual Swipe Action */}
+                <div className="mt-4 pt-2">
+                  <DualSwipeActionButton
+                    acceptLabel="Swipe Right to Accept Offer"
+                    rejectLabel="Swipe Left to Reject"
+                    onAccept={() => handleAcceptOffer(activePendingOffer)}
+                    onReject={() => handleRejectOffer(activePendingOffer)}
+                    loading={actionBusy}
+                  />
+                </div>
+              </section>
+            ) : null}
 
             {/* KPI METRIC GRID */}
             <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">

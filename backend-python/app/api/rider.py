@@ -278,7 +278,29 @@ async def set_online(body: dict | None = None, user: User = Depends(current_user
 
 @router.post("/location")
 async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
-    return {"ok": True, "lat": body.get("lat"), "lng": body.get("lng")}
+    rider_id = await _rider_id(user)
+    lat = body.get("lat") if body.get("lat") is not None else body.get("latitude")
+    lng = body.get("lng") if body.get("lng") is not None else body.get("longitude")
+    heading = body.get("heading")
+    speed = body.get("speed")
+    accuracy = body.get("accuracy")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if lat is not None and lng is not None:
+        await database.update(
+            "rider_profiles",
+            {"_id": rider_id},
+            {
+                "lat": float(lat),
+                "lng": float(lng),
+                "heading": heading,
+                "speed": speed,
+                "accuracy": accuracy,
+                "lastLocationAt": now_iso,
+                "updatedAt": now_iso,
+            },
+            upsert=True,
+        )
+    return {"ok": True, "lat": lat, "lng": lng, "updatedAt": now_iso}
 
 
 # --------------------------------------------------------------------------
