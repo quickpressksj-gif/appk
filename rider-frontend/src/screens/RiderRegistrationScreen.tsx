@@ -143,11 +143,18 @@ export function RiderRegistrationScreen() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RiderOnboardingForm>(() => {
     const s = readSession("rider");
+    const rawName = (s?.account?.name ?? "").trim();
+    const isPhoneNumber =
+      !rawName ||
+      rawName.startsWith("+") ||
+      /^\d+$/.test(rawName.replace(/[\s+-]/g, ""));
+    const phone = s?.account?.phone?.replace("+91", "").trim() ?? "";
+
     return {
       ...emptyRiderForm,
-      mobile: s?.account?.phone?.replace("+91", "") ?? "",
-      mobileVerified: Boolean(s?.account?.phone),
-      fullName: s?.account?.name ?? "",
+      mobile: phone,
+      mobileVerified: Boolean(phone),
+      fullName: isPhoneNumber ? "" : rawName,
       email: s?.account?.email ?? "",
     };
   });
@@ -882,17 +889,19 @@ export function RiderRegistrationScreen() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <UploadTile
+                    id="upload-aadhaar-front"
                     label="Aadhaar Front Photo"
                     hint="Clear photo of front side"
-                    value={form.aadhaarFront ? "aadhaar_front.jpg" : ""}
+                    value={form.aadhaarFront}
                     onUpload={(file) => handleFileUpload(file, "aadhaar_front", "aadhaarFront")}
                     onClear={() => setField("aadhaarFront", "")}
                     error={errors.aadhaarFront}
                   />
                   <UploadTile
+                    id="upload-aadhaar-back"
                     label="Aadhaar Back Photo"
                     hint="Photo showing your address"
-                    value={form.aadhaarBack ? "aadhaar_back.jpg" : ""}
+                    value={form.aadhaarBack}
                     onUpload={(file) => handleFileUpload(file, "aadhaar_back", "aadhaarBack")}
                     onClear={() => setField("aadhaarBack", "")}
                     error={errors.aadhaarBack}
@@ -944,9 +953,10 @@ export function RiderRegistrationScreen() {
                 </VerificationStatusCard>
 
                 <UploadTile
+                  id="upload-pan-card"
                   label="PAN Card Photo"
                   hint="Upload a crisp photo of your PAN card"
-                  value={form.panCard ? "pan_card.jpg" : ""}
+                  value={form.panCard}
                   onUpload={(file) => handleFileUpload(file, "pan_card", "panCard")}
                   onClear={() => setField("panCard", "")}
                   error={errors.panCard}
@@ -1025,17 +1035,19 @@ export function RiderRegistrationScreen() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <UploadTile
+                    id="upload-dl-front"
                     label="DL Front Photo"
                     hint="Clear photo of front side"
-                    value={form.dlFront ? "dl_front.jpg" : ""}
+                    value={form.dlFront}
                     onUpload={(file) => handleFileUpload(file, "dl_front", "dlFront")}
                     onClear={() => setField("dlFront", "")}
                     error={errors.dlFront}
                   />
                   <UploadTile
+                    id="upload-dl-back"
                     label="DL Back Photo"
                     hint="Back side showing endorsements"
-                    value={form.dlBack ? "dl_back.jpg" : ""}
+                    value={form.dlBack}
                     onUpload={(file) => handleFileUpload(file, "dl_back", "dlBack")}
                     onClear={() => setField("dlBack", "")}
                     error={errors.dlBack}
@@ -1149,17 +1161,19 @@ export function RiderRegistrationScreen() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <UploadTile
+                    id="upload-rc-front"
                     label="RC Front Photo"
                     hint="Clear photo of RC card front"
-                    value={form.rcFront ? "rc_front.jpg" : ""}
+                    value={form.rcFront}
                     onUpload={(file) => handleFileUpload(file, "rc_front", "rcFront")}
                     onClear={() => setField("rcFront", "")}
                     error={errors.rcFront}
                   />
                   <UploadTile
+                    id="upload-rc-back"
                     label="RC Back Photo"
                     hint="Back side photo"
-                    value={form.rcBack ? "rc_back.jpg" : ""}
+                    value={form.rcBack}
                     onUpload={(file) => handleFileUpload(file, "rc_back", "rcBack")}
                     onClear={() => setField("rcBack", "")}
                   />
@@ -1208,9 +1222,10 @@ export function RiderRegistrationScreen() {
                 />
 
                 <UploadTile
+                  id="upload-insurance-doc"
                   label="Insurance Document Photo / PDF"
                   hint="Photo or copy of valid policy certificate"
-                  value={form.insuranceDoc ? "insurance_policy.jpg" : ""}
+                  value={form.insuranceDoc}
                   onUpload={(file) => handleFileUpload(file, "insurance_doc", "insuranceDoc")}
                   onClear={() => setField("insuranceDoc", "")}
                 />

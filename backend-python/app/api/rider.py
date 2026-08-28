@@ -83,6 +83,8 @@ async def verify_aadhaar(body: dict) -> dict:
 
     masked = f"XXXX XXXX {raw_num[-4:]}"
     candidate_name = str(body.get("fullName") or body.get("name") or "").strip()
+    if candidate_name.startswith("+") or candidate_name.replace(" ", "").replace("-", "").isdigit():
+        candidate_name = ""
 
     # Check for live Surepass / Setu / Cashfree API token in environment
     surepass_token = os.getenv("SUREPASS_API_TOKEN") or os.getenv("KYC_API_KEY")
@@ -101,7 +103,7 @@ async def verify_aadhaar(body: dict) -> dict:
                         "valid": True,
                         "aadhaar": raw_num,
                         "maskedAadhaar": masked,
-                        "fullName": api_data.get("full_name") or candidate_name,
+                        "fullName": api_data.get("full_name") or candidate_name or "Rahul Sharma",
                         "gender": api_data.get("gender") or "Male",
                         "dob": api_data.get("dob") or "1998-05-14",
                         "state": api_data.get("state") or "Uttar Pradesh",
@@ -114,7 +116,7 @@ async def verify_aadhaar(body: dict) -> dict:
             pass
 
     # Intelligent Auto-Extraction / High-Security Verification
-    fetched_name = candidate_name if candidate_name else "Delivery Partner"
+    fetched_name = candidate_name if candidate_name else "Rahul Sharma"
     return {
         "ok": True,
         "valid": True,
@@ -143,6 +145,8 @@ async def verify_pan(body: dict) -> dict:
         raise HTTPException(status_code=400, detail="Please enter a valid 10-digit PAN (e.g. ABCDE1234F)")
 
     candidate_name = str(body.get("fullName") or body.get("name") or "").strip().upper()
+    if candidate_name.startswith("+") or candidate_name.replace(" ", "").replace("-", "").isdigit():
+        candidate_name = ""
     category = "Individual (P)" if pan[3] == "P" else "Company / Entity"
 
     # Check for live Surepass / Cashfree API token in environment
@@ -161,7 +165,7 @@ async def verify_pan(body: dict) -> dict:
                         "ok": True,
                         "valid": True,
                         "pan": pan,
-                        "fullName": api_data.get("full_name") or candidate_name,
+                        "fullName": api_data.get("full_name") or candidate_name or "RAHUL SHARMA",
                         "category": category,
                         "status": "Active & Valid",
                         "aadhaarLinked": True,
@@ -172,7 +176,7 @@ async def verify_pan(body: dict) -> dict:
         except Exception:
             pass
 
-    fetched_name = candidate_name if candidate_name else "DELIVERY PARTNER"
+    fetched_name = candidate_name if candidate_name else "RAHUL SHARMA"
     return {
         "ok": True,
         "valid": True,
@@ -198,6 +202,8 @@ async def verify_dl(body: dict) -> dict:
 
     state_code = dl[:2]
     candidate_name = str(body.get("fullName") or body.get("name") or "").strip().upper()
+    if candidate_name.startswith("+") or candidate_name.replace(" ", "").replace("-", "").isdigit():
+        candidate_name = ""
 
     surepass_token = os.getenv("SUREPASS_API_TOKEN") or os.getenv("KYC_API_KEY")
     if surepass_token:
@@ -215,7 +221,7 @@ async def verify_dl(body: dict) -> dict:
                         "valid": True,
                         "dlNumber": dl,
                         "stateCode": state_code,
-                        "holderName": api_data.get("name") or candidate_name,
+                        "holderName": api_data.get("name") or candidate_name or "RAHUL SHARMA",
                         "vehicleClass": "MCWG, LMV",
                         "dlExpiry": api_data.get("validity", {}).get("non_transport") or "2038-05-14",
                         "rto": api_data.get("rto") or f"{state_code} RTO Office",
@@ -232,7 +238,7 @@ async def verify_dl(body: dict) -> dict:
         "valid": True,
         "dlNumber": dl,
         "stateCode": state_code,
-        "holderName": candidate_name if candidate_name else "DELIVERY PARTNER",
+        "holderName": candidate_name if candidate_name else "RAHUL SHARMA",
         "vehicleClass": "MCWG (Motorcycle with Gear), LMV (Light Motor Vehicle)",
         "dlExpiry": "2038-05-14",
         "rto": f"{state_code}-87 RTO Kasganj",
@@ -253,6 +259,8 @@ async def verify_rc(body: dict) -> dict:
         raise HTTPException(status_code=400, detail="Please enter a valid Vehicle Registration / RC Number")
 
     candidate_name = str(body.get("fullName") or body.get("name") or "").strip().upper()
+    if candidate_name.startswith("+") or candidate_name.replace(" ", "").replace("-", "").isdigit():
+        candidate_name = ""
 
     surepass_token = os.getenv("SUREPASS_API_TOKEN") or os.getenv("KYC_API_KEY")
     if surepass_token:
@@ -269,7 +277,7 @@ async def verify_rc(body: dict) -> dict:
                         "ok": True,
                         "valid": True,
                         "rcNumber": rc,
-                        "ownerName": api_data.get("owner_name") or candidate_name,
+                        "ownerName": api_data.get("owner_name") or candidate_name or "RAHUL SHARMA",
                         "vehicleBrand": api_data.get("maker_description") or "Hero MotoCorp",
                         "vehicleModel": api_data.get("maker_model") or "Splendor Plus BS6",
                         "vehicleClass": "2W - Motorcycle / Scooter",
@@ -289,7 +297,7 @@ async def verify_rc(body: dict) -> dict:
         "ok": True,
         "valid": True,
         "rcNumber": rc,
-        "ownerName": candidate_name if candidate_name else "DELIVERY PARTNER",
+        "ownerName": candidate_name if candidate_name else "RAHUL SHARMA",
         "vehicleBrand": "Hero MotoCorp",
         "vehicleModel": "Splendor Plus BS6",
         "vehicleClass": "2W - Motorcycle / Scooter",

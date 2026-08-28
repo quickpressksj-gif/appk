@@ -243,90 +243,128 @@ export function VehiclePicker({
   );
 }
 
-/** Local-only upload placeholder with base64 and preview support. */
+/** Local-only and Remote upload tile with file picker, base64 preview, and direct click support. */
 export function UploadTile({
   id,
   label,
   hint,
+  value,
   fileName,
   previewUrl,
+  onUpload,
   onSelect,
   onClear,
+  error,
 }: {
-  id: string;
+  id?: string;
   label: string;
   hint: string;
+  value?: string | undefined;
   fileName?: string | undefined;
   previewUrl?: string | undefined;
-  onSelect: (name: string, dataUrl?: string) => void;
-  onClear: () => void;
+  onUpload?: (file: File) => void;
+  onSelect?: (name: string, dataUrl?: string) => void;
+  onClear?: () => void;
+  error?: string | null | undefined;
 }) {
-  const uploaded = Boolean(fileName || previewUrl);
+  const inputId = id || `upload-${label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+  const displayImage = previewUrl || (value && value.startsWith("data:image/") ? value : value && value.startsWith("http") ? value : undefined);
+  const displayName = fileName || (value && !value.startsWith("data:") ? value.split("/").pop() : undefined);
+  const uploaded = Boolean(value || fileName || previewUrl);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const name = file.name;
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        onSelect(name, reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      onSelect(name);
+    if (onUpload) {
+      onUpload(file);
+    }
+    if (onSelect) {
+      const name = file.name;
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          onSelect(name, reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        onSelect(name);
+      }
     }
   };
 
+  const triggerUpload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  };
+
   return (
-    <div
-      className={`flex items-center gap-3 rounded-2xl border border-dashed p-4 transition-all duration-300 ${
-        uploaded ? "border-brand-green bg-secondary/10" : "border-border bg-card"
-      }`}
-    >
-      <span
-        className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${
-          uploaded ? "bg-secondary/20 text-brand-green" : "bg-muted text-muted-foreground"
+    <div className="space-y-1">
+      <div
+        onClick={triggerUpload}
+        className={`flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed p-3.5 transition-all duration-300 hover:border-amber-400 ${
+          uploaded
+            ? "border-emerald-500 bg-emerald-500/5 dark:bg-emerald-950/10"
+            : error
+              ? "border-rose-500/50 bg-rose-500/5"
+              : "border-border bg-card"
         }`}
       >
-        {previewUrl ? (
-          <img src={previewUrl} alt={label} className="size-full object-cover rounded-2xl" />
-        ) : uploaded ? (
-          <FileCheck2 className="size-5" />
+        <span
+          className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl ${
+            uploaded ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          }`}
+        >
+          {displayImage ? (
+            <img src={displayImage} alt={label} className="size-full object-cover rounded-2xl" />
+          ) : uploaded ? (
+            <FileCheck2 className="size-5" />
+          ) : (
+            <CloudUpload className="size-5" />
+          )}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-bold tracking-tight text-foreground">{label}</p>
+          <p className="truncate text-[0.66rem] font-medium text-muted-foreground">
+            {uploaded ? (displayName || "Document Uploaded ✓") : hint}
+          </p>
+        </div>
+
+        {uploaded ? (
+          <button
+            type="button"
+            aria-label={`Remove ${label}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear?.();
+            }}
+            className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-all hover:bg-rose-500/20 hover:text-rose-500 active:scale-95"
+          >
+            <X className="size-4" />
+          </button>
         ) : (
-          <CloudUpload className="size-5" />
+          <button
+            type="button"
+            onClick={triggerUpload}
+            className="rounded-xl bg-amber-400 px-3 py-1.5 text-[0.68rem] font-black text-black shadow-sm transition-transform active:scale-95 hover:bg-amber-300"
+          >
+            Upload
+          </button>
         )}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold tracking-tight text-foreground">{label}</p>
-        <p className="truncate text-[0.68rem] font-medium text-muted-foreground">
-          {fileName || hint}
-        </p>
+
+        <input
+          ref={fileInputRef}
+          id={inputId}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </div>
-      {uploaded ? (
-        <button
-          type="button"
-          aria-label={`Remove ${label}`}
-          onClick={onClear}
-          className="flex size-9 items-center justify-center rounded-2xl bg-muted text-muted-foreground transition-all duration-300 active:scale-[0.94]"
-        >
-          <X className="size-4" />
-        </button>
-      ) : (
-        <label
-          htmlFor={id}
-          className="ripple cursor-pointer rounded-2xl bg-primary px-3 py-2 text-[0.68rem] font-black tracking-tight text-primary-foreground shadow-cta"
-        >
-          Upload
-        </label>
-      )}
-      <input
-        id={id}
-        type="file"
-        accept="image/*,application/pdf"
-        className="hidden"
-        onChange={handleFileChange}
-      />
+
+      {error && <p className="text-[0.68rem] font-semibold text-rose-500">{error}</p>}
     </div>
   );
 }
