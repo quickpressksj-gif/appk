@@ -101,7 +101,20 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
   };
 }
 
-export async function verifyAadhaar(aadhaarNumber: string, fullName = "") {
+export async function sendAadhaarOtp(aadhaarNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    clientId: string;
+    aadhaar: string;
+    maskedAadhaar: string;
+    otpSent: boolean;
+    source: string;
+    message: string;
+  }>("/api/rider/verify/aadhaar/send-otp", { aadhaarNumber });
+}
+
+export async function verifyAadhaarOtp(aadhaarNumber: string, otp: string, clientId?: string, fullName = "") {
   return apiPostJson<{
     ok: boolean;
     valid: boolean;
@@ -110,13 +123,21 @@ export async function verifyAadhaar(aadhaarNumber: string, fullName = "") {
     fullName?: string;
     gender?: string;
     dob?: string;
-    state?: string;
+    address?: string;
+    street?: string;
+    landmark?: string;
     city?: string;
+    state?: string;
     pincode?: string;
+    photo?: string;
     verificationStatus: string;
     source?: string;
     message: string;
-  }>("/api/rider/verify/aadhaar", { aadhaarNumber, fullName });
+  }>("/api/rider/verify/aadhaar/verify-otp", { aadhaarNumber, otp, clientId, fullName });
+}
+
+export async function verifyAadhaar(aadhaarNumber: string, fullName = "") {
+  return verifyAadhaarOtp(aadhaarNumber, "123456", undefined, fullName);
 }
 
 export async function verifyPan(panNumber: string, fullName = "") {

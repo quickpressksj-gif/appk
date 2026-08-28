@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Check, CloudUpload, FileCheck2, X } from "lucide-react";
-import type { ReactNode } from "react";
+import React, { type ReactNode, useRef } from "react";
 
 /** Horizontal progress indicator for the multi-step onboarding flow. */
 export function OnboardingStepper({
@@ -23,7 +23,7 @@ export function OnboardingStepper({
             {steps[current - 1]?.title}
           </p>
         </div>
-        <p className="text-[0.7rem] font-bold text-brand-green">{percent}% complete</p>
+        <p className="text-[0.7rem] font-bold text-amber-500">{percent}% complete</p>
       </div>
 
       <div
@@ -35,7 +35,7 @@ export function OnboardingStepper({
         className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brand-dark to-brand-green transition-[width] duration-500 ease-out"
+          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-[width] duration-500 ease-out"
           style={{ width: `${Math.max(percent, 6)}%` }}
         />
       </div>
@@ -49,9 +49,9 @@ export function OnboardingStepper({
               key={step.id}
               className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-black transition-all duration-300 ${
                 done
-                  ? "bg-secondary/20 text-brand-green"
+                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                   : active
-                    ? "bg-primary text-primary-foreground shadow-cta"
+                    ? "bg-amber-400 text-black shadow-md"
                     : "bg-muted text-muted-foreground"
               }`}
               aria-current={active ? "step" : undefined}
@@ -98,70 +98,52 @@ export function TextField({
   inputMode,
   maxLength,
   uppercase,
-  multiline,
 }: {
   id: string;
   label: string;
-  icon?: LucideIcon | undefined;
+  icon?: LucideIcon;
   value: string;
   onChange: (next: string) => void;
-  placeholder?: string | undefined;
-  error?: string | undefined;
-  optional?: boolean | undefined;
-  type?: "text" | "email" | "date" | "tel" | undefined;
-  inputMode?: "text" | "numeric" | "email" | "tel" | undefined;
-  maxLength?: number | undefined;
-  uppercase?: boolean | undefined;
-  multiline?: boolean | undefined;
+  placeholder?: string;
+  error?: string | null;
+  optional?: boolean;
+  type?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
+  uppercase?: boolean;
 }) {
-  const shared =
-    "min-w-0 flex-1 bg-transparent text-sm font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground";
-
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="text-[0.66rem] font-bold uppercase tracking-widest text-muted-foreground"
-      >
-        {label}
-        {optional ? " (optional)" : ""}
-      </label>
-      <div
-        className={`field-focus mt-1.5 flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 shadow-soft transition-colors duration-300 focus-within:border-primary ${
-          error ? "border-destructive" : "border-border"
-        }`}
-      >
-        {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
-        {multiline ? (
-          <textarea
-            id={id}
-            rows={3}
-            value={value}
-            placeholder={placeholder}
-            aria-invalid={Boolean(error)}
-            onChange={(e) => onChange(e.target.value)}
-            className={`${shared} resize-none`}
-          />
-        ) : (
-          <input
-            id={id}
-            type={type}
-            value={value}
-            placeholder={placeholder}
-            inputMode={inputMode}
-            maxLength={maxLength}
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? `${id}-error` : undefined}
-            onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
-            className={shared}
-          />
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-[0.72rem] font-bold text-foreground">
+          {label}
+        </label>
+        {optional && (
+          <span className="text-[0.62rem] font-semibold text-muted-foreground">Optional</span>
         )}
       </div>
-      {error ? (
-        <p id={`${id}-error`} role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
-          {error}
-        </p>
-      ) : null}
+
+      <div className="relative mt-1.5">
+        {Icon && (
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-muted-foreground">
+            <Icon className="size-4" />
+          </span>
+        )}
+        <input
+          id={id}
+          type={type}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          value={value}
+          onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+          placeholder={placeholder}
+          className={`w-full rounded-xl border bg-card py-3 text-xs font-semibold text-foreground outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 ${
+            Icon ? "pl-10 pr-3.5" : "px-3.5"
+          } ${error ? "border-rose-500 ring-1 ring-rose-500/20" : "border-border"}`}
+        />
+      </div>
+
+      {error && <p className="mt-1 text-[0.68rem] font-semibold text-rose-500">{error}</p>}
     </div>
   );
 }
@@ -170,75 +152,104 @@ export function ChoiceChips({
   label,
   options,
   value,
+  selected,
   onChange,
-  columns = 3,
+  className,
+  columns,
 }: {
-  label: string;
+  label?: string;
   options: readonly string[];
-  value: string;
+  value?: string;
+  selected?: string;
   onChange: (next: string) => void;
+  className?: string;
   columns?: number;
 }) {
+  const activeValue = selected !== undefined ? selected : value;
+  const cols = columns || options.length;
+
   return (
-    <div>
-      <p className="text-[0.66rem] font-bold uppercase tracking-widest text-muted-foreground">
-        {label}
-      </p>
+    <div className={className}>
+      {label && (
+        <p className="text-[0.72rem] font-bold text-foreground mb-1.5">
+          {label}
+        </p>
+      )}
       <div
         role="radiogroup"
-        aria-label={label}
-        className="mt-2 grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        aria-label={label || "Options"}
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={value === option}
-            onClick={() => onChange(option)}
-            className={`ripple rounded-2xl border px-3 py-3 text-xs font-bold tracking-tight transition-all duration-300 active:scale-[0.96] ${
-              value === option
-                ? "border-primary bg-primary/15 text-brand-dark"
-                : "border-border bg-card text-muted-foreground"
-            }`}
-          >
-            {option}
-          </button>
-        ))}
+        {options.map((option) => {
+          const isSelected = activeValue === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => onChange(option)}
+              className={`rounded-xl border px-3 py-2.5 text-xs font-bold tracking-tight transition-all duration-200 active:scale-[0.97] ${
+                isSelected
+                  ? "border-amber-400 bg-amber-400 text-black shadow-sm font-black"
+                  : "border-border bg-card text-foreground hover:bg-muted"
+              }`}
+            >
+              {option}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+const DEFAULT_VEHICLE_OPTIONS = [
+  { id: "bike", label: "Motorcycle", hint: "Petrol / Standard Bike" },
+  { id: "scooter", label: "Scooter / Activa", hint: "Non-geared Scooter" },
+  { id: "ev", label: "Electric 2W", hint: "EV Bike / Scooter" },
+  { id: "bicycle", label: "Bicycle / E-Cycle", hint: "Eco-friendly" },
+];
+
 export function VehiclePicker({
-  options,
+  options = DEFAULT_VEHICLE_OPTIONS,
   value,
+  selected,
   onChange,
 }: {
-  options: readonly { id: string; label: string; hint: string }[];
-  value: string;
+  options?: readonly { id: string; label: string; hint: string }[];
+  value?: string;
+  selected?: string;
   onChange: (next: string) => void;
 }) {
+  const active = selected !== undefined ? selected : value;
+
   return (
-    <div role="radiogroup" aria-label="Vehicle type" className="grid gap-2 sm:grid-cols-3">
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={value === option.id}
-          onClick={() => onChange(option.id)}
-          className={`ripple rounded-2xl border p-4 text-left transition-all duration-300 active:scale-[0.97] ${
-            value === option.id
-              ? "border-primary bg-primary/10 shadow-soft"
-              : "border-border bg-card"
-          }`}
-        >
-          <p className="text-sm font-black tracking-tight text-foreground">{option.label}</p>
-          <p className="mt-0.5 text-[0.68rem] font-medium text-muted-foreground">{option.hint}</p>
-        </button>
-      ))}
+    <div>
+      <label className="text-[0.72rem] font-bold text-foreground">Select Vehicle Type</label>
+      <div role="radiogroup" aria-label="Vehicle type" className="mt-1.5 grid gap-2 grid-cols-2">
+        {options.map((option) => {
+          const isSel = active === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="radio"
+              aria-checked={isSel}
+              onClick={() => onChange(option.id)}
+              className={`rounded-2xl border p-3 text-left transition-all duration-200 active:scale-[0.97] ${
+                isSel
+                  ? "border-amber-400 bg-amber-500/10 shadow-sm ring-1 ring-amber-400"
+                  : "border-border bg-card hover:bg-muted"
+              }`}
+            >
+              <p className="text-xs font-black tracking-tight text-foreground">{option.label}</p>
+              <p className="mt-0.5 text-[0.65rem] font-medium text-muted-foreground">{option.hint}</p>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -272,7 +283,7 @@ export function UploadTile({
   const displayName = fileName || (value && !value.startsWith("data:") ? value.split("/").pop() : undefined);
   const uploaded = Boolean(value || fileName || previewUrl);
 
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -372,32 +383,34 @@ export function UploadTile({
 export function ReviewGroup({
   title,
   onEdit,
-  rows,
+  items,
+  stepId,
 }: {
   title: string;
-  onEdit: () => void;
-  rows: { label: string; value: string }[];
+  onEdit: (stepId: number) => void;
+  stepId: number;
+  items: { label: string; value: string }[];
 }) {
   return (
-    <div className="card-soft border border-border p-4">
+    <div className="rounded-2xl border border-border p-4 bg-card shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-[0.68rem] font-black uppercase tracking-widest text-muted-foreground">
           {title}
         </p>
         <button
           type="button"
-          onClick={onEdit}
-          className="rounded-full bg-muted px-3 py-1 text-[0.66rem] font-bold text-brand-dark transition-all duration-300 active:scale-[0.95]"
+          onClick={() => onEdit(stepId)}
+          className="rounded-full bg-amber-500/10 px-3 py-1 text-[0.66rem] font-bold text-amber-600 dark:text-amber-400 transition-all active:scale-95 hover:bg-amber-500/20"
         >
           Edit
         </button>
       </div>
-      <dl className="mt-2">
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-3 border-b border-border py-2 last:border-b-0">
-            <dt className="text-[0.7rem] font-semibold text-muted-foreground">{row.label}</dt>
-            <dd className="max-w-[60%] text-right text-[0.75rem] font-bold tracking-tight text-foreground">
-              {row.value || "—"}
+      <dl className="mt-2.5 space-y-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-start justify-between gap-3 border-b border-border/50 py-1.5 last:border-b-0">
+            <dt className="text-[0.7rem] font-medium text-muted-foreground">{item.label}</dt>
+            <dd className="max-w-[60%] text-right text-[0.72rem] font-bold tracking-tight text-foreground">
+              {item.value || "—"}
             </dd>
           </div>
         ))}
