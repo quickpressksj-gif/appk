@@ -672,6 +672,9 @@ class RiderDispatchEngine:
                 metadata={"completedAt": now},
                 changes={"completedAt": now},
             )
+        except Exception:
+            completed_order = updated
+
         # Auto-credit immutable financial ledger for Partner & Rider
         from app.services.wallet_ledger import record_delivered_order_earnings
         try:
