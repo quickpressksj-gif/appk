@@ -535,7 +535,7 @@ export function PartnerProfileScreen() {
             </div>
           </div>
 
-          {/* 4. Section: Finance, Payouts & Wallet */}
+          {/* 4. Section: Finance, Payouts & Settlements */}
           <div>
             <h3 className="px-1 text-xs font-black uppercase tracking-wider text-zinc-600">
               Finance & Settlements
@@ -556,14 +556,14 @@ export function PartnerProfileScreen() {
 
               <button
                 type="button"
-                onClick={() => navigate({ to: partnerRoutes.wallet })}
+                onClick={() => navigate({ to: partnerRoutes.earnings })}
                 className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/80 bg-white p-3 text-center shadow-xs transition-transform active:scale-95"
               >
                 <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
-                  <Wallet className="size-5" />
+                  <FileText className="size-5" />
                 </div>
                 <p className="mt-1.5 text-[10px] font-black leading-tight text-zinc-800">
-                  Store Wallet
+                  Settlements
                 </p>
               </button>
 

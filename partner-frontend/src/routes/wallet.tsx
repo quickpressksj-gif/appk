@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { WalletScreen } from "../screens/WalletScreen";
+import { EarningsScreen } from "../screens/EarningsScreen";
 import { requirePartnerAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/wallet")({
   beforeLoad: requirePartnerAuth,
   head: () => ({
     meta: [
-      { title: "Partner Wallet · QuickPress Partner" },
-      { name: "description", content: "Instant withdrawals and transaction history." },
-      { property: "og:title", content: "Partner Wallet · QuickPress Partner" },
-      { property: "og:description", content: "Instant withdrawals and transaction history." },
+      { title: "Payouts & Settlements · QuickPress Partner" },
+      { name: "description", content: "Weekly payout settlements, bank transfer and payout history." },
+      { property: "og:title", content: "Payouts & Settlements · QuickPress Partner" },
+      { property: "og:description", content: "Weekly payout settlements, bank transfer and payout history." },
     ],
   }),
-  component: WalletScreen,
+  component: EarningsScreen,
 });

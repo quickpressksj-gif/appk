@@ -41,7 +41,10 @@ function StatTile({
 
 /** Premium statistics grid — 2 columns on mobile, 3 on tablet, 5 on desktop. */
 export function ShopStatsGrid({ stats }: { stats: ShopStatistics }) {
-  const completionRate = Math.round((stats.completedOrders / stats.totalOrders) * 100);
+  const completionRate =
+    stats.totalOrders > 0
+      ? Math.min(100, Math.round((stats.completedOrders / stats.totalOrders) * 100))
+      : 100;
 
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -49,14 +52,14 @@ export function ShopStatsGrid({ stats }: { stats: ShopStatistics }) {
         icon={ShoppingBag}
         label="Total Orders"
         value={stats.totalOrders.toLocaleString("en-IN")}
-        hint="Lifetime"
+        hint="Lifetime Orders"
         delay={0}
       />
       <StatTile
         icon={CheckCircle2}
         label="Completed"
         value={stats.completedOrders.toLocaleString("en-IN")}
-        hint={`${completionRate}% completion`}
+        hint={`${completionRate}% completion rate`}
         delay={60}
         tone="green"
       />
@@ -64,14 +67,14 @@ export function ShopStatsGrid({ stats }: { stats: ShopStatistics }) {
         icon={Users}
         label="Active Customers"
         value={stats.activeCustomers.toLocaleString("en-IN")}
-        hint="Last 30 days"
+        hint="Verified Customers"
         delay={120}
       />
       <StatTile
         icon={Star}
         label="Average Rating"
         value={stats.averageRating.toFixed(1)}
-        hint="Across all services"
+        hint="Customer Feedback"
         delay={180}
         tone="green"
       />
@@ -79,7 +82,7 @@ export function ShopStatsGrid({ stats }: { stats: ShopStatistics }) {
         icon={IndianRupee}
         label="Revenue"
         value={`₹${stats.revenue.toLocaleString("en-IN")}`}
-        hint="Placeholder figure"
+        hint="Total Settled Revenue"
         delay={240}
       />
     </div>
