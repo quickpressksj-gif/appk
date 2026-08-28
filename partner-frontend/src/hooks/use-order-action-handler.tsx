@@ -52,17 +52,15 @@ export function useOrderActionHandler() {
         case "start_washing":
           void run(order, actionId, "Order moved to processing", () => startProcessing(order.id));
           break;
-        case "washing_complete":
         case "mark_ready":
+        case "washing_complete":
           void run(order, actionId, "Ready for delivery", () => completeOrder(order.id));
           break;
         case "assign_rider":
           setSheet({ kind: "rider", order });
           break;
         case "mark_delivered":
-          // MISSING BACKEND ENDPOINT: no partner endpoint to mark an order delivered
-          // (only /api/partner/orders/{id}/complete, which moves the order to "ready").
-          toast.error("Marking an order delivered isn't available yet.");
+          toast.error("Delivered status is verified by delivery rider OTP at doorstep.");
           break;
         case "view_invoice":
           setSheet({ kind: "invoice", order });
@@ -74,7 +72,7 @@ export function useOrderActionHandler() {
           break;
       }
     },
-    [run, acceptOrder, startProcessing, completeOrder],
+    [run, acceptOrder, startProcessing, startIroning, completeOrder],
   );
 
   const overlay = <OrderSuccessOverlay message={success} onDone={() => setSuccess(null)} />;

@@ -38,86 +38,121 @@ from app.db.client import database
 ORDERS = "customer_orders"
 EVENTS = "order_events"
 
-PENDING = "pending_partner_acceptance"
+# Canonical QuickPress Order Lifecycle V2 Constants
+PLACED = "placed"
+PENDING = "pending_partner_acceptance"  # alias
 PARTNER_ACCEPTED = "partner_accepted"
-RIDER_SEARCHING = "rider_searching"
-RIDER_ASSIGNED = "rider_assigned"
-RIDER_ACCEPTED = "rider_accepted"
+PICKUP_RIDER_ASSIGNED = "pickup_rider_assigned"
+RIDER_ASSIGNED = "rider_assigned"  # alias
+RIDER_SEARCHING = "rider_searching"  # alias
+PICKUP_RIDER_ACCEPTED = "pickup_rider_accepted"
+RIDER_ACCEPTED = "rider_accepted"  # alias
 PICKUP_OTP_PENDING = "pickup_otp_pending"
 PICKED_UP = "picked_up"
 AT_PARTNER = "at_partner"
 PROCESSING = "processing"
-READY = "ready"
-COMPLETED = "completed"
+IRONING = "ironing"
+READY_FOR_DELIVERY = "ready_for_delivery"
+READY = "ready"  # alias
+COMPLETED = "completed"  # alias
+DELIVERY_RIDER_ASSIGNED = "delivery_rider_assigned"
+DELIVERY_RIDER_ACCEPTED = "delivery_rider_accepted"
 DISPATCH_OTP_PENDING = "dispatch_otp_pending"
 OUT_FOR_DELIVERY = "out_for_delivery"
 DELIVERY_OTP_PENDING = "delivery_otp_pending"
 DELIVERED = "delivered"
 CANCELLED = "cancelled"
 
-TERMINAL = (DELIVERED, COMPLETED, CANCELLED)
+TERMINAL = (DELIVERED, CANCELLED)
 
 #: Documents created before the canonical lifecycle used aliases.
 LEGACY_STATUS_ALIASES = {
-    "placed": PENDING,
-    "ORDER_CREATED": PENDING,
-    "order_created": PENDING,
+    "placed": PLACED,
+    "pending_partner_acceptance": PLACED,
+    "ORDER_CREATED": PLACED,
+    "order_created": PLACED,
     "searching": RIDER_SEARCHING,
+    "rider_assigned": PICKUP_RIDER_ASSIGNED,
+    "rider_accepted": PICKUP_RIDER_ACCEPTED,
     "at-partner": AT_PARTNER,
-    "ready-for-delivery": OUT_FOR_DELIVERY,
+    "ready": READY_FOR_DELIVERY,
+    "completed": READY_FOR_DELIVERY,
+    "ready-for-delivery": READY_FOR_DELIVERY,
+    "ironing": PROCESSING,
 }
 
 TRANSITIONS: Dict[str, tuple] = {
-    PENDING: (PARTNER_ACCEPTED, RIDER_SEARCHING, CANCELLED),
-    PARTNER_ACCEPTED: (RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, AT_PARTNER, CANCELLED),
-    RIDER_SEARCHING: (RIDER_ASSIGNED, RIDER_ACCEPTED, CANCELLED),
-    RIDER_ASSIGNED: (RIDER_ACCEPTED, PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
+    PLACED: (PARTNER_ACCEPTED, CANCELLED),
+    PENDING: (PARTNER_ACCEPTED, CANCELLED),
+    PARTNER_ACCEPTED: (PICKUP_RIDER_ASSIGNED, RIDER_ASSIGNED, RIDER_SEARCHING, CANCELLED),
+    RIDER_SEARCHING: (PICKUP_RIDER_ASSIGNED, RIDER_ASSIGNED, CANCELLED),
+    PICKUP_RIDER_ASSIGNED: (PICKUP_RIDER_ACCEPTED, RIDER_ACCEPTED, CANCELLED),
+    RIDER_ASSIGNED: (PICKUP_RIDER_ACCEPTED, RIDER_ACCEPTED, CANCELLED),
+    PICKUP_RIDER_ACCEPTED: (PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
     RIDER_ACCEPTED: (PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
     PICKUP_OTP_PENDING: (PICKED_UP, CANCELLED),
-    PICKED_UP: (AT_PARTNER, CANCELLED),
+    PICKED_UP: (AT_PARTNER, PROCESSING, CANCELLED),
     AT_PARTNER: (PROCESSING, CANCELLED),
-    PROCESSING: (READY, COMPLETED, CANCELLED),
-    READY: (RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    COMPLETED: (RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
+    PROCESSING: (READY_FOR_DELIVERY, READY, COMPLETED, CANCELLED),
+    IRONING: (READY_FOR_DELIVERY, READY, COMPLETED, CANCELLED),
+    READY_FOR_DELIVERY: (DELIVERY_RIDER_ASSIGNED, RIDER_ASSIGNED, RIDER_SEARCHING, CANCELLED),
+    READY: (DELIVERY_RIDER_ASSIGNED, RIDER_ASSIGNED, RIDER_SEARCHING, CANCELLED),
+    COMPLETED: (DELIVERY_RIDER_ASSIGNED, RIDER_ASSIGNED, RIDER_SEARCHING, CANCELLED),
+    DELIVERY_RIDER_ASSIGNED: (DELIVERY_RIDER_ACCEPTED, RIDER_ACCEPTED, CANCELLED),
+    DELIVERY_RIDER_ACCEPTED: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
     DISPATCH_OTP_PENDING: (OUT_FOR_DELIVERY, CANCELLED),
     OUT_FOR_DELIVERY: (DELIVERY_OTP_PENDING, DELIVERED, CANCELLED),
     DELIVERY_OTP_PENDING: (DELIVERED, CANCELLED),
-    DELIVERED: (COMPLETED,),
+    DELIVERED: (),
     CANCELLED: (),
 }
 
 STATUS_LABEL = {
+    PLACED: "Order placed",
     PENDING: "Order placed",
-    PARTNER_ACCEPTED: "Accepted by store",
-    RIDER_SEARCHING: "Searching for rider",
-    RIDER_ASSIGNED: "Rider assigned",
-    RIDER_ACCEPTED: "Rider accepted",
-    PICKUP_OTP_PENDING: "Pickup pending",
+    PARTNER_ACCEPTED: "Partner accepted",
+    RIDER_SEARCHING: "Searching for pickup rider",
+    PICKUP_RIDER_ASSIGNED: "Pickup rider assigned",
+    RIDER_ASSIGNED: "Pickup rider assigned",
+    PICKUP_RIDER_ACCEPTED: "Pickup rider accepted",
+    RIDER_ACCEPTED: "Pickup rider accepted",
+    PICKUP_OTP_PENDING: "Pickup OTP verification",
     PICKED_UP: "Picked up",
     AT_PARTNER: "Reached store",
     PROCESSING: "In cleaning",
+    IRONING: "Ironing & finishing",
+    READY_FOR_DELIVERY: "Ready for delivery",
     READY: "Ready for delivery",
-    COMPLETED: "Laundry completed",
-    DISPATCH_OTP_PENDING: "Dispatch pending",
+    COMPLETED: "Ready for delivery",
+    DELIVERY_RIDER_ASSIGNED: "Delivery rider assigned",
+    DELIVERY_RIDER_ACCEPTED: "Delivery rider accepted",
+    DISPATCH_OTP_PENDING: "Dispatch OTP verification",
     OUT_FOR_DELIVERY: "Out for delivery",
-    DELIVERY_OTP_PENDING: "Delivery pending",
+    DELIVERY_OTP_PENDING: "Delivery OTP verification",
     DELIVERED: "Delivered",
     CANCELLED: "Cancelled",
 }
 
 #: Audit-trail event name emitted for each status.
 EVENT_NAME = {
+    PLACED: "ORDER_CREATED",
     PENDING: "ORDER_CREATED",
     PARTNER_ACCEPTED: "PARTNER_ACCEPTED",
-    RIDER_SEARCHING: "RIDER_SEARCHING",
-    RIDER_ASSIGNED: "RIDER_ASSIGNED",
-    RIDER_ACCEPTED: "RIDER_ACCEPTED",
+    RIDER_SEARCHING: "PICKUP_RIDER_SEARCHING",
+    PICKUP_RIDER_ASSIGNED: "PICKUP_RIDER_ASSIGNED",
+    RIDER_ASSIGNED: "PICKUP_RIDER_ASSIGNED",
+    PICKUP_RIDER_ACCEPTED: "PICKUP_RIDER_ACCEPTED",
+    RIDER_ACCEPTED: "PICKUP_RIDER_ACCEPTED",
     PICKUP_OTP_PENDING: "PICKUP_OTP_PENDING",
     PICKED_UP: "PICKED_UP",
     AT_PARTNER: "AT_PARTNER",
     PROCESSING: "PROCESSING_STARTED",
-    READY: "PROCESSING_COMPLETED",
-    COMPLETED: "PROCESSING_COMPLETED",
+    IRONING: "IRONING_STARTED",
+    READY_FOR_DELIVERY: "READY_FOR_DELIVERY",
+    READY: "READY_FOR_DELIVERY",
+    COMPLETED: "READY_FOR_DELIVERY",
+    DELIVERY_RIDER_ASSIGNED: "DELIVERY_RIDER_ASSIGNED",
+    DELIVERY_RIDER_ACCEPTED: "DELIVERY_RIDER_ACCEPTED",
     DISPATCH_OTP_PENDING: "DISPATCH_OTP_PENDING",
     OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
     DELIVERY_OTP_PENDING: "DELIVERY_OTP_PENDING",
@@ -322,38 +357,52 @@ async def transition(
 
 #: canonical status -> partner app status
 PARTNER_STATUS = {
+    PLACED: "new",
     PENDING: "new",
     PARTNER_ACCEPTED: "accepted",
     RIDER_SEARCHING: "accepted",
+    PICKUP_RIDER_ASSIGNED: "accepted",
     RIDER_ASSIGNED: "accepted",
+    PICKUP_RIDER_ACCEPTED: "accepted",
     RIDER_ACCEPTED: "accepted",
     PICKUP_OTP_PENDING: "accepted",
     PICKED_UP: "picked",
     AT_PARTNER: "picked",
     PROCESSING: "processing",
+    IRONING: "ironing",
+    READY_FOR_DELIVERY: "ready",
     READY: "ready",
     COMPLETED: "ready",
+    DELIVERY_RIDER_ASSIGNED: "ready",
+    DELIVERY_RIDER_ACCEPTED: "ready",
     DISPATCH_OTP_PENDING: "ready",
-    OUT_FOR_DELIVERY: "ready",
-    DELIVERY_OTP_PENDING: "ready",
+    OUT_FOR_DELIVERY: "out_for_delivery",
+    DELIVERY_OTP_PENDING: "out_for_delivery",
     DELIVERED: "delivered",
     CANCELLED: "cancelled",
 }
 
 #: canonical status -> rider app status
 RIDER_STATUS = {
+    PLACED: "assigned",
     PENDING: "assigned",
     PARTNER_ACCEPTED: "assigned",
     RIDER_SEARCHING: "assigned",
+    PICKUP_RIDER_ASSIGNED: "accepted",
     RIDER_ASSIGNED: "accepted",
+    PICKUP_RIDER_ACCEPTED: "accepted",
     RIDER_ACCEPTED: "accepted",
     PICKUP_OTP_PENDING: "accepted",
     PICKED_UP: "picked",
     AT_PARTNER: "at-partner",
     PROCESSING: "at-partner",
+    IRONING: "at-partner",
+    READY_FOR_DELIVERY: "at-partner",
     READY: "at-partner",
     COMPLETED: "at-partner",
-    DISPATCH_OTP_PENDING: "at-partner",
+    DELIVERY_RIDER_ASSIGNED: "accepted",
+    DELIVERY_RIDER_ACCEPTED: "accepted",
+    DISPATCH_OTP_PENDING: "accepted",
     OUT_FOR_DELIVERY: "ready-for-delivery",
     DELIVERY_OTP_PENDING: "ready-for-delivery",
     DELIVERED: "delivered",
@@ -361,20 +410,20 @@ RIDER_STATUS = {
 }
 
 _PARTNER_STAGES = [
-    ("pending", "Pending", (PENDING,)),
-    ("accepted", "Accepted", (PARTNER_ACCEPTED, RIDER_SEARCHING, RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
+    ("pending", "Order Placed", (PLACED, PENDING)),
+    ("accepted", "Accepted", (PARTNER_ACCEPTED, RIDER_SEARCHING, PICKUP_RIDER_ASSIGNED, RIDER_ASSIGNED, PICKUP_RIDER_ACCEPTED, RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
     ("picked", "Picked Up", (PICKED_UP, AT_PARTNER)),
-    ("processing", "Processing", (PROCESSING,)),
-    ("ironing", "Ironing", ("ironing",)),
-    ("ready", "Ready", (READY, COMPLETED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
+    ("processing", "Processing", (PROCESSING, IRONING, "washing", "dry_cleaning")),
+    ("ready", "Ready for Delivery", (READY_FOR_DELIVERY, READY, COMPLETED, DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, DISPATCH_OTP_PENDING)),
+    ("out_for_delivery", "Out for Delivery", (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
     ("delivered", "Delivered", (DELIVERED,)),
 ]
 
 _RIDER_STAGES = [
-    ("assigned", "Assigned", (RIDER_ASSIGNED, RIDER_SEARCHING)),
-    ("accepted", "Accepted", (RIDER_ACCEPTED, PICKUP_OTP_PENDING)),
+    ("assigned", "Assigned", (PICKUP_RIDER_ASSIGNED, RIDER_ASSIGNED, RIDER_SEARCHING, DELIVERY_RIDER_ASSIGNED)),
+    ("accepted", "Accepted", (PICKUP_RIDER_ACCEPTED, RIDER_ACCEPTED, PICKUP_OTP_PENDING, DELIVERY_RIDER_ACCEPTED, DISPATCH_OTP_PENDING)),
     ("picked", "Picked up from customer", (PICKED_UP,)),
-    ("at-partner", "Dropped at store", (AT_PARTNER, PROCESSING, READY, COMPLETED, DISPATCH_OTP_PENDING)),
+    ("at-partner", "Dropped at store", (AT_PARTNER, PROCESSING, IRONING, READY_FOR_DELIVERY, READY, COMPLETED)),
     ("ready-for-delivery", "Out for delivery", (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING)),
     ("delivered", "Delivered", (DELIVERED,)),
 ]
@@ -448,7 +497,7 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         "paymentStatus": "paid" if payment.get("paid") else "pending",
         "serviceLabel": order.get("serviceLabel", "Laundry"),
         "riderName": (order.get("rider") or {}).get("name", "") if isinstance(order.get("rider"), dict) else "",
-        "dispatchOtp": dispatch_code if status in (READY, COMPLETED, DISPATCH_OTP_PENDING) else "",
+        "dispatchOtp": dispatch_code if status in (READY, READY_FOR_DELIVERY, COMPLETED, DISPATCH_OTP_PENDING) else "",
         "cancelledReason": order.get("cancelledReason"),
         "items": [
             {

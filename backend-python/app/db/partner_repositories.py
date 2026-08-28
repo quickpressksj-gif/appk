@@ -436,7 +436,7 @@ class PartnerOrderRepository:
             raise PartnerNotFoundError("Order not found")
 
         current_status = lifecycle.order_status(order)
-        if current_status != lifecycle.PENDING:
+        if current_status not in (lifecycle.PENDING, lifecycle.PLACED):
             raise InvalidTransitionError(f"This order is already {current_status} and cannot be accepted again.")
 
         order_partner = order.get("partner") or {}
@@ -530,6 +530,25 @@ class PartnerOrderRepository:
         res = await rider_dispatch_engine.partner_start_processing(order_id, partner_id)
         return lifecycle.to_partner_order(res)
 
+    async def start_ironing(self, partner_id: str, order_id: str) -> Dict[str, Any]:
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise PartnerNotFoundError("Order not found")
+        try:
+            lifecycle.assert_partner(order, partner_id)
+        except lifecycle.OrderAuthorizationError as error:
+            raise PartnerAccessError(str(error)) from error
+
+        current_status = lifecycle.order_status(order)
+        if current_status not in (lifecycle.PROCESSING, "washing", "dry_cleaning"):
+            raise InvalidTransitionError(
+                f"Cannot start ironing before processing is completed (Current status: {current_status})."
+            )
+
+        from app.services.rider_dispatch import rider_dispatch_engine
+        res = await rider_dispatch_engine.partner_start_ironing(order_id, partner_id)
+        return lifecycle.to_partner_order(res)
+
     async def complete(self, partner_id: str, order_id: str) -> Dict[str, Any]:
         order = await lifecycle.find_order(order_id)
         if not order:
@@ -540,7 +559,7 @@ class PartnerOrderRepository:
             raise PartnerAccessError(str(error)) from error
 
         current_status = lifecycle.order_status(order)
-        if current_status not in (lifecycle.PROCESSING, "washing", "ironing", "dry_cleaning"):
+        if current_status not in (lifecycle.PROCESSING, "washing", "dry_cleaning", lifecycle.IRONING, "ironing"):
             raise InvalidTransitionError(
                 f"Cannot mark order ready before processing is started (Current status: {current_status})."
             )

@@ -245,7 +245,7 @@ class RiderDeliveryRepository:
         updated = await rider_dispatch_engine.claim_rider_offer(order_id, rider_id)
         return lifecycle.to_rider_delivery(updated)
 
-    async def pickup(self, order_id: str, otp: Optional[str] = None, rider_id: str = "") -> Dict[str, Any]:
+    async def pickup(self, order_id: str, rider_id: str = "", otp: Optional[str] = None) -> Dict[str, Any]:
         from app.services.rider_dispatch import rider_dispatch_engine
         updated = await rider_dispatch_engine.verify_pickup_otp(order_id, rider_id, otp or "")
         return lifecycle.to_rider_delivery(updated)
@@ -255,7 +255,7 @@ class RiderDeliveryRepository:
         updated = await rider_dispatch_engine.rider_drop_at_partner(order_id, rider_id)
         return lifecycle.to_rider_delivery(updated)
 
-    async def start_delivery(self, order_id: str, otp: Optional[str] = None, rider_id: str = "") -> Dict[str, Any]:
+    async def start_delivery(self, order_id: str, rider_id: str = "", otp: Optional[str] = None) -> Dict[str, Any]:
         from app.services.rider_dispatch import rider_dispatch_engine
         order = await lifecycle.get_order(order_id)
         dispatch_otp_obj = (order.get("otp") or {}).get("dispatch")
@@ -267,7 +267,7 @@ class RiderDeliveryRepository:
             updated = await self._transition(order_id, rider_id, lifecycle.OUT_FOR_DELIVERY)
         return lifecycle.to_rider_delivery(updated)
 
-    async def deliver(self, order_id: str, otp: Optional[str] = None, rider_id: str = "") -> Dict[str, Any]:
+    async def deliver(self, order_id: str, rider_id: str = "", otp: Optional[str] = None) -> Dict[str, Any]:
         from app.services.rider_dispatch import rider_dispatch_engine
         updated = await rider_dispatch_engine.verify_delivery_otp(order_id, rider_id, otp or "")
         return lifecycle.to_rider_delivery(updated)

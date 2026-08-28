@@ -262,7 +262,9 @@ function TrackOrderScreen() {
                   "placed",
                   "partner_accepted",
                   "rider_searching",
+                  "pickup_rider_assigned",
                   "rider_assigned",
+                  "pickup_rider_accepted",
                   "rider_accepted",
                   "pickup_otp_pending",
                 ].includes(currentStatus) && Boolean(detail?.otp?.pickup);

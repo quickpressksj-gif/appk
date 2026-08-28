@@ -147,13 +147,19 @@ const STAGE_STATUS: Record<OrderStage, Parameters<typeof timeOfStatus>[1]> = {
 };
 
 const ETA_COPY: Record<number, { label: string; minutes: number; note: string }> = {
-  0: { label: "Store confirming in", minutes: 5, note: "Your order is with the store for confirmation." },
-  1: { label: "Rider arriving in", minutes: 12, note: "Your rider is on the way to collect your laundry." },
-  2: { label: "Reaching the store in", minutes: 18, note: "Your clothes are with the rider, heading to the store." },
-  3: { label: "Cleaning finishes in", minutes: 180, note: "Your laundry is being washed and pressed." },
-  4: { label: "Packing done in", minutes: 45, note: "Quality check and premium packaging in progress." },
-  5: { label: "Delivery arriving in", minutes: 20, note: "Your fresh laundry is out for delivery." },
-  6: { label: "Delivered", minutes: 0, note: "Delivered. Thanks for choosing QuickPress!" },
+  0: { label: "Store confirming in", minutes: 5, note: "Order placed, waiting for store acceptance." },
+  1: { label: "Finding nearby rider", minutes: 8, note: "Store accepted. Finding nearby pickup rider." },
+  2: { label: "Pickup rider assigned", minutes: 12, note: "Pickup rider assigned to collect your laundry." },
+  3: { label: "Rider arriving for pickup", minutes: 7, note: "Rider is heading to your address." },
+  4: { label: "Pickup OTP verification", minutes: 3, note: "Share your Pickup OTP with the rider." },
+  5: { label: "Reaching store", minutes: 15, note: "Clothes collected, heading to the partner store." },
+  6: { label: "Cleaning finishes in", minutes: 120, note: "Specialized cleaning and fabric care in progress." },
+  7: { label: "Ready for delivery", minutes: 30, note: "Clothes packed, quality checked and ready for dispatch." },
+  8: { label: "Finding delivery rider", minutes: 10, note: "Assigning nearby delivery rider." },
+  9: { label: "Dispatch in progress", minutes: 10, note: "Delivery rider collecting packed order from store." },
+  10: { label: "Delivery arriving in", minutes: 20, note: "Order is out for delivery to your doorstep." },
+  11: { label: "Delivery OTP verification", minutes: 2, note: "Share your Delivery OTP with the rider." },
+  12: { label: "Delivered", minutes: 0, note: "Delivered. Thanks for choosing QuickPress!" },
 };
 
 function toSummary(order: Order): OrderSummary {
@@ -262,65 +268,113 @@ export const ORDER_TRACKING_ENDPOINTS = {
   cancel: "/api/orders/{id}/cancel",
 } as const;
 
-/** The eight customer facing tracking stages, in progression order. */
+/** The 13 canonical customer facing tracking stages, in progression order. */
 export type OrderTimelineStage =
-  | "pending"
-  | "accepted"
-  | "picked-up"
+  | "placed"
+  | "partner_accepted"
+  | "pickup_rider_assigned"
+  | "pickup_rider_accepted"
+  | "pickup_otp"
+  | "picked_up"
   | "processing"
-  | "ironing"
   | "ready"
+  | "delivery_rider_assigned"
+  | "delivery_rider_accepted"
+  | "out_for_delivery"
+  | "delivery_otp"
   | "delivered";
 
 export const ORDER_TIMELINE: OrderTimelineStage[] = [
-  "pending",
-  "accepted",
-  "picked-up",
+  "placed",
+  "partner_accepted",
+  "pickup_rider_assigned",
+  "pickup_rider_accepted",
+  "pickup_otp",
+  "picked_up",
   "processing",
-  "ironing",
   "ready",
+  "delivery_rider_assigned",
+  "delivery_rider_accepted",
+  "out_for_delivery",
+  "delivery_otp",
   "delivered",
 ];
 
 const TIMELINE_COPY: Record<
   OrderTimelineStage,
-  { label: string; description: string; pending: string; status: OrderLifecycleStatus }
+  { label: string; description: string; pending: string; status: string }
 > = {
-  pending: {
-    label: "Pending",
-    description: "Order placed, waiting for the store to accept",
+  placed: {
+    label: "Order Placed",
+    description: "Order placed, waiting for store acceptance",
     pending: "Awaiting confirmation",
     status: "placed",
   },
-  accepted: {
-    label: "Accepted",
+  partner_accepted: {
+    label: "Partner Accepted",
     description: "Your laundry partner accepted the order",
     pending: "Not accepted yet",
     status: "partner_accepted",
   },
-  "picked-up": {
+  pickup_rider_assigned: {
+    label: "Pickup Rider Assigned",
+    description: "Pickup rider assigned for collection",
+    pending: "Assigning pickup rider",
+    status: "pickup_rider_assigned",
+  },
+  pickup_rider_accepted: {
+    label: "Pickup Rider Accepted",
+    description: "Pickup rider is on the way to collect laundry",
+    pending: "Rider on the way",
+    status: "pickup_rider_accepted",
+  },
+  pickup_otp: {
+    label: "Pickup OTP",
+    description: "Share 4-digit Pickup OTP with the rider",
+    pending: "Pending pickup OTP",
+    status: "pickup_otp_pending",
+  },
+  picked_up: {
     label: "Picked Up",
-    description: "Items counted, tagged and collected by rider",
+    description: "Items collected and received at store",
     pending: "Pending pickup",
     status: "picked_up",
   },
   processing: {
     label: "Processing",
-    description: "Washing and specialized cleaning in progress",
+    description: "Washing and specialized fabric cleaning in progress",
     pending: "Cleaning not started",
     status: "processing",
   },
-  ironing: {
-    label: "Ironing",
-    description: "Steam press, ironing and wrinkle-free finishing",
-    pending: "Ironing pending",
-    status: "processing",
-  },
   ready: {
-    label: "Ready",
+    label: "Ready for Delivery",
     description: "Quality checked, packed and ready for delivery",
-    pending: "Pending quality check & packing",
-    status: "completed",
+    pending: "Quality check & packing",
+    status: "ready_for_delivery",
+  },
+  delivery_rider_assigned: {
+    label: "Delivery Rider Assigned",
+    description: "Delivery rider assigned to bring your clothes",
+    pending: "Assigning delivery rider",
+    status: "delivery_rider_assigned",
+  },
+  delivery_rider_accepted: {
+    label: "Delivery Rider Accepted",
+    description: "Rider collecting packed clothes from store",
+    pending: "Handover in progress",
+    status: "delivery_rider_accepted",
+  },
+  out_for_delivery: {
+    label: "Out for Delivery",
+    description: "Rider is heading to your doorstep",
+    pending: "Delivery pending",
+    status: "out_for_delivery",
+  },
+  delivery_otp: {
+    label: "Delivery OTP",
+    description: "Share 4-digit Delivery OTP to receive clothes",
+    pending: "Pending delivery OTP",
+    status: "delivery_otp_pending",
   },
   delivered: {
     label: "Delivered",
@@ -330,22 +384,46 @@ const TIMELINE_COPY: Record<
   },
 };
 
-const TIMELINE_INDEX_BY_STATUS: Record<OrderLifecycleStatus, number> = {
+const TIMELINE_INDEX_BY_STATUS: Record<string, number> = {
   placed: 0,
+  pending_partner_acceptance: 0,
   partner_accepted: 1,
-  rider_assigned: 1,
-  picked_up: 2,
-  at_partner: 2,
-  processing: 3,
-  completed: 5,
-  out_for_delivery: 5,
-  delivered: 6,
+  rider_searching: 1,
+  pickup_rider_assigned: 2,
+  rider_assigned: 2,
+  pickup_rider_accepted: 3,
+  rider_accepted: 3,
+  pickup_otp_pending: 4,
+  picked_up: 5,
+  at_partner: 5,
+  processing: 6,
+  ironing: 6,
+  washing: 6,
+  dry_cleaning: 6,
+  ready_for_delivery: 7,
+  ready: 7,
+  completed: 7,
+  delivery_rider_assigned: 8,
+  delivery_rider_accepted: 9,
+  dispatch_otp_pending: 9,
+  out_for_delivery: 10,
+  delivery_otp_pending: 11,
+  delivered: 12,
   cancelled: 0,
 };
 
 /** Customers can only cancel until the rider has collected the laundry. */
-export function isCancellable(status: OrderLifecycleStatus): boolean {
-  return status === "placed" || status === "partner_accepted" || status === "rider_assigned";
+export function isCancellable(status: OrderLifecycleStatus | string): boolean {
+  return (
+    status === "placed" ||
+    status === "pending_partner_acceptance" ||
+    status === "partner_accepted" ||
+    status === "pickup_rider_assigned" ||
+    status === "rider_assigned" ||
+    status === "pickup_rider_accepted" ||
+    status === "rider_accepted" ||
+    status === "pickup_otp_pending"
+  );
 }
 
 export const CANCEL_REASONS = [

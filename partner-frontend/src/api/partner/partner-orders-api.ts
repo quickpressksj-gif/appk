@@ -41,9 +41,14 @@ export async function startProcessingOrder(orderId: string): Promise<PartnerOrde
   return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/start-processing`);
 }
 
-/** POST /api/partner/orders/{id}/complete — laundry is done, ready for delivery. */
+/** POST /api/partner/orders/{id}/ready — laundry is processed, ready for delivery. */
+export async function markReadyOrder(orderId: string): Promise<PartnerOrder> {
+  return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/ready`);
+}
+
+/** POST /api/partner/orders/{id}/complete — alias for ready. */
 export async function completePartnerOrder(orderId: string): Promise<PartnerOrder> {
-  return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/complete`);
+  return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/ready`);
 }
 
 /**

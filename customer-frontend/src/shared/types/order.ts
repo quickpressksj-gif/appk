@@ -12,38 +12,66 @@
 
 /** The complete order lifecycle, in progression order. */
 export type OrderLifecycleStatus =
-  | "placed" // customer placed the order, partner has it in "new"
-  | "partner_accepted" // partner accepted the order
-  | "rider_assigned" // a rider was assigned for pickup
-  | "picked_up" // rider collected laundry from the customer
-  | "at_partner" // laundry handed over at the partner facility
-  | "processing" // partner is washing / cleaning
-  | "completed" // partner marked laundry completed (ready for delivery)
-  | "out_for_delivery" // rider is delivering back to the customer
-  | "delivered" // customer received the order
+  | "placed"
+  | "pending_partner_acceptance"
+  | "partner_accepted"
+  | "pickup_rider_assigned"
+  | "rider_assigned"
+  | "rider_searching"
+  | "pickup_rider_accepted"
+  | "rider_accepted"
+  | "pickup_otp_pending"
+  | "picked_up"
+  | "at_partner"
+  | "processing"
+  | "ironing"
+  | "ready_for_delivery"
+  | "ready"
+  | "completed"
+  | "delivery_rider_assigned"
+  | "delivery_rider_accepted"
+  | "dispatch_otp_pending"
+  | "out_for_delivery"
+  | "delivery_otp_pending"
+  | "delivered"
   | "cancelled";
 
 export const ORDER_LIFECYCLE: OrderLifecycleStatus[] = [
   "placed",
   "partner_accepted",
-  "rider_assigned",
+  "pickup_rider_assigned",
+  "pickup_rider_accepted",
   "picked_up",
-  "at_partner",
   "processing",
-  "completed",
+  "ready_for_delivery",
+  "delivery_rider_assigned",
+  "delivery_rider_accepted",
   "out_for_delivery",
   "delivered",
 ];
 
-export const ORDER_STATUS_LABEL: Record<OrderLifecycleStatus, string> = {
+export const ORDER_STATUS_LABEL: Record<string, string> = {
   placed: "Order placed",
-  partner_accepted: "Accepted by store",
-  rider_assigned: "Rider assigned",
+  pending_partner_acceptance: "Order placed",
+  partner_accepted: "Partner accepted",
+  rider_searching: "Searching for pickup rider",
+  pickup_rider_assigned: "Pickup rider assigned",
+  rider_assigned: "Pickup rider assigned",
+  pickup_rider_accepted: "Pickup rider accepted",
+  rider_accepted: "Pickup rider accepted",
+  pickup_otp_pending: "Pickup OTP verification",
   picked_up: "Picked up",
   at_partner: "Reached store",
   processing: "In cleaning",
-  completed: "Laundry completed",
+  ironing: "Ironing & finishing",
+  ready_for_delivery: "Ready for delivery",
+  ready: "Ready for delivery",
+  completed: "Ready for delivery",
+  delivery_rider_assigned: "Delivery rider assigned",
+  delivery_rider_accepted: "Delivery rider accepted",
+  dispatch_otp_pending: "Dispatch OTP verification",
   out_for_delivery: "Out for delivery",
+  delivery_otp_pending: "Delivery OTP verification",
   delivered: "Delivered",
   cancelled: "Cancelled",
 };

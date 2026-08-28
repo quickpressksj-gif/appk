@@ -11,8 +11,12 @@ import { apiGetJson, apiPostJson } from "@/api/core/transport";
 
 export type OrderStatus =
   | "Pending"
+  | "Accepted"
+  | "Pickup Assigned"
   | "Picked up"
-  | "In wash"
+  | "Processing"
+  | "Ready for delivery"
+  | "Delivery Assigned"
   | "Out for delivery"
   | "Delivered"
   | "Cancelled";
@@ -47,16 +51,31 @@ type AdminOrderRow = {
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
-/** Lifecycle status → the label this console has always displayed. */
+/** Lifecycle status → the label this console displays. */
 const STATUS_LABEL: Record<string, OrderStatus> = {
   placed: "Pending",
-  partner_accepted: "Pending",
-  rider_assigned: "Pending",
+  pending_partner_acceptance: "Pending",
+  partner_accepted: "Accepted",
+  rider_searching: "Accepted",
+  pickup_rider_assigned: "Pickup Assigned",
+  rider_assigned: "Pickup Assigned",
+  pickup_rider_accepted: "Pickup Assigned",
+  rider_accepted: "Pickup Assigned",
+  pickup_otp_pending: "Pickup Assigned",
   picked_up: "Picked up",
   at_partner: "Picked up",
-  processing: "In wash",
-  completed: "In wash",
+  processing: "Processing",
+  washing: "Processing",
+  dry_cleaning: "Processing",
+  ironing: "Processing",
+  ready_for_delivery: "Ready for delivery",
+  ready: "Ready for delivery",
+  completed: "Ready for delivery",
+  delivery_rider_assigned: "Delivery Assigned",
+  delivery_rider_accepted: "Delivery Assigned",
+  dispatch_otp_pending: "Delivery Assigned",
   out_for_delivery: "Out for delivery",
+  delivery_otp_pending: "Out for delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
 };

@@ -117,25 +117,42 @@ export const STAGE_TONE: Record<OrderStage, string> = {
 
 /** Vertical status timeline shown on the order details screen. */
 export const TIMELINE_STEPS = [
-  { key: "pending", label: "Pending" },
+  { key: "pending", label: "Order Placed" },
   { key: "accepted", label: "Accepted" },
-  { key: "picked", label: "Picked Up" },
+  { key: "pickup_pending", label: "Waiting for Pickup" },
+  { key: "picked", label: "Pickup Completed" },
   { key: "processing", label: "Processing" },
-  { key: "ironing", label: "Ironing" },
-  { key: "ready", label: "Ready" },
+  { key: "ready", label: "Ready for Delivery" },
+  { key: "delivery_assigned", label: "Delivery Rider Assigned" },
+  { key: "dispatch", label: "Dispatch / Handover" },
+  { key: "out_for_delivery", label: "Out for Delivery" },
   { key: "delivered", label: "Delivered" },
 ] as const;
 
 /** How far down the timeline a given stage sits. */
-export const STAGE_TIMELINE_INDEX: Record<OrderStage, number> = {
+export const STAGE_TIMELINE_INDEX: Record<string, number> = {
   new: 0,
+  placed: 0,
   accepted: 1,
-  pickup_pending: 1,
-  washing: 3,
-  dry_cleaning: 3,
+  pickup_rider_assigned: 2,
+  pickup_rider_accepted: 2,
+  pickup_pending: 2,
+  picked: 3,
+  picked_up: 3,
+  at_partner: 3,
+  processing: 4,
+  washing: 4,
+  dry_cleaning: 4,
   ironing: 4,
   ready: 5,
-  completed: 6,
+  ready_for_delivery: 5,
+  delivery_rider_assigned: 6,
+  delivery_rider_accepted: 7,
+  dispatch_otp_pending: 7,
+  out_for_delivery: 8,
+  delivery_otp_pending: 8,
+  completed: 9,
+  delivered: 9,
   cancelled: 0,
 };
 

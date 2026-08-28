@@ -63,40 +63,20 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
       return [
         {
           id: "start_washing",
-          label: isDryClean ? "Start Dry Cleaning" : "Start Washing & Processing",
-          icon: isDryClean ? Shirt : WashingMachine,
+          label: "Start Processing",
+          icon: PackageCheck,
           intent: "primary",
-          nextStage: isDryClean ? "dry_cleaning" : "washing",
+          nextStage: "washing",
           timelineLabel: "Received & processing",
         },
       ];
     case "washing":
-      return [
-        {
-          id: "washing_complete",
-          label: "Washing Done ➔ Start Ironing",
-          icon: WashingMachine,
-          intent: "primary",
-          nextStage: "ironing",
-          timelineLabel: "Washing complete",
-        },
-      ];
     case "dry_cleaning":
-      return [
-        {
-          id: "washing_complete",
-          label: "Dry Clean Done ➔ Start Ironing",
-          icon: Shirt,
-          intent: "primary",
-          nextStage: "ironing",
-          timelineLabel: "Dry cleaning complete",
-        },
-      ];
     case "ironing":
       return [
         {
           id: "mark_ready",
-          label: "Mark Ready for Delivery",
+          label: "Ready for Delivery",
           icon: BadgeCheck,
           intent: "primary",
           nextStage: "ready",
@@ -104,17 +84,7 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
         },
       ];
     case "ready":
-      return [
-        { id: "assign_rider", label: "Assign Rider", icon: Bike, intent: "primary", nextStage: null },
-        {
-          id: "mark_delivered",
-          label: "Mark Delivered",
-          icon: CheckCircle2,
-          intent: "secondary",
-          nextStage: "completed",
-          timelineLabel: "Delivered",
-        },
-      ];
+      return [];
     case "completed":
       return [
         { id: "view_invoice", label: "View Invoice", icon: FileText, intent: "secondary", nextStage: null },

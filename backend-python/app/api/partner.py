@@ -243,6 +243,7 @@ async def receive_laundry(order_id: str, partner_id: str = Depends(_verified_par
 
 
 @router.post("/orders/{order_id}/start-processing", response_model=PartnerOrderResponse)
+@router.post("/orders/{order_id}/process", response_model=PartnerOrderResponse)
 async def start_processing(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.start_processing(partner_id, order_id)
@@ -255,6 +256,10 @@ async def start_processing(order_id: str, partner_id: str = Depends(_verified_pa
     return _order_response(doc)
 
 
+
+
+
+@router.post("/orders/{order_id}/ready", response_model=PartnerOrderResponse)
 @router.post("/orders/{order_id}/complete", response_model=PartnerOrderResponse)
 async def complete_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:

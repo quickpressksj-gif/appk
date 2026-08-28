@@ -285,7 +285,14 @@ class RiderDispatchEngine:
 
         now = lifecycle.now_iso()
         current_status = lifecycle.order_status(order)
-        is_delivery_phase = current_status in (lifecycle.READY, lifecycle.COMPLETED, lifecycle.DISPATCH_OTP_PENDING)
+        is_delivery_phase = current_status in (
+            lifecycle.READY,
+            lifecycle.READY_FOR_DELIVERY,
+            lifecycle.COMPLETED,
+            lifecycle.DELIVERY_RIDER_ASSIGNED,
+            lifecycle.DELIVERY_RIDER_ACCEPTED,
+            lifecycle.DISPATCH_OTP_PENDING,
+        )
 
         if is_delivery_phase:
             match_query = {
@@ -293,19 +300,24 @@ class RiderDispatchEngine:
                 "status": {
                     "$in": [
                         lifecycle.READY,
+                        lifecycle.READY_FOR_DELIVERY,
                         lifecycle.COMPLETED,
+                        lifecycle.DELIVERY_RIDER_ASSIGNED,
+                        lifecycle.DELIVERY_RIDER_ACCEPTED,
                         lifecycle.DISPATCH_OTP_PENDING,
                     ]
                 },
             }
+            target_status = lifecycle.DELIVERY_RIDER_ACCEPTED
             update_fields: Dict[str, Any] = {
                 "rider": rider_party,
                 "riderId": rider_id,
                 "rider_id": rider_id,
                 "deliveryRider": rider_party,
+                "status": target_status,
                 "updatedAt": now,
             }
-            evt_label = "Delivery Rider assigned & heading to partner store"
+            evt_label = "Delivery Rider accepted offer & heading to partner store"
         else:
             match_query = {
                 "_id": canonical_id,
@@ -313,7 +325,9 @@ class RiderDispatchEngine:
                     "$in": [
                         lifecycle.PARTNER_ACCEPTED,
                         "rider_searching",
+                        lifecycle.PICKUP_RIDER_ASSIGNED,
                         lifecycle.RIDER_ASSIGNED,
+                        lifecycle.PICKUP_RIDER_ACCEPTED,
                         lifecycle.RIDER_ACCEPTED,
                     ]
                 },
@@ -327,16 +341,17 @@ class RiderDispatchEngine:
                     {"riderId": rider_id},
                 ],
             }
+            target_status = lifecycle.PICKUP_RIDER_ACCEPTED
             update_fields = {
                 "rider": rider_party,
                 "riderId": rider_id,
                 "rider_id": rider_id,
                 "pickupRider": rider_party,
-                "status": lifecycle.RIDER_ASSIGNED,
+                "status": target_status,
                 "updatedAt": now,
                 "otp.pickup": pickup_otp_record,
             }
-            evt_label = "Pickup Rider assigned & heading for customer pickup"
+            evt_label = "Pickup Rider accepted offer & heading for customer pickup"
 
         # Atomic find_one_and_update ensures concurrency safety
         updated_doc = await database.collection(ORDERS_COLLECTION).find_one_and_update(
@@ -346,7 +361,7 @@ class RiderDispatchEngine:
                 "$push": {
                     "events": {
                         "id": f"{order.get('code', canonical_id)}-evt-rdr-{uuid.uuid4().hex[:6]}",
-                        "status": current_status if is_delivery_phase else lifecycle.RIDER_ASSIGNED,
+                        "status": target_status,
                         "label": evt_label,
                         "at": now,
                         "actor": "rider",
@@ -405,7 +420,7 @@ class RiderDispatchEngine:
 
         await dispatch_order_transition_notifications(
             updated_doc,
-            lifecycle.RIDER_ASSIGNED,
+            target_status,
             actor_id=rider_id,
             actor_role="rider",
         )
@@ -418,7 +433,13 @@ class RiderDispatchEngine:
         lifecycle.assert_rider(order, rider_id)
 
         current_status = lifecycle.order_status(order)
-        if current_status not in (lifecycle.RIDER_ASSIGNED, lifecycle.RIDER_ACCEPTED, "pickup_otp_pending"):
+        if current_status not in (
+            lifecycle.RIDER_ASSIGNED,
+            lifecycle.RIDER_ACCEPTED,
+            lifecycle.PICKUP_RIDER_ASSIGNED,
+            lifecycle.PICKUP_RIDER_ACCEPTED,
+            "pickup_otp_pending",
+        ):
             raise ValueError(f"Pickup OTP has already been verified and used (Order is {current_status}).")
 
         otp_root = order.get("otp") or {}
@@ -508,7 +529,7 @@ class RiderDispatchEngine:
         return updated
 
     async def partner_mark_ready(self, order_id: str, partner_id: str) -> Dict[str, Any]:
-        """Partner finishes laundry and generates 4-digit Dispatch OTP for rider handover."""
+        """Partner finishes laundry/ironing and generates 4-digit Dispatch OTP for delivery rider handover."""
         order = await lifecycle.get_order(order_id)
         lifecycle.assert_partner(order, partner_id)
 
@@ -517,7 +538,7 @@ class RiderDispatchEngine:
 
         updated = await lifecycle.transition(
             order_id,
-            lifecycle.READY,
+            lifecycle.READY_FOR_DELIVERY,
             actor_id=partner_id,
             actor_role="partner",
             metadata={"readyAt": now, "dispatchOtpGenerated": True},
@@ -546,7 +567,14 @@ class RiderDispatchEngine:
         lifecycle.assert_rider(order, rider_id)
 
         current_status = lifecycle.order_status(order)
-        if current_status not in (lifecycle.READY, lifecycle.COMPLETED, "dispatch_otp_pending"):
+        if current_status not in (
+            lifecycle.READY,
+            lifecycle.READY_FOR_DELIVERY,
+            lifecycle.COMPLETED,
+            lifecycle.DELIVERY_RIDER_ASSIGNED,
+            lifecycle.DELIVERY_RIDER_ACCEPTED,
+            "dispatch_otp_pending",
+        ):
             raise ValueError(f"Dispatch OTP has already been verified (Order is {current_status}).")
 
         otp_root = order.get("otp") or {}
