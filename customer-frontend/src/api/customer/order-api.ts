@@ -180,7 +180,10 @@ export function toTracking(order: Order): TrackingData {
   const stageIndex = TIMELINE_INDEX_BY_STATUS[order?.status] ?? 0;
   const eta = ETA_COPY[stageIndex] ?? ETA_COPY[0]!;
   const partnerName = order?.partner?.name || (order as any)?.storeName || "QuickPress Partner";
-  const partnerImage = order?.partner?.image || store1;
+  const partnerImage =
+    order?.partner?.image && order.partner.image !== "store-1" && !order.partner.image.includes("store-1")
+      ? order.partner.image
+      : store1;
   const addressLine = order?.address ? `${order.address.line || ""}, ${order.address.city || ""}` : "Doorstep Delivery";
 
   return {
@@ -421,7 +424,10 @@ export function toOrderDetail(order: Order): OrderDetail {
     partner: {
       id: String(partner.id || (order as any)?.partnerId || ""),
       name: partner.name || "QuickPress Partner",
-      image: partner.image ?? store1,
+      image:
+        partner.image && partner.image !== "store-1" && !partner.image.includes("store-1")
+          ? partner.image
+          : store1,
       phone: partner.phone ?? "",
       city: partner.city ?? "",
     },

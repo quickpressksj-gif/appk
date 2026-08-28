@@ -139,11 +139,13 @@ class PlaceOrderPayload(BaseModel):
 class OrderResponse(BaseModel):
     """The canonical order document — identical shape in mock and FastAPI."""
 
-    id: str
-    code: str
+    model_config = {"extra": "ignore"}
+
+    id: str = ""
+    code: str = ""
     status: OrderStatus = "pending_partner_acceptance"
-    createdAt: str
-    updatedAt: str
+    createdAt: str = ""
+    updatedAt: str = ""
     customer: OrderParty = OrderParty()
     partner: OrderPartnerParty = OrderPartnerParty()
     rider: Optional[OrderRiderParty] = None
