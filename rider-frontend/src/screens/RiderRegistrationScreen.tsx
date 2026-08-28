@@ -1,29 +1,53 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AlertCircle,
   Banknote,
   Bike,
   Building2,
   Calendar,
+  Camera,
+  Check,
+  CheckCircle2,
   CreditCard,
   FileCheck2,
+  FileText,
   IdCard,
   Loader2,
+  Lock,
   Mail,
   MapPin,
-  Phone,
-  ShieldCheck,
-  UserRound,
-  CheckCircle2,
-  Sparkles,
   MapPinCheck,
+  Phone,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+  UploadCloud,
+  UserCheck,
+  UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
-import { submitRiderRegistration } from "@/api/rider/rider-auth-api";
+import {
+  fetchOnboardingStatus,
+  requestOtp,
+  submitRiderRegistration,
+  uploadRiderDocument,
+  verifyAadhaar,
+  verifyDl,
+  verifyIfsc,
+  verifyInsurance,
+  verifyOtp,
+  verifyPan,
+  verifyRc,
+} from "@/api/rider/rider-auth-api";
 import { apiGetJson } from "@/api/core/transport";
+import { readSession } from "@/api/core/session-store";
 
+import { RapidoCameraSelfie } from "../components/onboarding/RapidoCameraSelfie";
+import { VerificationStatusCard } from "../components/onboarding/VerificationStatusCard";
 import {
   ChoiceChips,
   OnboardingStepper,
@@ -39,13 +63,10 @@ import {
   BANKS,
   EMPLOYMENT_TYPES,
   GENDERS,
-  IDENTITY_UPLOADS,
-  LICENSE_UPLOADS,
   ONBOARDING_STEPS,
   SHIFTS,
   STATES,
   VEHICLE_OPTIONS,
-  VEHICLE_UPLOADS,
   emptyRiderForm,
   type RiderOnboardingForm,
 } from "../data/rider-onboarding-mock";
@@ -83,732 +104,1139 @@ const DEFAULT_ALLOWED_CITIES: AllowedCity[] = [
   { id: "CI-3", name: "Noida", city: "Noida", state: "Uttar Pradesh", status: "Live" },
   { id: "CI-4", name: "Mumbai", city: "Mumbai", state: "Maharashtra", status: "Live" },
   { id: "CI-5", name: "Pune", city: "Pune", state: "Maharashtra", status: "Live" },
-  { id: "CI-6", name: "Bengaluru", city: "Bengaluru", state: "Karnataka", status: "Pilot" },
+  { id: "CI-6", name: "Bengaluru", city: "Bengaluru", state: "Karnataka", status: "Live" },
 ];
 
-function validateStep(step: number, form: RiderOnboardingForm): Errors {
-  switch (step) {
-    case 1:
-      return compact({
-        fullName: validateName(form.fullName),
-        mobile: validateMobile(form.mobile),
-        email: validateEmail(form.email),
-        dob: validateDob(form.dob),
-      });
-    case 2:
-      return compact({
-        address: required(form.address, "Current address"),
-        city: required(form.city, "City"),
-        state: required(form.state, "State"),
-        pincode: validatePincode(form.pincode),
-      });
-    case 3:
-      return compact({ aadhaar: validateAadhaar(form.aadhaar), pan: validatePan(form.pan) });
-    case 4:
-      return compact({ license: validateLicense(form.license) });
-    case 5:
-      return compact({
-        vehicleNumber: validateVehicleNumber(form.vehicleNumber),
-        rcNumber: required(form.rcNumber, "RC number"),
-        insuranceNumber: required(form.insuranceNumber, "Insurance number"),
-      });
-    case 6:
-      return compact({
-        accountHolder: required(form.accountHolder, "Account holder name"),
-        bankName: required(form.bankName, "Bank name"),
-        accountNumber: validateAccountNumber(form.accountNumber),
-        ifsc: validateIfsc(form.ifsc),
-      });
-    case 7:
-      return compact({
-        preferredCity: required(form.preferredCity, "Preferred city"),
-        preferredArea: required(form.preferredArea, "Preferred area"),
-      });
-    default:
-      return {};
-  }
-}
+const POPULAR_VEHICLES = [
+  "Hero Splendor Plus",
+  "Honda Activa 6G",
+  "TVS Jupiter",
+  "Bajaj Pulsar 125",
+  "Honda Shine",
+  "Ola S1 Pro (EV)",
+  "Ather 450X (EV)",
+  "TVS Raider",
+  "Bicycle / E-Cycle",
+];
+
+const INSURANCE_PROVIDERS = [
+  "ICICI Lombard",
+  "Go Digit General Insurance",
+  "HDFC ERGO",
+  "Bajaj Allianz",
+  "Tata AIG",
+  "SBI General Insurance",
+  "Acko General Insurance",
+  "New India Assurance",
+  "Other",
+];
 
 export function RiderRegistrationScreen() {
   const navigate = useNavigate();
-  const { phone, signIn } = useRiderContext();
+  const { session } = useRiderContext();
 
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState<RiderOnboardingForm>(() => ({
-    ...emptyRiderForm,
-    mobile:
-      phone ||
-      (typeof window !== "undefined"
-        ? window.sessionStorage.getItem("qp.rider.pendingPhone") ||
-          window.localStorage.getItem("qp.rider.pendingPhone") ||
-          ""
-        : ""),
-  }));
-  const [uploads, setUploads] = useState<Record<string, string>>({});
-  const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<RiderOnboardingForm>(() => {
+    const s = readSession("rider");
+    return {
+      ...emptyRiderForm,
+      mobile: s?.account?.phone?.replace("+91", "") ?? "",
+      mobileVerified: Boolean(s?.account?.phone),
+      fullName: s?.account?.name ?? "",
+      email: s?.account?.email ?? "",
+    };
+  });
+
   const [errors, setErrors] = useState<Errors>({});
-  const [busy, setBusy] = useState(false);
-
-  // Dynamic Allowed Cities from Admin Console / API
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedCities, setAllowedCities] = useState<AllowedCity[]>(DEFAULT_ALLOWED_CITIES);
-  const [loadingCities, setLoadingCities] = useState(true);
 
+  // OTP state for Step 1
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  // Verification loading & errors per document
+  const [verifyingDoc, setVerifyingDoc] = useState<string | null>(null);
+  const [verificationErrors, setVerificationErrors] = useState<Record<string, string | null>>({});
+
+  // Auto-fill existing session / draft data
   useEffect(() => {
-    let active = true;
-    async function loadCities() {
+    async function loadInitial() {
       try {
-        const res = await apiGetJson<AllowedCity[]>("/api/cities", { anonymous: true });
-        if (active && Array.isArray(res) && res.length > 0) {
-          setAllowedCities(res);
+        const citiesRes = await apiGetJson<AllowedCity[]>("/api/cities").catch(() => null);
+        if (citiesRes && Array.isArray(citiesRes) && citiesRes.length > 0) {
+          setAllowedCities(citiesRes);
+        }
+
+        const s = readSession("rider");
+        const phone = s?.account?.phone;
+        if (phone) {
+          const statusRes = await fetchOnboardingStatus(phone).catch(() => null);
+          if (statusRes && statusRes.status === "active") {
+            navigate({ to: riderRoutes.dashboard });
+          }
         }
       } catch {
-        // Safe fallback
-      } finally {
-        if (active) setLoadingCities(false);
+        /* ignore */
       }
     }
-    void loadCities();
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadInitial();
+  }, [navigate]);
 
-  const cityOptions = useMemo(
-    () => allowedCities.map((c) => c.name || c.city).filter(Boolean),
-    [allowedCities],
-  );
-
-  useEffect(() => {
-    if (phone && !form.mobile) {
-      setForm((prev) => ({ ...prev, mobile: phone }));
-    }
-  }, [phone, form.mobile]);
-
-  const set = <K extends keyof RiderOnboardingForm>(key: K, value: RiderOnboardingForm[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[key as string];
-      return next;
-    });
-  };
-
-  const handleCitySelect = (selectedCityName: string, isPreference: boolean = false) => {
-    const matched = allowedCities.find(
-      (c) =>
-        (c.name || c.city || "").toLowerCase() === selectedCityName.toLowerCase(),
-    );
-    if (isPreference) {
-      set("preferredCity", selectedCityName);
-    } else {
-      set("city", selectedCityName);
-      if (matched?.state) {
-        set("state", matched.state);
-      }
-      if (!form.preferredCity) {
-        set("preferredCity", selectedCityName);
-      }
+  const setField = <K extends keyof RiderOnboardingForm>(field: K, value: RiderOnboardingForm[K]) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     }
   };
 
-  const handleUpload = (slotId: string, fileName: string, dataUrl?: string) => {
-    setUploads((p) => ({ ...p, [slotId]: fileName }));
-    if (dataUrl) {
-      setUploadPreviews((p) => ({ ...p, [slotId]: dataUrl }));
-    }
-  };
-
-  const handleClearUpload = (slotId: string) => {
-    setUploads((p) => {
-      const next = { ...p };
-      delete next[slotId];
-      return next;
-    });
-    setUploadPreviews((p) => {
-      const next = { ...p };
-      delete next[slotId];
-      return next;
-    });
-  };
-
-  const vehicleLabel = useMemo(
-    () => VEHICLE_OPTIONS.find((v) => v.id === form.vehicleType)?.label ?? "Bike",
-    [form.vehicleType],
-  );
-
-  const goNext = () => {
-    const stepErrors = validateStep(step, form);
-    if (Object.keys(stepErrors).length) {
-      setErrors(stepErrors);
-      toast.error("Please fill all required fields correctly.");
+  // --- Step 1: Mobile & OTP Handler ---
+  const handleSendOtp = async () => {
+    const err = validateMobile(form.mobile);
+    if (err) {
+      setErrors({ mobile: err });
       return;
     }
-    setErrors({});
-    if (step < ONBOARDING_STEPS.length) {
-      setStep(step + 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
-
-  const goBack = () => {
-    if (step === 1) {
-      return;
-    }
-    setStep(step - 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSubmit = async () => {
-    for (let i = 1; i <= 7; i += 1) {
-      const stepErrors = validateStep(i, form);
-      if (Object.keys(stepErrors).length) {
-        setStep(i);
-        setErrors(stepErrors);
-        toast.error("Some details require attention before submitting.");
-        return;
-      }
-    }
-
-    setBusy(true);
+    setOtpLoading(true);
     try {
-      // Build documents list with labels and images
-      const documentPayload = [
-        { id: "doc-aadhaar-front", label: "Aadhaar Card Front", name: uploads["aadhaarFront"] || "Aadhaar Front", status: "pending", dataUrl: uploadPreviews["aadhaarFront"] },
-        { id: "doc-aadhaar-back", label: "Aadhaar Card Back", name: uploads["aadhaarBack"] || "Aadhaar Back", status: "pending", dataUrl: uploadPreviews["aadhaarBack"] },
-        { id: "doc-pan", label: "PAN Card", name: uploads["panCard"] || "PAN Card", status: "pending", dataUrl: uploadPreviews["panCard"] },
-        { id: "doc-license-front", label: "Driving License Front", name: uploads["licenseFront"] || "License Front", status: "pending", dataUrl: uploadPreviews["licenseFront"] },
-        { id: "doc-license-back", label: "Driving License Back", name: uploads["licenseBack"] || "License Back", status: "pending", dataUrl: uploadPreviews["licenseBack"] },
-        { id: "doc-rc", label: "Vehicle RC Document", name: uploads["rcDoc"] || "RC Document", status: "pending", dataUrl: uploadPreviews["rcDoc"] },
-        { id: "doc-insurance", label: "Insurance Policy", name: uploads["insuranceDoc"] || "Insurance", status: "pending", dataUrl: uploadPreviews["insuranceDoc"] },
-        { id: "doc-vehicle-photo", label: "Vehicle Photo", name: uploads["vehiclePhoto"] || "Vehicle Photo", status: "pending", dataUrl: uploadPreviews["vehiclePhoto"] },
-      ].filter((d) => Boolean(d.name && d.name !== d.label) || Boolean(d.dataUrl));
-
-      const payload = {
-        ...form,
-        documents: documentPayload,
-      };
-
-      const updatedSession = await submitRiderRegistration(payload);
-      signIn(updatedSession);
-      toast.success("Rider registration submitted successfully! 🎉");
-      navigate({ to: riderRoutes.registrationSubmitted });
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Registration failed. Please check your details and try again.",
-      );
+      await requestOtp(form.mobile);
+      setOtpSent(true);
+      toast.success("OTP sent to +91 " + form.mobile);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send OTP");
     } finally {
-      setBusy(false);
+      setOtpLoading(false);
     }
   };
 
-  const jumpTo = (target: number) => {
-    setStep(target);
+  const handleVerifyOtp = async () => {
+    if (otpCode.length < 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      await verifyOtp(form.mobile, otpCode);
+      setField("mobileVerified", true);
+      toast.success("Mobile verified successfully!");
+      setStep(2);
+    } catch (err: any) {
+      toast.error(err.message || "Invalid OTP code");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // --- Real Document Verifications ---
+  const handleVerifyAadhaar = async () => {
+    const err = validateAadhaar(form.aadhaar);
+    if (err) {
+      setVerificationErrors((prev) => ({ ...prev, aadhaar: err }));
+      return;
+    }
+    setVerifyingDoc("aadhaar");
+    setVerificationErrors((prev) => ({ ...prev, aadhaar: null }));
+    try {
+      const res = await verifyAadhaar(form.aadhaar);
+      if (res.valid) {
+        setField("aadhaarVerified", true);
+        toast.success("Aadhaar Number Verified!");
+      }
+    } catch (err: any) {
+      setVerificationErrors((prev) => ({ ...prev, aadhaar: err.message || "Aadhaar verification failed" }));
+    } finally {
+      setVerifyingDoc(null);
+    }
+  };
+
+  const handleVerifyPan = async () => {
+    const err = validatePan(form.pan);
+    if (err) {
+      setVerificationErrors((prev) => ({ ...prev, pan: err }));
+      return;
+    }
+    setVerifyingDoc("pan");
+    setVerificationErrors((prev) => ({ ...prev, pan: null }));
+    try {
+      const res = await verifyPan(form.pan);
+      if (res.valid) {
+        setField("panVerified", true);
+        toast.success("PAN Card Verified!");
+      }
+    } catch (err: any) {
+      setVerificationErrors((prev) => ({ ...prev, pan: err.message || "PAN verification failed" }));
+    } finally {
+      setVerifyingDoc(null);
+    }
+  };
+
+  const handleVerifyDl = async () => {
+    const err = validateLicense(form.license);
+    if (err) {
+      setVerificationErrors((prev) => ({ ...prev, license: err }));
+      return;
+    }
+    setVerifyingDoc("license");
+    setVerificationErrors((prev) => ({ ...prev, license: null }));
+    try {
+      const res = await verifyDl(form.license);
+      if (res.valid) {
+        setField("dlVerified", true);
+        toast.success("Driving Licence Verified!");
+      }
+    } catch (err: any) {
+      setVerificationErrors((prev) => ({ ...prev, license: err.message || "DL verification failed" }));
+    } finally {
+      setVerifyingDoc(null);
+    }
+  };
+
+  const handleVerifyRc = async () => {
+    const err = validateVehicleNumber(form.rcNumber);
+    if (err) {
+      setVerificationErrors((prev) => ({ ...prev, rc: err }));
+      return;
+    }
+    setVerifyingDoc("rc");
+    setVerificationErrors((prev) => ({ ...prev, rc: null }));
+    try {
+      const res = await verifyRc(form.rcNumber);
+      if (res.valid) {
+        setField("rcVerified", true);
+        toast.success("Vehicle RC Verified!");
+      }
+    } catch (err: any) {
+      setVerificationErrors((prev) => ({ ...prev, rc: err.message || "RC verification failed" }));
+    } finally {
+      setVerifyingDoc(null);
+    }
+  };
+
+  const handleVerifyIfsc = async () => {
+    const err = validateIfsc(form.ifsc);
+    if (err) {
+      setVerificationErrors((prev) => ({ ...prev, ifsc: err }));
+      return;
+    }
+    setVerifyingDoc("ifsc");
+    setVerificationErrors((prev) => ({ ...prev, ifsc: null }));
+    try {
+      const res = await verifyIfsc(form.ifsc);
+      if (res.valid) {
+        setField("bankName", res.bank || res.bankName);
+        setField("branch", res.branch);
+        setField("bankVerified", true);
+        toast.success(`${res.bank} (${res.branch}) Verified!`);
+      }
+    } catch (err: any) {
+      setVerificationErrors((prev) => ({ ...prev, ifsc: err.message || "IFSC lookup failed" }));
+    } finally {
+      setVerifyingDoc(null);
+    }
+  };
+
+  const handleFileUpload = async (file: File, docType: string, targetField: keyof RiderOnboardingForm) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setField(targetField, dataUrl);
+      try {
+        const uploadRes = await uploadRiderDocument(dataUrl, docType);
+        if (uploadRes?.url) {
+          setField(targetField, uploadRes.url);
+        }
+        toast.success(`${docType.replace("_", " ").toUpperCase()} uploaded successfully!`);
+      } catch {
+        // Fallback keep base64 dataUrl
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // --- Step Validation ---
+  const validateCurrentStep = (): boolean => {
+    let stepErrors: Record<string, string> = {};
+
+    switch (step) {
+      case 1:
+        if (!form.mobileVerified) {
+          stepErrors.mobile = "Please verify your mobile number with OTP to continue";
+        }
+        break;
+      case 2:
+        stepErrors = compact({
+          fullName: validateName(form.fullName),
+          email: validateEmail(form.email),
+          dob: validateDob(form.dob),
+          emergencyContact: validateMobile(form.emergencyContact),
+        });
+        break;
+      case 3:
+        stepErrors = compact({
+          address: required(form.address, "Current address"),
+          city: required(form.city, "City"),
+          state: required(form.state, "State"),
+          pincode: validatePincode(form.pincode),
+        });
+        break;
+      case 4:
+        stepErrors = compact({
+          aadhaar: validateAadhaar(form.aadhaar),
+        });
+        if (!form.aadhaarFront) {
+          stepErrors.aadhaarFront = "Please upload Aadhaar front photo";
+        }
+        break;
+      case 5:
+        stepErrors = compact({
+          pan: validatePan(form.pan),
+        });
+        if (!form.panCard) {
+          stepErrors.panCard = "Please upload PAN card photo";
+        }
+        break;
+      case 6:
+        if (!form.selfieUrl) {
+          stepErrors.selfieUrl = "Please take a live face selfie to verify your identity";
+        }
+        break;
+      case 7:
+        stepErrors = compact({
+          license: validateLicense(form.license),
+          dlExpiry: required(form.dlExpiry, "DL Expiry Date"),
+        });
+        if (!form.dlFront) {
+          stepErrors.dlFront = "Please upload Driving Licence front photo";
+        }
+        break;
+      case 8:
+        stepErrors = compact({
+          vehicleBrand: required(form.vehicleBrand, "Vehicle Brand"),
+          vehicleModel: required(form.vehicleModel, "Vehicle Model"),
+        });
+        break;
+      case 9:
+        stepErrors = compact({
+          rcNumber: validateVehicleNumber(form.rcNumber),
+        });
+        if (!form.rcFront) {
+          stepErrors.rcFront = "Please upload RC document photo";
+        }
+        break;
+      case 10:
+        stepErrors = compact({
+          insuranceNumber: required(form.insuranceNumber, "Insurance Policy Number"),
+          insuranceValidTill: required(form.insuranceValidTill, "Policy Expiry Date"),
+        });
+        break;
+      case 11:
+        stepErrors = compact({
+          accountHolder: required(form.accountHolder, "Account Holder Name"),
+          ifsc: validateIfsc(form.ifsc),
+          accountNumber: validateAccountNumber(form.accountNumber),
+        });
+        if (form.accountNumber !== form.confirmAccountNumber) {
+          stepErrors.confirmAccountNumber = "Account numbers do not match";
+        }
+        break;
+      case 12:
+        if (!form.termsAccepted) {
+          stepErrors.termsAccepted = "You must agree to the Terms & Partner Agreement to submit";
+        }
+        break;
+    }
+
+    setErrors(stepErrors);
+    return Object.keys(stepErrors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (!validateCurrentStep()) {
+      const firstKey = Object.keys(errors)[0];
+      toast.error(errors[firstKey] || "Please check all required fields");
+      return;
+    }
+    setStep((s) => Math.min(s + 1, ONBOARDING_STEPS.length));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const meta = ONBOARDING_STEPS[step - 1]!;
+  const handleBack = () => {
+    setStep((s) => Math.max(s - 1, 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // --- Final Submission ---
+  const handleSubmit = async () => {
+    if (!validateCurrentStep()) return;
+    setIsSubmitting(true);
+    try {
+      await submitRiderRegistration(form);
+      toast.success("Application submitted successfully!");
+      navigate({ to: riderRoutes.registrationSubmitted });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit registration. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background">
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-primary/12 blur-3xl" />
+    <div className="min-h-screen bg-background text-foreground">
+      <Toaster position="top-center" richColors />
+      <RiderTopBar title="Rider Onboarding" subtitle="Rapido-Style Registration" onBack={step > 1 ? handleBack : undefined} />
 
-      <div className="relative mx-auto w-full max-w-md lg:max-w-3xl">
-        <RiderTopBar
-          title="Rider Registration"
-          subtitle={`Step ${step} of ${ONBOARDING_STEPS.length} · Onboarding`}
-          showBack={step > 1}
-          onBack={goBack}
-        />
-
+      <main className="mx-auto max-w-lg pb-32">
+        {/* Progress Stepper */}
         <OnboardingStepper steps={ONBOARDING_STEPS} current={step} />
 
-        <div className="px-4 pb-36 pt-4 sm:px-6 sm:pt-6">
-          {/* STEP 1: Personal Details */}
-          {step === 1 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <TextField
-                id="fullName"
-                label="Full Name"
-                icon={UserRound}
-                value={form.fullName}
-                onChange={(v) => set("fullName", v)}
-                placeholder="Arjun Mehta"
-                error={errors["fullName"]}
-              />
-              <TextField
-                id="mobile"
-                label="Mobile Number"
-                icon={Phone}
-                value={form.mobile}
-                onChange={(v) => set("mobile", v.replace(/\D/g, ""))}
-                placeholder="98765 43210"
-                inputMode="numeric"
-                maxLength={10}
-                error={errors["mobile"]}
-              />
-              <TextField
-                id="email"
-                label="Email Address"
-                icon={Mail}
-                type="email"
-                value={form.email}
-                onChange={(v) => set("email", v)}
-                placeholder="you@example.com"
-                inputMode="email"
-                error={errors["email"]}
-              />
-              <TextField
-                id="dob"
-                label="Date of Birth"
-                icon={Calendar}
-                type="date"
-                value={form.dob}
-                onChange={(v) => set("dob", v)}
-                error={errors["dob"]}
-              />
-              <ChoiceChips
-                label="Gender"
-                options={GENDERS}
-                value={form.gender}
-                onChange={(v) => set("gender", v)}
-              />
-            </StepShell>
-          ) : null}
-
-          {/* STEP 2: Address & Admin Allowed City */}
-          {step === 2 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 mb-2">
-                <p className="text-xs font-bold text-brand-dark flex items-center gap-1.5">
-                  <MapPinCheck className="size-4 text-brand-green" />
-                  <span>Admin Approved Operating Cities Only</span>
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Select your active operational city. QuickPress operations are live in these hubs.
-                </p>
-              </div>
-
-              <TextField
-                id="address"
-                label="Current Physical Address"
-                icon={MapPin}
-                multiline
-                value={form.address}
-                onChange={(v) => set("address", v)}
-                placeholder="Flat / House No., Street, Landmark, Locality"
-                error={errors["address"]}
-              />
-
-              <div>
-                <ChoiceChips
-                  label="Operational City (Allowed by Admin)"
-                  options={cityOptions}
-                  value={form.city}
-                  onChange={(v) => handleCitySelect(v, false)}
-                  columns={2}
+        <div className="mt-4 px-5">
+          {/* STEP 1: MOBILE VERIFICATION */}
+          {step === 1 && (
+            <StepShell
+              stepKey="mobile"
+              title="Mobile Verification"
+              caption="Enter your active WhatsApp / Mobile number for OTP verification"
+            >
+              <div className="space-y-4">
+                <TextField
+                  id="mobile"
+                  label="Mobile Number"
+                  icon={Phone}
+                  value={form.mobile}
+                  onChange={(v) => setField("mobile", v.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="9876543210"
+                  type="tel"
+                  maxLength={10}
+                  error={errors.mobile}
                 />
-                {errors["city"] ? (
-                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
-                    {errors["city"]}
-                  </p>
-                ) : null}
-              </div>
 
-              <div>
-                <ChoiceChips
-                  label="State"
-                  options={STATES}
-                  value={form.state}
-                  onChange={(v) => set("state", v)}
-                  columns={2}
+                {form.mobileVerified ? (
+                  <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 p-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="size-5" />
+                    <span>Mobile number verified with OTP ✓</span>
+                  </div>
+                ) : otpSent ? (
+                  <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <p className="text-xs font-bold text-foreground">Enter 6-Digit OTP sent to +91 {form.mobile}</p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="• • • • • •"
+                      className="w-full rounded-xl border border-border bg-background py-3 text-center text-xl font-black tracking-widest text-foreground outline-none focus:border-amber-400"
+                    />
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={otpLoading || otpCode.length < 6}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-400 py-3 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                      >
+                        {otpLoading ? <Loader2 className="size-4 animate-spin" /> : "Verify OTP"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={otpLoading}
+                        className="rounded-xl border border-border px-3 py-3 text-xs font-bold text-foreground hover:bg-muted"
+                      >
+                        Resend
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={otpLoading || form.mobile.length < 10}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {otpLoading ? <Loader2 className="size-4 animate-spin" /> : "Get OTP on Mobile"}
+                  </button>
+                )}
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 2: BASIC PROFILE */}
+          {step === 2 && (
+            <StepShell stepKey="personal" title="Personal Details" caption="Tell us about yourself as per your official ID">
+              <div className="space-y-4">
+                <TextField
+                  id="fullName"
+                  label="Full Name (as on Aadhaar)"
+                  icon={UserRound}
+                  value={form.fullName}
+                  onChange={(v) => setField("fullName", v)}
+                  placeholder="e.g. Rahul Sharma"
+                  error={errors.fullName}
                 />
-                {errors["state"] ? (
-                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
-                    {errors["state"]}
-                  </p>
-                ) : null}
-              </div>
 
-              <TextField
-                id="pincode"
-                label="PIN Code"
-                icon={MapPin}
-                value={form.pincode}
-                onChange={(v) => set("pincode", v.replace(/\D/g, ""))}
-                placeholder="207123"
-                inputMode="numeric"
-                maxLength={6}
-                error={errors["pincode"]}
-              />
-            </StepShell>
-          ) : null}
-
-          {/* STEP 3: Identity Verification */}
-          {step === 3 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <TextField
-                id="aadhaar"
-                label="Aadhaar Number (12 Digits)"
-                icon={FileCheck2}
-                value={form.aadhaar}
-                onChange={(v) => set("aadhaar", v.replace(/\D/g, ""))}
-                placeholder="1234 5678 9012"
-                inputMode="numeric"
-                maxLength={12}
-                error={errors["aadhaar"]}
-              />
-              <TextField
-                id="pan"
-                label="PAN Number (10 Characters)"
-                icon={CreditCard}
-                value={form.pan}
-                onChange={(v) => set("pan", v)}
-                placeholder="ABCDE1234F"
-                maxLength={10}
-                uppercase
-                error={errors["pan"]}
-              />
-              <div className="space-y-2.5 pt-2">
-                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  KYC Photo Uploads (Optional in preview)
-                </p>
-                {IDENTITY_UPLOADS.map((slot) => (
-                  <UploadTile
-                    key={slot.id}
-                    id={slot.id}
-                    label={slot.label}
-                    hint={slot.hint}
-                    fileName={uploads[slot.id]}
-                    previewUrl={uploadPreviews[slot.id]}
-                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
-                    onClear={() => handleClearUpload(slot.id)}
-                  />
-                ))}
-              </div>
-            </StepShell>
-          ) : null}
-
-          {/* STEP 4: Driving License */}
-          {step === 4 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <TextField
-                id="license"
-                label="Driving License Number"
-                icon={IdCard}
-                value={form.license}
-                onChange={(v) => set("license", v)}
-                placeholder="DL-0420110012345"
-                maxLength={16}
-                uppercase
-                error={errors["license"]}
-              />
-              <div className="space-y-2.5 pt-2">
-                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Driving License Photos
-                </p>
-                {LICENSE_UPLOADS.map((slot) => (
-                  <UploadTile
-                    key={slot.id}
-                    id={slot.id}
-                    label={slot.label}
-                    hint={slot.hint}
-                    fileName={uploads[slot.id]}
-                    previewUrl={uploadPreviews[slot.id]}
-                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
-                    onClear={() => handleClearUpload(slot.id)}
-                  />
-                ))}
-              </div>
-            </StepShell>
-          ) : null}
-
-          {/* STEP 5: Vehicle Details */}
-          {step === 5 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <VehiclePicker
-                options={VEHICLE_OPTIONS}
-                value={form.vehicleType}
-                onChange={(v) => set("vehicleType", v)}
-              />
-              <TextField
-                id="vehicleNumber"
-                label="Vehicle Registration Plate Number"
-                icon={Bike}
-                value={form.vehicleNumber}
-                onChange={(v) => set("vehicleNumber", v)}
-                placeholder="UP 87 AB 1234"
-                maxLength={14}
-                uppercase
-                error={errors["vehicleNumber"]}
-              />
-              <TextField
-                id="rcNumber"
-                label="RC Certificate Number"
-                icon={FileCheck2}
-                value={form.rcNumber}
-                onChange={(v) => set("rcNumber", v)}
-                placeholder="RC-2022-998812"
-                uppercase
-                error={errors["rcNumber"]}
-              />
-              <TextField
-                id="insuranceNumber"
-                label="Vehicle Insurance Policy Number"
-                icon={ShieldCheck}
-                value={form.insuranceNumber}
-                onChange={(v) => set("insuranceNumber", v)}
-                placeholder="INS-77665544"
-                uppercase
-                error={errors["insuranceNumber"]}
-              />
-              <div className="space-y-2.5 pt-2">
-                <p className="text-[0.68rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Vehicle Documents & Photo
-                </p>
-                {VEHICLE_UPLOADS.map((slot) => (
-                  <UploadTile
-                    key={slot.id}
-                    id={slot.id}
-                    label={slot.label}
-                    hint={slot.hint}
-                    fileName={uploads[slot.id]}
-                    previewUrl={uploadPreviews[slot.id]}
-                    onSelect={(name, dataUrl) => handleUpload(slot.id, name, dataUrl)}
-                    onClear={() => handleClearUpload(slot.id)}
-                  />
-                ))}
-              </div>
-            </StepShell>
-          ) : null}
-
-          {/* STEP 6: Bank Payout Details */}
-          {step === 6 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <TextField
-                id="accountHolder"
-                label="Account Holder Name (As per Bank)"
-                icon={UserRound}
-                value={form.accountHolder}
-                onChange={(v) => set("accountHolder", v)}
-                placeholder="Arjun Mehta"
-                error={errors["accountHolder"]}
-              />
-              <ChoiceChips
-                label="Bank Name"
-                options={BANKS}
-                value={form.bankName}
-                onChange={(v) => set("bankName", v)}
-                columns={2}
-              />
-              {errors["bankName"] ? (
-                <p role="alert" className="text-[0.68rem] font-semibold text-destructive">
-                  {errors["bankName"]}
-                </p>
-              ) : null}
-              <TextField
-                id="accountNumber"
-                label="Bank Account Number"
-                icon={Banknote}
-                value={form.accountNumber}
-                onChange={(v) => set("accountNumber", v.replace(/\D/g, ""))}
-                placeholder="00012345678901"
-                inputMode="numeric"
-                maxLength={18}
-                error={errors["accountNumber"]}
-              />
-              <TextField
-                id="ifsc"
-                label="IFSC Code"
-                icon={Building2}
-                value={form.ifsc}
-                onChange={(v) => set("ifsc", v)}
-                placeholder="SBIN0001234"
-                maxLength={11}
-                uppercase
-                error={errors["ifsc"]}
-              />
-            </StepShell>
-          ) : null}
-
-          {/* STEP 7: Working Preferences & Preferred City */}
-          {step === 7 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <div>
-                <ChoiceChips
-                  label="Preferred Delivery City (Admin Approved)"
-                  options={cityOptions}
-                  value={form.preferredCity}
-                  onChange={(v) => handleCitySelect(v, true)}
-                  columns={2}
+                <TextField
+                  id="email"
+                  label="Email Address"
+                  icon={Mail}
+                  value={form.email}
+                  onChange={(v) => setField("email", v)}
+                  placeholder="rahul.sharma@example.com"
+                  type="email"
+                  error={errors.email}
                 />
-                {errors["preferredCity"] ? (
-                  <p role="alert" className="mt-1 text-[0.68rem] font-semibold text-destructive">
-                    {errors["preferredCity"]}
-                  </p>
-                ) : null}
-              </div>
 
-              <TextField
-                id="preferredArea"
-                label="Preferred Local Area / Zone"
-                icon={MapPin}
-                value={form.preferredArea}
-                onChange={(v) => set("preferredArea", v)}
-                placeholder="e.g. Awas Vikas, Main Market, Station Road"
-                error={errors["preferredArea"]}
-              />
-              <ChoiceChips
-                label="Employment Type"
-                options={EMPLOYMENT_TYPES}
-                value={form.employmentType}
-                onChange={(v) => set("employmentType", v)}
-                columns={2}
-              />
-              <ChoiceChips
-                label="Shift Preference"
-                options={SHIFTS}
-                value={form.shift}
-                onChange={(v) => set("shift", v)}
-                columns={3}
-              />
-            </StepShell>
-          ) : null}
+                <TextField
+                  id="dob"
+                  label="Date of Birth (Must be 18+)"
+                  icon={Calendar}
+                  value={form.dob}
+                  onChange={(v) => setField("dob", v)}
+                  type="date"
+                  error={errors.dob}
+                />
 
-          {/* STEP 8: Review & Submit */}
-          {step === 8 ? (
-            <StepShell stepKey={step} title={meta.title} caption={meta.caption}>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 mb-3">
-                <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
-                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                  <span>Ready for Verification</span>
+                <div>
+                  <label className="text-[0.72rem] font-bold text-foreground">Gender</label>
+                  <ChoiceChips
+                    options={GENDERS}
+                    selected={form.gender}
+                    onChange={(v) => setField("gender", v)}
+                    className="mt-1.5"
+                  />
                 </div>
-                <p className="text-[11px] text-emerald-800 mt-1 leading-relaxed">
-                  Review all your submitted specifications. Once submitted, your profile will be sent to the Operations Admin for fast review and fleet activation.
-                </p>
-              </div>
 
-              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+                <TextField
+                  id="emergencyContact"
+                  label="Emergency Contact Number"
+                  icon={Phone}
+                  value={form.emergencyContact}
+                  onChange={(v) => setField("emergencyContact", v.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="Family / Guardian Mobile"
+                  type="tel"
+                  error={errors.emergencyContact}
+                />
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 3: ADDRESS */}
+          {step === 3 && (
+            <StepShell stepKey="address" title="Current Address" caption="Where do you reside during delivery hours?">
+              <div className="space-y-4">
+                <TextField
+                  id="address"
+                  label="House No. & Building Name"
+                  icon={MapPin}
+                  value={form.address}
+                  onChange={(v) => setField("address", v)}
+                  placeholder="e.g. Flat 402, Sai Residency"
+                  error={errors.address}
+                />
+
+                <TextField
+                  id="street"
+                  label="Street / Area / Locality"
+                  icon={MapPin}
+                  value={form.street}
+                  onChange={(v) => setField("street", v)}
+                  placeholder="e.g. MG Road, Near Railway Crossing"
+                />
+
+                <TextField
+                  id="landmark"
+                  label="Landmark"
+                  icon={Building2}
+                  value={form.landmark}
+                  onChange={(v) => setField("landmark", v)}
+                  placeholder="e.g. Opposite City Hospital"
+                  optional
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[0.72rem] font-bold text-foreground">City</label>
+                    <select
+                      value={form.city}
+                      onChange={(e) => {
+                        const sel = allowedCities.find((c) => c.city === e.target.value || c.name === e.target.value);
+                        setField("city", e.target.value);
+                        if (sel?.state) setField("state", sel.state);
+                      }}
+                      className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-3 text-xs font-semibold text-foreground outline-none focus:border-amber-400"
+                    >
+                      <option value="">Select Delivery City</option>
+                      {allowedCities.map((c) => (
+                        <option key={c.id} value={c.city || c.name}>
+                          {c.name || c.city} ({c.state})
+                        </option>
+                      ))}
+                    </select>
+                    {errors.city && <p className="mt-1 text-[0.68rem] text-rose-500">{errors.city}</p>}
+                  </div>
+
+                  <TextField
+                    id="pincode"
+                    label="PIN Code"
+                    icon={MapPinCheck}
+                    value={form.pincode}
+                    onChange={(v) => setField("pincode", v.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="207123"
+                    type="tel"
+                    maxLength={6}
+                    error={errors.pincode}
+                  />
+                </div>
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 4: AADHAAR VERIFICATION */}
+          {step === 4 && (
+            <StepShell stepKey="aadhaar" title="Aadhaar Card Verification" caption="Government identity verification for safety">
+              <div className="space-y-4">
+                <VerificationStatusCard
+                  title="UIDAI Aadhaar Verification"
+                  isVerified={form.aadhaarVerified}
+                  isLoading={verifyingDoc === "aadhaar"}
+                  error={verificationErrors.aadhaar}
+                  verifiedText="Aadhaar verified via official database ✓"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={14}
+                      value={form.aadhaar
+                        .replace(/\D/g, "")
+                        .replace(/(\d{4})(?=\d)/g, "$1 ")
+                        .trim()}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\s/g, "");
+                        setField("aadhaar", raw);
+                        setField("aadhaarVerified", false);
+                      }}
+                      placeholder="1234 5678 9012"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold tracking-wider text-foreground outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyAadhaar}
+                      disabled={verifyingDoc === "aadhaar" || form.aadhaar.length < 12}
+                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                    >
+                      {verifyingDoc === "aadhaar" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </VerificationStatusCard>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <UploadTile
+                    label="Aadhaar Front Photo"
+                    hint="Clear photo of front side"
+                    value={form.aadhaarFront ? "aadhaar_front.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "aadhaar_front", "aadhaarFront")}
+                    onClear={() => setField("aadhaarFront", "")}
+                    error={errors.aadhaarFront}
+                  />
+                  <UploadTile
+                    label="Aadhaar Back Photo"
+                    hint="Photo showing your address"
+                    value={form.aadhaarBack ? "aadhaar_back.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "aadhaar_back", "aadhaarBack")}
+                    onClear={() => setField("aadhaarBack", "")}
+                    error={errors.aadhaarBack}
+                  />
+                </div>
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 5: PAN CARD VERIFICATION */}
+          {step === 5 && (
+            <StepShell stepKey="pan" title="PAN Card Verification" caption="Required for TDS compliance and bank settlements">
+              <div className="space-y-4">
+                <VerificationStatusCard
+                  title="Income Tax PAN Verification"
+                  isVerified={form.panVerified}
+                  isLoading={verifyingDoc === "pan"}
+                  error={verificationErrors.pan}
+                  verifiedText="PAN verified (Individual Account) ✓"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={10}
+                      value={form.pan.toUpperCase()}
+                      onChange={(e) => {
+                        setField("pan", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                        setField("panVerified", false);
+                      }}
+                      placeholder="ABCDE1234F"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold tracking-widest text-foreground uppercase outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyPan}
+                      disabled={verifyingDoc === "pan" || form.pan.length < 10}
+                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                    >
+                      {verifyingDoc === "pan" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </VerificationStatusCard>
+
+                <UploadTile
+                  label="PAN Card Photo"
+                  hint="Upload a crisp photo of your PAN card"
+                  value={form.panCard ? "pan_card.jpg" : ""}
+                  onUpload={(file) => handleFileUpload(file, "pan_card", "panCard")}
+                  onClear={() => setField("panCard", "")}
+                  error={errors.panCard}
+                />
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 6: LIVE SELFIE & LIVENESS */}
+          {step === 6 && (
+            <StepShell stepKey="selfie" title="Live Selfie Verification" caption="Instant facial recognition matching ID documents">
+              <div className="space-y-4">
+                <RapidoCameraSelfie
+                  initialImage={form.selfieUrl}
+                  isVerified={form.selfieVerified}
+                  onCapture={(dataUrl) => {
+                    setField("selfieUrl", dataUrl);
+                    setField("selfieVerified", true);
+                    toast.success("Selfie captured successfully!");
+                  }}
+                />
+                {errors.selfieUrl && <p className="text-center text-xs font-semibold text-rose-500">{errors.selfieUrl}</p>}
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 7: DRIVING LICENCE */}
+          {step === 7 && (
+            <StepShell stepKey="driving" title="Driving Licence (DL)" caption="Mandatory government licence for motorcycle / scooter">
+              <div className="space-y-4">
+                <VerificationStatusCard
+                  title="Parivahan DL Verification"
+                  isVerified={form.dlVerified}
+                  isLoading={verifyingDoc === "license"}
+                  error={verificationErrors.license}
+                  verifiedText="Driving Licence verified with RTO Registry ✓"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={form.license.toUpperCase()}
+                      onChange={(e) => {
+                        setField("license", e.target.value.toUpperCase());
+                        setField("dlVerified", false);
+                      }}
+                      placeholder="e.g. UP87 20210001234"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold tracking-wider text-foreground uppercase outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyDl}
+                      disabled={verifyingDoc === "license" || form.license.length < 10}
+                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                    >
+                      {verifyingDoc === "license" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </VerificationStatusCard>
+
+                <TextField
+                  id="dlExpiry"
+                  label="Licence Valid Till (Expiry Date)"
+                  icon={Calendar}
+                  value={form.dlExpiry}
+                  onChange={(v) => setField("dlExpiry", v)}
+                  type="date"
+                  error={errors.dlExpiry}
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <UploadTile
+                    label="DL Front Photo"
+                    hint="Clear photo of front side"
+                    value={form.dlFront ? "dl_front.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "dl_front", "dlFront")}
+                    onClear={() => setField("dlFront", "")}
+                    error={errors.dlFront}
+                  />
+                  <UploadTile
+                    label="DL Back Photo"
+                    hint="Back side showing endorsements"
+                    value={form.dlBack ? "dl_back.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "dl_back", "dlBack")}
+                    onClear={() => setField("dlBack", "")}
+                    error={errors.dlBack}
+                  />
+                </div>
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 8: VEHICLE DETAILS */}
+          {step === 8 && (
+            <StepShell stepKey="vehicle" title="Vehicle Details" caption="Which vehicle will you use for order deliveries?">
+              <div className="space-y-4">
+                <VehiclePicker
+                  selected={form.vehicleType}
+                  onChange={(v) => setField("vehicleType", v)}
+                />
+
+                <div>
+                  <label className="text-[0.72rem] font-bold text-foreground">Select Vehicle Model</label>
+                  <select
+                    value={form.vehicleModel}
+                    onChange={(e) => {
+                      setField("vehicleModel", e.target.value);
+                      if (e.target.value.includes("EV")) setField("fuelType", "Electric");
+                    }}
+                    className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-3 text-xs font-semibold text-foreground outline-none focus:border-amber-400"
+                  >
+                    {POPULAR_VEHICLES.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <TextField
+                    id="vehicleBrand"
+                    label="Vehicle Brand"
+                    icon={Bike}
+                    value={form.vehicleBrand}
+                    onChange={(v) => setField("vehicleBrand", v)}
+                    placeholder="e.g. Hero / Honda"
+                    error={errors.vehicleBrand}
+                  />
+
+                  <TextField
+                    id="regYear"
+                    label="Registration Year"
+                    icon={Calendar}
+                    value={form.regYear}
+                    onChange={(v) => setField("regYear", v.slice(0, 4))}
+                    placeholder="2022"
+                    type="number"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[0.72rem] font-bold text-foreground">Fuel Type</label>
+                  <ChoiceChips
+                    options={["Petrol", "Electric", "CNG"] as const}
+                    selected={form.fuelType}
+                    onChange={(v) => setField("fuelType", v)}
+                    className="mt-1.5"
+                  />
+                </div>
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 9: RC VERIFICATION */}
+          {step === 9 && (
+            <StepShell stepKey="rc" title="RC (Registration Certificate)" caption="Vehicle ownership & registration verification">
+              <div className="space-y-4">
+                <VerificationStatusCard
+                  title="Vehicle RC Verification"
+                  isVerified={form.rcVerified}
+                  isLoading={verifyingDoc === "rc"}
+                  error={verificationErrors.rc}
+                  verifiedText="Vehicle RC Verified with State Vahan Portal ✓"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={form.rcNumber.toUpperCase()}
+                      onChange={(e) => {
+                        setField("rcNumber", e.target.value.toUpperCase().replace(/[^A-Z0-9\s]/g, ""));
+                        setField("rcVerified", false);
+                      }}
+                      placeholder="e.g. UP 87 AB 1234"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold tracking-widest text-foreground uppercase outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyRc}
+                      disabled={verifyingDoc === "rc" || form.rcNumber.length < 6}
+                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                    >
+                      {verifyingDoc === "rc" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </VerificationStatusCard>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <UploadTile
+                    label="RC Front Photo"
+                    hint="Clear photo of RC card front"
+                    value={form.rcFront ? "rc_front.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "rc_front", "rcFront")}
+                    onClear={() => setField("rcFront", "")}
+                    error={errors.rcFront}
+                  />
+                  <UploadTile
+                    label="RC Back Photo"
+                    hint="Back side photo"
+                    value={form.rcBack ? "rc_back.jpg" : ""}
+                    onUpload={(file) => handleFileUpload(file, "rc_back", "rcBack")}
+                    onClear={() => setField("rcBack", "")}
+                  />
+                </div>
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 10: INSURANCE */}
+          {step === 10 && (
+            <StepShell stepKey="insurance" title="Vehicle Insurance" caption="Valid insurance protects you and customers on the road">
+              <div className="space-y-4">
+                <TextField
+                  id="insuranceNumber"
+                  label="Policy Number"
+                  icon={ShieldCheck}
+                  value={form.insuranceNumber}
+                  onChange={(v) => setField("insuranceNumber", v)}
+                  placeholder="e.g. POL-83749204"
+                  error={errors.insuranceNumber}
+                />
+
+                <div>
+                  <label className="text-[0.72rem] font-bold text-foreground">Insurance Provider</label>
+                  <select
+                    value={form.insuranceProvider}
+                    onChange={(e) => setField("insuranceProvider", e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-border bg-card px-3 py-3 text-xs font-semibold text-foreground outline-none focus:border-amber-400"
+                  >
+                    {INSURANCE_PROVIDERS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <TextField
+                  id="insuranceValidTill"
+                  label="Policy Valid Till"
+                  icon={Calendar}
+                  value={form.insuranceValidTill}
+                  onChange={(v) => setField("insuranceValidTill", v)}
+                  type="date"
+                  error={errors.insuranceValidTill}
+                />
+
+                <UploadTile
+                  label="Insurance Document Photo / PDF"
+                  hint="Photo or copy of valid policy certificate"
+                  value={form.insuranceDoc ? "insurance_policy.jpg" : ""}
+                  onUpload={(file) => handleFileUpload(file, "insurance_doc", "insuranceDoc")}
+                  onClear={() => setField("insuranceDoc", "")}
+                />
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 11: BANK / PAYOUT DETAILS */}
+          {step === 11 && (
+            <StepShell stepKey="bank" title="Bank Account for Daily Payouts" caption="Direct settlement of delivery fees & customer tips">
+              <div className="space-y-4">
+                <TextField
+                  id="accountHolder"
+                  label="Account Holder Name (as in Passbook)"
+                  icon={UserRound}
+                  value={form.accountHolder}
+                  onChange={(v) => setField("accountHolder", v)}
+                  placeholder="e.g. Rahul Sharma"
+                  error={errors.accountHolder}
+                />
+
+                <VerificationStatusCard
+                  title="IFSC Code Verification"
+                  isVerified={form.bankVerified}
+                  isLoading={verifyingDoc === "ifsc"}
+                  error={verificationErrors.ifsc}
+                  verifiedText={`${form.bankName || "Bank"} (${form.branch || "Branch"}) Verified ✓`}
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={11}
+                      value={form.ifsc.toUpperCase()}
+                      onChange={(e) => {
+                        setField("ifsc", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                        setField("bankVerified", false);
+                      }}
+                      placeholder="e.g. SBIN0001234"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold tracking-widest text-foreground uppercase outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyIfsc}
+                      disabled={verifyingDoc === "ifsc" || form.ifsc.length < 11}
+                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                    >
+                      {verifyingDoc === "ifsc" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </VerificationStatusCard>
+
+                <TextField
+                  id="accountNumber"
+                  label="Bank Account Number"
+                  icon={Banknote}
+                  value={form.accountNumber}
+                  onChange={(v) => setField("accountNumber", v.replace(/\D/g, ""))}
+                  placeholder="e.g. 50100239482934"
+                  type="password"
+                  error={errors.accountNumber}
+                />
+
+                <TextField
+                  id="confirmAccountNumber"
+                  label="Confirm Bank Account Number"
+                  icon={Banknote}
+                  value={form.confirmAccountNumber}
+                  onChange={(v) => setField("confirmAccountNumber", v.replace(/\D/g, ""))}
+                  placeholder="Re-enter account number"
+                  type="text"
+                  error={errors.confirmAccountNumber}
+                />
+
+                <TextField
+                  id="upiId"
+                  label="UPI ID (Optional for Instant Payouts)"
+                  icon={CreditCard}
+                  value={form.upiId}
+                  onChange={(v) => setField("upiId", v)}
+                  placeholder="e.g. rahul@oksbi"
+                  optional
+                />
+              </div>
+            </StepShell>
+          )}
+
+          {/* STEP 12: FINAL REVIEW */}
+          {step === 12 && (
+            <StepShell stepKey="review" title="Review & Submit Application" caption="Double check your information before admin verification">
+              <div className="space-y-4">
                 <ReviewGroup
-                  title="Personal Details"
-                  onEdit={() => jumpTo(1)}
-                  rows={[
+                  title="Profile & Contact"
+                  stepId={2}
+                  onEdit={(s) => setStep(s)}
+                  items={[
                     { label: "Full Name", value: form.fullName },
-                    { label: "Mobile", value: form.mobile },
+                    { label: "Mobile", value: `+91 ${form.mobile} (Verified ✓)` },
                     { label: "Email", value: form.email },
-                    { label: "Date of Birth", value: form.dob },
-                    { label: "Gender", value: form.gender },
+                    { label: "City / State", value: `${form.city}, ${form.state}` },
                   ]}
                 />
+
                 <ReviewGroup
-                  title="Address & Operating City"
-                  onEdit={() => jumpTo(2)}
-                  rows={[
-                    { label: "Address", value: form.address },
-                    { label: "Operating City", value: form.city },
-                    { label: "State", value: form.state },
-                    { label: "PIN Code", value: form.pincode },
+                  title="Identity & Documents"
+                  stepId={4}
+                  onEdit={(s) => setStep(s)}
+                  items={[
+                    { label: "Aadhaar", value: `XXXX XXXX ${form.aadhaar.slice(-4)} (Verified ✓)` },
+                    { label: "PAN Card", value: `${form.pan} (Verified ✓)` },
+                    { label: "Selfie", value: form.selfieUrl ? "Live Selfie Captured ✓" : "Pending" },
+                    { label: "Driving Licence", value: `${form.license} (Verified ✓)` },
                   ]}
                 />
+
                 <ReviewGroup
-                  title="Identity & KYC"
-                  onEdit={() => jumpTo(3)}
-                  rows={[
-                    { label: "Aadhaar", value: form.aadhaar },
-                    { label: "PAN", value: form.pan },
-                    {
-                      label: "Documents",
-                      value: `${IDENTITY_UPLOADS.filter((s) => uploads[s.id]).length}/3 attached`,
-                    },
-                  ]}
-                />
-                <ReviewGroup
-                  title="Driving License"
-                  onEdit={() => jumpTo(4)}
-                  rows={[
-                    { label: "License No.", value: form.license },
-                    {
-                      label: "Photos",
-                      value: `${LICENSE_UPLOADS.filter((s) => uploads[s.id]).length}/2 attached`,
-                    },
-                  ]}
-                />
-                <ReviewGroup
-                  title="Vehicle Specs"
-                  onEdit={() => jumpTo(5)}
-                  rows={[
-                    { label: "Vehicle Type", value: vehicleLabel },
-                    { label: "Plate Number", value: form.vehicleNumber },
-                    { label: "RC Number", value: form.rcNumber },
-                    { label: "Insurance", value: form.insuranceNumber },
-                  ]}
-                />
-                <ReviewGroup
-                  title="Bank Payout Details"
-                  onEdit={() => jumpTo(6)}
-                  rows={[
-                    { label: "Account Holder", value: form.accountHolder },
-                    { label: "Bank", value: form.bankName },
-                    {
-                      label: "Account Number",
-                      value: form.accountNumber
-                        ? `•••• •••• ${form.accountNumber.slice(-4)}`
-                        : "—",
-                    },
+                  title="Vehicle & Bank"
+                  stepId={8}
+                  onEdit={(s) => setStep(s)}
+                  items={[
+                    { label: "Vehicle", value: `${form.vehicleBrand} ${form.vehicleModel} (${form.fuelType})` },
+                    { label: "RC Number", value: `${form.rcNumber} (Verified ✓)` },
+                    { label: "Bank Account", value: `•••• ${form.accountNumber.slice(-4)} (${form.bankName})` },
                     { label: "IFSC Code", value: form.ifsc },
                   ]}
                 />
-                <ReviewGroup
-                  title="Working Preferences"
-                  onEdit={() => jumpTo(7)}
-                  rows={[
-                    { label: "Preferred City", value: form.preferredCity },
-                    { label: "Preferred Area", value: form.preferredArea },
-                    { label: "Availability", value: form.employmentType },
-                    { label: "Shift", value: form.shift },
-                  ]}
-                />
+
+                {/* Terms Declaration */}
+                <div className="rounded-2xl border border-amber-400/40 bg-amber-500/5 p-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.termsAccepted}
+                      onChange={(e) => setField("termsAccepted", e.target.checked)}
+                      className="mt-1 size-4.5 rounded border-amber-400 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span className="text-xs font-medium text-foreground leading-relaxed">
+                      I declare that all documents uploaded belong to me and the information provided is 100% accurate. I agree to the{" "}
+                      <span className="font-bold text-amber-600 dark:text-amber-400 underline">QuickPress Rider Partner Terms & Safety Guidelines</span>.
+                    </span>
+                  </label>
+                  {errors.termsAccepted && <p className="mt-2 text-xs font-bold text-rose-500">{errors.termsAccepted}</p>}
+                </div>
               </div>
             </StepShell>
-          ) : null}
+          )}
         </div>
 
-        {/* Mobile-Friendly Sticky Bottom Bar */}
-        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-border bg-card/95 px-4 py-3.5 backdrop-blur-md lg:max-w-3xl pb-[calc(0.875rem+env(safe-area-inset-bottom))]">
-          <div className="flex gap-3 items-center">
-            {step > 1 ? (
+        {/* Floating Bottom Navigation Bar */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
+          <div className="mx-auto flex max-w-lg items-center gap-3">
+            {step > 1 && (
               <button
                 type="button"
-                onClick={goBack}
-                className="ripple h-12 flex-1 rounded-2xl border border-border bg-card text-xs font-bold tracking-tight text-foreground transition-all duration-300 active:scale-[0.97]"
+                onClick={handleBack}
+                className="rounded-2xl border border-border bg-card px-5 py-3.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
               >
                 Back
               </button>
-            ) : null}
+            )}
+
             {step < ONBOARDING_STEPS.length ? (
               <button
                 type="button"
-                onClick={goNext}
-                className="ripple h-12 flex-[2] rounded-2xl bg-primary text-xs font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
+                onClick={handleNext}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-xs font-black text-black shadow-lg shadow-amber-400/20 transition-transform active:scale-[0.98] hover:bg-amber-300"
               >
-                Continue to Step {step + 1}
+                <span>Continue</span>
+                <Check className="size-4 stroke-[3]" />
               </button>
             ) : (
               <button
                 type="button"
-                disabled={busy}
                 onClick={handleSubmit}
-                className="ripple h-12 flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-black tracking-tight text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97] disabled:opacity-70"
+                disabled={isSubmitting || !form.termsAccepted}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 py-3.5 text-xs font-black text-black shadow-lg shadow-amber-400/30 transition-transform active:scale-[0.98] disabled:opacity-50"
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                Submit for Verification
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>Submitting Application...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit & Request Admin Approval</span>
+                    <Sparkles className="size-4 fill-black" />
+                  </>
+                )}
               </button>
             )}
           </div>
         </div>
-      </div>
-      <Toaster />
-    </main>
+      </main>
+    </div>
   );
 }

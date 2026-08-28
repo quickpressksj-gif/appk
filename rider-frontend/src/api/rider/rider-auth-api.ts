@@ -101,7 +101,119 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
   };
 }
 
-export async function checkRiderVerificationStatus(): Promise<{
+export async function verifyAadhaar(aadhaarNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    aadhaar: string;
+    maskedAadhaar: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/aadhaar", { aadhaarNumber });
+}
+
+export async function verifyPan(panNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    pan: string;
+    category: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/pan", { panNumber });
+}
+
+export async function verifyDl(dlNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    dlNumber: string;
+    stateCode: string;
+    vehicleClass: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/dl", { dlNumber });
+}
+
+export async function verifyRc(rcNumber: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    rcNumber: string;
+    vehicleClass: string;
+    fuelType: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/rc", { rcNumber });
+}
+
+export async function verifyIfsc(ifsc: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    ifsc: string;
+    bank: string;
+    bankName: string;
+    branch: string;
+    city: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/ifsc", { ifsc });
+}
+
+export async function verifyInsurance(policyNumber: string, provider = "", validTill = "") {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    policyNumber: string;
+    provider: string;
+    validTill: string;
+    verificationStatus: string;
+    message: string;
+  }>("/api/rider/verify/insurance", { policyNumber, provider, validTill });
+}
+
+export async function uploadRiderDocument(imageOrDataUrl: string, documentType: string, riderId?: string) {
+  return apiPostJson<{
+    ok: boolean;
+    url: string;
+    documentType: string;
+    field: string;
+  }>("/api/uploads/rider/document", { image: imageOrDataUrl, documentType, riderId });
+}
+
+export async function fetchOnboardingStatus(phone?: string, riderId?: string) {
+  const params: Record<string, string> = {};
+  if (phone) params.phone = phone;
+  if (riderId) params.rider_id = riderId;
+  return apiGetJson<{
+    ok: boolean;
+    riderId: string;
+    status: string;
+    isVerified: boolean;
+    fullName?: string;
+    phone?: string;
+    documents?: Record<string, boolean>;
+    step?: number;
+  }>("/api/rider/onboarding/status", { params });
+}
+
+/** Check if Admin has approved the rider in backend/MongoDB. */
+export async function checkRiderVerificationStatus(riderId: string): Promise<boolean> {
+  try {
+    const res = await apiGetJson<{
+      id: string;
+      isVerified: boolean;
+      status?: string;
+    }>(`/api/rider/profile`);
+    return Boolean(res.isVerified || res.status === "active" || res.status === "approved");
+  } catch {
+    const onboarding = await fetchOnboardingStatus(undefined, riderId).catch(() => null);
+    return Boolean(onboarding?.isVerified);
+  }
+}
+
+export async function getMe(): Promise<{
   isVerified: boolean;
   status: string;
   fullName: string;

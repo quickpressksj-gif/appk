@@ -11,7 +11,8 @@ only the returned `secure_url` in MongoDB (`users` + the role collection).
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import uuid
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.cloudinary import upload_image
 from app.core.deps import current_user, require_roles
@@ -95,6 +96,29 @@ async def upload_rider_photo(
     payload: ImageUploadPayload, user: User = Depends(require_roles(Role.rider))
 ) -> MediaResponse:
     return await _upload_avatar(user, payload, "rider_photo")
+
+
+@router.post("/rider/document")
+async def upload_rider_document(payload: dict) -> dict:
+    image_data = payload.get("image") or payload.get("file") or payload.get("dataUrl") or ""
+    doc_type = payload.get("documentType") or payload.get("type") or "rider_doc"
+    doc_id = payload.get("riderId") or f"doc-{uuid.uuid4().hex[:8]}"
+    if not image_data:
+        raise HTTPException(status_code=400, detail="Image data is required")
+
+    url = await upload_image(image_data, kind=f"rider_{doc_type}", public_id=f"{doc_id}-{doc_type}")
+    return {"ok": True, "url": url, "documentType": doc_type, "field": doc_type}
+
+
+@router.post("/document")
+async def upload_general_document(payload: dict) -> dict:
+    image_data = payload.get("image") or payload.get("file") or payload.get("dataUrl") or ""
+    doc_type = payload.get("documentType") or payload.get("type") or "general_doc"
+    if not image_data:
+        raise HTTPException(status_code=400, detail="Image data is required")
+
+    url = await upload_image(image_data, kind=f"doc_{doc_type}", public_id=f"doc-{uuid.uuid4().hex[:8]}")
+    return {"ok": True, "url": url, "documentType": doc_type, "field": doc_type}
 
 
 @router.post("/partner/logo", response_model=MediaResponse)
