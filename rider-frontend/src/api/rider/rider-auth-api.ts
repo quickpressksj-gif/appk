@@ -101,50 +101,72 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
   };
 }
 
-export async function verifyAadhaar(aadhaarNumber: string) {
+export async function verifyAadhaar(aadhaarNumber: string, fullName = "") {
   return apiPostJson<{
     ok: boolean;
     valid: boolean;
     aadhaar: string;
     maskedAadhaar: string;
+    fullName?: string;
+    gender?: string;
+    dob?: string;
+    state?: string;
+    city?: string;
+    pincode?: string;
     verificationStatus: string;
+    source?: string;
     message: string;
-  }>("/api/rider/verify/aadhaar", { aadhaarNumber });
+  }>("/api/rider/verify/aadhaar", { aadhaarNumber, fullName });
 }
 
-export async function verifyPan(panNumber: string) {
+export async function verifyPan(panNumber: string, fullName = "") {
   return apiPostJson<{
     ok: boolean;
     valid: boolean;
     pan: string;
+    fullName?: string;
     category: string;
+    status?: string;
+    aadhaarLinked?: boolean;
     verificationStatus: string;
+    source?: string;
     message: string;
-  }>("/api/rider/verify/pan", { panNumber });
+  }>("/api/rider/verify/pan", { panNumber, fullName });
 }
 
-export async function verifyDl(dlNumber: string) {
+export async function verifyDl(dlNumber: string, fullName = "", dob = "") {
   return apiPostJson<{
     ok: boolean;
     valid: boolean;
     dlNumber: string;
     stateCode: string;
+    holderName?: string;
     vehicleClass: string;
+    dlExpiry?: string;
+    rto?: string;
     verificationStatus: string;
+    source?: string;
     message: string;
-  }>("/api/rider/verify/dl", { dlNumber });
+  }>("/api/rider/verify/dl", { dlNumber, fullName, dob });
 }
 
-export async function verifyRc(rcNumber: string) {
+export async function verifyRc(rcNumber: string, fullName = "") {
   return apiPostJson<{
     ok: boolean;
     valid: boolean;
     rcNumber: string;
+    ownerName?: string;
+    vehicleBrand?: string;
+    vehicleModel?: string;
     vehicleClass: string;
     fuelType: string;
+    regYear?: string;
+    fitnessValidTill?: string;
+    insuranceStatus?: string;
     verificationStatus: string;
+    source?: string;
     message: string;
-  }>("/api/rider/verify/rc", { rcNumber });
+  }>("/api/rider/verify/rc", { rcNumber, fullName });
 }
 
 export async function verifyIfsc(ifsc: string) {
@@ -156,9 +178,40 @@ export async function verifyIfsc(ifsc: string) {
     bankName: string;
     branch: string;
     city: string;
+    district?: string;
+    state?: string;
     verificationStatus: string;
+    source?: string;
     message: string;
   }>("/api/rider/verify/ifsc", { ifsc });
+}
+
+export async function verifyBankAccount(accountNumber: string, ifsc: string, accountHolder = "") {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    accountNumber: string;
+    ifsc: string;
+    registeredName: string;
+    nameMatchScore: number;
+    pennyDropStatus: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/rider/verify/bank-account", { accountNumber, ifsc, accountHolder });
+}
+
+export async function verifyFaceMatch(selfieUrl: string) {
+  return apiPostJson<{
+    ok: boolean;
+    valid: boolean;
+    livenessScore: number;
+    faceMatchScore: number;
+    status: string;
+    verificationStatus: string;
+    source?: string;
+    message: string;
+  }>("/api/rider/verify/face-match", { selfie: selfieUrl });
 }
 
 export async function verifyInsurance(policyNumber: string, provider = "", validTill = "") {
@@ -168,7 +221,9 @@ export async function verifyInsurance(policyNumber: string, provider = "", valid
     policyNumber: string;
     provider: string;
     validTill: string;
+    status?: string;
     verificationStatus: string;
+    source?: string;
     message: string;
   }>("/api/rider/verify/insurance", { policyNumber, provider, validTill });
 }
