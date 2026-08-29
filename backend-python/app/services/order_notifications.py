@@ -290,6 +290,12 @@ async def dispatch_order_transition_notifications(
                 order_id=order_id,
                 order_code=code,
             )
+            # Instantly dispatch order offer to nearby riders in the same city
+            try:
+                from app.services.rider_dispatch import rider_dispatch_engine
+                await rider_dispatch_engine.search_and_offer_riders(order_id)
+            except Exception as dispatch_err:
+                print(f"[RiderDispatch] Auto dispatch on partner_accepted error: {dispatch_err}")
 
         # ---------------- RIDER_ASSIGNED ----------------
         elif target == "rider_assigned":
