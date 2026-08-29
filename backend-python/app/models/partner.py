@@ -7,7 +7,7 @@ FastAPI + MongoDB.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -256,7 +256,7 @@ class OnboardingPayload(BaseModel):
     openingTime: str = "08:00"
     closingTime: str = "21:00"
     weeklyOff: str = "None"
-    services: List[str] = []
+    services: List[Union[str, Dict[str, Any]]] = []
     pickupRadiusKm: int = 10
     deliveryRadiusKm: int = 10
     pan: str = ""

@@ -619,9 +619,9 @@ export function BusinessRegistrationScreen() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#FFFBF2] text-[#111827] font-sans pb-32">
-      {/* Background Ambience */}
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(#F4B400_0.75px,transparent_0.75px)] opacity-10 [background-size:24px_24px]" />
+    <main className="relative min-h-screen bg-slate-50/70 text-slate-900 font-sans pb-32">
+      {/* Background Soft Glow */}
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-emerald-500/5 via-transparent to-amber-500/5" />
 
       {/* UIDAI Aadhaar e-KYC Modal Popup */}
       <AadhaarKycModal

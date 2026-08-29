@@ -812,8 +812,26 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
             "Curtain Cleaning": {"price": 199, "unit": "panel", "category": "home-care", "turnaroundHours": 48, "desc": "Specialized curtain and drape dust extraction and steaming."},
         }
         chosen = payload.services if payload.services else ["Wash & Fold", "Steam Ironing"]
-        for idx, svc_name in enumerate(chosen, 1):
-            info = _SERVICE_MAP.get(svc_name, {"price": 80, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Laundry service."})
+        for idx, svc_item in enumerate(chosen, 1):
+            if isinstance(svc_item, dict):
+                svc_name = svc_item.get("name") or "Wash & Fold"
+                info = _SERVICE_MAP.get(
+                    svc_name,
+                    {"price": 80, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Laundry service."},
+                )
+                price = svc_item.get("price") if svc_item.get("price") is not None else info["price"]
+                unit = svc_item.get("unit") or info["unit"]
+                turnaround = svc_item.get("turnaroundHours") or info["turnaroundHours"]
+            else:
+                svc_name = str(svc_item)
+                info = _SERVICE_MAP.get(
+                    svc_name,
+                    {"price": 80, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Laundry service."},
+                )
+                price = info["price"]
+                unit = info["unit"]
+                turnaround = info["turnaroundHours"]
+
             await database.insert(
                 "partner_services",
                 {
@@ -821,9 +839,9 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
                     "partnerId": store_id_str,
                     "name": svc_name,
                     "category": info["category"],
-                    "price": info["price"],
-                    "unit": info["unit"],
-                    "turnaroundHours": info["turnaroundHours"],
+                    "price": int(price),
+                    "unit": str(unit),
+                    "turnaroundHours": int(turnaround),
                     "isActive": True,
                     "description": info["desc"],
                 },

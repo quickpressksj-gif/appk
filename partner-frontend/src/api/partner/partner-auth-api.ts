@@ -70,7 +70,41 @@ export async function logout(): Promise<void> {
 export async function registerBusiness(
   payload: BusinessRegistrationPayload,
 ): Promise<PartnerSession> {
-  return apiPostJson<PartnerSession>("/api/partner/onboarding", payload);
+  const res = await apiPostJson<{
+    partnerId: string;
+    phone: string;
+    businessName: string;
+    isVerified: boolean;
+    isOnboarded: boolean;
+  }>("/api/partner/onboarding", payload);
+
+  const currentSession = readSession(ROLE);
+  const updatedSession: PartnerSession = {
+    partnerId: res.partnerId,
+    phone: res.phone || currentSession?.account?.phone || payload.phone || "",
+    email: currentSession?.account?.email || payload.email,
+    businessName: res.businessName || payload.businessName,
+    isVerified: res.isVerified,
+    isOnboarded: true,
+  };
+
+  if (currentSession && currentSession.account) {
+    writeSession(
+      {
+        ...currentSession,
+        account: {
+          ...currentSession.account,
+          linkedId: res.partnerId,
+          name: res.businessName || payload.businessName,
+          isVerified: res.isVerified,
+          isOnboarded: true,
+        },
+      },
+      ROLE,
+    );
+  }
+
+  return updatedSession;
 }
 
 /** Check if Admin has approved the partner in backend/MongoDB. */
