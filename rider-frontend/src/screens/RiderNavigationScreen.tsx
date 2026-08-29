@@ -227,19 +227,38 @@ export function RiderNavigationScreen() {
               Step {Math.min(step + 1, FLOW.length)} of {FLOW.length}
             </p>
 
-            <div className="mt-4">
-              <RiderPrimaryButton
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
                 onClick={() => {
-                  if (step >= FLOW.length - 1) {
-                    toast.success("Delivery completed");
-                    navigate({ to: riderRoutes.dashboard });
+                  const destination = step >= 4 ? dropPoint : (pickupPoint ?? dropPoint);
+                  if (!destination) {
+                    toast.error("Destination coordinates not available yet");
                     return;
                   }
-                  setStep(step + 1);
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
+                  window.open(url, "_blank");
                 }}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3.5 text-xs font-black text-white shadow-md hover:bg-blue-700 active:scale-[0.97] transition-all cursor-pointer"
               >
-                {step >= FLOW.length - 1 ? "Finish Trip" : `Mark: ${FLOW[step + 1]}`}
-              </RiderPrimaryButton>
+                <Compass className="size-4 animate-spin" />
+                <span>Open in Google Maps</span>
+              </button>
+
+              <div className="flex-1">
+                <RiderPrimaryButton
+                  onClick={() => {
+                    if (step >= FLOW.length - 1) {
+                      toast.success("Delivery completed");
+                      navigate({ to: riderRoutes.dashboard });
+                      return;
+                    }
+                    setStep(step + 1);
+                  }}
+                >
+                  {step >= FLOW.length - 1 ? "Finish Trip" : `Next: ${FLOW[step + 1]}`}
+                </RiderPrimaryButton>
+              </div>
             </div>
           </section>
         </div>

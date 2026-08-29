@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderReviewModal } from "@/components/orders/OrderReviewModal";
 import { useCustomerOrderRealtime } from "@/shared/hooks/use-customer-realtime";
+import { GoogleMapView, type MapPoint } from "@/shared/ui/google-map";
 
 import { TrackingSkeleton } from "@/components/order/OrderSkeleton";
 import {
@@ -184,31 +185,74 @@ function TrackOrderScreen() {
           </>
         ) : (
           <div className="px-5 pb-44 pt-3">
-            {/* Live map placeholder */}
+            {/* Live Interactive Map */}
             <section className="">
               <div className="card-soft relative overflow-hidden border border-border">
-                <div className="relative h-44 bg-muted">
-                  <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [background-size:28px_28px]" />
-                  <svg viewBox="0 0 320 176" className="absolute inset-0 h-full w-full">
-                    <path
-                      d="M28 148 C 90 148, 96 96, 150 92 S 244 60, 292 34"
-                      fill="none"
-                      stroke="currentColor"
-                      className="text-primary"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      strokeDasharray="10 12"
-                    />
-                  </svg>
-                  <span className="absolute bottom-6 left-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-green shadow-soft">
-                    <MapPin className="size-4" />
-                  </span>
-                  <span className="absolute right-5 top-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-dark shadow-soft">
-                    <Sparkles className="size-4" />
-                  </span>
-                  <span className="absolute left-[44%] top-[46%] flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-cta">
-                    <Truck className="size-5" />
-                  </span>
+                <div className="relative h-56 bg-muted">
+                  <GoogleMapView
+                    className="h-full w-full"
+                    interactive={true}
+                    zoom={15}
+                    center={
+                      detail?.rider?.location?.latitude
+                        ? {
+                            latitude: detail.rider.location.latitude,
+                            longitude: detail.rider.location.longitude,
+                            label: "Delivery Captain",
+                            tone: "primary",
+                          }
+                        : undefined
+                    }
+                    markers={[
+                      ...(detail?.rider?.location?.latitude && detail?.rider?.location?.longitude
+                        ? [
+                            {
+                              id: "rider",
+                              latitude: detail.rider.location.latitude,
+                              longitude: detail.rider.location.longitude,
+                              label: "Delivery Captain",
+                              tone: "primary" as const,
+                            },
+                          ]
+                        : []),
+                      ...(detail?.partner?.latitude && detail?.partner?.longitude
+                        ? [
+                            {
+                              id: "partner",
+                              latitude: detail.partner.latitude,
+                              longitude: detail.partner.longitude,
+                              label: "QuickPress Store",
+                              tone: "secondary" as const,
+                            },
+                          ]
+                        : []),
+                    ]}
+                    fallback={
+                      <div className="relative h-full w-full bg-muted">
+                        <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [background-size:28px_28px]" />
+                        <svg viewBox="0 0 320 176" className="absolute inset-0 h-full w-full">
+                          <path
+                            d="M28 148 C 90 148, 96 96, 150 92 S 244 60, 292 34"
+                            fill="none"
+                            stroke="currentColor"
+                            className="text-primary"
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeDasharray="10 12"
+                          />
+                        </svg>
+                        <span className="absolute bottom-6 left-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-green shadow-soft">
+                          <MapPin className="size-4" />
+                        </span>
+                        <span className="absolute right-5 top-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-dark shadow-soft">
+                          <Sparkles className="size-4" />
+                        </span>
+                        <span className="absolute left-[44%] top-[46%] flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-cta">
+                          <Truck className="size-5" />
+                        </span>
+                      </div>
+                    }
+                  />
                 </div>
 
                 <div className="flex items-center gap-3 border-t border-border p-4">
