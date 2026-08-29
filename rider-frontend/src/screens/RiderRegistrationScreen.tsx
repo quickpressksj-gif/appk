@@ -705,7 +705,7 @@ export function RiderRegistrationScreen() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Toaster position="top-center" richColors />
-      <RiderTopBar title="Rider Onboarding" subtitle="Rapido-Style Real Verification" onBack={step > 1 ? handleBack : undefined} />
+      <RiderTopBar title="Captain Onboarding" subtitle="QuickPress Official Captain Verification" onBack={step > 1 ? handleBack : undefined} />
 
       {/* UIDAI Aadhaar e-KYC Modal Popup */}
       <AadhaarKycModal

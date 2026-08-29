@@ -23,8 +23,8 @@ import { apiPostJson } from "@/api/core/transport";
 const TIMELINE = [
   { icon: BadgeCheck, title: "Application Submitted", body: "Personal, vehicle and bank details recorded.", status: "completed" },
   { icon: FileSearch, title: "Document & KYC Check", body: "Aadhaar, PAN, DL and RC verified against registries.", status: "completed" },
-  { icon: ShieldCheck, title: "Operations Admin Approval", body: "Final review and active delivery role assignment.", status: "in_progress" },
-  { icon: Clock3, title: "Rider Dashboard & Live Orders", body: "Go online to start receiving delivery tasks.", status: "pending" },
+  { icon: ShieldCheck, title: "Operations Admin Approval", body: "Final review and active Captain role assignment.", status: "in_progress" },
+  { icon: Clock3, title: "Captain Dashboard & Live Orders", body: "Go online to start receiving delivery tasks.", status: "pending" },
 ];
 
 export function RiderRegistrationSubmittedScreen() {
@@ -51,11 +51,11 @@ export function RiderRegistrationSubmittedScreen() {
             },
           });
         }
-        toast.success("🎉 Congratulations! Your rider account has been APPROVED!");
+        toast.success("🎉 Congratulations! Your Captain account has been APPROVED!");
         navigate({ to: riderRoutes.dashboard });
       } else {
         if (!silent) {
-          toast.info("Your application is currently under Operations Review. Please check back shortly!");
+          toast.info("Your Captain application is currently under Operations Review. Please check back shortly!");
         }
       }
     } catch {

@@ -155,16 +155,24 @@ export function RiderAuthScreen() {
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-4 pb-8 pt-6 lg:max-w-4xl lg:justify-center lg:py-12">
         {/* Top App Bar Branding */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
-              <Bike className="size-5" strokeWidth={2.3} />
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="relative flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white shadow-md border border-emerald-500/30">
+              <Bike className="size-6 text-emerald-400" strokeWidth={2.4} />
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-slate-950 shadow-xs">
+                ★
+              </span>
+            </div>
             <div>
-              <p className="text-sm font-black tracking-tight text-slate-900">
-                QuickPress Rider
-              </p>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-                Delivery Partner App
+              <div className="flex items-center gap-1.5">
+                <p className="text-base font-black tracking-tight text-slate-900">
+                  QuickPress <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Captain</span>
+                </p>
+                <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                  CAPTAIN
+                </span>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Official Delivery Captain App
               </p>
             </div>
           </div>
@@ -182,18 +190,18 @@ export function RiderAuthScreen() {
               <div className="flex items-center gap-1.5 text-emerald-400">
                 <Zap className="size-3.5 fill-current" />
                 <p className="text-[10px] font-black uppercase tracking-wider">
-                  Partner Portal
+                  Captain Portal
                 </p>
               </div>
               <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                Deliver Orders, Earn Daily &amp; Grow
+                Deliver Orders, Earn Daily &amp; Grow as a Captain
               </h1>
               <p className="mt-1 text-xs text-slate-300">
-                Join Kasganj &amp; Uttar Pradesh&apos;s leading on-demand laundry delivery network.
+                Join Kasganj &amp; Uttar Pradesh&apos;s leading on-demand laundry delivery Captain network.
               </p>
               <img
                 src={riderAssets.courier}
-                alt="QuickPress Delivery Partner"
+                alt="QuickPress Delivery Captain"
                 className="mx-auto mt-3 h-32 w-auto object-contain drop-shadow-md sm:h-40"
                 loading="lazy"
               />
@@ -224,11 +232,11 @@ export function RiderAuthScreen() {
                   <Phone className="size-3.5" />
                 </span>
                 <h2 className="text-base font-black tracking-tight text-slate-900">
-                  Rider Mobile Login
+                  Captain Mobile Login
                 </h2>
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                Enter your 10-digit mobile number to log in or create a new delivery partner account.
+                Enter your 10-digit mobile number to log in or create a new delivery Captain account.
               </p>
 
               {/* Mobile Phone Input Box */}
@@ -237,7 +245,7 @@ export function RiderAuthScreen() {
                   htmlFor="rider-phone"
                   className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5"
                 >
-                  Mobile Number
+                  Captain Mobile Number
                 </label>
                 <div
                   className={`flex items-center gap-2.5 rounded-2xl border bg-slate-50 px-3.5 py-3 transition-all duration-200 focus-within:border-slate-900 focus-within:bg-white focus-within:ring-2 focus-within:ring-slate-900/10 ${
@@ -312,7 +320,7 @@ export function RiderAuthScreen() {
 
               <div className="mt-4 rounded-xl bg-slate-50 p-2.5 text-center border border-slate-100">
                 <p className="text-[10px] font-semibold text-slate-500">
-                  New rider? Enter mobile number to start simple 2-minute registration.
+                  New Captain? Enter mobile number to start simple 2-minute registration.
                 </p>
               </div>
             </section>
@@ -321,7 +329,7 @@ export function RiderAuthScreen() {
 
         {/* Footer */}
         <footer className="pt-6 text-center text-[10px] text-slate-400">
-          QuickPress Delivery Partner App · Kasganj Operations Hub
+          QuickPress Captain App · Kasganj Operations Hub
         </footer>
       </div>
       <Toaster />
