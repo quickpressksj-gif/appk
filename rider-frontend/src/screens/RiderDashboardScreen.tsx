@@ -151,24 +151,12 @@ export function RiderDashboardScreen() {
       <div className="mx-auto w-full max-w-md lg:max-w-3xl">
         {/* Sticky Mobile Header */}
         <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
-              <Truck className="size-5" strokeWidth={2.2} />
-            </span>
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-black tracking-tight text-slate-900">
-                  {data?.rider.name ?? "Delivery Partner"}
-                </p>
-                <StatusBadge status={status} />
-                {isOnline && locationState.isTracking && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 border border-emerald-200">
-                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    GPS Live
-                  </span>
-                )}
-              </div>
-              <p className="truncate text-[11px] font-semibold text-slate-500">
+              <h1 className="truncate text-base font-black tracking-tight text-slate-900">
+                {data?.rider.name ?? "Delivery Partner"}
+              </h1>
+              <p className="truncate text-xs font-semibold text-slate-500">
                 ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "Kasganj"}
               </p>
             </div>

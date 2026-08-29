@@ -35,19 +35,7 @@ export function RiderTopBar({
             <ArrowLeft className="size-4.5" strokeWidth={2.4} />
           </button>
         ) : (
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-black text-emerald-600">
-            <span className="relative flex size-2">
-              {isOnline && (
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              )}
-              <span
-                className={`relative inline-flex size-2 rounded-full ${
-                  isOnline ? "bg-emerald-500" : "bg-slate-400"
-                }`}
-              />
-            </span>
-            <span>{isOnline ? "LIVE" : "OFFLINE"}</span>
-          </div>
+          <div className="size-9 shrink-0" />
         )}
 
         <div className="min-w-0 flex-1 text-center">
