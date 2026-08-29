@@ -319,11 +319,6 @@ export function RiderAuthScreen() {
             </section>
           </div>
         </div>
-
-        {/* Footer */}
-        <footer className="pt-6 text-center text-[10px] text-slate-400">
-          QuickPress Captain App · Kasganj Operations Hub
-        </footer>
       </div>
       <Toaster />
     </main>
