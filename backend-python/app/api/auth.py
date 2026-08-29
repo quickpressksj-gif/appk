@@ -148,6 +148,9 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
         user = await users.create_phone_user(phone=phone, role=payload.role)
     else:
         await users._ensure_role_profile(user)
+        refreshed = await users.by_id(user.id)
+        if refreshed:
+            user = refreshed
 
     if payload.referral_code:
         from app.db.referral_repositories import referral_repository

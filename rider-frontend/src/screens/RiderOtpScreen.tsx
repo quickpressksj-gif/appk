@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/shared/ui/sonner";
 import { useRiderContext } from "../context/RiderContext";
 import { useOtpCountdown } from "../hooks/use-otp-countdown";
-import { requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
+import { fetchOnboardingStatus, requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
 import { riderRoutes } from "../navigation/rider-routes";
 
 export function RiderOtpScreen() {
@@ -48,15 +48,20 @@ export function RiderOtpScreen() {
       const session = await verifyOtp(targetPhone || "9876543210", digits);
       signIn(session);
 
-      if (!session.isOnboarded) {
-        toast.success("Mobile number verified! Please complete registration.");
-        navigate({ to: riderRoutes.registration });
-      } else if (!session.isVerified) {
+      // Fast check real onboarding status to avoid any intermediate flash
+      const statusRes = await fetchOnboardingStatus(targetPhone).catch(() => null);
+      const isActuallyOnboarded = Boolean(session.isOnboarded || statusRes?.isOnboarded || statusRes?.status === "active" || statusRes?.status === "pending");
+      const isActuallyVerified = Boolean(session.isVerified || (statusRes?.isVerified && statusRes?.status === "active"));
+
+      if (isActuallyVerified) {
+        toast.success(`Welcome back, ${session.fullName || "Captain"}!`);
+        navigate({ to: riderRoutes.dashboard });
+      } else if (isActuallyOnboarded) {
         toast.success("Mobile number verified!");
         navigate({ to: riderRoutes.registrationSubmitted });
       } else {
-        toast.success(`Welcome back, ${session.fullName}!`);
-        navigate({ to: riderRoutes.dashboard });
+        toast.success("Mobile number verified! Please complete registration.");
+        navigate({ to: riderRoutes.registration });
       }
     } catch (cause) {
       setDigits("");

@@ -119,11 +119,12 @@ class RiderDispatchEngine:
             return []
 
         canonical_id = lifecycle.order_id_of(order)
-        order_city = (
+        order_city = str(
             (order.get("address") or {}).get("city")
             or (order.get("customer") or {}).get("city")
+            or (order.get("partner") or {}).get("city")
             or "Kasganj"
-        )
+        ).strip()
 
         # 1. Update status to rider_searching if needed and emit realtime event
         await broadcast_order_event(
@@ -132,18 +133,39 @@ class RiderDispatchEngine:
             extra_data={"city": order_city, "searchStartedAt": lifecycle.now_iso()},
         )
 
-        # 2. Query eligible active & online riders from MongoDB
+        import re
+        city_regex = {"$regex": f"^{re.escape(order_city)}$", "$options": "i"}
+
+        # 2. Query eligible active & online riders from same city in MongoDB
         query = {
             "isOnline": True,
+            "status": "active",
+            "$or": [
+                {"city": city_regex},
+                {"operatingCity": city_regex},
+                {"workingCity": city_regex},
+                {"preferredCity": city_regex},
+            ],
         }
         eligible_riders = await database.find_many(RIDERS_COLLECTION, query)
 
-        # In case no rider is online, fallback to all verified riders in city or system
+        # Fallback: verified riders in the same city
         if not eligible_riders:
-            eligible_riders = await database.find_many(RIDERS_COLLECTION, {})
+            eligible_riders = await database.find_many(
+                RIDERS_COLLECTION,
+                {
+                    "status": "active",
+                    "$or": [
+                        {"city": city_regex},
+                        {"operatingCity": city_regex},
+                        {"workingCity": city_regex},
+                        {"preferredCity": city_regex},
+                    ],
+                },
+            )
 
         if not eligible_riders:
-            logger.info("No riders available in database to dispatch order %s", order_id)
+            logger.info("No active riders available in %s to dispatch order %s", order_city, order_id)
             return []
 
         # Sort riders by rating (descending), then total trips
