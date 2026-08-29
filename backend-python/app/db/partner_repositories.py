@@ -580,6 +580,10 @@ class PartnerOrderRepository:
             if lifecycle.order_status(d) in (lifecycle.DELIVERED, lifecycle.CANCELLED)
         ]
 
+    async def dashboard(self, partner_id: str) -> Dict[str, Any]:
+        orders = [lifecycle.to_partner_order(d) for d in await self._orders_for(partner_id)]
+        delivered = [o for o in orders if o["status"] == "delivered"]
+
         from app.services.financial_engine import financial_engine
         monthly_orders = len(orders)
         comm_rate = financial_engine.get_commission_rate(monthly_orders)
@@ -588,11 +592,11 @@ class PartnerOrderRepository:
         return {
             "newOrders": sum(1 for o in orders if o["status"] == "new"),
             "inProgress": sum(
-                1 for o in orders if o["status"] in ("accepted", "picked", "processing")
+                1 for o in orders if o["status"] in ("accepted", "picked", "processing", "washing", "ironing")
             ),
             "readyForDelivery": sum(1 for o in orders if o["status"] == "ready"),
             "delivered": len(delivered),
-            "earningsToday": sum(round(o["amount"] * net_rate) for o in delivered),
+            "earningsToday": sum(round(o.get("amount", 0) * net_rate) for o in delivered),
             "commissionRate": round(comm_rate * 100, 1),
         }
 
@@ -743,121 +747,15 @@ partner_analytics_repository = PartnerAnalyticsRepository()
 
 
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 # Partner domain collections. All partner profiles, rate cards, orders,
 # wallets, and transactions are strictly managed in real MongoDB collections.
+# NO dummy / mock partners are automatically created or seeded.
 # ---------------------------------------------------------------------------
 
-_LIVE_PARTNER_PROFILES: List[Dict[str, Any]] = [
-    {
-        "_id": "PRT-KSG-01",
-        "partnerId": "PRT-KSG-01",
-        "name": "QuickPress Express Hub Kasganj",
-        "businessName": "QuickPress Express Hub Kasganj",
-        "ownerName": "Amit Sharma",
-        "phone": "+919876543210",
-        "email": "kasganj.express@quickpress.online",
-        "city": "Kasganj",
-        "area": "Station Road, Gandhi Nagar",
-        "address": "Near Railway Station, Gandhi Nagar, Kasganj, UP 207123",
-        "latitude": 27.8085,
-        "longitude": 78.6479,
-        "rating": 4.9,
-        "totalOrders": 1240,
-        "reviewsCount": 380,
-        "joinedOn": "January 2026",
-        "onTimeRate": 99.2,
-        "tier": "Gold",
-        "status": "active",
-        "isOnline": True,
-        "isVerified": True,
-        "isOpen": True,
-        "acceptingNewOrders": True,
-        "minOrderValue": 149,
-        "distanceKm": 1.2,
-        "tagline": "Express 24-hr Doorstep Wash & Dry Clean",
-        "bannerUrl": "store-1",
-        "logoUrl": "store-1",
-    },
-    {
-        "_id": "PRT-KSG-02",
-        "partnerId": "PRT-KSG-02",
-        "name": "QuickPress Elite Laundry & Fabric Care",
-        "businessName": "QuickPress Elite Laundry & Fabric Care",
-        "ownerName": "Rajesh Kumar",
-        "phone": "+919876543211",
-        "email": "kasganj.elite@quickpress.online",
-        "city": "Kasganj",
-        "area": "Main Market, Civil Lines",
-        "address": "Shop 14, Main Market, Civil Lines, Kasganj, UP 207123",
-        "latitude": 27.8098,
-        "longitude": 78.6495,
-        "rating": 4.8,
-        "totalOrders": 890,
-        "reviewsCount": 245,
-        "joinedOn": "February 2026",
-        "onTimeRate": 98.6,
-        "tier": "Silver",
-        "status": "active",
-        "isOnline": True,
-        "isVerified": True,
-        "isOpen": True,
-        "acceptingNewOrders": True,
-        "minOrderValue": 199,
-        "distanceKm": 1.8,
-        "tagline": "Premium Fabric Care, Steam Press & Saree Finishing",
-        "bannerUrl": "store-2",
-        "logoUrl": "store-2",
-    },
-]
+_LIVE_PARTNER_PROFILES: List[Dict[str, Any]] = []
+_LIVE_PARTNER_SETTINGS: List[Dict[str, Any]] = []
+_LIVE_PARTNER_SERVICES: List[Dict[str, Any]] = []
 
-_LIVE_PARTNER_SETTINGS: List[Dict[str, Any]] = [
-    {
-        "_id": "PRT-KSG-01",
-        "partnerId": "PRT-KSG-01",
-        "partner_id": "PRT-KSG-01",
-        "isStoreOpen": True,
-        "acceptingNewOrders": True,
-        "autoAcceptOrders": False,
-        "expressDelivery": True,
-        "pickupRadiusKm": 10,
-        "pickupMinutes": 30,
-        "openingTime": "08:00",
-        "closingTime": "21:00",
-        "weeklyOff": "Sunday",
-    },
-    {
-        "_id": "PRT-KSG-02",
-        "partnerId": "PRT-KSG-02",
-        "partner_id": "PRT-KSG-02",
-        "isStoreOpen": True,
-        "acceptingNewOrders": True,
-        "autoAcceptOrders": False,
-        "expressDelivery": True,
-        "pickupRadiusKm": 10,
-        "pickupMinutes": 30,
-        "openingTime": "08:00",
-        "closingTime": "21:00",
-        "weeklyOff": "Sunday",
-    },
-]
+PARTNER_SEED: Dict[str, List[Dict[str, Any]]] = {}
 
-_LIVE_PARTNER_SERVICES: List[Dict[str, Any]] = [
-    {"_id": "ps_ksg_1", "id": "ps_ksg_1", "partnerId": "PRT-KSG-01", "name": "Wash & Fold", "categoryId": "c1", "price": 60, "unit": "kg", "discountPercent": 20, "processingTime": "24 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Everyday clothes washed with premium detergent, tumble dried and folded."},
-    {"_id": "ps_ksg_2", "id": "ps_ksg_2", "partnerId": "PRT-KSG-01", "name": "Premium Suit Dry Cleaning", "categoryId": "c2", "price": 299, "unit": "set", "discountPercent": 15, "processingTime": "36 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Eco-friendly solvent dry cleaning for 2-piece and 3-piece formal suits."},
-    {"_id": "ps_ksg_3", "id": "ps_ksg_3", "partnerId": "PRT-KSG-01", "name": "Steam Ironing", "categoryId": "c3", "price": 20, "unit": "piece", "discountPercent": 0, "processingTime": "12 hrs", "isActive": True, "enabled": True, "popular": False, "description": "Industrial steam press with crisp, wrinkle-free finish on hangers."},
-    {"_id": "ps_ksg_4", "id": "ps_ksg_4", "partnerId": "PRT-KSG-01", "name": "Sneaker Spa & Shoe Cleaning", "categoryId": "c5", "price": 299, "unit": "pair", "discountPercent": 25, "processingTime": "48 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Deep sonic cleaning, deodorizing and stain removal for sneakers & leather shoes."},
-    {"_id": "ps_ksg_5", "id": "ps_ksg_5", "partnerId": "PRT-KSG-01", "name": "Blanket & Quilt Wash", "categoryId": "c7", "price": 349, "unit": "piece", "discountPercent": 0, "processingTime": "48 hrs", "isActive": True, "enabled": True, "popular": False, "description": "Bulky winter blankets and comforters washed, sanitized and fluff-dried."},
-    {"_id": "ps_ksg_6", "id": "ps_ksg_6", "partnerId": "PRT-KSG-02", "name": "Wash & Steam Iron", "categoryId": "c1", "price": 79, "unit": "kg", "discountPercent": 10, "processingTime": "24 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Complete wash plus steam ironing for daily office & casual wear."},
-    {"_id": "ps_ksg_7", "id": "ps_ksg_7", "partnerId": "PRT-KSG-02", "name": "Saree Care & Roll Polish", "categoryId": "c4", "price": 249, "unit": "piece", "discountPercent": 10, "processingTime": "48 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Specialized delicate wash, stain removal and roll polish for silk & designer sarees."},
-    {"_id": "ps_ksg_8", "id": "ps_ksg_8", "partnerId": "PRT-KSG-02", "name": "Curtain & Home Fabric Wash", "categoryId": "c6", "price": 229, "unit": "panel", "discountPercent": 0, "processingTime": "36 hrs", "isActive": True, "enabled": True, "popular": False, "description": "Dust-free steam wash for curtains, drapes and upholstery."},
-    {"_id": "ps_ksg_9", "id": "ps_ksg_9", "partnerId": "PRT-KSG-02", "name": "Express Same-Day Laundry", "categoryId": "c9", "price": 129, "unit": "kg", "discountPercent": 0, "processingTime": "12 hrs", "isActive": True, "enabled": True, "popular": True, "description": "Superfast priority turnaround within 12 hours from doorstep pickup."},
-]
-
-PARTNER_SEED: Dict[str, List[Dict[str, Any]]] = {
-    "partner_profiles": _LIVE_PARTNER_PROFILES,
-    "partner_settings": _LIVE_PARTNER_SETTINGS,
-    "partner_services": _LIVE_PARTNER_SERVICES,
-    "catalog_partners": _LIVE_PARTNER_PROFILES,
-}
 

@@ -324,7 +324,7 @@ class OrderRepository:
             items=item_snapshots,
             coupon_discount=float(payload.couponDiscount or 0),
             is_express=bool(payload.pickup.express if payload.pickup else False),
-            city=str(address.cityLine or "Kasganj"),
+            city=str(getattr(address, "cityLine", None) or getattr(address, "city", None) or "Kasganj"),
         )
 
         financial_snapshot = {
