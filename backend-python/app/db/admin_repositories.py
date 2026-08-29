@@ -292,20 +292,93 @@ class AdminAccountRepository:
         return await database.paginate(self.collection, query, sort=[("createdAt", -1), ("_id", -1)], page=page, page_size=page_size)
 
     async def detail(self, entity_id: str) -> Optional[Dict[str, Any]]:
-        return await database.find_one(self.collection, {"_id": entity_id})
-
-    async def set_status(self, entity_id: str, status: str) -> Optional[Dict[str, Any]]:
+        # Query by _id, partnerId, riderId, id, or phone
         doc = await database.find_one(self.collection, {"_id": entity_id})
         if doc is None:
+            doc = await database.find_one(self.collection, {"partnerId": entity_id})
+        if doc is None:
+            doc = await database.find_one(self.collection, {"riderId": entity_id})
+        if doc is None:
+            doc = await database.find_one(self.collection, {"id": entity_id})
+        if doc is None:
+            doc = await database.find_one(self.collection, {"phone": entity_id})
+        return doc
+
+    async def set_status(self, entity_id: str, status: str) -> Optional[Dict[str, Any]]:
+        doc = await self.detail(entity_id)
+        if doc is None:
             return None
+
         is_active = status == "active"
-        changes = {"status": status, "isVerified": is_active}
-        updated = await database.update(self.collection, {"_id": entity_id}, changes)
-        # Also sync user document if present
-        user_id = doc.get("userId") or doc.get("user_id")
-        if user_id:
-            await database.update("users", {"_id": user_id}, {"is_verified": is_active})
-        return updated
+        is_suspended = status == "suspended"
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        changes: Dict[str, Any] = {
+            "status": status,
+            "isVerified": is_active,
+            "isOnboarded": True,
+            "isOnline": is_active,
+            "isOpen": is_active,
+            "kycStatus": "verified" if is_active else ("rejected" if is_suspended else "pending"),
+            "updatedAt": now_iso,
+        }
+
+        if is_active:
+            changes["suspensionReason"] = None
+            changes["suspendedAt"] = None
+            changes["approvedAt"] = now_iso
+            changes["appealStatus"] = "none"
+
+        doc_id = str(doc.get("_id") or entity_id)
+        partner_val = doc.get("partnerId") or doc_id
+        rider_val = doc.get("riderId") or doc_id
+        phone_val = doc.get("phone")
+        user_id_val = doc.get("userId") or doc.get("user_id")
+
+        # 1. Update main profile collection
+        await database.update(self.collection, {"_id": doc_id}, changes)
+        if self.collection == "partner_profiles" and partner_val != doc_id:
+            await database.update(self.collection, {"partnerId": partner_val}, changes)
+        elif self.collection == "rider_profiles" and rider_val != doc_id:
+            await database.update(self.collection, {"riderId": rider_val}, changes)
+
+        # 2. Sync partner specific settings & partners table
+        if self.collection == "partner_profiles":
+            settings_update = {
+                "isStoreOpen": is_active,
+                "acceptingNewOrders": is_active,
+                "autoAcceptOrders": True,
+                "updatedAt": now_iso,
+            }
+            await database.update("partner_settings", {"_id": doc_id}, settings_update, upsert=True)
+            if partner_val != doc_id:
+                await database.update("partner_settings", {"_id": partner_val}, settings_update, upsert=True)
+            await database.update("partners", {"partner_id": doc_id}, {"is_verified": is_active, "status": status})
+            if partner_val != doc_id:
+                await database.update("partners", {"partner_id": partner_val}, {"is_verified": is_active, "status": status})
+
+        # 3. Sync rider specific table
+        elif self.collection == "rider_profiles":
+            await database.update("riders", {"rider_id": doc_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
+            if rider_val != doc_id:
+                await database.update("riders", {"rider_id": rider_val}, {"is_verified": is_active, "status": status, "is_available": is_active})
+
+        # 4. Sync users table
+        user_changes = {
+            "is_verified": is_active,
+            "status": "active" if is_active else status,
+            "isOnboarded": True,
+            "updatedAt": now_iso,
+        }
+        if user_id_val:
+            await database.update("users", {"_id": user_id_val}, user_changes)
+            await database.update("users", {"user_id": user_id_val}, user_changes)
+        if phone_val:
+            await database.update("users", {"phone": phone_val}, user_changes)
+
+        # Return updated document
+        updated_doc = await self.detail(doc_id)
+        return updated_doc or {**doc, **changes}
 
 
 admin_partner_repository = AdminAccountRepository("partner_profiles")

@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { RiderProvider } from "../context/RiderContext";
 import { RiderDashboardScreen } from "../screens/RiderDashboardScreen";
+import { requireRiderAuth } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: requireRiderAuth,
   head: () => ({
     meta: [
       { title: "Rider Dashboard · QuickPress Rider" },

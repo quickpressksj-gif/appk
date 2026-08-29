@@ -18,6 +18,14 @@ export function requirePartnerAuth() {
   if (sess.status === "suspended" || (sess as any).isSuspended) {
     throw redirect({ to: partnerRoutes.suspended });
   }
+  const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
+  if (isOnboarded === false) {
+    throw redirect({ to: partnerRoutes.registration });
+  }
+  const isVerified = (sess.isVerified ?? sess.account?.isVerified) || sess.status === "active" || sess.account?.status === "active";
+  if (!isVerified) {
+    throw redirect({ to: partnerRoutes.registrationSubmitted });
+  }
 }
 
 /**

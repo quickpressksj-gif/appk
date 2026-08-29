@@ -23,7 +23,12 @@ export const Route = createFileRoute("/")({
   component: PartnerSplashScreen,
 });
 
-async function initializePartnerApp(): Promise<{ loggedIn: boolean; isOnboarded: boolean }> {
+async function initializePartnerApp(): Promise<{
+  loggedIn: boolean;
+  isOnboarded: boolean;
+  isVerified: boolean;
+  isSuspended: boolean;
+}> {
   // Check internet
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     await new Promise((resolve) => {
@@ -34,9 +39,19 @@ async function initializePartnerApp(): Promise<{ loggedIn: boolean; isOnboarded:
   // 1. Fast synchronous check from localStorage
   const syncSession = readSession("partner");
   if (syncSession && syncSession.token) {
+    const isSuspended = syncSession.status === "suspended" || (syncSession as any).isSuspended === true;
+    const isOnboarded = (syncSession.isOnboarded ?? syncSession.account?.isOnboarded) !== false;
+    const isVerified = Boolean(
+      syncSession.isVerified ??
+      syncSession.account?.isVerified ??
+      syncSession.status === "active" ??
+      syncSession.account?.status === "active"
+    );
     return {
       loggedIn: true,
-      isOnboarded: syncSession.account?.isOnboarded !== false,
+      isOnboarded,
+      isVerified,
+      isSuspended,
     };
   }
 
@@ -44,16 +59,25 @@ async function initializePartnerApp(): Promise<{ loggedIn: boolean; isOnboarded:
   try {
     const restored = await restorePartnerSession();
     if (restored && (restored.token || (restored as any).partnerId || (restored as any).account)) {
+      const isSuspended = restored.status === "suspended" || (restored as any).isSuspended === true;
+      const isOnboarded = (restored.isOnboarded ?? (restored as any).account?.isOnboarded) !== false;
+      const isVerified = Boolean(
+        restored.isVerified ??
+        (restored as any).account?.isVerified ??
+        restored.status === "active"
+      );
       return {
         loggedIn: true,
-        isOnboarded: restored.isOnboarded !== false,
+        isOnboarded,
+        isVerified,
+        isSuspended,
       };
     }
   } catch {
     // Fallback
   }
 
-  return { loggedIn: false, isOnboarded: false };
+  return { loggedIn: false, isOnboarded: false, isVerified: false, isSuspended: false };
 }
 
 function PartnerSplashScreen() {
@@ -72,11 +96,15 @@ function PartnerSplashScreen() {
       initializePartnerApp(),
       // Smooth visual splash hold duration (350ms)
       new Promise((resolve) => setTimeout(resolve, 350)),
-    ]).then(([{ loggedIn, isOnboarded }]) => {
+    ]).then(([{ loggedIn, isOnboarded, isVerified, isSuspended }]) => {
       if (cancelled) return;
       if (loggedIn) {
-        if (!isOnboarded) {
+        if (isSuspended) {
+          navigate({ to: partnerRoutes.suspended });
+        } else if (!isOnboarded) {
           navigate({ to: partnerRoutes.registration });
+        } else if (!isVerified) {
+          navigate({ to: partnerRoutes.registrationSubmitted });
         } else {
           navigate({ to: partnerRoutes.dashboard });
         }
