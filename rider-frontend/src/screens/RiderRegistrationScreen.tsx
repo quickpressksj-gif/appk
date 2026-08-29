@@ -69,8 +69,9 @@ import {
   UploadTile,
   VehiclePicker,
 } from "../components/onboarding/OnboardingPrimitives";
-import { RiderTopBar } from "../components/RiderTopBar";
+import { RiderTopBar, RiderLanguageAction } from "../components/RiderTopBar";
 import { useRiderContext } from "../context/RiderContext";
+import { useLanguage } from "../lib/i18n";
 import {
   BANKS,
   EMPLOYMENT_TYPES,
@@ -722,7 +723,12 @@ export function RiderRegistrationScreen() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Toaster position="top-center" richColors />
-      <RiderTopBar title="Captain Onboarding" subtitle="QuickPress Official Captain Verification" onBack={step > 1 ? handleBack : undefined} />
+      <RiderTopBar
+        title="Captain Onboarding"
+        subtitle="QuickPress Official Captain Verification"
+        onBack={step > 1 ? handleBack : undefined}
+        action={<RiderLanguageAction />}
+      />
 
       {/* UIDAI Aadhaar e-KYC Modal Popup */}
       <AadhaarKycModal

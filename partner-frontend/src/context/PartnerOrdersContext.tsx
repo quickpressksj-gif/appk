@@ -195,32 +195,42 @@ let cachedPartnerOrders: ManagedOrder[] | null = null;
 const CACHE_KEY = "qp.partner.cachedOrders";
 
 function getCachedOrders(): ManagedOrder[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(CACHE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<ManagedOrder[]>(getCachedOrders);
-  const [isLoading, setIsLoading] = useState(() => orders.length === 0);
+  const [orders, setOrders] = useState<ManagedOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [incomingOrder, setIncomingOrder] = useState<ManagedOrder | null>(null);
-  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => {
-    // Initialise seen IDs from cached orders so existing orders do not trigger alarm on reload
-    const cached = getCachedOrders();
-    return new Set(cached.map((o) => o.id));
-  });
+  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => new Set());
+
+  const isOperationalRoute = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    const path = window.location.pathname;
+    // Strictly disable on onboarding, auth, registration submitted, or suspended screens
+    if (
+      path.includes("/registration") ||
+      path.includes("/auth") ||
+      path.includes("/otp") ||
+      path.includes("/suspended") ||
+      path.includes("/registration-submitted")
+    ) {
+      return false;
+    }
+    return true;
+  }, []);
 
   const load = useCallback(
     async (opts: { refreshing?: boolean } = {}) => {
+      // Do not fetch orders or ring alarm if on registration/auth/splash pages
+      if (!isOperationalRoute()) {
+        stopOrderAlarm();
+        return;
+      }
+
       if (opts.refreshing) setIsRefreshing(true);
       else if (orders.length === 0) setIsLoading(true);
       setError(null);
@@ -229,24 +239,17 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
         const mapped = remote.map(toManagedOrder);
         setOrders(mapped);
 
-        // Cache in localStorage for 0ms instant loading next time
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem(CACHE_KEY, JSON.stringify(mapped));
-          } catch {
-            /* ignore */
+        // Check for real new unacknowledged orders only if on operational route
+        if (isOperationalRoute()) {
+          const unacknowledgedNew = mapped.find(
+            (o) => o.stage === "new" && !seenOrderIds.has(o.id) && o.amount > 0
+          );
+
+          if (unacknowledgedNew && !incomingOrder) {
+            setSeenOrderIds((prev) => new Set([...prev, unacknowledgedNew.id]));
+            setIncomingOrder(unacknowledgedNew);
+            startOrderAlarm(unacknowledgedNew.code);
           }
-        }
-
-        // Check for new unacknowledged orders (Zomato style order alert)
-        const unacknowledgedNew = mapped.find(
-          (o) => o.stage === "new" && !seenOrderIds.has(o.id)
-        );
-
-        if (unacknowledgedNew && !incomingOrder) {
-          setSeenOrderIds((prev) => new Set([...prev, unacknowledgedNew.id]));
-          setIncomingOrder(unacknowledgedNew);
-          startOrderAlarm(unacknowledgedNew.code);
         }
       } catch (err) {
         if (orders.length === 0) {
@@ -257,7 +260,7 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [seenOrderIds, incomingOrder, orders.length],
+    [seenOrderIds, incomingOrder, orders.length, isOperationalRoute],
   );
 
   // Initial load
@@ -331,40 +334,7 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
   );
 
   const testIncomingOrderAlarm = useCallback(() => {
-    const mockOrder: ManagedOrder = {
-      id: `ord-test-${Date.now()}`,
-      code: `QP${Math.floor(1000 + Math.random() * 9000)}`,
-      stage: "new",
-      customerName: "Rahul Sharma (Demo)",
-      customerRating: 4.9,
-      customerPhone: "+919876543210",
-      customerOrders: 3,
-      pickupAddress: "Flat 204, Green Palms, Kasganj Main Market",
-      deliveryAddress: "Flat 204, Green Palms, Kasganj Main Market",
-      pickupTime: "Today · 8 AM – 12 PM",
-      pickupDay: "today",
-      deliveryEta: "Tomorrow · 6 PM",
-      distanceKm: 1.2,
-      services: ["Wash & Fold (2 KG)", "Steam Ironing (4 pcs)"],
-      itemCount: 6,
-      amount: 280,
-      paymentStatus: "paid",
-      paymentMode: "online",
-      placedAt: new Date().toISOString(),
-      placedMinutesAgo: 0,
-      specialInstructions: "Handle delicate fabrics with care",
-      items: [
-        { id: "1", name: "Wash & Fold", service: "Wash", qty: 2, price: 80 },
-        { id: "2", name: "Steam Ironing", service: "Iron", qty: 4, price: 30 },
-      ],
-      charges: { subtotal: 280, pickupFee: 0, taxes: 0, discount: 0, total: 280 },
-      timeline: [{ id: "1", label: "Order Placed", time: "Just now" }],
-      invoiceNo: null,
-      cancelReason: null,
-      assignedRider: null,
-    };
-    setIncomingOrder(mockOrder);
-    startOrderAlarm(mockOrder.code);
+    // Disabled in production/live integration: order alarm only triggers on real API orders
   }, []);
 
   const counts = useMemo(() => {

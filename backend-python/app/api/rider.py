@@ -855,12 +855,13 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
 @router.get("/profile")
 async def get_profile(user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
-    profile = await rider_profile_repository.get(rider_id)
+    profile = await rider_profile_repository.get(rider_id) if rider_id else None
     if profile is None:
+        is_user_verified = bool(getattr(user, "is_verified", False))
         profile = {
-            "_id": rider_id,
-            "riderId": rider_id,
-            "fullName": getattr(user, "name", "") or getattr(user, "display_name", "") or "Delivery Partner",
+            "_id": rider_id or user.id,
+            "riderId": rider_id or user.id,
+            "fullName": getattr(user, "name", "") or getattr(user, "display_name", "") or "",
             "phone": getattr(user, "phone", ""),
             "email": getattr(user, "email", ""),
             "city": "Kasganj",
@@ -869,19 +870,21 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
             "joinedOn": "August 2026",
             "vehicleType": "Bike",
             "vehicleNumber": "—",
-            "bankName": "State Bank of India",
-            "accountLast4": "4821",
-            "ifsc": "SBIN0001234",
-            "kycStatus": "verified" if getattr(user, "is_verified", False) else "pending",
-            "isVerified": getattr(user, "is_verified", False),
+            "status": "active" if is_user_verified else "pending",
+            "kycStatus": "verified" if is_user_verified else "pending",
+            "isVerified": is_user_verified,
+            "isOnboarded": bool(getattr(user, "is_onboarded", False)),
             "isOnline": False,
             "onlineMinutes": 0,
             "documents": [],
         }
     pub = _public(profile)
-    pub.setdefault("id", rider_id)
-    pub.setdefault("riderId", rider_id)
-    pub.setdefault("fullName", pub.get("name") or "Delivery Partner")
+    pub.setdefault("id", rider_id or user.id)
+    pub.setdefault("riderId", rider_id or user.id)
+    pub.setdefault("status", profile.get("status", "pending"))
+    pub.setdefault("isVerified", bool(profile.get("isVerified", False)))
+    pub.setdefault("kycStatus", profile.get("kycStatus", "pending"))
+    pub.setdefault("fullName", pub.get("name") or getattr(user, "name", "") or "Delivery Partner")
     pub.setdefault("phone", getattr(user, "phone", ""))
     pub.setdefault("email", getattr(user, "email", ""))
     pub.setdefault("city", "Kasganj")

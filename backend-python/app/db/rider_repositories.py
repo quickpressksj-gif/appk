@@ -94,33 +94,10 @@ class RiderProfileRepository:
                     rider_id = profile.get("_id")
         if not rider_id:
             linked = getattr(user, "linked_id", None)
-            if linked and await self.get(linked) is not None:
+            if linked:
                 rider_id = linked
         if not rider_id:
-            # Fallback to generating 6-digit RDR-XXXXXX
-            rider_id = f"RDR-{random.randint(100000, 999999)}"
-            if await self.get(rider_id) is None:
-                new_profile = {
-                    "_id": rider_id,
-                    "riderId": rider_id,
-                    "fullName": getattr(user, "name", "") or getattr(user, "display_name", "") or "Delivery Partner",
-                    "phone": getattr(user, "phone", ""),
-                    "email": getattr(user, "email", ""),
-                    "city": "Kasganj",
-                    "rating": 5.0,
-                    "totalTrips": 0,
-                    "joinedOn": "August 2026",
-                    "vehicleType": "Bike",
-                    "vehicleNumber": "—",
-                    "bankName": "State Bank of India",
-                    "accountLast4": "4821",
-                    "ifsc": "SBIN0001234",
-                    "kycStatus": "verified" if getattr(user, "is_verified", False) else "pending",
-                    "isVerified": getattr(user, "is_verified", False),
-                    "isOnline": False,
-                    "onlineMinutes": 0,
-                }
-                await database.insert(PROFILES, new_profile)
+            rider_id = getattr(user, "id", "")
         return str(rider_id)
 
     async def link_account(self, user_id: str, rider_id: str) -> None:

@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Clock,
   DollarSign,
+  Globe,
   Headphones,
   HelpCircle,
   History,
@@ -44,6 +45,7 @@ import { fetchEarnings } from "../../api/partner/partner-earnings-api";
 import { fetchPartnerProfile } from "../../api/partner/partner-profile-api";
 import { usePartnerOrders } from "../../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../../hooks/use-order-action-handler";
+import { useLanguage } from "../../lib/i18n";
 import type { ManagedOrder, PartnerOrderFilterTab } from "../../data/partner-orders-mock";
 import { STAGE_LABEL, isOrderMatchingTab } from "../../data/partner-orders-mock";
 import { OrderTimeline } from "../orders/OrderTimeline";
@@ -87,8 +89,9 @@ const FEED_PILLS = [
 
 export function ZomatoHubView() {
   const navigate = useNavigate();
-  const { orders, counts, refresh: refreshOrders, testIncomingOrderAlarm } = usePartnerOrders();
+  const { orders, counts, refresh: refreshOrders } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
+  const { openLanguageModal, language, t } = useLanguage();
 
   const [activeFilterTab, setActiveFilterTab] = useState<PartnerOrderFilterTab>("all");
   const [shopName, setShopName] = useState("QuickPress Laundry Store");
@@ -194,15 +197,12 @@ export function ZomatoHubView() {
 
             <button
               type="button"
-              onClick={() => {
-                testIncomingOrderAlarm();
-                toast.info("🚨 Simulating Zomato-style incoming order alert...");
-              }}
+              onClick={openLanguageModal}
               className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-900 active:scale-95 transition-all cursor-pointer hover:bg-amber-100"
-              title="Test Order Ring Alert"
+              title="Change Language"
             >
-              <Volume2 className="size-3.5 text-amber-700" />
-              <span>Test Ring</span>
+              <Globe className="size-3.5 text-amber-700" />
+              <span className="uppercase">{language}</span>
             </button>
 
             <Link

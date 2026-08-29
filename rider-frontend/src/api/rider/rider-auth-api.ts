@@ -281,11 +281,12 @@ export async function checkRiderVerificationStatus(riderId: string): Promise<boo
       id: string;
       isVerified: boolean;
       status?: string;
+      kycStatus?: string;
     }>(`/api/rider/profile`);
-    return Boolean(res.isVerified || res.status === "active" || res.status === "approved");
+    return Boolean(res.isVerified && (res.status === "active" || res.kycStatus === "verified"));
   } catch {
     const onboarding = await fetchOnboardingStatus(undefined, riderId).catch(() => null);
-    return Boolean(onboarding?.isVerified);
+    return Boolean(onboarding?.isVerified && onboarding?.status === "active");
   }
 }
 

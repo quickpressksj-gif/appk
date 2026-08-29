@@ -15,6 +15,7 @@ import {
   Clock,
   CreditCard,
   Footprints,
+  Globe,
   Hash,
   IdCard,
   Image as ImageIcon,
@@ -65,6 +66,7 @@ import {
   UploadTile,
 } from "../components/PartnerFormPrimitives";
 import { usePartnerContext } from "../context/PartnerContext";
+import { useLanguage } from "../lib/i18n";
 import { partnerRoutes } from "../navigation/partner-routes";
 import {
   collectErrors,
@@ -167,6 +169,7 @@ type Uploads = {
 export function BusinessRegistrationScreen() {
   const navigate = useNavigate();
   const { session, signIn, hydrating, phone } = usePartnerContext();
+  const { openLanguageModal, language, t } = useLanguage();
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -712,8 +715,17 @@ export function BusinessRegistrationScreen() {
         <div className="flex items-center justify-between pb-6 border-b border-zinc-200/80">
           <PartnerAuthHeader badge="PARTNER ONBOARDING" withTagline={true} />
 
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 border border-emerald-200">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={openLanguageModal}
+              className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900 shadow-2xs hover:bg-amber-100 active:scale-95 transition-all cursor-pointer"
+            >
+              <Globe className="size-3.5 text-amber-700" />
+              <span className="uppercase">{language}</span>
+            </button>
+
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 border border-emerald-200">
               <ShieldCheck className="size-3.5" />
               <span>Step {step + 1} of {STEPS.length}</span>
             </span>
