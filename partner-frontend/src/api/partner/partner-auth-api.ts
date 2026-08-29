@@ -13,7 +13,7 @@ import {
 } from "../core/auth-service";
 import { delay } from "../core/partner-client";
 import { apiPostJson } from "../core/transport";
-import { setRememberSession } from "../core/session-store";
+import { readSession, setRememberSession, writeSession } from "../core/session-store";
 import { startSessionAutoRefresh } from "../core/session-refresh";
 
 
