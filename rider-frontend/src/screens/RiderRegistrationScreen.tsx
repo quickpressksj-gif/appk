@@ -18,14 +18,17 @@ import {
   MapPin,
   MapPinCheck,
   Phone,
+  Radio,
   RefreshCw,
   Scan,
   Shield,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   UploadCloud,
   UserCheck,
   UserRound,
+  Volume2,
   Zap,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
@@ -51,6 +54,7 @@ import {
 } from "@/api/rider/rider-auth-api";
 import { apiGetJson } from "@/api/core/transport";
 import { readSession } from "@/api/core/session-store";
+import { testSoundAndVibration } from "../lib/order-alert-sound";
 
 import { RapidoCameraSelfie } from "../components/onboarding/RapidoCameraSelfie";
 import { VerificationStatusCard } from "../components/onboarding/VerificationStatusCard";
@@ -1504,6 +1508,109 @@ export function RiderRegistrationScreen() {
                     { label: "IFSC Code", value: form.ifsc },
                   ]}
                 />
+
+                {/* RAPIDO-STYLE ORDER ALERT & BACKGROUND PERMISSIONS CARD */}
+                <div className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60 p-4.5 shadow-sm text-slate-900">
+                  <div className="flex items-center justify-between border-b border-emerald-200/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                        <Radio className="size-4 animate-pulse" />
+                      </span>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                          Order Alert &amp; Background Permissions
+                        </h4>
+                        <p className="text-[10px] font-semibold text-slate-500">
+                          Rapido-style instant full-screen dispatch alerts
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-800 border border-emerald-300">
+                      Auto-Configured ✓
+                    </span>
+                  </div>
+
+                  <div className="mt-3.5 space-y-2.5">
+                    {/* Permission 1: Display Over Apps */}
+                    <div className="flex items-center justify-between rounded-2xl bg-white/90 p-3 border border-emerald-200/60 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                          <Smartphone className="size-4" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Display Over Other Apps (Overlay Alert)
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Pops up order offers over Google Maps or any open app
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200">
+                        Granted
+                      </span>
+                    </div>
+
+                    {/* Permission 2: Battery Optimization */}
+                    <div className="flex items-center justify-between rounded-2xl bg-white/90 p-3 border border-emerald-200/60 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                          <Zap className="size-4" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Battery Saver Exemption
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Keeps dispatch alarms ringing even when phone is locked
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200">
+                        Active
+                      </span>
+                    </div>
+
+                    {/* Permission 3: Live Background Location */}
+                    <div className="flex items-center justify-between rounded-2xl bg-white/90 p-3 border border-emerald-200/60 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                          <MapPin className="size-4" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Background GPS Matching
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Dispatches closest high-earning store laundry pickups
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200">
+                        Always Allow
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sound & Haptics Siren Test Button */}
+                  <div className="mt-3.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-slate-600">
+                      Test Alert Chime &amp; Haptics:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        testSoundAndVibration();
+                        toast.success("🔊 Rapido Siren Chime & Vibration Fired!");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-emerald-500 active:scale-95 transition-all"
+                    >
+                      <Volume2 className="size-3.5" />
+                      <span>Test Order Siren</span>
+                    </button>
+                  </div>
+                </div>
 
                 {/* Terms Declaration */}
                 <div className="rounded-2xl border border-amber-400/40 bg-amber-500/5 p-4">

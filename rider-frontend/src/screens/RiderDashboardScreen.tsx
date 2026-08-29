@@ -28,6 +28,7 @@ import { Toaster } from "@/shared/ui/sonner";
 
 import { RiderBottomNav } from "../components/RiderBottomNav";
 import { DualSwipeActionButton } from "../components/common/DualSwipeActionButton";
+import { IncomingOrderAlertModal } from "../components/alerts/IncomingOrderAlertModal";
 import {
   ActiveDeliveryCard,
   AnnouncementCard,
@@ -451,6 +452,14 @@ export function RiderDashboardScreen() {
             ) : null}
           </div>
         )}
+
+        {/* Full-Screen Rapido-Style Incoming Order Alert Modal */}
+        <IncomingOrderAlertModal
+          order={activePendingOffer}
+          isOpen={Boolean(activePendingOffer)}
+          onAccept={handleAcceptOffer}
+          onReject={handleRejectOffer}
+        />
 
         <RiderBottomNav active="dashboard" />
       </div>
