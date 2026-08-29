@@ -34,6 +34,7 @@ import {
   Store,
   Sun,
   UserRound,
+  Volume2,
   Wind,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -45,6 +46,11 @@ import { PartnerAuthHeader } from "../components/PartnerAuthHeader";
 import { PartnerTopBar } from "../components/PartnerTopBar";
 import { MapPicker, type PickedLocation } from "../components/MapPicker";
 import { AadhaarKycModal, type AadhaarExtractedData } from "../components/onboarding/AadhaarKycModal";
+import {
+  PartnerAgreementSignaturePad,
+  type AgreementSignatureData,
+} from "../components/onboarding/PartnerAgreementSignaturePad";
+import { testPartnerSoundAndVibration } from "../lib/partner-order-alert-sound";
 import {
   ChoiceChip,
   FormField,
@@ -113,12 +119,15 @@ const EXPERIENCE_OPTIONS = [
 ] as const;
 
 const SERVICES = [
-  { id: "Wash & Fold", icon: Shirt, price: 79, unit: "kg" },
-  { id: "Wash & Iron", icon: Wind, price: 99, unit: "kg" },
-  { id: "Steam Ironing", icon: Sparkles, price: 19, unit: "pc" },
-  { id: "Dry Cleaning", icon: Bath, price: 149, unit: "pc" },
-  { id: "Shoe Cleaning", icon: Footprints, price: 249, unit: "pair" },
-  { id: "Curtain Cleaning", icon: Blinds, price: 199, unit: "panel" },
+  { id: "Wash & Fold", icon: Shirt, price: 79, unit: "kg", defaultHours: 24, desc: "Everyday clothes washed, dried & neatly folded." },
+  { id: "Wash & Iron", icon: Wind, price: 99, unit: "kg", defaultHours: 24, desc: "Wash with professional steam ironing finish." },
+  { id: "Steam Ironing", icon: Sparkles, price: 19, unit: "pc", defaultHours: 12, desc: "Crisp wrinkle-free finish on hangers." },
+  { id: "Dry Cleaning", icon: Bath, price: 149, unit: "pc", defaultHours: 48, desc: "Eco solvent dry clean for suits and silks." },
+  { id: "Saree Care", icon: Shirt, price: 249, unit: "pc", defaultHours: 48, desc: "Delicate silk wash, stain removal & roll polish." },
+  { id: "Shoe Cleaning", icon: Footprints, price: 249, unit: "pair", defaultHours: 48, desc: "Deep sonic foam cleaning & deodorizing." },
+  { id: "Blanket Wash", icon: Bath, price: 349, unit: "pc", defaultHours: 48, desc: "Bulky winter comforters sanitized & fluff-dried." },
+  { id: "Curtain Cleaning", icon: Blinds, price: 199, unit: "panel", defaultHours: 36, desc: "Dust-free steam extraction for home drapes." },
+  { id: "Express Laundry", icon: Sparkles, price: 129, unit: "kg", defaultHours: 12, desc: "Superfast priority turnaround within 12 hours." },
 ] as const;
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -222,17 +231,25 @@ export function BusinessRegistrationScreen() {
     "Wash & Iron": 99,
     "Steam Ironing": 19,
     "Dry Cleaning": 149,
+    "Saree Care": 249,
     "Shoe Cleaning": 249,
+    "Blanket Wash": 349,
     "Curtain Cleaning": 199,
+    "Express Laundry": 129,
   });
   const [serviceTurnarounds, setServiceTurnarounds] = useState<Record<string, number>>({
     "Wash & Fold": 24,
     "Wash & Iron": 24,
     "Steam Ironing": 12,
     "Dry Cleaning": 48,
+    "Saree Care": 48,
     "Shoe Cleaning": 48,
-    "Curtain Cleaning": 48,
+    "Blanket Wash": 48,
+    "Curtain Cleaning": 36,
+    "Express Laundry": 12,
   });
+
+  const [agreementData, setAgreementData] = useState<AgreementSignatureData | null>(null);
 
   const [weeklyOff, setWeeklyOff] = useState<string[]>(["Sun"]);
   const [uploads, setUploads] = useState<Uploads>({ logo: "", banner: "", gallery: [] });
@@ -262,6 +279,9 @@ export function BusinessRegistrationScreen() {
 
   const updateServicePrice = (id: string, price: number) =>
     setServicePrices((prev) => ({ ...prev, [id]: Math.max(1, price) }));
+
+  const updateServiceTurnaround = (id: string, hours: number) =>
+    setServiceTurnarounds((prev) => ({ ...prev, [id]: hours }));
 
   const toggleDay = (day: string) =>
     setWeeklyOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -559,6 +579,14 @@ export function BusinessRegistrationScreen() {
       }
     }
 
+    // Enforce Legal Merchant SLA Digital Signature
+    if (!agreementData || !agreementData.signatureUrl || !agreementData.consentAgreed) {
+      setStep(STEPS.length - 1);
+      toast.error("Please review and digitally sign the Merchant SLA Agreement before submitting!");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
     setBusy(true);
     try {
       const category =
@@ -605,6 +633,11 @@ export function BusinessRegistrationScreen() {
         services: customServices as any,
         latitude: shopCoords?.latitude ?? undefined,
         longitude: shopCoords?.longitude ?? undefined,
+        agreementSigned: true,
+        signatureUrl: agreementData.signatureUrl,
+        signedAt: agreementData.signedAt,
+        signedByName: agreementData.signerName,
+        agreementVersion: agreementData.agreementVersion,
       });
 
       signIn(updated);
@@ -970,23 +1003,49 @@ export function BusinessRegistrationScreen() {
                           </button>
                         </div>
 
-                        {/* Editable Custom Price Input */}
+                        {/* Editable Custom Price & Turnaround Input */}
                         {isSelected && (
-                          <div className="mt-3.5 pt-3 border-t border-amber-200/80 flex items-center justify-between gap-3 animate-fade-in">
-                            <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
-                              <span>Your Custom Price:</span>
-                            </label>
-                            <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
-                              <span className="text-xs font-black text-emerald-800">₹</span>
-                              <input
-                                type="number"
-                                min={1}
-                                max={9999}
-                                value={currentPrice}
-                                onChange={(e) => updateServicePrice(s.id, Number(e.target.value))}
-                                className="w-16 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
-                              />
-                              <span className="text-[11px] font-bold text-zinc-500">/ {s.unit}</span>
+                          <div className="mt-3.5 pt-3 border-t border-amber-200/80 space-y-3 animate-fade-in">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
+                                <span>Custom Rate:</span>
+                              </label>
+                              <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
+                                <span className="text-xs font-black text-emerald-800">₹</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={9999}
+                                  value={currentPrice}
+                                  onChange={(e) => updateServicePrice(s.id, Number(e.target.value))}
+                                  className="w-16 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
+                                />
+                                <span className="text-[11px] font-bold text-zinc-500">/ {s.unit}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/50">
+                              <span className="text-[11px] font-bold text-zinc-600">Turnaround Time:</span>
+                              <div className="flex items-center gap-1.5">
+                                {[12, 24, 36, 48].map((hrs) => {
+                                  const curHrs = serviceTurnarounds[s.id] ?? s.defaultHours;
+                                  const isHrsSelected = curHrs === hrs;
+                                  return (
+                                    <button
+                                      key={hrs}
+                                      type="button"
+                                      onClick={() => updateServiceTurnaround(s.id, hrs)}
+                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                        isHrsSelected
+                                          ? "bg-amber-400 text-black shadow-xs font-black"
+                                          : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                                      }`}
+                                    >
+                                      {hrs}h
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1258,6 +1317,58 @@ export function BusinessRegistrationScreen() {
                     <ReviewRow label="IFSC Code" value={form.ifsc} />
                   </div>
                 </SectionCard>
+
+                {/* Merchant High-Priority Order Siren & Native Alert Permissions Card */}
+                <div className="rounded-3xl border border-amber-300/80 bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-100/40 p-5 shadow-xs space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="size-4.5 text-amber-600 animate-pulse" />
+                      <h4 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
+                        High-Priority Order Siren & Notifications
+                      </h4>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-black text-emerald-800">
+                      Background Ready
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-600 leading-snug">
+                    QuickPress uses high-frequency alert chimes so your store never misses incoming customer orders even when phone screen is locked or in background.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
+                      <span>Display Over Apps</span>
+                      <span className="text-emerald-700 font-bold text-[11px]">Enabled ✓</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
+                      <span>Battery Saver Exemption</span>
+                      <span className="text-emerald-700 font-bold text-[11px]">Active ✓</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      testPartnerSoundAndVibration();
+                      toast.success("Playing merchant order siren chime & vibration test!");
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3 text-xs font-black text-black hover:bg-amber-300 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <Volume2 className="size-4" />
+                    <span>Test Merchant Order Siren Chime</span>
+                  </button>
+                </div>
+
+                {/* Legal Merchant SLA Franchise Agreement & Digital Signature Pad */}
+                <PartnerAgreementSignaturePad
+                  ownerName={form.ownerName}
+                  storeName={form.shopName}
+                  aadhaar={form.aadhaar}
+                  pan={form.pan}
+                  city={form.city}
+                  onSignatureConfirmed={setAgreementData}
+                />
               </div>
             ) : null}
           </div>

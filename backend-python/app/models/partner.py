@@ -271,6 +271,11 @@ class OnboardingPayload(BaseModel):
     gallery: List[str] = []
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    agreementSigned: Optional[bool] = False
+    signatureUrl: Optional[str] = None
+    signedAt: Optional[str] = None
+    signedByName: Optional[str] = None
+    agreementVersion: Optional[str] = "QP-SLA-2026.4"
 
 
 class OnboardingResponse(BaseModel):

@@ -757,6 +757,11 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "gallery": payload.gallery,
         "latitude": payload.latitude,
         "longitude": payload.longitude,
+        "agreementSigned": bool(payload.agreementSigned),
+        "signatureUrl": payload.signatureUrl,
+        "signedAt": payload.signedAt or datetime.now(timezone.utc).isoformat(),
+        "signedByName": payload.signedByName or payload.ownerName,
+        "agreementVersion": payload.agreementVersion or "QP-SLA-2026.4",
         "status": "pending_verification",
         "isVerified": False,
     }
@@ -808,8 +813,11 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
             "Wash & Iron": {"price": 99, "unit": "kg", "category": "laundry", "turnaroundHours": 24, "desc": "Complete wash, fabric conditioner and steam press."},
             "Steam Ironing": {"price": 19, "unit": "pc", "category": "iron", "turnaroundHours": 12, "desc": "Crisp wrinkle-free finish with temperature-controlled steam."},
             "Dry Cleaning": {"price": 149, "unit": "pc", "category": "dryclean", "turnaroundHours": 48, "desc": "Specialized eco-friendly dry clean for suits, blazers and silks."},
+            "Saree Care": {"price": 249, "unit": "pc", "category": "dryclean", "turnaroundHours": 48, "desc": "Specialized delicate wash, stain removal and roll polish for silk & designer sarees."},
             "Shoe Cleaning": {"price": 249, "unit": "pair", "category": "shoe-care", "turnaroundHours": 48, "desc": "Deep cleaning, deodorizing and protection for sneakers and leather shoes."},
+            "Blanket Wash": {"price": 349, "unit": "pc", "category": "home-care", "turnaroundHours": 48, "desc": "Bulky winter blankets and comforters washed, sanitized and fluff-dried."},
             "Curtain Cleaning": {"price": 199, "unit": "panel", "category": "home-care", "turnaroundHours": 48, "desc": "Specialized curtain and drape dust extraction and steaming."},
+            "Express Laundry": {"price": 129, "unit": "kg", "category": "laundry", "turnaroundHours": 12, "desc": "Superfast priority turnaround within 12 hours from doorstep pickup."},
         }
         chosen = payload.services if payload.services else ["Wash & Fold", "Steam Ironing"]
         for idx, svc_item in enumerate(chosen, 1):

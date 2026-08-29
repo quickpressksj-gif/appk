@@ -39,9 +39,14 @@ export type BusinessRegistrationPayload = {
   accountNumber?: string;
   ifsc?: string;
   logo?: string;
-  banner?: string;
   latitude?: number;
   longitude?: number;
+  services?: Array<string | { name: string; price: number; unit: string; turnaroundHours?: number; enabled?: boolean }>;
+  agreementSigned?: boolean;
+  signatureUrl?: string;
+  signedAt?: string;
+  signedByName?: string;
+  agreementVersion?: string;
 };
 
 export type PartnerOrderStatus =

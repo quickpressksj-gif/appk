@@ -10,6 +10,11 @@ import { SectionHeading } from "../components/PartnerPrimitives";
 import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { ZomatoHubView } from "../components/dashboard/ZomatoHubView";
 import {
+  PartnerIncomingOrderAlertModal,
+  type PartnerIncomingOrder,
+} from "../components/alerts/PartnerIncomingOrderAlertModal";
+import { stopPartnerOrderAlertRing } from "../lib/partner-order-alert-sound";
+import {
   OrderStatusChips,
   QuickActionsGrid,
   QuickStatsGrid,
@@ -188,12 +193,70 @@ export function PartnerDashboardScreen() {
 
   const findOrder = useCallback((id: string) => orders.find((order) => order.id === id), [orders]);
 
+  const [activeAlertOrder, setActiveAlertOrder] = useState<PartnerIncomingOrder | null>(null);
+
+  // Monitor incoming unaccepted orders in real-time
+  useEffect(() => {
+    if (!isOnline) {
+      setActiveAlertOrder(null);
+      stopPartnerOrderAlertRing();
+      return;
+    }
+    const incoming = orders.find(
+      (o) => o.status === "new" || o.status === "placed" || o.status === "pending"
+    );
+    if (incoming) {
+      setActiveAlertOrder({
+        id: incoming.id,
+        orderCode: incoming.code,
+        customerName: incoming.customerName,
+        customerPhone: incoming.customerPhone,
+        pickupAddress: incoming.address || "Customer Doorstep",
+        pickupSlot: incoming.slot,
+        estimatedEarnings: Math.round(incoming.amount * 0.84),
+        itemsCount: incoming.itemCount || incoming.items?.length || 1,
+        items: (incoming.items || []).map((it) => ({
+          name: it.name,
+          quantity: it.qty || 1,
+          unit: "pcs",
+        })),
+        expressDelivery: Boolean(incoming.serviceLabel?.toLowerCase().includes("express")),
+      });
+    } else {
+      setActiveAlertOrder(null);
+      stopPartnerOrderAlertRing();
+    }
+  }, [orders, isOnline]);
+
+  const handleAlertAccept = async (orderId: string) => {
+    stopPartnerOrderAlertRing();
+    const full = findOrder(orderId);
+    if (full) {
+      await handleAction(full, "accept");
+    }
+    setActiveAlertOrder(null);
+    refreshOrders();
+  };
+
+  const handleAlertReject = async (orderId: string, reason?: string) => {
+    stopPartnerOrderAlertRing();
+    const full = findOrder(orderId);
+    if (full) {
+      await handleAction(full, "reject");
+    }
+    setActiveAlertOrder(null);
+    refreshOrders();
+  };
+
   const handleToggleOnline = useCallback(async () => {
     try {
       const next = !isOnline;
+      if (!next) {
+        stopPartnerOrderAlertRing();
+      }
       await setStoreOpen(next);
       setIsOnline(next);
-      toast.success(next ? "You're online" : "You're now offline");
+      toast.success(next ? "Store is ONLINE & Accepting Orders" : "Store is now OFFLINE");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update store status");
     }
@@ -221,6 +284,14 @@ export function PartnerDashboardScreen() {
       title="Partner Dashboard"
       subtitle={shop ? `Welcome back, ${shop.partnerName} · ${shop.shopName}` : "Store Console"}
     >
+      {/* Full Screen Incoming Order Alert Modal */}
+      <PartnerIncomingOrderAlertModal
+        order={activeAlertOrder}
+        onAccept={handleAlertAccept}
+        onReject={handleAlertReject}
+        onClose={() => setActiveAlertOrder(null)}
+      />
+
       {/* Mobile Zomato Hub Experience (< md) */}
       <div className="md:hidden">
         <ZomatoHubView />
