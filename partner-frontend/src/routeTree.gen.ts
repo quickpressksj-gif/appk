@@ -23,6 +23,7 @@ import { Route as RegistrationSubmittedRouteImport } from './routes/registration
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShopRouteImport } from './routes/shop'
+import { Route as SuspendedRouteImport } from './routes/suspended'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
@@ -100,6 +101,11 @@ const ShopRoute = ShopRouteImport.update({
   path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuspendedRoute = SuspendedRouteImport.update({
+  id: '/suspended',
+  path: '/suspended',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WalletRoute = WalletRouteImport.update({
   id: '/wallet',
   path: '/wallet',
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRouteWithChildren
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
+  '/suspended': typeof SuspendedRoute
   '/wallet': typeof WalletRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/new': typeof ServicesNewRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/registration-submitted': typeof RegistrationSubmittedRoute
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
+  '/suspended': typeof SuspendedRoute
   '/wallet': typeof WalletRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/new': typeof ServicesNewRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/services': typeof ServicesRouteWithChildren
   '/settings': typeof SettingsRoute
   '/shop': typeof ShopRoute
+  '/suspended': typeof SuspendedRoute
   '/wallet': typeof WalletRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/new': typeof ServicesNewRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/shop'
+    | '/suspended'
     | '/wallet'
     | '/orders/$orderId'
     | '/services/new'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/registration-submitted'
     | '/settings'
     | '/shop'
+    | '/suspended'
     | '/wallet'
     | '/orders/$orderId'
     | '/services/new'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/settings'
     | '/shop'
+    | '/suspended'
     | '/wallet'
     | '/orders/$orderId'
     | '/services/new'
@@ -280,6 +292,7 @@ export interface RootRouteChildren {
   ServicesRoute: typeof ServicesRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   ShopRoute: typeof ShopRoute
+  SuspendedRoute: typeof SuspendedRoute
   WalletRoute: typeof WalletRoute
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
@@ -385,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/suspended': {
+      id: '/suspended'
+      path: '/suspended'
+      fullPath: '/suspended'
+      preLoaderRoute: typeof SuspendedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/wallet': {
       id: '/wallet'
       path: '/wallet'
@@ -461,6 +481,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServicesRoute: ServicesRouteWithChildren,
   SettingsRoute: SettingsRoute,
   ShopRoute: ShopRoute,
+  SuspendedRoute: SuspendedRoute,
   WalletRoute: WalletRoute,
   OrdersOrderIdRoute: OrdersOrderIdRoute,
   OrdersIndexRoute: OrdersIndexRoute,

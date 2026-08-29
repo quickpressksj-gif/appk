@@ -344,6 +344,51 @@ async def update_profile(
     return PartnerProfileResponse(**{k: v for k, v in doc.items() if k in PartnerProfileResponse.model_fields})
 
 
+@router.post("/appeal")
+async def submit_partner_appeal(
+    body: dict, partner_id: str = Depends(_partner_id), user: User = Depends(current_user)
+) -> dict:
+    from app.db.client import database
+    reason = str(body.get("reason") or body.get("details") or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Please provide appeal explanation details.")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update(
+        "partner_profiles",
+        {"_id": partner_id},
+        {
+            "appealStatus": "pending",
+            "appealDetails": reason,
+            "appealSubmittedAt": now_iso,
+            "updatedAt": now_iso,
+        },
+        upsert=True,
+    )
+    await database.update(
+        "partner_profiles",
+        {"partnerId": partner_id},
+        {
+            "appealStatus": "pending",
+            "appealDetails": reason,
+            "appealSubmittedAt": now_iso,
+            "updatedAt": now_iso,
+        },
+    )
+    user_id = getattr(user, "id", None)
+    if user_id:
+        await database.update(
+            "users",
+            {"_id": user_id},
+            {"appealStatus": "pending", "appealDetails": reason, "appealSubmittedAt": now_iso},
+        )
+    return {
+        "ok": True,
+        "appealStatus": "pending",
+        "appealSubmittedAt": now_iso,
+        "message": "Appeal submitted successfully. QuickPress Trust & Safety team will review your account.",
+    }
+
+
 @router.get("/settings", response_model=BusinessSettingsResponse)
 async def get_settings(partner_id: str = Depends(_partner_id)) -> BusinessSettingsResponse:
     try:

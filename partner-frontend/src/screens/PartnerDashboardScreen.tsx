@@ -101,6 +101,10 @@ export function PartnerDashboardScreen() {
         fetchDashboardSummary(),
         fetchEarnings().catch(() => null),
       ]);
+      if (profile.status === "suspended") {
+        navigate({ to: partnerRoutes.suspended });
+        return;
+      }
       if (!profile.isVerified && profile.status !== "active") {
         navigate({ to: partnerRoutes.registrationSubmitted });
         return;

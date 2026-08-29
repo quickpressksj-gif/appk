@@ -22,6 +22,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegistrationRouteImport } from './routes/registration'
 import { Route as RegistrationSubmittedRouteImport } from './routes/registration-submitted'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SuspendedRouteImport } from './routes/suspended'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as AnalyticsIndexRouteImport } from './routes/analytics.index'
 import { Route as AnalyticsAchievementsRouteImport } from './routes/analytics.achievements'
@@ -120,6 +121,11 @@ const RegistrationSubmittedRoute = RegistrationSubmittedRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuspendedRoute = SuspendedRouteImport.update({
+  id: '/suspended',
+  path: '/suspended',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WalletRoute = WalletRouteImport.update({
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/registration': typeof RegistrationRoute
   '/registration-submitted': typeof RegistrationSubmittedRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/suspended': typeof SuspendedRoute
   '/wallet': typeof WalletRouteWithChildren
   '/analytics/achievements': typeof AnalyticsAchievementsRoute
   '/analytics/insights': typeof AnalyticsInsightsRoute
@@ -353,6 +360,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/registration': typeof RegistrationRoute
   '/registration-submitted': typeof RegistrationSubmittedRoute
+  '/suspended': typeof SuspendedRoute
   '/analytics/achievements': typeof AnalyticsAchievementsRoute
   '/analytics/insights': typeof AnalyticsInsightsRoute
   '/analytics/leaderboard': typeof AnalyticsLeaderboardRoute
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/registration': typeof RegistrationRoute
   '/registration-submitted': typeof RegistrationSubmittedRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/suspended': typeof SuspendedRoute
   '/wallet': typeof WalletRouteWithChildren
   '/analytics/achievements': typeof AnalyticsAchievementsRoute
   '/analytics/insights': typeof AnalyticsInsightsRoute
@@ -453,6 +462,7 @@ export interface FileRouteTypes {
     | '/registration'
     | '/registration-submitted'
     | '/settings'
+    | '/suspended'
     | '/wallet'
     | '/analytics/achievements'
     | '/analytics/insights'
@@ -497,6 +507,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/registration'
     | '/registration-submitted'
+    | '/suspended'
     | '/analytics/achievements'
     | '/analytics/insights'
     | '/analytics/leaderboard'
@@ -545,6 +556,7 @@ export interface FileRouteTypes {
     | '/registration'
     | '/registration-submitted'
     | '/settings'
+    | '/suspended'
     | '/wallet'
     | '/analytics/achievements'
     | '/analytics/insights'
@@ -595,6 +607,7 @@ export interface RootRouteChildren {
   RegistrationRoute: typeof RegistrationRoute
   RegistrationSubmittedRoute: typeof RegistrationSubmittedRoute
   SettingsRoute: typeof SettingsRouteWithChildren
+  SuspendedRoute: typeof SuspendedRoute
   WalletRoute: typeof WalletRouteWithChildren
   DeliveriesDeliveryIdRoute: typeof DeliveriesDeliveryIdRoute
   LiveNavigationDeliveryIdRoute: typeof LiveNavigationDeliveryIdRoute
@@ -695,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suspended': {
+      id: '/suspended'
+      path: '/suspended'
+      fullPath: '/suspended'
+      preLoaderRoute: typeof SuspendedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/wallet': {
@@ -1064,6 +1084,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegistrationRoute: RegistrationRoute,
   RegistrationSubmittedRoute: RegistrationSubmittedRoute,
   SettingsRoute: SettingsRouteWithChildren,
+  SuspendedRoute: SuspendedRoute,
   WalletRoute: WalletRouteWithChildren,
   DeliveriesDeliveryIdRoute: DeliveriesDeliveryIdRoute,
   LiveNavigationDeliveryIdRoute: LiveNavigationDeliveryIdRoute,

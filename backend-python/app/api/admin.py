@@ -247,12 +247,21 @@ async def approve_partner(partner_id: str, user: User = Depends(current_user)):
 
 
 @router.post("/partners/{partner_id}/suspend")
-async def suspend_partner(partner_id: str, user: User = Depends(current_user)):
+async def suspend_partner(partner_id: str, body: dict | None = None, user: User = Depends(current_user)):
+    from app.db.client import database
+    reason = (body or {}).get("reason") or "Policy / SLA Guidelines Violation"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update("partner_profiles", {"_id": partner_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
+    await database.update("partner_profiles", {"partnerId": partner_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
     return await _partner_transition(partner_id, "suspended", "suspend", user)
 
 
 @router.post("/partners/{partner_id}/activate")
 async def activate_partner(partner_id: str, user: User = Depends(current_user)):
+    from app.db.client import database
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update("partner_profiles", {"_id": partner_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
+    await database.update("partner_profiles", {"partnerId": partner_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
     return await _partner_transition(partner_id, "active", "activate", user)
 
 
@@ -337,12 +346,21 @@ async def approve_rider(rider_id: str, user: User = Depends(current_user)):
 
 
 @router.post("/riders/{rider_id}/suspend")
-async def suspend_rider(rider_id: str, user: User = Depends(current_user)):
+async def suspend_rider(rider_id: str, body: dict | None = None, user: User = Depends(current_user)):
+    from app.db.client import database
+    reason = (body or {}).get("reason") or "Policy / Compliance Violation"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update("rider_profiles", {"_id": rider_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
+    await database.update("rider_profiles", {"riderId": rider_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
     return await _rider_transition(rider_id, "suspended", "suspend", user)
 
 
 @router.post("/riders/{rider_id}/activate")
 async def activate_rider(rider_id: str, user: User = Depends(current_user)):
+    from app.db.client import database
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update("rider_profiles", {"_id": rider_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
+    await database.update("rider_profiles", {"riderId": rider_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
     return await _rider_transition(rider_id, "active", "activate", user)
 
 

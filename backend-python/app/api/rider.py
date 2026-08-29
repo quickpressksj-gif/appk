@@ -896,8 +896,56 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
     pub.setdefault("kycStatus", "verified" if getattr(user, "is_verified", False) else "pending")
     pub.setdefault("isOnline", False)
     pub.setdefault("onlineMinutes", 0)
-    pub.setdefault("documents", [])
+    pub.setdefault("status", getattr(user, "status", "pending"))
+    pub.setdefault("suspensionReason", getattr(user, "suspensionReason", None))
+    pub.setdefault("appealStatus", getattr(user, "appealStatus", "none"))
+    pub.setdefault("appealDetails", getattr(user, "appealDetails", ""))
+    pub.setdefault("appealSubmittedAt", getattr(user, "appealSubmittedAt", ""))
     return pub
+
+
+@router.post("/appeal")
+async def submit_rider_appeal(body: dict, user: User = Depends(current_user)) -> dict:
+    from app.db.client import database
+    rider_id = await _rider_id(user)
+    reason = str(body.get("reason") or body.get("details") or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Please provide appeal explanation details.")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update(
+        "rider_profiles",
+        {"_id": rider_id},
+        {
+            "appealStatus": "pending",
+            "appealDetails": reason,
+            "appealSubmittedAt": now_iso,
+            "updatedAt": now_iso,
+        },
+        upsert=True,
+    )
+    await database.update(
+        "rider_profiles",
+        {"riderId": rider_id},
+        {
+            "appealStatus": "pending",
+            "appealDetails": reason,
+            "appealSubmittedAt": now_iso,
+            "updatedAt": now_iso,
+        },
+    )
+    user_id = getattr(user, "id", None)
+    if user_id:
+        await database.update(
+            "users",
+            {"_id": user_id},
+            {"appealStatus": "pending", "appealDetails": reason, "appealSubmittedAt": now_iso},
+        )
+    return {
+        "ok": True,
+        "appealStatus": "pending",
+        "appealSubmittedAt": now_iso,
+        "message": "Appeal submitted successfully. QuickPress Trust & Safety team will review your account.",
+    }
 
 
 @router.put("/profile")

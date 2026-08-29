@@ -44,6 +44,9 @@ async function initializeCaptainApp(): Promise<InitResult> {
 
   try {
     const status = await fetchOnboardingStatus();
+    if (status.status === "suspended") {
+      return { route: riderRoutes.suspended };
+    }
     if (!status.isOnboarded) {
       return { route: riderRoutes.registration };
     }
@@ -52,7 +55,10 @@ async function initializeCaptainApp(): Promise<InitResult> {
     }
     return { route: riderRoutes.dashboard };
   } catch {
-    // If token exists, proceed to dashboard or auth as fallback
+    // If token exists, check session status
+    if (session.status === "suspended") {
+      return { route: riderRoutes.suspended };
+    }
     if (session.isVerified && session.isOnboarded) {
       return { route: riderRoutes.dashboard };
     }

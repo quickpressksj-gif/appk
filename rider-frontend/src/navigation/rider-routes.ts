@@ -27,6 +27,7 @@ export const riderRoutes = {
   otp: "/otp",
   registration: "/registration",
   registrationSubmitted: "/registration-submitted",
+  suspended: "/suspended",
   dashboard: "/dashboard",
   orders: "/orders",
   orderDetails: "/orders/$orderId",

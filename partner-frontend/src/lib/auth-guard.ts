@@ -15,6 +15,9 @@ export function requirePartnerAuth() {
   if (!sess || !sess.token) {
     throw redirect({ to: partnerRoutes.auth });
   }
+  if (sess.status === "suspended" || (sess as any).isSuspended) {
+    throw redirect({ to: partnerRoutes.suspended });
+  }
 }
 
 /**
