@@ -567,6 +567,46 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
     dispatch_verified = dispatch_otp.get("verified", False) if isinstance(dispatch_otp, dict) else False
     delivery_verified = delivery_otp.get("verified", False) if isinstance(delivery_otp, dict) else False
 
+    dist_km = float(
+        order.get("distanceKm")
+        or (order.get("delivery") or {}).get("distanceKm")
+        or (order.get("address") or {}).get("distanceKm")
+        or 2.8
+    )
+    eta_mins = int(
+        order.get("etaMinutes")
+        or (order.get("delivery") or {}).get("etaMinutes")
+        or max(8, round(dist_km * 4.5))
+    )
+
+    partner_addr = (
+        (order.get("partner") or {}).get("address")
+        or order.get("partnerAddress")
+        or order.get("storeAddress")
+        or "QuickPress Partner Store, Kasganj"
+    )
+
+    p_lat = float(
+        (order.get("partner") or {}).get("latitude")
+        or (order.get("partner") or {}).get("lat")
+        or 27.8118
+    )
+    p_lng = float(
+        (order.get("partner") or {}).get("longitude")
+        or (order.get("partner") or {}).get("lng")
+        or 78.6477
+    )
+    c_lat = float(
+        (order.get("address") or {}).get("latitude")
+        or (order.get("address") or {}).get("lat")
+        or 27.8165
+    )
+    c_lng = float(
+        (order.get("address") or {}).get("longitude")
+        or (order.get("address") or {}).get("lng")
+        or 78.6530
+    )
+
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
@@ -575,17 +615,21 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
         "status": RIDER_STATUS.get(status, "assigned"),
         "canonicalStatus": status,
-        "customerName": customer.get("name", ""),
-        "customerPhone": customer.get("phone", ""),
-        "partnerName": partner.get("name", ""),
-        "partnerPhone": partner.get("phone", ""),
-        "pickupAddress": address,
-        "deliveryAddress": address,
-        "distanceKm": 0,
-        "etaMinutes": 0,
-        "estimatedEarning": max(35, round(int(totals.get("grandTotal", 0)) * 0.12)),
-        "itemCount": sum(int(item.get("qty", 0)) for item in items),
-        "slot": (order.get("pickup") or {}).get("slot", ""),
+        "customerName": customer.get("name", "") or "Customer",
+        "customerPhone": customer.get("phone", "") or "",
+        "partnerName": partner.get("name", "") or "QuickPress Laundry Store",
+        "partnerPhone": partner.get("phone", "") or "",
+        "partnerAddress": partner_addr,
+        "pickupAddress": address or "Customer Pickup Location, Kasganj",
+        "deliveryAddress": address or "Customer Delivery Address, Kasganj",
+        "pickupLocation": {"latitude": c_lat, "longitude": c_lng},
+        "deliveryLocation": {"latitude": c_lat, "longitude": c_lng},
+        "partnerLocation": {"latitude": p_lat, "longitude": p_lng},
+        "distanceKm": round(dist_km, 1),
+        "etaMinutes": eta_mins,
+        "estimatedEarning": max(35, round(int(totals.get("grandTotal", 0)) * 0.12) or 45),
+        "itemCount": sum(int(item.get("qty", 0)) for item in items) or 1,
+        "slot": (order.get("pickup") or {}).get("slot", "") or "Standard Slot",
         "placedAt": order.get("createdAt", ""),
         "paymentMode": payment.get("mode", "cod"),
         "amount": int(totals.get("grandTotal", 0)),

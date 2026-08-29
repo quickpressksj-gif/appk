@@ -266,31 +266,152 @@ export function IncomingOrderAlertModal({
             </div>
           </div>
 
-          {/* Action CTAs */}
-          <div className="pt-1 space-y-2.5">
-            {/* Accept Button */}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleAcceptClick}
-              className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 active:scale-[0.98] transition-all"
-            >
-              <Check className="size-5 stroke-[2.8] transition-transform group-hover:scale-125" />
-              <span>ACCEPT TRIP OFFER (₹{earning})</span>
-            </button>
+          {/* Action CTAs: Rapido Style Swipe-to-Accept Slider */}
+          <div className="pt-2 space-y-3">
+            <RapidoSwipeAcceptSlider
+              earning={earning}
+              busy={busy}
+              onAccept={handleAcceptClick}
+            />
 
             {/* Reject Button */}
             <button
               type="button"
               disabled={busy}
               onClick={handleRejectClick}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 active:scale-[0.98] transition-all"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 active:scale-[0.98] transition-all cursor-pointer"
             >
               <X className="size-3.5" />
               <span>Decline Offer</span>
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 🛵 Rapido / Uber Style Swipe-to-Accept Slider
+ */
+function RapidoSwipeAcceptSlider({
+  earning,
+  busy,
+  onAccept,
+}: {
+  earning: number;
+  busy: boolean;
+  onAccept: () => void | Promise<void>;
+}) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const startXRef = React.useRef(0);
+
+  const maxDrag = useMemo(() => {
+    if (containerRef.current) {
+      return containerRef.current.clientWidth - 60;
+    }
+    return 240;
+  }, [containerRef.current?.clientWidth]);
+
+  const handleStart = (clientX: number) => {
+    if (busy || isSuccess) return;
+    setIsDragging(true);
+    startXRef.current = clientX - dragX;
+  };
+
+  const handleMove = (clientX: number) => {
+    if (!isDragging || busy || isSuccess) return;
+    const delta = clientX - startXRef.current;
+    const clamped = Math.max(0, Math.min(maxDrag, delta));
+    setDragX(clamped);
+  };
+
+  const handleEnd = () => {
+    if (!isDragging || busy || isSuccess) return;
+    setIsDragging(false);
+    if (dragX >= maxDrag * 0.75) {
+      // Swiped past 75% -> Accept
+      setDragX(maxDrag);
+      setIsSuccess(true);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([40, 60, 100]);
+        } catch {}
+      }
+      void onAccept();
+    } else {
+      // Snap back to start
+      setDragX(0);
+    }
+  };
+
+  // Touch event listeners
+  const onTouchStart = (e: React.TouchEvent) => handleStart(e.touches[0].clientX);
+  const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+  const onTouchEnd = () => handleEnd();
+
+  // Mouse event listeners
+  const onMouseDown = (e: React.MouseEvent) => handleStart(e.clientX);
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleMove(e.clientX);
+    };
+    const onMouseUp = () => {
+      if (isDragging) handleEnd();
+    };
+    if (isDragging) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [isDragging, maxDrag]);
+
+  const progressPercent = maxDrag > 0 ? (dragX / maxDrag) * 100 : 0;
+
+  return (
+    <div
+      ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onMouseDown={onMouseDown}
+      className="relative flex h-14 w-full select-none items-center overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600 p-1.5 shadow-lg shadow-emerald-700/30 border border-emerald-400/50 cursor-pointer"
+    >
+      {/* Fill progress track */}
+      <div
+        className="absolute inset-y-0 left-0 bg-emerald-500 transition-all duration-75 ease-out rounded-2xl"
+        style={{ width: `${dragX + 54}px` }}
+      />
+
+      {/* Shimmering Centered Text */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span
+          className={`text-xs font-black uppercase tracking-widest text-white transition-opacity duration-300 ${
+            progressPercent > 40 ? "opacity-30" : "opacity-100 animate-pulse"
+          }`}
+        >
+          {isSuccess ? "TRIP ACCEPTED! 🚀" : `SWIPE TO ACCEPT (₹${earning}) ➔`}
+        </span>
+      </div>
+
+      {/* Draggable Handle */}
+      <div
+        className={`relative z-10 flex size-11 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-md transition-transform ${
+          isDragging ? "scale-105" : "transition-all duration-200"
+        }`}
+        style={{ transform: `translateX(${dragX}px)` }}
+      >
+        {isSuccess ? (
+          <Check className="size-6 text-emerald-600 stroke-[3] animate-scale-up" />
+        ) : (
+          <ArrowRight className="size-6 stroke-[3] text-emerald-700 animate-pulse" />
+        )}
       </div>
     </div>
   );

@@ -150,6 +150,7 @@ class RiderDeliveryRepository:
         assigned_ids = {str(d.get("_id") or "") for d in assigned_docs}
 
         # 2. Pending trip offers dispatched to this rider in rider_offers
+        now_iso = lifecycle.now_iso()
         offers = await database.find_many(
             "rider_offers",
             {"riderId": rider_id, "status": "pending"},
@@ -157,7 +158,9 @@ class RiderDeliveryRepository:
         offer_order_ids = [
             str(o.get("orderId") or "")
             for o in offers
-            if o.get("orderId") and str(o.get("orderId")) not in assigned_ids
+            if o.get("orderId")
+            and str(o.get("orderId")) not in assigned_ids
+            and str(o.get("expiresAt") or "9999") > now_iso
         ]
 
         offer_docs = []
@@ -173,38 +176,6 @@ class RiderDeliveryRepository:
                 if not doc_copy.get("rider"):
                     doc_copy["rider"] = {"id": rider_id, "status": "assigned"}
                 offer_docs.append(doc_copy)
-
-        # 3. Fallback: If no explicit offer found, check orders in partner_accepted / rider_searching in rider's city
-        if not offer_docs:
-            profile = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
-            rider_city = str(
-                profile.get("city") or profile.get("operatingCity") or "Kasganj"
-            ).strip().lower()
-            all_orders = await database.find_many(lifecycle.ORDERS, {})
-            unclaimed = [
-                d
-                for d in all_orders
-                if str(d.get("_id") or "") not in assigned_ids
-                and d.get("status")
-                in (
-                    lifecycle.PARTNER_ACCEPTED,
-                    lifecycle.RIDER_SEARCHING,
-                    lifecycle.PICKUP_RIDER_ASSIGNED,
-                )
-                and (not d.get("rider") or not (d.get("rider") or {}).get("id"))
-                and str(
-                    (d.get("address") or {}).get("city")
-                    or (d.get("partner") or {}).get("city")
-                    or "Kasganj"
-                )
-                .strip()
-                .lower()
-                == rider_city
-            ]
-            for u in unclaimed:
-                u_copy = dict(u)
-                u_copy["rider"] = {"id": rider_id, "status": "assigned"}
-                offer_docs.append(u_copy)
 
         combined = offer_docs + assigned_docs
         combined.sort(key=lambda d: d.get("createdAt") or "", reverse=True)

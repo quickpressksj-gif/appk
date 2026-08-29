@@ -114,23 +114,67 @@ export function KpiCard({
 }
 
 export function DeliveryProgress({ stage }: { stage: ActiveDelivery["stage"] }) {
-  const index = DELIVERY_STAGES.findIndex((s) => s.id === stage);
+  const index = Math.max(0, DELIVERY_STAGES.findIndex((s) => s.id === stage));
 
   return (
-    <div className="mt-3.5">
-      <div className="flex items-center gap-1.5">
-        {DELIVERY_STAGES.map((s, i) => (
-          <span
-            key={s.id}
-            className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-              i <= index ? "bg-emerald-400" : "bg-white/25"
-            }`}
-          />
-        ))}
+    <div className="mt-4 rounded-2xl bg-white/10 p-3 backdrop-blur-md border border-white/10">
+      <div className="flex items-center justify-between gap-1">
+        {DELIVERY_STAGES.map((s, i) => {
+          const isCurrent = i === index;
+          const isDone = i < index;
+          return (
+            <div key={s.id} className="flex flex-1 flex-col items-center gap-1.5">
+              <div className="relative flex w-full items-center">
+                {/* Connecting Line Left */}
+                {i > 0 ? (
+                  <div
+                    className={`h-1 flex-1 transition-colors duration-500 ${
+                      i <= index ? "bg-emerald-400" : "bg-white/20"
+                    }`}
+                  />
+                ) : (
+                  <div className="flex-1" />
+                )}
+
+                {/* Node Circle */}
+                <span
+                  className={`relative z-10 flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black transition-all ${
+                    isCurrent
+                      ? "bg-amber-400 text-slate-950 ring-4 ring-amber-400/30 scale-110"
+                      : isDone
+                        ? "bg-emerald-400 text-slate-950"
+                        : "bg-white/20 text-white/60"
+                  }`}
+                >
+                  {isDone ? "✓" : i + 1}
+                </span>
+
+                {/* Connecting Line Right */}
+                {i < DELIVERY_STAGES.length - 1 ? (
+                  <div
+                    className={`h-1 flex-1 transition-colors duration-500 ${
+                      i < index ? "bg-emerald-400" : "bg-white/20"
+                    }`}
+                  />
+                ) : (
+                  <div className="flex-1" />
+                )}
+              </div>
+              <p
+                className={`text-[8px] font-black uppercase text-center line-clamp-1 leading-tight ${
+                  isCurrent
+                    ? "text-amber-300 font-extrabold"
+                    : isDone
+                      ? "text-emerald-300"
+                      : "text-white/40"
+                }`}
+              >
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
       </div>
-      <p className="mt-1.5 text-[10px] font-extrabold uppercase tracking-widest text-emerald-300">
-        {DELIVERY_STAGES[index]?.label ?? "Assigned"} · Step {index + 1} of {DELIVERY_STAGES.length}
-      </p>
     </div>
   );
 }
@@ -145,66 +189,75 @@ export function ActiveDeliveryCard({
   onOpen: () => void;
 }) {
   return (
-    <article className="animate-rise overflow-hidden rounded-2xl bg-slate-900 p-4 text-white shadow-md transition-all">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-            Active Task · {delivery.orderId}
-          </p>
-          <p className="mt-0.5 truncate text-base font-black tracking-tight text-white">
-            {delivery.customerName}
-          </p>
-          <p className="truncate text-xs font-semibold text-slate-300">
-            Store: {delivery.partnerName}
-          </p>
+    <article className="animate-rise relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-emerald-950/40 border-2 border-emerald-500/80 transition-all">
+      {/* Ambient Live Glow Aura */}
+      <div className="pointer-events-none absolute -right-12 -top-12 size-44 rounded-full bg-emerald-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -left-12 -bottom-12 size-44 rounded-full bg-teal-500/15 blur-3xl" />
+
+      {/* Header Badge */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="relative flex size-2.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+            ⚡ ACTIVE TRIP #{delivery.orderId}
+          </span>
         </div>
-        <span className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1 text-[10px] font-bold tracking-tight text-white backdrop-blur">
+        <span className="rounded-full bg-emerald-500/20 px-3 py-0.5 text-[10px] font-black text-emerald-300 border border-emerald-400/30">
           {delivery.paymentType}
         </span>
       </div>
 
-      <div className="mt-3 space-y-2">
-        <AddressLine label="Pickup" value={delivery.pickupAddress} time={delivery.pickupTime} />
-        <AddressLine label="Drop" value={delivery.deliveryAddress} time={delivery.etaDelivery} />
-      </div>
-
-      <DeliveryProgress stage={delivery.stage} />
-
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
-        <div>
-          <p className="text-[10px] font-semibold text-slate-400">Estimated Payout</p>
-          <p className="flex items-center text-lg font-black tracking-tight text-emerald-400">
-            <IndianRupee className="size-4" strokeWidth={2.6} />
+      {/* Customer & Store Info */}
+      <div className="mt-3 flex items-start justify-between">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-black tracking-tight text-white">
+            {delivery.customerName}
+          </h3>
+          <p className="truncate text-xs font-semibold text-emerald-200/80">
+            🏪 Store: {delivery.partnerName}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold text-slate-400 uppercase">Payout</p>
+          <p className="flex items-center text-xl font-black text-emerald-400">
+            <IndianRupee className="size-4 text-emerald-400" strokeWidth={2.6} />
             {delivery.amount.toLocaleString("en-IN")}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label="Call customer"
-            className="flex size-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur transition-all active:scale-[0.94] hover:bg-white/20"
-          >
-            <Phone className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onNavigate}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-black tracking-tight text-slate-950 transition-all hover:bg-emerald-400 active:scale-[0.96]"
-          >
-            <Navigation className="size-3.5" strokeWidth={2.6} />
-            Navigate
-          </button>
-        </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl bg-white/5 py-2 text-[11px] font-bold text-slate-300 transition-all hover:bg-white/10 active:scale-[0.97]"
-      >
-        View Full Task Details
-        <ChevronRight className="size-3.5" />
-      </button>
+      {/* Addresses */}
+      <div className="mt-3.5 space-y-2">
+        <AddressLine label="1. Pickup Address" value={delivery.pickupAddress} time={delivery.pickupTime} />
+        <AddressLine label="2. Delivery Address" value={delivery.deliveryAddress} time={delivery.etaDelivery} />
+      </div>
+
+      {/* Visual Milestone Timeline */}
+      <DeliveryProgress stage={delivery.stage} />
+
+      {/* Quick Action Navigation CTAs */}
+      <div className="mt-4 flex items-center gap-2.5 pt-1">
+        <button
+          type="button"
+          onClick={onNavigate}
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 py-3.5 text-xs font-black text-slate-950 shadow-lg shadow-emerald-500/30 hover:brightness-110 active:scale-[0.97] transition-all cursor-pointer"
+        >
+          <Navigation className="size-4 stroke-[2.8]" />
+          <span>START GOOGLE MAP NAVIGATION</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex size-12 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 text-white active:scale-[0.95] transition-all border border-white/10 cursor-pointer"
+          aria-label="View task details"
+        >
+          <ChevronRight className="size-5" />
+        </button>
+      </div>
     </article>
   );
 }

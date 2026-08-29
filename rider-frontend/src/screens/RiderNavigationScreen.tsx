@@ -42,20 +42,51 @@ const FLOW = [
   "Delivery completed",
 ];
 
+const DEFAULT_KASGANJ_CENTER: LatLng = { latitude: 27.8118, longitude: 78.6477 };
+
+function calculateRoadDistanceKm(p1: LatLng, p2: LatLng): number {
+  const R = 6371;
+  const dLat = (p2.latitude - p1.latitude) * (Math.PI / 180);
+  const dLon = (p2.longitude - p1.longitude) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(p1.latitude * (Math.PI / 180)) *
+      Math.cos(p2.latitude * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.max(0.5, Math.round(R * c * 1.25 * 10) / 10);
+}
+
 export function RiderNavigationScreen() {
   const navigate = useNavigate();
   const { orderId } = useParams({ from: "/navigate/$orderId" });
-  const { data, isLoading } = useRiderResource(() => fetchRiderOrder(orderId), [orderId]);
+  const { data, isLoading } = useRiderResource(
+    () => fetchRiderOrder(orderId),
+    [orderId],
+    `rider_order_${orderId}`
+  );
   const [step, setStep] = useState(1);
-  const [riderPoint, setRiderPoint] = useState<LatLng | null>(null);
-  const [dropPoint, setDropPoint] = useState<LatLng | null>(null);
-  const [pickupPoint, setPickupPoint] = useState<LatLng | null>(null);
+  const [riderPoint, setRiderPoint] = useState<LatLng>(DEFAULT_KASGANJ_CENTER);
+  const [dropPoint, setDropPoint] = useState<LatLng>({ latitude: 27.8118, longitude: 78.6477 });
+  const [pickupPoint, setPickupPoint] = useState<LatLng>({ latitude: 27.8165, longitude: 78.6530 });
   const [route, setRoute] = useState<RouteResult | null>(null);
 
-  // Geocode the trip endpoints once the order lands (GOOGLE server key).
+  // Initialize coordinates from order data or geocode address
   useEffect(() => {
     if (!data) return;
     let active = true;
+
+    // Use embedded coordinates if present
+    const pLoc = (data as any).pickupLocation || (data as any).partnerLocation;
+    const dLoc = (data as any).deliveryLocation;
+    if (pLoc?.latitude && pLoc?.longitude) {
+      setPickupPoint({ latitude: pLoc.latitude, longitude: pLoc.longitude });
+    }
+    if (dLoc?.latitude && dLoc?.longitude) {
+      setDropPoint({ latitude: dLoc.latitude, longitude: dLoc.longitude });
+    }
+
     void (async () => {
       try {
         const [pickup, drop] = await Promise.all([
@@ -63,10 +94,10 @@ export function RiderNavigationScreen() {
           geocodeAddress(data.deliveryAddress),
         ]);
         if (!active) return;
-        setPickupPoint({ latitude: pickup.latitude, longitude: pickup.longitude });
-        setDropPoint({ latitude: drop.latitude, longitude: drop.longitude });
+        if (pickup?.latitude) setPickupPoint({ latitude: pickup.latitude, longitude: pickup.longitude });
+        if (drop?.latitude) setDropPoint({ latitude: drop.latitude, longitude: drop.longitude });
       } catch {
-        /* keep the ETA from the order payload */
+        /* fallback to pre-set coordinates */
       }
     })();
     return () => {
@@ -97,7 +128,9 @@ export function RiderNavigationScreen() {
         }).catch(() => undefined);
         void pushRiderLocation(point.latitude, point.longitude).catch(() => undefined);
       },
-      () => toast.error("Enable location to get live navigation"),
+      () => {
+        /* Keep Kasganj fallback */
+      },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
     );
 
@@ -119,13 +152,26 @@ export function RiderNavigationScreen() {
     };
   }, [riderPoint, pickupPoint, dropPoint, step]);
 
+  const targetDestination = step >= 4 ? dropPoint : (pickupPoint ?? dropPoint);
+  const calculatedDistance = useMemo(() => {
+    if (route?.distanceKm) return route.distanceKm;
+    if (data?.distanceKm && data.distanceKm > 0) return data.distanceKm;
+    return calculateRoadDistanceKm(riderPoint, targetDestination);
+  }, [route?.distanceKm, data?.distanceKm, riderPoint, targetDestination]);
+
+  const calculatedEta = useMemo(() => {
+    if (route?.etaMinutes) return route.etaMinutes;
+    if (data?.etaMinutes && data.etaMinutes > 0) return data.etaMinutes;
+    return Math.max(6, Math.round(calculatedDistance * 4.5));
+  }, [route?.etaMinutes, data?.etaMinutes, calculatedDistance]);
+
   const routePath = useMemo(
     () => (route?.polyline ? decodePolyline(route.polyline) : undefined),
     [route],
   );
 
-  const etaMinutes = route?.etaMinutes ?? data?.etaMinutes ?? null;
-  const distanceKm = route?.distanceKm ?? data?.distanceKm ?? null;
+  const etaMinutes = calculatedEta;
+  const distanceKm = calculatedDistance;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background">

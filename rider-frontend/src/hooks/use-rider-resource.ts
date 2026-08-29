@@ -1,22 +1,35 @@
-import { useEffect, useState } from "react";
+const riderCache = new Map<string, any>();
+
+export function setRiderResourceCache<T>(key: string, data: T) {
+  riderCache.set(key, data);
+}
+
+export function getRiderResourceCache<T>(key: string): T | undefined {
+  return riderCache.get(key);
+}
 
 /**
- * Small async loader used across rider screens so every screen shows the same
- * skeleton-then-fade-in behaviour as the customer and partner apps.
+ * High-speed async loader with instant cache-first return for 0ms transitions.
  */
-export function useRiderResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
+export function useRiderResource<T>(loader: () => Promise<T>, deps: unknown[] = [], cacheKey?: string) {
+  const effectiveKey = cacheKey || (deps.length > 0 ? JSON.stringify(deps) : undefined);
+  const cached = effectiveKey ? riderCache.get(effectiveKey) : undefined;
+  const [data, setData] = useState<T | null>(cached ?? null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let active = true;
-    setData(null);
+    if (effectiveKey && riderCache.has(effectiveKey)) {
+      setData(riderCache.get(effectiveKey));
+    }
     void loader()
       .then((value) => {
-        if (active) setData(value);
+        if (!active) return;
+        if (effectiveKey) riderCache.set(effectiveKey, value);
+        setData(value);
       })
       .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err : new Error("Request failed"));
+        if (active && !cached) setError(err instanceof Error ? err : new Error("Request failed"));
       });
     return () => {
       active = false;

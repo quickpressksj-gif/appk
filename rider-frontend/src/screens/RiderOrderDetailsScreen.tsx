@@ -37,7 +37,11 @@ import {
 export function RiderOrderDetailsScreen() {
   const navigate = useNavigate();
   const { orderId } = useParams({ from: "/orders/$orderId" });
-  const { data, isLoading } = useRiderResource(() => fetchRiderOrder(orderId), [orderId]);
+  const { data, isLoading } = useRiderResource(
+    () => fetchRiderOrder(orderId),
+    [orderId],
+    `rider_order_${orderId}`
+  );
   const [sheet, setSheet] = useState<null | "pickup" | "dispatch" | "delivery">(null);
   const [otp, setOtp] = useState("");
   const [submitting, setSubmitting] = useState(false);
