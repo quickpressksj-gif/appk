@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { useRiderContext } from "../context/RiderContext";
 import { riderRoutes } from "../navigation/rider-routes";
+import { useLanguage } from "../lib/i18n";
 
 /** Professional FAANG-grade Rider Top Header with Live Online Beacon */
 export function RiderTopBar({
@@ -52,6 +53,21 @@ export function RiderTopBar({
         </div>
       </div>
     </header>
+  );
+}
+
+export function RiderLanguageAction() {
+  const { openLanguageModal, language } = useLanguage();
+
+  return (
+    <button
+      type="button"
+      aria-label="Change Language"
+      onClick={openLanguageModal}
+      className="flex size-9 items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 font-bold text-xs shadow-2xs hover:bg-amber-100 active:scale-95 transition-all cursor-pointer"
+    >
+      <span className="uppercase text-[11px] font-black">{language}</span>
+    </button>
   );
 }
 

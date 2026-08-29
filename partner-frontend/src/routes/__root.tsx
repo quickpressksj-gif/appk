@@ -16,6 +16,8 @@ import { PartnerProvider } from "../context/PartnerContext";
 import { PartnerOrdersProvider } from "../context/PartnerOrdersContext";
 import { PartnerServicesProvider } from "../context/PartnerServicesContext";
 import { PartnerShopProvider } from "../context/PartnerShopContext";
+import { LanguageProvider } from "../lib/i18n";
+import { LanguageSelectionModal } from "../components/common/LanguageSelectionModal";
 
 configureSessionRole("partner");
 
@@ -132,16 +134,20 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PartnerProvider>
-        <PartnerOrdersProvider>
-          <PartnerServicesProvider>
-            <PartnerShopProvider>
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
-            </PartnerShopProvider>
-          </PartnerServicesProvider>
-        </PartnerOrdersProvider>
-      </PartnerProvider>
+      <LanguageProvider>
+        <PartnerProvider>
+          <PartnerOrdersProvider>
+            <PartnerServicesProvider>
+              <PartnerShopProvider>
+                {/* Global Language Selection Onboarding Screen */}
+                <LanguageSelectionModal />
+                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                <Outlet />
+              </PartnerShopProvider>
+            </PartnerServicesProvider>
+          </PartnerOrdersProvider>
+        </PartnerProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

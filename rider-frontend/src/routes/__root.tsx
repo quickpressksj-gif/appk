@@ -115,16 +115,22 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 import { RiderProvider } from "../context/RiderContext";
+import { LanguageProvider } from "../lib/i18n";
+import { LanguageSelectionModal } from "../components/common/LanguageSelectionModal";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RiderProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-      </RiderProvider>
+      <LanguageProvider>
+        <RiderProvider>
+          {/* Global High-Animation Language Selection Onboarding Screen */}
+          <LanguageSelectionModal />
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </RiderProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

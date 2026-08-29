@@ -3,6 +3,7 @@ import { ArrowLeft, Bell } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { partnerRoutes } from "../navigation/partner-routes";
+import { useLanguage } from "../lib/i18n";
 
 /**
  * Partner top app bar — same glass-panel header used across QuickPress screens.
@@ -46,6 +47,21 @@ export function PartnerTopBar({
         <div className="flex size-10 shrink-0 items-center justify-end">{action}</div>
       </div>
     </header>
+  );
+}
+
+export function PartnerLanguageAction() {
+  const { openLanguageModal, language } = useLanguage();
+
+  return (
+    <button
+      type="button"
+      aria-label="Change Language"
+      onClick={openLanguageModal}
+      className="flex size-9 items-center justify-center rounded-xl bg-amber-50 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:bg-amber-100 active:scale-95 transition-all cursor-pointer"
+    >
+      <span className="uppercase text-[11px] font-black">{language}</span>
+    </button>
   );
 }
 
