@@ -181,22 +181,22 @@ export function RiderDashboardScreen() {
         ) : (
           <div className="space-y-4 px-4 pt-3.5">
             {/* HERO CARD: Today's Earnings & Online Toggle */}
-            <section className="relative overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-lg border border-slate-800">
-              <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-emerald-500/15 blur-2xl" />
+            <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-emerald-100/50 to-teal-50 p-5 text-slate-900 shadow-sm border border-emerald-200/80">
+              <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-emerald-400/20 blur-2xl" />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <Zap className="size-3.5 text-emerald-400 fill-emerald-400" />
-                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 text-emerald-800">
+                    <Zap className="size-3.5 text-emerald-600 fill-emerald-600" />
+                    <p className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
                       Today&apos;s Earnings
                     </p>
                   </div>
-                  <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-white">
-                    <IndianRupee className="size-6" strokeWidth={2.6} />
+                  <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-slate-950">
+                    <IndianRupee className="size-6 text-emerald-700" strokeWidth={2.6} />
                     {(data.kpis?.earningsToday ?? 0).toLocaleString("en-IN")}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-300">
-                    <span className="text-emerald-400 font-bold">
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    <span className="text-emerald-700 font-bold">
                       {data.kpis?.deliveriesToday ?? 0}
                     </span>{" "}
                     orders completed · {data.kpis?.workingHours ?? 0}h online
@@ -212,8 +212,8 @@ export function RiderDashboardScreen() {
                   onClick={handleToggle}
                   className={`flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all active:scale-[0.95] ${
                     isOnline
-                      ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
-                      : "bg-white/10 border border-white/15 text-slate-300"
+                      ? "bg-emerald-600/15 border border-emerald-500/30 text-emerald-800"
+                      : "bg-slate-200/80 border border-slate-300 text-slate-600"
                   }`}
                 >
                   <span className="text-[10px] font-black uppercase tracking-wider">
@@ -221,7 +221,7 @@ export function RiderDashboardScreen() {
                   </span>
                   <span
                     className={`relative h-6 w-11 rounded-full transition-colors duration-300 ${
-                      isOnline ? "bg-emerald-500" : "bg-white/30"
+                      isOnline ? "bg-emerald-600" : "bg-slate-400"
                     }`}
                   >
                     <span
@@ -236,28 +236,28 @@ export function RiderDashboardScreen() {
 
             {/* 🚀 NEW DELIVERY JOB OFFER CARD (IF ANY NEW ASSIGNED ORDER) */}
             {activePendingOffer ? (
-              <section className="animate-rise overflow-hidden rounded-3xl border-2 border-emerald-500/70 bg-gradient-to-b from-slate-900 to-slate-950 p-5 text-white shadow-xl">
+              <section className="animate-rise overflow-hidden rounded-3xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/80 p-5 text-slate-900 shadow-md">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30">
-                    <Sparkles className="size-3 text-emerald-400 animate-spin" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                    <Sparkles className="size-3 text-emerald-600 animate-spin" />
                     New Laundry Trip Offer
                   </span>
-                  <span className="text-xs font-bold text-slate-400">
+                  <span className="text-xs font-bold text-slate-500">
                     #{activePendingOffer.code}
                   </span>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="mt-4 flex items-center justify-between border-b border-slate-200/80 pb-3">
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-400">Trip Earnings</p>
-                    <p className="flex items-center text-2xl font-black text-emerald-400">
+                    <p className="text-[10px] font-semibold text-slate-500">Trip Earnings</p>
+                    <p className="flex items-center text-2xl font-black text-emerald-700">
                       <IndianRupee className="size-5" />
                       {activePendingOffer.estimatedEarning || 55}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-semibold text-slate-400">Estimated Distance</p>
-                    <p className="text-sm font-black text-white">
+                    <p className="text-[10px] font-semibold text-slate-500">Estimated Distance</p>
+                    <p className="text-sm font-black text-slate-900">
                       {activePendingOffer.distanceKm || "2.4"} KM
                     </p>
                   </div>
@@ -266,32 +266,32 @@ export function RiderDashboardScreen() {
                 {/* Pickup & Drop Points */}
                 <div className="mt-3.5 space-y-2.5">
                   <div className="flex items-start gap-2.5">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-400/20 text-amber-400">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
                       <Store className="size-3.5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-slate-400">Store Pickup</p>
-                      <p className="truncate text-xs font-bold text-white">
+                      <p className="text-[10px] font-bold uppercase text-slate-500">Store Pickup</p>
+                      <p className="truncate text-xs font-bold text-slate-900">
                         {activePendingOffer.partnerName || "Partner Outlet"}
                       </p>
-                      <p className="truncate text-[11px] text-slate-400">
+                      <p className="truncate text-[11px] text-slate-500">
                         {activePendingOffer.pickupAddress || "Kasganj Hub"}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-400/20 text-emerald-400">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                       <MapPin className="size-3.5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-slate-400">
+                      <p className="text-[10px] font-bold uppercase text-slate-500">
                         Customer Drop-off
                       </p>
-                      <p className="truncate text-xs font-bold text-white">
+                      <p className="truncate text-xs font-bold text-slate-900">
                         {activePendingOffer.customerName || "Customer"}
                       </p>
-                      <p className="truncate text-[11px] text-slate-400">
+                      <p className="truncate text-[11px] text-slate-500">
                         {activePendingOffer.deliveryAddress || "Customer Address"}
                       </p>
                     </div>
