@@ -156,23 +156,24 @@ export function RiderAuthScreen() {
         {/* Top App Bar Branding */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white shadow-md border border-emerald-500/30">
+            <div className="relative flex size-11 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-md border border-emerald-500/30">
               <Bike className="size-6 text-emerald-400" strokeWidth={2.4} />
-              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-slate-950 shadow-xs">
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-zinc-950 shadow-xs">
                 ★
               </span>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-base font-black tracking-tight text-slate-900">
-                  QuickPress <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Captain</span>
-                </p>
-                <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                <h1 className="text-lg font-black leading-none tracking-tight">
+                  <span className="text-zinc-950 font-black">Quick</span>
+                  <span className="text-emerald-600 font-black">Press</span>
+                </h1>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
                   CAPTAIN
                 </span>
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Official Delivery Captain App
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mt-0.5">
+                Captain · Pickup · Delivery
               </p>
             </div>
           </div>
