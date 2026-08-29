@@ -249,3 +249,20 @@
   animation: qp-splash-bar 1.15s ease-in-out infinite;
   will-change: transform;
 }
+
+/* ---------- Auto-hiding nav dock (matches customer panel) ---------- */
+@utility nav-hidden {
+  transform: translate3d(0, calc(100% + 1.5rem), 0);
+  opacity: 0;
+}
+@utility nav-shown {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-hidden {
+    transform: none;
+    opacity: 1;
+  }
+}
