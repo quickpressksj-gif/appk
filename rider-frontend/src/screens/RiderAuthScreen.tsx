@@ -155,27 +155,19 @@ export function RiderAuthScreen() {
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-4 pb-8 pt-6 lg:max-w-4xl lg:justify-center lg:py-12">
         {/* Top App Bar Branding */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative flex size-11 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-md border border-emerald-500/30">
-              <Bike className="size-6 text-emerald-400" strokeWidth={2.4} />
-              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-zinc-950 shadow-xs">
-                ★
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black leading-none tracking-[-0.04em]">
+                <span className="text-zinc-950 font-black">Quick</span>
+                <span className="text-emerald-600 font-black">Press</span>
+              </h1>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                CAPTAIN
               </span>
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-lg font-black leading-none tracking-tight">
-                  <span className="text-zinc-950 font-black">Quick</span>
-                  <span className="text-emerald-600 font-black">Press</span>
-                </h1>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
-                  CAPTAIN
-                </span>
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mt-0.5">
-                Captain · Pickup · Delivery
-              </p>
-            </div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">
+              Captain · Pickup · Delivery
+            </p>
           </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700 border border-emerald-200">
             <Sparkles className="size-3 text-emerald-600" />
