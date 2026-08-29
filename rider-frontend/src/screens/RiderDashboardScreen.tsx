@@ -29,6 +29,7 @@ import { Toaster } from "@/shared/ui/sonner";
 import { RiderBottomNav } from "../components/RiderBottomNav";
 import { DualSwipeActionButton } from "../components/common/DualSwipeActionButton";
 import { IncomingOrderAlertModal } from "../components/alerts/IncomingOrderAlertModal";
+import { stopOrderAlertRing } from "../lib/order-alert-sound";
 import {
   ActiveDeliveryCard,
   AnnouncementCard,
@@ -84,6 +85,9 @@ export function RiderDashboardScreen() {
         (o) => o.status === "assigned" || (o.stage as any) === "pickup_assigned"
       );
       setPendingOrders(assigned);
+      if (assigned.length === 0) {
+        stopOrderAlertRing();
+      }
     } catch {
       /* ignore */
     } finally {
@@ -93,12 +97,17 @@ export function RiderDashboardScreen() {
 
   useEffect(() => {
     void loadData();
-    // Refresh active orders every 8s when online
+    // Refresh active orders every 5s when online
     if (isOnline) {
       const timer = setInterval(() => {
         void loadData();
-      }, 8000);
-      return () => clearInterval(timer);
+      }, 5000);
+      return () => {
+        clearInterval(timer);
+        stopOrderAlertRing();
+      };
+    } else {
+      stopOrderAlertRing();
     }
   }, [loadData, isOnline]);
 
@@ -110,15 +119,20 @@ export function RiderDashboardScreen() {
 
   const handleToggle = () => {
     const next = !isOnline;
+    if (!next) {
+      stopOrderAlertRing();
+    }
     setOnline(next);
     toast.success(next ? "You are Online — Ready for Deliveries 🚀" : "You are Offline");
   };
 
   const handleAcceptOffer = async (order: RiderOrder) => {
     setActionBusy(true);
+    stopOrderAlertRing(); // 🛑 Stop siren immediately!
+    setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
     try {
       await acceptRiderOrder(order.code || order.id);
-      toast.success(`Trip Offer #${order.code} Accepted! 🚀`);
+      toast.success(`Trip Offer #${order.code || order.id} Accepted! 🚀`);
       await loadData();
       navigate({
         to: riderRoutes.orderDetails,
@@ -126,22 +140,27 @@ export function RiderDashboardScreen() {
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to accept trip offer");
+      await loadData();
     } finally {
       setActionBusy(false);
+      stopOrderAlertRing();
     }
   };
 
   const handleRejectOffer = async (order: RiderOrder) => {
     setActionBusy(true);
+    stopOrderAlertRing(); // 🛑 Stop siren immediately!
+    setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
     try {
       await rejectRiderOrder(order.code || order.id);
-      toast.info(`Offer #${order.code} declined`);
-      setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
+      toast.info(`Offer #${order.code || order.id} declined`);
       await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to decline offer");
+      await loadData();
     } finally {
       setActionBusy(false);
+      stopOrderAlertRing();
     }
   };
 
