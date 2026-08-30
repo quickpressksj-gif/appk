@@ -91,7 +91,7 @@ export function CheckoutPage() {
         if (!alive) return;
 
         // Populate addresses
-        if (addrList.length > 0) {
+        if (addrList.length > 0 && addrList[0]) {
           setAddresses(addrList);
           setPickupAddressId(addrList[0].id);
           setDeliveryAddressId(addrList[0].id);
@@ -115,7 +115,9 @@ export function CheckoutPage() {
         }
 
         // Populate profile
-        const prof = profileData && "data" in profileData ? profileData.data : profileData;
+        const prof = (profileData && typeof profileData === "object" && "data" in profileData
+          ? (profileData as { data: { name?: string; phone?: string } }).data
+          : profileData) as { name?: string; phone?: string } | null;
         if (prof?.name) setCustomerName(prof.name);
         if (prof?.phone) setCustomerPhone(prof.phone);
         else if (addrList[0]?.phone) setCustomerPhone(addrList[0].phone);

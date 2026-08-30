@@ -139,6 +139,16 @@ function computeOptimisticTotals(lines: CartLine[], currentCharges?: Charges, cu
   };
 }
 
+const DEFAULT_CART_STORE: CartStoreInfo = {
+  id: "quickpress-hub",
+  name: "QuickPress Express Hub",
+  image: "",
+  rating: 4.9,
+  reviews: "2.4k+ orders",
+  pickupEta: "15-30 mins",
+  deliveryEta: "24-48 hrs",
+};
+
 function set(patch: Partial<CartSnapshot>) {
   const nextLines = patch.lines !== undefined ? patch.lines : snapshot.lines;
   const optTotals = computeOptimisticTotals(nextLines, patch.charges ?? snapshot.charges, patch.totals ?? snapshot.totals);
@@ -167,7 +177,7 @@ function set(patch: Partial<CartSnapshot>) {
       })),
       totals: snapshot.totals,
       charges: snapshot.charges,
-      store: snapshot.store,
+      store: snapshot.store || DEFAULT_CART_STORE,
       coupons: [],
     },
   });
