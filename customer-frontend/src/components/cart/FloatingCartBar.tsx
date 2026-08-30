@@ -1,5 +1,5 @@
-import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -11,19 +11,17 @@ import { useCart } from "@/hooks/useCart";
  * - Left: Overlapping circular item thumbnails with white borders
  * - Center: "View cart" (bold white) and "X items" (soft white)
  * - Right: Chevron right arrow
- * - Navigates directly to `/checkout` on tap
+ * - Navigates directly to `/cart` on tap
  */
 export function FloatingCartBar({
   hasBottomNav,
 }: {
   hasBottomNav?: boolean;
 }) {
-  const navigate = useNavigate();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { count, total, lines } = useCart();
   const [mounted, setMounted] = useState(false);
-  const [pressed, setPressed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -60,12 +58,6 @@ export function FloatingCartBar({
       ? hasBottomNav
       : pagesWithBottomNav.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  const handleGoToCart = () => {
-    setPressed(true);
-    window.setTimeout(() => setPressed(false), 200);
-    void navigate({ to: "/cart" });
-  };
-
   // Up to 3 item thumbnails
   const displayItems = lines.slice(0, 3);
 
@@ -79,20 +71,9 @@ export function FloatingCartBar({
       } z-40 animate-in fade-in slide-in-from-bottom-3 duration-300 pointer-events-none`}
     >
       <div className="mx-auto w-full max-w-md px-4">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={handleGoToCart}
-          onPointerEnter={() => void router.preloadRoute({ to: "/cart" }).catch(() => undefined)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleGoToCart();
-            }
-          }}
-          className={`group pointer-events-auto flex items-center justify-between gap-3 rounded-2xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2.5 text-white shadow-xl shadow-emerald-950/25 transition-all duration-200 cursor-pointer active:scale-[0.98] ${
-            pressed ? "scale-[0.98]" : ""
-          }`}
+        <Link
+          to="/cart"
+          className="group pointer-events-auto flex items-center justify-between gap-3 rounded-2xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2.5 text-white shadow-xl shadow-emerald-950/25 transition-all duration-200 cursor-pointer active:scale-[0.98]"
         >
           {/* Left: Overlapping circular item thumbnails + View Cart text */}
           <div className="flex items-center gap-3 min-w-0">
@@ -137,7 +118,7 @@ export function FloatingCartBar({
             </span>
             <ChevronRight className="size-5 text-white stroke-[2.5] transition-transform duration-200 group-hover:translate-x-0.5" />
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );

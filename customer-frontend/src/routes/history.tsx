@@ -128,7 +128,7 @@ function HistoryScreen() {
     setReordering(order.id);
     try {
       await reorder(order.orderId);
-      navigate({ to: "/checkout" });
+      navigate({ to: "/cart" });
     } catch {
       setError("Reorder failed. Please try again.");
     } finally {

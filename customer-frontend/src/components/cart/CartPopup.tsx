@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   ChevronRight,
@@ -120,9 +120,9 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleGoToCart}
+              <Link
+                to="/cart"
+                onClick={onClose}
                 className="flex h-12 flex-1 items-center justify-between rounded-2xl bg-[#0c831f] hover:bg-emerald-800 px-5 text-sm font-black text-white shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all cursor-pointer"
               >
                 <span>View Full Cart</span>
@@ -130,7 +130,7 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
                   <span className="text-xs font-bold opacity-90">{cart.count} items</span>
                   <ChevronRight className="size-4 stroke-[2.5]" />
                 </div>
-              </button>
+              </Link>
             </div>
           </div>
         ) : null}

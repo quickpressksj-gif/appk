@@ -293,7 +293,7 @@ function PartnerDetailScreen() {
     setAdded(true);
     window.setTimeout(() => {
       setAdded(false);
-      void navigate({ to: "/checkout" });
+      void navigate({ to: "/cart" });
     }, 400);
   };
 

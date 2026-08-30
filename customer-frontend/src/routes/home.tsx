@@ -159,9 +159,9 @@ function HomeScreen() {
     setReordering(orderId);
     try {
       await reorder(orderId);
-      navigate({ to: "/checkout" });
+      navigate({ to: "/cart" });
     } catch {
-      navigate({ to: "/checkout" });
+      navigate({ to: "/cart" });
     } finally {
       setReordering(null);
     }
