@@ -35,42 +35,66 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
+  console.error("Root boundary caught error:", error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+
+    // Automatic recovery for stale bundle chunk / CDN cache mismatch errors
+    const errorMsg = String(error?.message || error || "");
+    if (
+      errorMsg.includes("positive") ||
+      errorMsg.includes("Failed to fetch dynamically imported module") ||
+      errorMsg.includes("Loading chunk") ||
+      errorMsg.includes("Importing a module script failed")
+    ) {
+      const key = "__qp_auto_recovered_v3";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "true");
+        if ("caches" in window) {
+          caches.keys().then((names) => {
+            for (const name of names) caches.delete(name);
+          });
+        }
+        window.location.reload();
+      }
+    }
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
+      <div className="max-w-md text-center p-8 bg-zinc-900 rounded-3xl border border-zinc-800 shadow-2xl">
+        <div className="size-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4 font-black text-xl">
+          QP
+        </div>
+        <h1 className="text-xl font-black tracking-tight text-white">
+          Updating QuickPress Admin...
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+        <p className="mt-2 text-xs text-zinc-400">
+          A new platform version has been deployed. Click below to load the latest application state.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button
             onClick={() => {
-              router.invalidate();
-              reset();
+              if ("caches" in window) {
+                caches.keys().then((names) => {
+                  for (const name of names) caches.delete(name);
+                });
+              }
+              sessionStorage.clear();
+              window.location.href = window.location.pathname + "?v=" + Date.now();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-extrabold text-white transition-all hover:bg-emerald-500 active:scale-95 shadow-lg shadow-emerald-900/30"
           >
-            Try again
+            Reload Latest App
           </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
         </div>
       </div>
     </div>
   );
 }
+
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
