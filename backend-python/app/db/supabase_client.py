@@ -446,6 +446,22 @@ class SupabaseDatabase:
         await self.collection(name).update_one(query, {"$set": changes}, upsert=upsert)
         return await self.find_one(name, query)
 
+    async def update_one(
+        self, name: str, query: Dict[str, Any], changes: Dict[str, Any], *, upsert: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        return await self.update(name, query, changes, upsert=upsert)
+
+    async def insert_one(self, name: str, document: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.insert(name, document)
+
+
     async def delete_one(self, name: str, query: Dict[str, Any]) -> int:
         return await self.collection(name).delete_one(query)
+
+    async def delete_many(self, name: str, query: Dict[str, Any]) -> int:
+        return await self.collection(name).delete_many(query)
+
+    async def delete(self, name: str, query: Dict[str, Any]) -> int:
+        return await self.collection(name).delete_many(query)
+
 

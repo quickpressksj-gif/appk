@@ -382,10 +382,33 @@ class Database:
         await self.collection(name).update_one(query, {"$set": changes}, upsert=upsert)
         return await self.find_one(name, query)
 
+    async def update_one(
+        self,
+        name: str,
+        query: Dict[str, Any],
+        changes: Dict[str, Any],
+        *,
+        upsert: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        return await self.update(name, query, changes, upsert=upsert)
+
+    async def insert_one(self, name: str, document: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.insert(name, document)
+
+
     async def delete_one(self, name: str, query: Dict[str, Any]) -> int:
         collection = self.collection(name)
         result = await collection.delete_one(query)  # type: ignore[attr-defined]
         return result if isinstance(result, int) else int(getattr(result, "deleted_count", 0))
+
+    async def delete_many(self, name: str, query: Dict[str, Any]) -> int:
+        collection = self.collection(name)
+        result = await collection.delete_many(query)  # type: ignore[attr-defined]
+        return result if isinstance(result, int) else int(getattr(result, "deleted_count", 0))
+
+    async def delete(self, name: str, query: Dict[str, Any]) -> int:
+        return await self.delete_many(name, query)
+
 
     async def upsert_seed(self, seed: Dict[str, List[Dict[str, Any]]]) -> None:
         """Idempotent seed: only writes documents that do not exist yet."""
