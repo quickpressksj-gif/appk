@@ -28,22 +28,22 @@ export const AddToCartControl = memo(function AddToCartControl({
   if (qty > 0) {
     return (
       <div
-        className={`animate-pop flex ${height} w-28 items-center justify-between rounded-2xl bg-primary px-1.5 shadow-cta`}
+        className={`animate-pop flex ${height} w-28 items-center justify-between rounded-2xl bg-emerald-600 text-white px-1.5 shadow-md`}
       >
         <button
           type="button"
           aria-label={`Remove one ${item.name}`}
           onClick={() => step(item.id, -1)}
-          className="ripple flex size-7 items-center justify-center rounded-xl text-primary-foreground transition-transform duration-200 active:scale-90"
+          className="flex size-7 items-center justify-center rounded-xl text-white transition-transform duration-200 active:scale-90 cursor-pointer"
         >
           <Minus className="size-3.5" />
         </button>
-        <span className={`${text} font-bold text-primary-foreground`}>{qty}</span>
+        <span className={`${text} font-black text-white`}>{qty}</span>
         <button
           type="button"
           aria-label={`Add one ${item.name}`}
           onClick={() => step(item.id, 1)}
-          className="ripple flex size-7 items-center justify-center rounded-xl text-primary-foreground transition-transform duration-200 active:scale-90"
+          className="flex size-7 items-center justify-center rounded-xl text-white transition-transform duration-200 active:scale-90 cursor-pointer"
         >
           <Plus className="size-3.5" />
         </button>
@@ -56,7 +56,7 @@ export const AddToCartControl = memo(function AddToCartControl({
       type="button"
       disabled={disabled}
       onClick={() => add(item)}
-      className={`ripple flex ${height} items-center gap-1 rounded-2xl bg-primary px-4 ${text} font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.96] disabled:opacity-50`}
+      className={`flex ${height} items-center gap-1 rounded-2xl bg-emerald-600 hover:bg-emerald-700 px-4 ${text} font-black text-white shadow-md transition-all duration-300 active:scale-[0.96] disabled:opacity-50 cursor-pointer`}
     >
       <ShoppingBag className="size-3.5" /> Add
     </button>

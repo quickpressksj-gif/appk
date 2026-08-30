@@ -105,15 +105,15 @@ export function FloatingCartBar({
       ? hasBottomNav
       : pagesWithBottomNav.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  const handleGoToCart = () => {
+  const handleGoToCheckout = () => {
     setPressed(true);
     window.setTimeout(() => setPressed(false), 200);
-    void navigate({ to: "/cart" });
+    void navigate({ to: "/checkout" });
   };
 
   const bar = (
     <aside
-      aria-label="Floating cart summary"
+      aria-label="Floating checkout bar"
       className={`fixed inset-x-0 ${
         showAboveNav
           ? "bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.25rem)]"
@@ -125,15 +125,15 @@ export function FloatingCartBar({
         <div
           role="button"
           tabIndex={0}
-          onClick={handleGoToCart}
-          onPointerEnter={() => void router.preloadRoute({ to: "/cart" }).catch(() => undefined)}
+          onClick={handleGoToCheckout}
+          onPointerEnter={() => void router.preloadRoute({ to: "/checkout" }).catch(() => undefined)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              handleGoToCart();
+              handleGoToCheckout();
             }
           }}
-          className={`group pointer-events-auto flex items-center justify-between gap-2.5 rounded-full border border-primary/25 bg-card/85 dark:bg-zinc-900/85 p-1.5 pl-3 pr-1.5 text-foreground shadow-[0_16px_40px_-16px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all duration-300 cursor-pointer hover:border-primary/60 hover:bg-card/95 ${
+          className={`group pointer-events-auto flex items-center justify-between gap-2.5 rounded-full border border-emerald-500/30 bg-card/90 dark:bg-zinc-900/90 p-1.5 pl-3 pr-1.5 text-foreground shadow-[0_16px_40px_-16px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all duration-300 cursor-pointer hover:border-emerald-500/60 hover:bg-card/95 ${
             pressed ? "scale-[0.985]" : "active:scale-[0.985]"
           }`}
         >
@@ -144,26 +144,26 @@ export function FloatingCartBar({
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-black tracking-tight text-foreground">₹{total}</span>
                 <span className="text-[11px] font-bold text-muted-foreground truncate">
-                  · {count} {count === 1 ? "item" : "items"} in cart
+                  · {count} {count === 1 ? "item" : "items"}
                 </span>
               </div>
-              <p className="text-[10px] font-bold text-primary flex items-center gap-1 leading-tight">
-                <Sparkles className="size-2.5 fill-primary/20" />
-                <span>Tap to review & proceed</span>
+              <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 leading-tight">
+                <Sparkles className="size-2.5 fill-emerald-500/20" />
+                <span>Tap to instant checkout</span>
               </p>
             </div>
           </div>
 
-          {/* Right: "View Cart" Pill Button matching exact primary button height and styling */}
+          {/* Right: "Checkout" Pill Button matching exact customer primary button height and styling */}
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              handleGoToCart();
+              handleGoToCheckout();
             }}
-            className="ripple shrink-0 flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-black text-primary-foreground shadow-cta transition-all duration-200 hover:brightness-105 active:scale-95 cursor-pointer"
+            className="shrink-0 flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 px-4.5 py-2 text-xs font-black text-white shadow-md transition-all duration-200 hover:brightness-105 active:scale-95 cursor-pointer"
           >
-            <span>View Cart</span>
+            <span>Checkout</span>
             <ArrowRight className="size-3.5 stroke-[2.5] transition-transform duration-200 group-hover:translate-x-0.5" />
           </button>
         </div>

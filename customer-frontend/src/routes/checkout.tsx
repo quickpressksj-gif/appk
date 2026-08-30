@@ -286,7 +286,7 @@ function CheckoutScreen() {
               <button
                 type="button"
                 aria-label="Go back"
-                onClick={() => navigate({ to: "/cart" })}
+                onClick={() => (window.history.length > 1 ? window.history.back() : navigate({ to: "/home" }))}
                 className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
               >
                 <ArrowLeft className="size-5" />
