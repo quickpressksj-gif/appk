@@ -409,13 +409,39 @@ class AdminDashboardRepository:
         busy_riders = [r for r in riders if r.get("_id") in busy_rider_ids]
         available_riders = [r for r in online_riders if r.get("_id") not in busy_rider_ids]
 
-        customers = await database.find_many("customers")
-        today_customers = [c for c in customers if (c.get("createdAt") or "").startswith(today_str)]
-        active_customer_ids = {o.get("customer", {}).get("id") for o in orders if o.get("customer")}
+        all_users = await database.find_many("users")
+        customers = [
+            u for u in all_users
+            if str(u.get("role") or "customer").lower() in ("customer", "user", "none")
+        ]
+        if not customers:
+            customers = await database.find_many("customers")
 
-        today_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "").startswith(today_str))
-        weekly_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "") >= week_ago_str)
-        monthly_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered if (o.get("createdAt") or "") >= month_ago_str)
+        today_customers = [
+            c for c in customers
+            if (c.get("createdAt") or c.get("created_at") or "").startswith(today_str)
+        ]
+        active_customer_ids = {
+            o.get("userId") or o.get("user_id") or o.get("customer", {}).get("id")
+            for o in orders
+            if o.get("customer") or o.get("userId") or o.get("user_id")
+        }
+
+        today_revenue = sum(
+            (o.get("totals") or {}).get("grandTotal", 0)
+            for o in delivered
+            if (o.get("createdAt") or "").startswith(today_str)
+        )
+        weekly_revenue = sum(
+            (o.get("totals") or {}).get("grandTotal", 0)
+            for o in delivered
+            if (o.get("createdAt") or "") >= week_ago_str
+        )
+        monthly_revenue = sum(
+            (o.get("totals") or {}).get("grandTotal", 0)
+            for o in delivered
+            if (o.get("createdAt") or "") >= month_ago_str
+        )
         total_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered)
         platform_earnings = round(total_revenue * 0.18)
 
@@ -440,18 +466,19 @@ class AdminDashboardRepository:
         partner_stats: Dict[str, Dict[str, Any]] = {}
         for p in partners:
             p_id = str(p.get("_id") or p.get("id"))
-            p_orders = [o for o in orders if (o.get("partner") or {}).get("id") == p_id]
+            p_orders = [o for o in orders if (o.get("partner") or {}).get("id") == p_id or o.get("partnerId") == p_id]
             p_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in p_orders if o.get("status") == "delivered")
             partner_stats[p_id] = {
                 "id": p_id,
-                "name": p.get("name") or p.get("storeName") or "Partner Store",
-                "city": p.get("city") or "—",
+                "name": p.get("businessName") or p.get("name") or p.get("storeName") or "QuickPress Partner",
+                "city": p.get("city") or "Kasganj",
                 "orders": len(p_orders),
                 "revenue": p_revenue,
-                "rating": p.get("rating", 4.8),
-                "status": p.get("status", "pending"),
+                "rating": p.get("rating", 4.9),
+                "status": p.get("status", "active"),
             }
         top_partners = sorted(partner_stats.values(), key=lambda x: x["orders"], reverse=True)[:5]
+
 
         return {
             "totalOrders": len(orders),
