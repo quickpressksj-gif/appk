@@ -21,6 +21,12 @@ class CancelOrderPayload(BaseModel):
     reason: Optional[str] = None
 
 
+class UpdateOrderStatusPayload(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
+
 class CouponPayload(BaseModel):
     code: Optional[str] = None
     discount: Optional[str] = None

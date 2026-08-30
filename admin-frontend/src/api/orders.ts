@@ -165,13 +165,16 @@ export async function assignRider(orderId: string, riderId: string) {
   await apiPostJson(`/api/admin/orders/${orderId}/assign-rider`, { riderId });
   return { ok: true as const, orderId, riderId };
 }
-/** POST /api/admin/orders/{id}/cancel — the only status admins can force. */
-export async function changeOrderStatus(orderId: string, status: OrderStatus) {
-  if (status === "Cancelled") {
-    await apiPostJson(`/api/admin/orders/${orderId}/cancel`, { reason: "Cancelled by admin" });
+/** POST /api/admin/orders/{id}/status or /api/admin/orders/{id}/cancel */
+export async function changeOrderStatus(orderId: string, status: string, reason?: string) {
+  if (status === "Cancelled" || status === "cancelled") {
+    await apiPostJson(`/api/admin/orders/${orderId}/cancel`, { reason: reason || "Cancelled by admin" });
+  } else {
+    await apiPostJson(`/api/admin/orders/${orderId}/status`, { status, reason: reason || `Updated to ${status} by admin` });
   }
   return { ok: true as const, orderId, status };
 }
+
 /** No invoice-generation endpoint exists on the backend yet. */
 export async function downloadInvoice(): Promise<never> {
   throw new Error("Invoice generation is not available yet.");

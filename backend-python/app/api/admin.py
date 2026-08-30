@@ -22,6 +22,7 @@ from app.models.admin import (
     AssignRiderPayload,
     BroadcastPayload,
     CancelOrderPayload,
+    UpdateOrderStatusPayload,
     CityPayload,
     CouponPayload,
     ServicePayload,
@@ -138,6 +139,19 @@ async def cancel_order(order_id: str, payload: CancelOrderPayload, user: User = 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     await audit_repository.log(await _actor(user), "order.cancel", order_id, {"reason": payload.reason})
     return row
+
+
+@router.post("/orders/{order_id}/status")
+async def update_order_status(order_id: str, payload: UpdateOrderStatusPayload, user: User = Depends(current_user)):
+    try:
+        row = await admin_order_repository.update_status(order_id, payload.status, payload.reason)
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    await audit_repository.log(await _actor(user), "order.update_status", order_id, {"status": payload.status, "reason": payload.reason})
+    return row
+
 
 
 # ----------------------------------------------------------------- customers

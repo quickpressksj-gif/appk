@@ -227,6 +227,38 @@ class AdminOrderRepository:
         )
         return to_admin_order_row(updated)
 
+    async def update_status(self, order_id: str, new_status: str, reason: Optional[str] = None) -> Dict[str, Any]:
+        order = await self.find(order_id)
+        if order is None:
+            raise LookupError(f"Order {order_id} does not exist")
+
+        target = new_status.lower().strip()
+        status_map = {
+            "pending": "pending_partner_acceptance",
+            "accepted": "partner_accepted",
+            "rider assigned": "rider_assigned",
+            "picked up": "picked_up",
+            "processing": "processing",
+            "in wash": "processing",
+            "ready": "completed",
+            "completed": "completed",
+            "out for delivery": "out_for_delivery",
+            "delivered": "delivered",
+            "cancelled": "cancelled",
+        }
+        canonical_status = status_map.get(target, target)
+
+        updated = await lifecycle.transition(
+            order["_id"],
+            canonical_status,
+            actor_id="admin",
+            actor_role="admin",
+            metadata={"reason": reason or f"Status updated to {canonical_status} by admin"},
+            changes={"status": canonical_status},
+        )
+        return to_admin_order_row(updated)
+
+
     async def events(self, order_id: str) -> List[Dict[str, Any]]:
         """Full canonical audit trail for one order."""
         return await lifecycle.events_for(order_id)

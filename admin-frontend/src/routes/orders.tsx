@@ -429,6 +429,18 @@ function OrderDetailSheet({
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
+      changeOrderStatus(orderId, status),
+    onSuccess: () => {
+      toast.success("Order status updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+    onError: () => {
+      toast.error("Failed to update order status.");
+    },
+  });
+
   return (
     <Sheet open={Boolean(order)} onOpenChange={(open) => (open ? null : onClose())}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl bg-white text-zinc-900 border-zinc-200">
@@ -530,7 +542,7 @@ function OrderDetailSheet({
           {/* Items Breakdown */}
           <div>
             <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2.5">
-              ORDER ITEMS ({data?.items?.length ?? 0})
+              ORDER ITEMS ({(data?.items ?? []).length})
             </h4>
             <div className="rounded-2xl border border-zinc-200 overflow-hidden">
               <ul className="divide-y divide-zinc-100">
@@ -543,7 +555,7 @@ function OrderDetailSheet({
                   </li>
                 ))}
                 {(!data?.items || data.items.length === 0) && (
-                  <li className="p-4 text-center text-xs text-zinc-400">Standard Laundry Bag</li>
+                  <li className="p-4 text-center text-xs text-zinc-400">Standard Laundry Service Bag</li>
                 )}
               </ul>
             </div>
@@ -580,7 +592,7 @@ function OrderDetailSheet({
           {/* Operational Actions */}
           <div className="space-y-4">
             <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              DISPATCH & GOVERNANCE ACTIONS
+              DISPATCH &amp; GOVERNANCE ACTIONS
             </h4>
 
             {/* Rider Assignment */}
@@ -607,29 +619,70 @@ function OrderDetailSheet({
               </Select>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-2">
+            {/* Live Status Control Bar */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-zinc-700">Update Order Status Override</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "partner_accepted" })}
+                >
+                  Store Accept
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-sky-300 text-sky-800 hover:bg-sky-50"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "picked_up" })}
+                >
+                  Picked Up
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-indigo-300 text-indigo-800 hover:bg-indigo-50"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "processing" })}
+                >
+                  In Wash
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-50"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "out_for_delivery" })}
+                >
+                  Out Delivery
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "delivered" })}
+                >
+                  Delivered
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-[11px] font-bold border-rose-300 text-rose-800 hover:bg-rose-50"
+                  onClick={() => order && statusMutation.mutate({ orderId: order.id, status: "cancelled" })}
+                >
+                  Cancel Order
+                </Button>
+              </div>
+            </div>
+
+            {/* Invoice Button */}
+            <div className="pt-2">
               <Button
                 variant="outline"
-                className="flex-1 rounded-xl text-xs font-bold"
-                onClick={() => toast.success(`Order #${order?.id} invoice generated.`)}
+                className="w-full rounded-xl text-xs font-bold"
+                onClick={() => toast.success(`Order #${order?.id} thermal receipt generated.`)}
               >
                 <FileText className="mr-1.5 size-3.5" />
-                <span>Invoice PDF</span>
-              </Button>
-
-              <Button
-                variant="destructive"
-                className="flex-1 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700"
-                disabled={order?.status === "Cancelled" || order?.status === "Delivered"}
-                onClick={() => {
-                  if (order && confirm(`Are you sure you want to cancel Order #${order.id}?`)) {
-                    cancelMutation.mutate({ orderId: order.id });
-                  }
-                }}
-              >
-                <XCircle className="mr-1.5 size-3.5" />
-                <span>Cancel Order</span>
+                <span>Print POS Invoice Receipt</span>
               </Button>
             </div>
           </div>
