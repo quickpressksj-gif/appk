@@ -368,11 +368,11 @@ function MembershipScreen() {
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[0.68rem] font-semibold uppercase tracking-widest text-background/70">
-                    Current plan
+                    {membership.active ? "Current plan" : "VIP Membership"}
                   </p>
                   <p className="mt-1 flex items-center gap-2 truncate text-2xl font-black tracking-tight text-background">
                     <Crown className="size-5" />
-                    {membership.planName}
+                    {membership.active ? membership.planName : "Join VIP Membership"}
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-background/75">
                     {membership.active
@@ -382,8 +382,8 @@ function MembershipScreen() {
                       : membership.status === "expired"
                         ? "Your membership expired — renew to restore your benefits."
                         : membership.status === "cancelled"
-                          ? "Membership cancelled — you're on the Free plan."
-                          : "You're on the Free plan. Upgrade to unlock member benefits."}
+                          ? "Membership cancelled. Choose a plan to unlock VIP benefits."
+                          : "Choose a VIP plan below to unlock unlimited ₹0 Delivery, member discounts, and priority express turnaround."}
                   </p>
                 </div>
                 <button
@@ -402,10 +402,10 @@ function MembershipScreen() {
 
               <div className="relative mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full bg-background/15 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-widest text-background/85">
-                  {membership.billingCycle ?? "no billing"}
+                  {membership.active ? membership.billingCycle ?? "active" : "no active plan"}
                 </span>
                 <span className="rounded-full bg-background/15 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-widest text-background/85">
-                  {membership.status}
+                  {membership.active ? membership.status : "Not Subscribed"}
                 </span>
                 {membership.amountPaid > 0 ? (
                   <span className="rounded-full bg-background/15 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-widest text-background/85">
@@ -414,6 +414,7 @@ function MembershipScreen() {
                 ) : null}
               </div>
             </section>
+
 
             <section className="mt-5 grid grid-cols-2 gap-3">
               <StatCard

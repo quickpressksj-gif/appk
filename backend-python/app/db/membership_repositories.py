@@ -153,25 +153,6 @@ BENEFIT_SEED: List[Dict[str, Any]] = [
 
 PLAN_SEED: List[Dict[str, Any]] = [
     {
-        "_id": "free",
-        "name": "Free",
-        "tagline": "Everyday laundry, pay as you go",
-        "monthly_price": 0,
-        "yearly_price": 0,
-        "validity_days": 30,
-        "yearly_validity_days": 365,
-        "monthly_order_limit": 0,
-        "monthly_weight_limit_kg": 0,
-        "free_express_count": 0,
-        "discount_percent": 0,
-        "free_delivery_min_order": 0,
-        "free_pickup": False,
-        "priority_processing": False,
-        "benefit_ids": ["standard-slots"],
-        "order": 1,
-        "popular": False,
-    },
-    {
         "_id": "silver",
         "name": "Silver",
         "tagline": "5 Free deliveries/mo + 10% member savings",
@@ -187,7 +168,7 @@ PLAN_SEED: List[Dict[str, Any]] = [
         "free_pickup": True,
         "priority_processing": False,
         "benefit_ids": ["standard-slots", "free-pickup", "free-delivery", "extra-discount"],
-        "order": 2,
+        "order": 1,
         "popular": False,
     },
     {
@@ -213,7 +194,7 @@ PLAN_SEED: List[Dict[str, Any]] = [
             "priority-processing",
             "priority-support",
         ],
-        "order": 3,
+        "order": 2,
         "popular": True,
     },
     {
@@ -240,10 +221,11 @@ PLAN_SEED: List[Dict[str, Any]] = [
             "priority-support",
             "exclusive-offers",
         ],
-        "order": 4,
+        "order": 3,
         "popular": False,
     },
 ]
+
 
 #: Consumed by the FastAPI lifespan seed loop in `app.main`.
 MEMBERSHIP_SEED: Dict[str, List[Dict[str, Any]]] = {
@@ -292,8 +274,13 @@ class MembershipRepository:
         documents = await database.find_many(PLANS, {"status": {"$ne": "Archived"}})
         if not documents:
             documents = [dict(item) for item in PLAN_SEED]
+        documents = [
+            d for d in documents
+            if str(d.get("_id") or d.get("id") or "").lower() != "free"
+        ]
         documents.sort(key=lambda doc: int(doc.get("order") or 0))
         return documents
+
 
     def _benefit_model(self, document: Dict[str, Any]) -> MembershipBenefit:
         return MembershipBenefit(
@@ -471,26 +458,26 @@ class MembershipRepository:
     async def _project(self, document: Optional[Dict[str, Any]]) -> MembershipResponse:
         from app.models.membership import MembershipQuota, MembershipOrderLog
 
-        if document is None:
-            free = await self._plan_by_id(FREE_PLAN_ID)
+        if document is None or str(document.get("status") or "") != "active":
             return MembershipResponse(
-                planId=FREE_PLAN_ID,
-                planName=free.name if free else "Free",
+                planId="silver",
+                planName="No Active Plan",
                 status="none",
                 active=False,
-                canRenew=True,
+                canRenew=False,
                 canCancel=False,
-                plan=free,
-                benefits=free.benefits if free else [],
+                plan=None,
+                benefits=[],
                 quota=MembershipQuota(),
                 membershipOrders=[],
             )
 
         status = str(document.get("status") or "none")
         active = status == "active"
-        plan_id = str(document.get("plan_id") or FREE_PLAN_ID) if active else FREE_PLAN_ID
-        effective_plan = await self._plan_by_id(plan_id) or await self._plan_by_id(FREE_PLAN_ID)
+        plan_id = str(document.get("plan_id") or "silver")
+        effective_plan = await self._plan_by_id(plan_id)
         billing = document.get("billing_cycle")
+
 
         # Calculate Real-Time Quota & Order Usage from customer_orders
         quota = MembershipQuota(

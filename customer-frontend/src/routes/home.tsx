@@ -657,52 +657,65 @@ function HomeScreen() {
                   </div>
                 </section>
 
-                {/* Membership Banner (Real Live Engine) */}
+                {/* Membership Banner (Clean White Card Theme) */}
                 <section className="mt-8">
                   {membership?.active && membership.planId !== "free" ? (
-                    /* 1. Active Member Status Banner */
-                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
-                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
+                    /* 1. Active Member Status Banner (Clean White & Emerald Accent Card) */
+                    <div className="relative overflow-hidden rounded-3xl border border-primary/30 bg-white p-5 shadow-soft dark:border-primary/25 dark:bg-zinc-900">
+                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/10 blur-2xl" />
+                      <div className="pointer-events-none absolute -left-10 -bottom-10 size-32 rounded-full bg-emerald-500/10 blur-2xl" />
+                      
                       <div className="relative flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Crown className="size-4 text-primary" />
-                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-                            QuickPress {membership.planName} VIP
-                          </p>
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs">
+                            <Crown className="size-4" />
+                          </span>
+                          <div>
+                            <p className="text-xs font-black tracking-tight text-foreground">
+                              {membership.planName} VIP Member
+                            </p>
+                            <p className="text-[10px] font-semibold text-muted-foreground">
+                              {membership.remainingDays} days remaining · Expires {membership.expiresLabel}
+                            </p>
+                          </div>
                         </div>
-                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400">
-                          Active Member
+                        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Active
                         </span>
                       </div>
 
-                      <p className="relative mt-2.5 text-base font-black text-white">
-                        Unlimited ₹0 Delivery & Member Benefits
-                      </p>
-
-                      <div className="relative mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-xs text-white/80">
-                        <div className="flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-primary" />
-                          <span>
-                            {membership.quota.remainingOrders > 0
-                              ? `${membership.quota.remainingOrders} of ${membership.quota.totalOrders} free orders left`
-                              : "Unlimited Free Orders"}
-                          </span>
+                      <div className="relative mt-3.5 grid grid-cols-2 gap-2 border-t border-dashed border-border/80 pt-3 text-xs">
+                        <div className="card-soft flex items-center gap-2 bg-muted/40 p-2.5">
+                          <span className="size-2 rounded-full bg-primary" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-muted-foreground">Orders Balance</p>
+                            <p className="truncate text-xs font-black text-foreground">
+                              {membership.quota.remainingOrders > 0
+                                ? `${membership.quota.remainingOrders} / ${membership.quota.totalOrders} left`
+                                : "Unlimited Free"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-emerald-400" />
-                          <span>
-                            {membership.quota.remainingWeightKg > 0
-                              ? `${membership.quota.remainingWeightKg} kg quota left`
-                              : "100% Weight Covered"}
-                          </span>
+                        <div className="card-soft flex items-center gap-2 bg-muted/40 p-2.5">
+                          <span className="size-2 rounded-full bg-emerald-500" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-muted-foreground">Weight Quota</p>
+                            <p className="truncate text-xs font-black text-foreground">
+                              {membership.quota.remainingWeightKg > 0
+                                ? `${membership.quota.remainingWeightKg} kg left`
+                                : "100% Covered"}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
                       {membership.quota.totalSavings > 0 ? (
-                        <div className="relative mt-2.5 flex items-center justify-between rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white">
-                          <span className="text-[11px] text-white/70">Total saved on orders:</span>
-                          <span className="font-black text-emerald-300">
-                            ₹{membership.quota.totalSavings.toLocaleString("en-IN")}
+                        <div className="relative mt-2.5 flex items-center justify-between rounded-2xl bg-emerald-500/10 px-3.5 py-2 text-xs text-foreground">
+                          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                            🎉 Total Member Savings:
+                          </span>
+                          <span className="font-black text-emerald-600 dark:text-emerald-400">
+                            ₹{membership.quota.totalSavings.toLocaleString("en-IN")} saved
                           </span>
                         </div>
                       ) : null}
@@ -710,51 +723,61 @@ function HomeScreen() {
                       <button
                         type="button"
                         onClick={() => void navigate({ to: "/membership" })}
-                        className="ripple relative mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-black uppercase tracking-wider text-primary-foreground shadow-cta transition-transform hover:brightness-105 active:scale-[0.98]"
+                        className="ripple relative mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-extrabold text-primary-foreground shadow-cta transition-transform hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
                       >
-                        Manage Plan & View Orders
+                        Manage Plan &amp; View Orders
                         <ArrowRight className="size-3.5" />
                       </button>
                     </div>
                   ) : (
-                    /* 2. Non-Member Upgrade Banner */
-                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
-                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
+                    /* 2. Non-Member Upgrade Banner (Clean White Card Theme) */
+                    <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-white p-5 shadow-soft dark:border-border dark:bg-zinc-900">
+                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/10 blur-2xl" />
+                      <div className="pointer-events-none absolute -left-10 -bottom-10 size-32 rounded-full bg-primary/5 blur-2xl" />
+
                       <div className="relative flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <Crown className="size-4 text-primary" />
-                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                          <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-2xs">
+                            <Crown className="size-4" />
+                          </span>
+                          <p className="text-xs font-black uppercase tracking-wider text-primary">
                             QuickPress VIP Membership
                           </p>
                         </div>
-                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                        <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary">
                           Save ₹500+/mo
                         </span>
                       </div>
 
-                      <p className="relative mt-3 text-lg font-black text-white">
+                      <p className="relative mt-2.5 text-base font-black tracking-tight text-foreground">
                         Unlimited ₹0 Delivery &amp; 15% OFF Every Order
                       </p>
 
-                      <ul className="relative mt-3 space-y-1.5 text-xs text-white/80">
-                        <li className="flex items-center gap-2">
-                          <span className="size-1 rounded-full bg-primary" />
-                          <span>Unlimited free doorstep pickup &amp; delivery</span>
+                      <ul className="relative mt-3 space-y-2 text-xs font-medium text-muted-foreground">
+                        <li className="flex items-center gap-2.5">
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            ✓
+                          </span>
+                          <span className="text-foreground">Unlimited free doorstep pickup &amp; delivery</span>
                         </li>
-                        <li className="flex items-center gap-2">
-                          <span className="size-1 rounded-full bg-primary" />
-                          <span>Up to 20% member discounts on all services</span>
+                        <li className="flex items-center gap-2.5">
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            ✓
+                          </span>
+                          <span className="text-foreground">Extra 10% to 20% member discounts on all services</span>
                         </li>
-                        <li className="flex items-center gap-2">
-                          <span className="size-1 rounded-full bg-primary" />
-                          <span>Priority queue &amp; 2-hour superfast turnarounds</span>
+                        <li className="flex items-center gap-2.5">
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            ✓
+                          </span>
+                          <span className="text-foreground">Priority queue &amp; 2-hour superfast turnaround</span>
                         </li>
                       </ul>
 
                       <button
                         type="button"
                         onClick={() => void navigate({ to: "/membership" })}
-                        className="ripple relative mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-black text-primary-foreground shadow-cta transition-transform hover:brightness-105 active:scale-[0.98]"
+                        className="ripple relative mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-black text-primary-foreground shadow-cta transition-transform hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
                       >
                         <Crown className="size-4" />
                         Join VIP Membership · From ₹99/mo
@@ -762,6 +785,7 @@ function HomeScreen() {
                     </div>
                   )}
                 </section>
+
 
 
                 {/* Offers — GET /api/offers */}

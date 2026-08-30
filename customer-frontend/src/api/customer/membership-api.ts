@@ -389,8 +389,11 @@ function cachedPlans(stale: boolean): MembershipPlans | null {
     ? readStaleCache<RawPlans>(CACHE_KEYS.membershipPlans)
     : readCache<RawPlans>(CACHE_KEYS.membershipPlans);
   if (!value) return null;
+  const filtered = (value.plans ?? [])
+    .map(toPlan)
+    .filter((p) => p.id !== "free" && p.monthlyPrice > 0);
   return {
-    plans: (value.plans ?? []).map(toPlan),
+    plans: filtered,
     currentPlanId: toPlanId(value.currentPlanId),
     fromCache: true,
   };
@@ -413,8 +416,11 @@ export async function fetchMembershipPlans(
       ...(options.signal ? { signal: options.signal } : {}),
     });
     writeCache(CACHE_KEYS.membershipPlans, raw);
+    const filtered = (raw.plans ?? [])
+      .map(toPlan)
+      .filter((p) => p.id !== "free" && p.monthlyPrice > 0);
     return {
-      plans: (raw.plans ?? []).map(toPlan),
+      plans: filtered,
       currentPlanId: toPlanId(raw.currentPlanId),
       fromCache: false,
     };
@@ -424,6 +430,7 @@ export async function fetchMembershipPlans(
     throw error;
   }
 }
+
 
 function cachedHistory(stale: boolean): MembershipHistory | null {
   const value = stale
