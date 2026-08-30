@@ -9,8 +9,10 @@ import {
   Check,
   ChevronRight,
   Clock,
+  Crown,
   Home,
   Loader2,
+
   MapPin,
   MessageSquareText,
   Pencil,
@@ -623,7 +625,67 @@ function CheckoutScreen() {
             />
           </section>
 
-          {/* 5. Coupons & Promo Codes */}
+          {/* 5. Membership Benefits Card / Upgrade Prompt */}
+          {data.membership?.active ? (
+            <section className="animate-pop relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/10 via-card to-primary/5 p-4 shadow-soft">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-cta">
+                    <Crown className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-black text-foreground">
+                        {data.membership.badge || `${data.membership.planName} VIP`}
+                      </p>
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                        Active Member
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
+                      {data.membership.remainingOrders > 0
+                        ? `Covered under plan · ${data.membership.remainingOrders} of ${data.membership.totalOrders} free orders remaining`
+                        : "Plan active · Member discounts applied"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3.5 grid grid-cols-2 gap-2 border-t border-dashed border-primary/20 pt-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <Check className="size-3.5 shrink-0" />
+                  <span>₹0 Delivery Fee Applied</span>
+                </div>
+                {data.membership.discountPercent > 0 ? (
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <Check className="size-3.5 shrink-0" />
+                    <span>{data.membership.discountPercent}% Member Discount</span>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : (
+            <div className="card-soft flex items-center justify-between gap-3 border border-dashed border-primary/40 bg-primary/5 p-3.5">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <Crown className="size-4" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-foreground">Get Free Delivery & 15% OFF</p>
+                  <p className="text-[10px] text-muted-foreground">Join QuickPress VIP Membership from ₹99/mo</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/membership" })}
+                className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-[10px] font-extrabold text-primary-foreground shadow-cta transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                View Plans
+              </button>
+            </div>
+          )}
+
+          {/* 6. Coupons & Promo Codes */}
           <section>
             <SectionHeading title="5. Apply Coupon" />
             <div className="card-soft mt-3 border border-border p-4">
@@ -694,7 +756,7 @@ function CheckoutScreen() {
             </div>
           </section>
 
-          {/* 6. Payment Method Selection */}
+          {/* 7. Payment Method Selection */}
           <section>
             <SectionHeading title="6. Payment Method" />
             <div className="mt-3 space-y-2.5">
@@ -757,7 +819,7 @@ function CheckoutScreen() {
             </div>
           </section>
 
-          {/* 7. Complete Order Summary & All Charges (Price Breakdown) */}
+          {/* 8. Complete Order Summary & All Charges (Price Breakdown) */}
           <section>
             <SectionHeading title="7. Price Breakdown & Charges" />
             <div className="card-soft mt-3 border border-border p-4">
@@ -781,13 +843,26 @@ function CheckoutScreen() {
                 <SummaryRow
                   label="Delivery Fee"
                   value={totals.delivery}
-                  note={totals.delivery === 0 ? "FREE" : undefined}
+                  note={
+                    totals.delivery === 0
+                      ? data.membership?.freeDeliveryApplied
+                        ? "MEMBER FREE"
+                        : "FREE"
+                      : undefined
+                  }
                 />
                 <SummaryRow label="Handling Fee" value={totals.handling} />
                 {totals.pickup > 0 ? (
                   <SummaryRow label="Pickup Charge" value={totals.pickup} />
                 ) : null}
                 {totals.gst > 0 ? <SummaryRow label="GST (5%)" value={totals.gst} /> : null}
+                {data.membership?.discountAmount && data.membership.discountAmount > 0 ? (
+                  <SummaryRow
+                    label={`${data.membership.planName} Member Savings (${data.membership.discountPercent}%)`}
+                    value={-data.membership.discountAmount}
+                    tone="green"
+                  />
+                ) : null}
                 {totals.couponDiscount > 0 ? (
                   <SummaryRow
                     label="Coupon Discount"
@@ -795,7 +870,7 @@ function CheckoutScreen() {
                     tone="green"
                   />
                 ) : null}
-                {totals.discount > 0 ? (
+                {totals.discount > 0 && !(data.membership?.discountAmount && data.membership.discountAmount > 0) ? (
                   <SummaryRow label="Store Discount" value={-totals.discount} tone="green" />
                 ) : null}
 
@@ -819,6 +894,7 @@ function CheckoutScreen() {
               </div>
             </div>
           </section>
+
 
           {/* Terms & Fabric Care */}
           <section className="pb-6">

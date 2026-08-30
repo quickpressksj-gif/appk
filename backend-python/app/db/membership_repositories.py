@@ -160,6 +160,13 @@ PLAN_SEED: List[Dict[str, Any]] = [
         "yearly_price": 0,
         "validity_days": 30,
         "yearly_validity_days": 365,
+        "monthly_order_limit": 0,
+        "monthly_weight_limit_kg": 0,
+        "free_express_count": 0,
+        "discount_percent": 0,
+        "free_delivery_min_order": 0,
+        "free_pickup": False,
+        "priority_processing": False,
         "benefit_ids": ["standard-slots"],
         "order": 1,
         "popular": False,
@@ -167,23 +174,37 @@ PLAN_SEED: List[Dict[str, Any]] = [
     {
         "_id": "silver",
         "name": "Silver",
-        "tagline": "Free pickup and delivery every month",
+        "tagline": "5 Free deliveries/mo + 10% member savings",
         "monthly_price": 99,
         "yearly_price": 999,
         "validity_days": 30,
         "yearly_validity_days": 365,
+        "monthly_order_limit": 5,
+        "monthly_weight_limit_kg": 20,
+        "free_express_count": 1,
+        "discount_percent": 10,
+        "free_delivery_min_order": 199,
+        "free_pickup": True,
+        "priority_processing": False,
         "benefit_ids": ["standard-slots", "free-pickup", "free-delivery", "extra-discount"],
         "order": 2,
         "popular": False,
     },
     {
         "_id": "gold",
-        "name": "Gold",
-        "tagline": "Faster turnaround with priority support",
+        "name": "Gold VIP",
+        "tagline": "15 Free deliveries/mo + 15% discount & priority queue",
         "monthly_price": 199,
         "yearly_price": 1990,
         "validity_days": 30,
         "yearly_validity_days": 365,
+        "monthly_order_limit": 15,
+        "monthly_weight_limit_kg": 50,
+        "free_express_count": 3,
+        "discount_percent": 15,
+        "free_delivery_min_order": 99,
+        "free_pickup": True,
+        "priority_processing": True,
         "benefit_ids": [
             "standard-slots",
             "free-pickup",
@@ -197,12 +218,19 @@ PLAN_SEED: List[Dict[str, Any]] = [
     },
     {
         "_id": "premium",
-        "name": "Premium",
-        "tagline": "Everything QuickPress has to offer",
+        "name": "Platinum Elite",
+        "tagline": "30 Free deliveries/mo + 20% discount & VIP priority",
         "monthly_price": 349,
         "yearly_price": 3490,
         "validity_days": 30,
         "yearly_validity_days": 365,
+        "monthly_order_limit": 30,
+        "monthly_weight_limit_kg": 100,
+        "free_express_count": 10,
+        "discount_percent": 20,
+        "free_delivery_min_order": 0,
+        "free_pickup": True,
+        "priority_processing": True,
         "benefit_ids": [
             "standard-slots",
             "free-pickup",
@@ -317,6 +345,9 @@ class MembershipRepository:
             freePickup=bool(document.get("free_pickup", False)),
             priorityProcessing=bool(document.get("priority_processing", False)),
             supportTier=str(document.get("support_tier") or "Standard"),
+            monthlyOrderLimit=int(document.get("monthly_order_limit") or 0),
+            monthlyWeightLimitKg=int(document.get("monthly_weight_limit_kg") or 0),
+            freeExpressCount=int(document.get("free_express_count") or 0),
             benefits=unique,
         )
 
@@ -330,24 +361,58 @@ class MembershipRepository:
         """Evaluate active membership perks for cart & checkout."""
         m = await database.collection(MEMBERSHIPS).find_one({"user_id": user_id})
         if not m or m.get("status") != "active":
-            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+            return {
+                "active": False,
+                "plan_id": "free",
+                "plan_name": "Free",
+                "discount_percent": 0,
+                "free_pickup": False,
+                "free_delivery_min": 0,
+                "priority_processing": False,
+                "remaining_orders": 0,
+                "total_orders": 0,
+            }
         expires_at = _parse(m.get("expires_at"))
         if expires_at and expires_at <= utcnow():
-            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+            return {
+                "active": False,
+                "plan_id": "free",
+                "plan_name": "Free",
+                "discount_percent": 0,
+                "free_pickup": False,
+                "free_delivery_min": 0,
+                "priority_processing": False,
+                "remaining_orders": 0,
+                "total_orders": 0,
+            }
 
         plan_id = str(m.get("plan_id") or "free")
         plan_doc = await database.collection(PLANS).find_one({"_id": plan_id})
         if not plan_doc:
-            return {"active": False, "plan_id": "free", "discount_percent": 0, "free_pickup": False, "free_delivery_min": 0}
+            # Fallback to seed
+            plan_doc = next((p for p in PLAN_SEED if p["_id"] == plan_id), {})
+
+        order_limit = int(plan_doc.get("monthly_order_limit") or (15 if plan_id == "gold" else (5 if plan_id == "silver" else 30)))
+        
+        # Calculate used orders in this cycle
+        started_iso = _iso(m.get("started_at")) or ""
+        user_orders = await database.find_many("customer_orders", {"userId": user_id})
+        used_count = sum(
+            1 for o in user_orders
+            if not started_iso or (o.get("createdAt") or o.get("created_at") or "") >= started_iso
+        )
+        remaining = max(0, order_limit - used_count) if order_limit > 0 else 999
 
         return {
             "active": True,
             "plan_id": plan_id,
             "plan_name": plan_doc.get("name") or plan_id.title(),
-            "discount_percent": int(plan_doc.get("discount_percent") or (10 if plan_id in ("silver", "gold", "premium") else 0)),
-            "free_pickup": bool(plan_doc.get("free_pickup") or plan_id in ("silver", "gold", "premium")),
-            "free_delivery_min": int(plan_doc.get("free_delivery_min_order") or (299 if plan_id in ("silver", "gold", "premium") else 0)),
+            "discount_percent": int(plan_doc.get("discount_percent") or (15 if plan_id == "gold" else (10 if plan_id == "silver" else 20))),
+            "free_pickup": bool(plan_doc.get("free_pickup", True)),
+            "free_delivery_min": int(plan_doc.get("free_delivery_min_order") or 0),
             "priority_processing": bool(plan_doc.get("priority_processing") or plan_id in ("gold", "premium")),
+            "remaining_orders": remaining,
+            "total_orders": order_limit,
         }
 
     async def benefits(self, user: User) -> MembershipBenefitsResponse:
@@ -404,6 +469,8 @@ class MembershipRepository:
         return max(int(delta.total_seconds() // 86400) + (1 if delta.total_seconds() > 0 else 0), 0)
 
     async def _project(self, document: Optional[Dict[str, Any]]) -> MembershipResponse:
+        from app.models.membership import MembershipQuota, MembershipOrderLog
+
         if document is None:
             free = await self._plan_by_id(FREE_PLAN_ID)
             return MembershipResponse(
@@ -415,6 +482,8 @@ class MembershipRepository:
                 canCancel=False,
                 plan=free,
                 benefits=free.benefits if free else [],
+                quota=MembershipQuota(),
+                membershipOrders=[],
             )
 
         status = str(document.get("status") or "none")
@@ -422,10 +491,85 @@ class MembershipRepository:
         plan_id = str(document.get("plan_id") or FREE_PLAN_ID) if active else FREE_PLAN_ID
         effective_plan = await self._plan_by_id(plan_id) or await self._plan_by_id(FREE_PLAN_ID)
         billing = document.get("billing_cycle")
+
+        # Calculate Real-Time Quota & Order Usage from customer_orders
+        quota = MembershipQuota(
+            totalOrders=effective_plan.monthlyOrderLimit if effective_plan else 0,
+            remainingOrders=effective_plan.monthlyOrderLimit if effective_plan else 0,
+            totalWeightKg=effective_plan.monthlyWeightLimitKg if effective_plan else 0,
+            remainingWeightKg=effective_plan.monthlyWeightLimitKg if effective_plan else 0,
+            freeExpressTotal=effective_plan.freeExpressCount if effective_plan else 0,
+            freeExpressRemaining=effective_plan.freeExpressCount if effective_plan else 0,
+        )
+        membership_orders_list: List[MembershipOrderLog] = []
+
+        if active and document and document.get("user_id"):
+            user_id = str(document["user_id"])
+            started_iso = _iso(document.get("started_at")) or ""
+            user_orders = await database.find_many("customer_orders", {"userId": user_id})
+            
+            used_orders = 0
+            used_weight = 0
+            used_express = 0
+            total_savings = 0.0
+
+            for ord_doc in user_orders:
+                ord_created = ord_doc.get("createdAt") or ord_doc.get("created_at") or ""
+                if started_iso and ord_created < started_iso:
+                    continue
+
+                used_orders += 1
+                items = ord_doc.get("items") or []
+                for it in items:
+                    unit = str(it.get("unit") or "").lower()
+                    if "kg" in unit:
+                        used_weight += int(it.get("qty", 1))
+
+                pickup_info = ord_doc.get("pickup") or {}
+                if isinstance(pickup_info, dict) and pickup_info.get("express"):
+                    used_express += 1
+
+                fin = ord_doc.get("financialSnapshot") or {}
+                m_disc = float(fin.get("membershipDiscount") or 0.0)
+                del_saved = 39.0 if (effective_plan and effective_plan.freePickup) or ord_doc.get("membership", {}).get("freeDeliveryApplied") else 0.0
+                order_saved = m_disc + del_saved
+                total_savings += order_saved
+
+                services_list = [str(it.get("name") or "Laundry Service") for it in items]
+                membership_orders_list.append(
+                    MembershipOrderLog(
+                        orderId=str(ord_doc.get("_id") or ord_doc.get("id")),
+                        orderCode=str(ord_doc.get("code") or "QP-ORD"),
+                        placedAt=str(ord_created),
+                        services=services_list[:3],
+                        itemCount=len(items) or 1,
+                        totalAmount=float((ord_doc.get("totals") or {}).get("grandTotal") or fin.get("grandTotal") or 0.0),
+                        discountSaved=m_disc,
+                        deliverySaved=del_saved,
+                        totalSaved=order_saved,
+                        status=str(ord_doc.get("status") or "placed"),
+                    )
+                )
+
+            total_orders_cap = effective_plan.monthlyOrderLimit if effective_plan else 0
+            total_weight_cap = effective_plan.monthlyWeightLimitKg if effective_plan else 0
+            total_express_cap = effective_plan.freeExpressCount if effective_plan else 0
+
+            quota = MembershipQuota(
+                totalOrders=total_orders_cap,
+                usedOrders=used_orders,
+                remainingOrders=max(0, total_orders_cap - used_orders) if total_orders_cap > 0 else 0,
+                totalWeightKg=total_weight_cap,
+                usedWeightKg=used_weight,
+                remainingWeightKg=max(0, total_weight_cap - used_weight) if total_weight_cap > 0 else 0,
+                freeExpressTotal=total_express_cap,
+                freeExpressUsed=used_express,
+                freeExpressRemaining=max(0, total_express_cap - used_express) if total_express_cap > 0 else 0,
+                totalSavings=round(total_savings, 2),
+            )
+
         return MembershipResponse(
             planId=plan_id,  # type: ignore[arg-type]
-            # Once a membership expires or is cancelled the customer is served
-            # by the Free plan, so the projection reports Free.
             planName=(effective_plan.name if effective_plan else "Free"),
             status=status,  # type: ignore[arg-type]
             active=active,
@@ -442,7 +586,10 @@ class MembershipRepository:
             canCancel=active and plan_id != FREE_PLAN_ID,
             plan=effective_plan,
             benefits=effective_plan.benefits if effective_plan else [],
+            quota=quota,
+            membershipOrders=membership_orders_list,
         )
+
 
     async def current(self, user: User) -> MembershipResponse:
         document = await self._document(user)

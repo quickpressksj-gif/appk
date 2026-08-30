@@ -50,6 +50,21 @@ class PaymentMethodResponse(BaseModel):
     comingSoon: bool = False
 
 
+class CheckoutMembershipInfo(BaseModel):
+    active: bool = False
+    planId: str = "free"
+    planName: str = "Free"
+    badge: str = ""
+    discountPercent: int = 0
+    discountAmount: float = 0.0
+    freePickupApplied: bool = False
+    freeDeliveryApplied: bool = False
+    priorityProcessing: bool = False
+    remainingOrders: int = 0
+    totalOrders: int = 0
+    message: str = ""
+
+
 class CheckoutResponse(BaseModel):
     addresses: List[AddressResponse] = []
     selectedAddressId: str = ""
@@ -64,3 +79,5 @@ class CheckoutResponse(BaseModel):
     selectedPaymentId: str = ""
     walletBalance: int = 0
     deliveryEstimate: str = ""
+    membership: Optional[CheckoutMembershipInfo] = None
+

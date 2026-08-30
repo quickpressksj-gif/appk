@@ -36,6 +36,21 @@ export type CheckoutPaymentMethod = PaymentMethod & {
   comingSoon: boolean;
 };
 
+export type CheckoutMembership = {
+  active: boolean;
+  planId: string;
+  planName: string;
+  badge: string;
+  discountPercent: number;
+  discountAmount: number;
+  freePickupApplied: boolean;
+  freeDeliveryApplied: boolean;
+  priorityProcessing: boolean;
+  remainingOrders: number;
+  totalOrders: number;
+  message: string;
+};
+
 export type CheckoutData = {
   addresses: Address[];
   selectedAddressId: string;
@@ -48,6 +63,7 @@ export type CheckoutData = {
   walletBalance: number;
   deliveryEstimate: string;
   cart: CartData;
+  membership?: CheckoutMembership | null;
 };
 
 type RawAddress = {
@@ -86,6 +102,7 @@ type RawCheckout = {
   selectedPaymentId?: string;
   walletBalance?: number;
   deliveryEstimate?: string;
+  membership?: CheckoutMembership | null;
 };
 
 const ADDRESS_LABELS = { home: "Home", office: "Office", other: "Other" } as const;
@@ -134,12 +151,30 @@ export async function fetchCheckout(couponDiscount = 0): Promise<CheckoutData> {
     selectedPaymentId: raw.selectedPaymentId || firstEnabled?.id || "",
     walletBalance: raw.walletBalance ?? 0,
     deliveryEstimate: raw.deliveryEstimate ?? "",
+    membership: raw.membership ?? null,
     cart: {
       store: raw.store ?? null,
       items: raw.items ?? [],
       coupons: raw.coupons ?? [],
-      charges: raw.charges as CartData["charges"],
-      totals: raw.totals as CartData["totals"],
+      charges: raw.charges ?? {
+        pickup: 0,
+        delivery: 0,
+        handling: 0,
+        gstRate: 0.18,
+        discount: 0,
+        minOrder: 0,
+        grandTotal: 0,
+      },
+      totals: raw.totals ?? {
+        itemsTotal: 0,
+        pickup: 0,
+        delivery: 0,
+        handling: 0,
+        gst: 0,
+        discount: 0,
+        couponDiscount: 0,
+        grandTotal: 0,
+      },
     } as CartData,
   };
 }

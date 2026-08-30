@@ -18,8 +18,10 @@ from app.core.deps import current_user
 from app.db.address_repositories import address_repository
 from app.db.cart_repositories import cart_repository, compute_totals
 from app.db.client import database
+from app.db.membership_repositories import membership_repository
 from app.db.order_repositories import delivery_estimate
 from app.models.checkout import (
+    CheckoutMembershipInfo,
     CheckoutResponse,
     PaymentMethodResponse,
     PickupOptionResponse,
@@ -112,13 +114,48 @@ async def get_checkout(
     items = await cart_repository.lines(user.id)
     charges = await cart_repository.charges()
     coupons = await cart_repository.coupons(user.id)
-    totals = compute_totals(items, charges, couponDiscount)
+
+    # Evaluate live customer membership perks & quota
+    membership_perks = await membership_repository.get_user_membership_perks(user.id)
+    is_active_member = bool(membership_perks.get("active"))
+    
+    member_discount_amount = 0
+    if is_active_member:
+        if membership_perks.get("free_pickup"):
+            charges = charges.model_copy(update={"pickup": 0, "delivery": 0})
+        disc_pct = int(membership_perks.get("discount_percent") or 0)
+        if disc_pct > 0:
+            raw_subtotal = sum(it.price * it.qty for it in items)
+            member_discount_amount = round(raw_subtotal * (disc_pct / 100.0))
+
+    totals = compute_totals(items, charges, couponDiscount + member_discount_amount)
     store = await cart_repository._store(items)
     balance = await wallet_balance(user)
     schedule = pickup_schedule()
     delivery = delivery_estimate(OrderPickup(date=schedule.selectedDay, slot=schedule.selectedSlot))
     selected = next((a.id for a in addresses if a.isDefault), addresses[0].id if addresses else "")
     methods = payment_methods(balance, totals.grandTotal)
+
+    mbs_info = None
+    if is_active_member:
+        plan_name = str(membership_perks.get("plan_name") or "VIP")
+        rem_orders = int(membership_perks.get("remaining_orders") or 0)
+        tot_orders = int(membership_perks.get("total_orders") or 0)
+        mbs_info = CheckoutMembershipInfo(
+            active=True,
+            planId=str(membership_perks.get("plan_id") or "gold"),
+            planName=plan_name,
+            badge=f"{plan_name} Member",
+            discountPercent=int(membership_perks.get("discount_percent") or 0),
+            discountAmount=float(member_discount_amount),
+            freePickupApplied=bool(membership_perks.get("free_pickup")),
+            freeDeliveryApplied=bool(membership_perks.get("free_pickup")),
+            priorityProcessing=bool(membership_perks.get("priority_processing")),
+            remainingOrders=rem_orders,
+            totalOrders=tot_orders,
+            message=f"{plan_name} Membership Active: Free Delivery Applied & {membership_perks.get('discount_percent')}% Extra Savings ({rem_orders}/{tot_orders} orders left this month)",
+        )
+
     return CheckoutResponse(
         addresses=addresses,
         selectedAddressId=selected,
@@ -132,7 +169,9 @@ async def get_checkout(
         selectedPaymentId="cod",
         walletBalance=balance,
         deliveryEstimate=f"{delivery.date} · {delivery.slot}",
+        membership=mbs_info,
     )
+
 
 
 @router.get("/slots")

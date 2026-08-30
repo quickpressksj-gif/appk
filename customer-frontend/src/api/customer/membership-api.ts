@@ -47,7 +47,36 @@ export type MembershipPlan = {
   validityLabel: string;
   popular: boolean;
   order: number;
+  monthlyOrderLimit?: number;
+  monthlyWeightLimitKg?: number;
+  freeExpressCount?: number;
   benefits: MembershipBenefit[];
+};
+
+export type MembershipQuota = {
+  totalOrders: number;
+  usedOrders: number;
+  remainingOrders: number;
+  totalWeightKg: number;
+  usedWeightKg: number;
+  remainingWeightKg: number;
+  freeExpressTotal: number;
+  freeExpressUsed: number;
+  freeExpressRemaining: number;
+  totalSavings: number;
+};
+
+export type MembershipOrderLog = {
+  orderId: string;
+  orderCode: string;
+  placedAt: string;
+  services: string[];
+  itemCount: number;
+  totalAmount: number;
+  discountSaved: number;
+  deliverySaved: number;
+  totalSaved: number;
+  status: string;
 };
 
 export type Membership = {
@@ -68,9 +97,12 @@ export type Membership = {
   canCancel: boolean;
   plan: MembershipPlan | null;
   benefits: MembershipBenefit[];
+  quota: MembershipQuota;
+  membershipOrders: MembershipOrderLog[];
   /** True when the payload came from the local cache (offline / stale read). */
   fromCache: boolean;
 };
+
 
 export type MembershipTransaction = {
   id: string;
@@ -227,6 +259,35 @@ function toMembership(raw: RawMembership): Membership {
     : "none";
   const cycle = raw.billingCycle === "monthly" || raw.billingCycle === "yearly" ? raw.billingCycle : null;
   const planId = toPlanId(raw.planId);
+
+  const rawQuota = (raw as any).quota || {};
+  const quota: MembershipQuota = {
+    totalOrders: Number(rawQuota.totalOrders ?? 0),
+    usedOrders: Number(rawQuota.usedOrders ?? 0),
+    remainingOrders: Number(rawQuota.remainingOrders ?? 0),
+    totalWeightKg: Number(rawQuota.totalWeightKg ?? 0),
+    usedWeightKg: Number(rawQuota.usedWeightKg ?? 0),
+    remainingWeightKg: Number(rawQuota.remainingWeightKg ?? 0),
+    freeExpressTotal: Number(rawQuota.freeExpressTotal ?? 0),
+    freeExpressUsed: Number(rawQuota.freeExpressUsed ?? 0),
+    freeExpressRemaining: Number(rawQuota.freeExpressRemaining ?? 0),
+    totalSavings: Number(rawQuota.totalSavings ?? 0),
+  };
+
+  const rawOrders = (raw as any).membershipOrders || [];
+  const membershipOrders: MembershipOrderLog[] = rawOrders.map((o: any) => ({
+    orderId: String(o.orderId ?? ""),
+    orderCode: String(o.orderCode ?? ""),
+    placedAt: String(o.placedAt ?? ""),
+    services: Array.isArray(o.services) ? o.services.map(String) : [],
+    itemCount: Number(o.itemCount ?? 1),
+    totalAmount: Number(o.totalAmount ?? 0),
+    discountSaved: Number(o.discountSaved ?? 0),
+    deliverySaved: Number(o.deliverySaved ?? 0),
+    totalSaved: Number(o.totalSaved ?? 0),
+    status: String(o.status ?? "placed"),
+  }));
+
   return {
     planId,
     planName: raw.planName ?? "Free",
@@ -245,9 +306,12 @@ function toMembership(raw: RawMembership): Membership {
     canCancel: raw.canCancel ?? false,
     plan: raw.plan ? toPlan(raw.plan, 0) : null,
     benefits: (raw.benefits ?? []).map(toBenefit),
+    quota,
+    membershipOrders,
     fromCache: false,
   };
 }
+
 
 function toTransaction(raw: RawTransaction, index: number): MembershipTransaction {
   const subscribedAt = raw.subscribedAt ?? new Date().toISOString();

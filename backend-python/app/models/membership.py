@@ -40,7 +40,36 @@ class MembershipPlan(BaseModel):
     freePickup: bool = False
     priorityProcessing: bool = False
     supportTier: str = "Standard"
+    monthlyOrderLimit: int = 0
+    monthlyWeightLimitKg: int = 0
+    freeExpressCount: int = 0
     benefits: List[MembershipBenefit] = Field(default_factory=list)
+
+
+class MembershipQuota(BaseModel):
+    totalOrders: int = 0
+    usedOrders: int = 0
+    remainingOrders: int = 0
+    totalWeightKg: int = 0
+    usedWeightKg: int = 0
+    remainingWeightKg: int = 0
+    freeExpressTotal: int = 0
+    freeExpressUsed: int = 0
+    freeExpressRemaining: int = 0
+    totalSavings: float = 0.0
+
+
+class MembershipOrderLog(BaseModel):
+    orderId: str
+    orderCode: str
+    placedAt: str
+    services: List[str] = Field(default_factory=list)
+    itemCount: int = 1
+    totalAmount: float = 0.0
+    discountSaved: float = 0.0
+    deliverySaved: float = 0.0
+    totalSaved: float = 0.0
+    status: str = "completed"
 
 
 class MembershipPlansResponse(BaseModel):
@@ -70,6 +99,9 @@ class MembershipResponse(BaseModel):
     canCancel: bool = False
     plan: Optional[MembershipPlan] = None
     benefits: List[MembershipBenefit] = Field(default_factory=list)
+    quota: MembershipQuota = Field(default_factory=MembershipQuota)
+    membershipOrders: List[MembershipOrderLog] = Field(default_factory=list)
+
 
 
 class MembershipTransaction(BaseModel):

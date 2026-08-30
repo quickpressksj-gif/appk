@@ -238,7 +238,22 @@ class OrderRepository:
             raise ValueError("Your cart is empty — add an item before placing the order")
 
         charges = await cart_repository.charges()
-        totals = compute_totals(items, charges, max(0, payload.couponDiscount))
+
+        # Check customer membership
+        from app.db.membership_repositories import membership_repository
+        membership_perks = await membership_repository.get_user_membership_perks(user.id)
+        is_member = bool(membership_perks.get("active"))
+
+        member_discount_amount = 0
+        if is_member:
+            if membership_perks.get("free_pickup"):
+                charges = charges.model_copy(update={"pickup": 0, "delivery": 0})
+            disc_pct = int(membership_perks.get("discount_percent") or 0)
+            if disc_pct > 0:
+                raw_subtotal = sum(it.price * it.qty for it in items)
+                member_discount_amount = round(raw_subtotal * (disc_pct / 100.0))
+
+        totals = compute_totals(items, charges, max(0, payload.couponDiscount) + member_discount_amount)
 
         # Check live minimum order value rule from admin_settings
         admin_doc = await database.collection("admin_settings").find_one({"_id": "platform"})
@@ -325,19 +340,20 @@ class OrderRepository:
 
         fin_calc = financial_engine.compute_checkout_pricing(
             items=item_snapshots,
-            coupon_discount=float(payload.couponDiscount or 0),
+            coupon_discount=float(payload.couponDiscount or 0) + float(member_discount_amount),
             is_express=bool(payload.pickup.express if payload.pickup else False),
+            is_member=is_member,
             city=str(getattr(address, "cityLine", None) or getattr(address, "city", None) or "Kasganj"),
         )
 
         financial_snapshot = {
             "itemsSubtotal": fin_calc.itemsSubtotal,
             "couponDiscount": fin_calc.couponDiscount,
-            "membershipDiscount": fin_calc.membershipDiscount,
+            "membershipDiscount": float(member_discount_amount) or fin_calc.membershipDiscount,
             "taxableLaundrySubtotal": fin_calc.taxableLaundrySubtotal,
             "laundryGst": fin_calc.laundryGst,
             "serviceGst": fin_calc.serviceGst,
-            "deliveryFee": fin_calc.deliveryFee,
+            "deliveryFee": 0.0 if (is_member and membership_perks.get("free_pickup")) else fin_calc.deliveryFee,
             "handlingFee": fin_calc.handlingFee,
             "grandTotal": fin_calc.grandTotal,
             "partnerNetEarnings": fin_calc.partnerEstimatedEarnings,
@@ -365,6 +381,16 @@ class OrderRepository:
             "serviceLabel": payload.serviceLabel or (items[0].name if items else "Laundry"),
             "items": item_snapshots,
             "financialSnapshot": financial_snapshot,
+            "membership": {
+                "active": is_member,
+                "planId": membership_perks.get("plan_id", "free"),
+                "planName": membership_perks.get("plan_name", "Free"),
+                "isMemberOrder": is_member,
+                "discountPercent": membership_perks.get("discount_percent", 0),
+                "memberDiscountAmount": member_discount_amount,
+                "freeDeliveryApplied": is_member and bool(membership_perks.get("free_pickup")),
+                "priorityProcessing": is_member and bool(membership_perks.get("priority_processing")),
+            },
             "totals": OrderTotals(
                 itemsTotal=totals.itemsTotal,
                 pickup=totals.pickup,
@@ -378,6 +404,7 @@ class OrderRepository:
             "pickup": pickup.model_dump(),
             "delivery": delivery.model_dump(),
             "payment": OrderPayment(
+
                 mode="wallet" if is_wallet_payment else mode,
                 label="QuickPress Wallet" if is_wallet_payment else payload.payment.label,
                 note="Paid from QuickPress wallet balance" if is_wallet_payment else (payload.payment.note or ("Paid online" if mode == "online" else "Pay on delivery")),
