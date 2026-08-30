@@ -129,8 +129,9 @@ export function homePayload(db: MockDb, account: Account) {
       .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
     services,
     popularServices: services.filter((service) => service.popular),
-    recommendedServices: services.filter((service) => !service.popular).slice(0, 4),
-    partners: db.partners.map((partner, index) => toHomePartner(partner, index)),
+    partners: db.partners
+      .filter((partner) => partner.status === "active" && partner.isOpen && partner.acceptingNewOrders)
+      .map((partner, index) => toHomePartner(partner, index)),
     offers: db.offers,
     unreadNotifications: unread,
   };

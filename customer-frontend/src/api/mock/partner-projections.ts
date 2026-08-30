@@ -135,7 +135,9 @@ function matchesQuery(card: ListingPartner, needle: string): boolean {
 /** Server side filter + sort, matching `PartnerRepository.partner_cards`. */
 export function listPartnerCards(db: MockDb, params: ListingQuery = {}): ListingPartner[] {
   const needle = (params.q ?? "").trim().toLowerCase();
-  const cards = db.partners.map((partner, index) => toListingCard(partner, index));
+  const cards = db.partners
+    .filter((partner) => partner.status === "active" && partner.isOpen && partner.acceptingNewOrders)
+    .map((partner, index) => toListingCard(partner, index));
 
   const filtered = cards.filter((card) => {
     if (params.city && card.city !== params.city) return false;

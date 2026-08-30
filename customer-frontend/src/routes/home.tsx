@@ -182,10 +182,27 @@ function HomeScreen() {
   const profile = sections.profile.data;
   const location = sections.location.data;
   const categories = sections.categories.data ?? [];
-  const partners = sections.partners.data ?? [];
   const popular = sections.popular.data ?? [];
   const offers = sections.offers.data ?? [];
   const recentOrders = sections.recentOrders.data ?? [];
+  const rawPartners = sections.partners.data ?? [];
+  const partners = useMemo(() => {
+    return rawPartners.filter((partner: any) => {
+      const isInactive =
+        partner.status === "inactive" ||
+        partner.status === "suspended" ||
+        partner.status === "pending" ||
+        partner.isActive === false;
+      if (isInactive) return false;
+      const isOpen =
+        partner.open === true ||
+        partner.isOpen === true ||
+        partner.status === "open" ||
+        partner.status === "active";
+      const isAccepting = partner.acceptingNewOrders !== false;
+      return isOpen && isAccepting;
+    });
+  }, [rawPartners]);
 
   useEffect(() => {
     if (!location) {
@@ -595,8 +612,8 @@ function HomeScreen() {
                   />
                   <SectionStatus
                     error={sections.partners.error}
-                    empty={!sections.partners.loading && (sections.partners.data?.length ?? 0) === 0}
-                    emptyLabel="No laundry partners near this location yet."
+                    empty={!sections.partners.loading && partners.length === 0}
+                    emptyLabel="No active laundry partners available near this location right now."
                     onRetry={() => void retry()}
                   />
                   <div className="stagger-children mt-4 space-y-4">
@@ -623,13 +640,10 @@ function HomeScreen() {
                               />
                             </div>
                             <span
-                              className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                                partner.open
-                                  ? "bg-emerald-500 text-white shadow-xs"
-                                  : "bg-zinc-800 text-zinc-100"
-                              }`}
+                              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#0c831f] text-white shadow-xs flex items-center gap-1"
                             >
-                              {partner.open ? "Open" : "Closed"}
+                              <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                              Active
                             </span>
                           </div>
 
