@@ -186,6 +186,13 @@ class CatalogRepository:
                 elif rank >= 80:
                     badge = "Trending"
 
+                partner_id_val = str(s.get("partnerId") or "")
+                partner_doc = next((p for p in approved_partners if str(p.get("_id")) == partner_id_val or str(p.get("partnerId")) == partner_id_val), None)
+                if not partner_doc and approved_partners:
+                    partner_doc = approved_partners[0]
+                    partner_id_val = str(partner_doc.get("_id") or "")
+                partner_name_val = (partner_doc.get("businessName") or partner_doc.get("name")) if partner_doc else None
+
                 card = ServiceCardResponse(
                     id=str(s.get("_id") or s.get("id")),
                     title=service_name,
@@ -202,6 +209,8 @@ class CatalogRepository:
                     finalPrice=final_price,
                     processingTime=str(s.get("processingTime") or s.get("turnaroundHours") or "24 hrs"),
                     partnerCount=p_count,
+                    partnerId=partner_id_val or None,
+                    partnerName=partner_name_val or None,
                     badge=badge,
                     popular=True,
                 )
@@ -328,8 +337,7 @@ class CatalogRepository:
                 if (card.city and (c_low in card.city.lower() or card.city.lower() in c_low))
                 or (card.area and c_low in card.area.lower())
             ]
-            if city_matched:
-                cards = city_matched
+            cards = city_matched
         elif area:
             a_low = area.strip().lower()
             area_matched = [
@@ -338,8 +346,7 @@ class CatalogRepository:
                 if (card.area and a_low in card.area.lower())
                 or (card.city and a_low in card.city.lower())
             ]
-            if area_matched:
-                cards = area_matched
+            cards = area_matched
         if min_rating > 0:
             cards = [card for card in cards if card.rating >= min_rating]
         if max_distance > 0:

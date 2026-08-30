@@ -99,6 +99,9 @@ function resolveServiceImage(title?: string | null, img?: string | null): string
 }
 
 export const Route = createFileRoute("/partner/$partnerId")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    highlightService: typeof search.highlightService === "string" ? search.highlightService : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Partner Store — QuickPress Laundry Services & Pricing" },
@@ -153,6 +156,8 @@ const SERVICE_PROCESS = [
 function PartnerDetailScreen() {
   const navigate = useNavigate();
   const { partnerId } = Route.useParams();
+  const search = Route.useSearch();
+  const highlightService = search.highlightService;
   const cart = useCart();
   const [data, setData] = useState<PartnerDetailData | null>(null);
   const [favorite, setFavorite] = useState(false);
@@ -169,6 +174,23 @@ function PartnerDetailScreen() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Auto-scroll to highlighted service when opened from home screen popular services
+  useEffect(() => {
+    if (!data?.services || !highlightService) return;
+    const needle = highlightService.toLowerCase().trim();
+    const matched = data.services.find(
+      (s) => s.id === highlightService || s.name.toLowerCase().includes(needle) || needle.includes(s.name.toLowerCase())
+    );
+    if (matched) {
+      window.setTimeout(() => {
+        const el = document.getElementById(`service-card-${matched.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 350);
+    }
+  }, [data?.services, highlightService]);
 
   // Initialize quantities from active cart state
   useEffect(() => {
@@ -431,9 +453,20 @@ function PartnerDetailScreen() {
                 <div className="stagger-children mt-4 space-y-3">
                   {data.services.map((service, index) => {
                     const qty = quantities[service.id] ?? 0;
+                    const isHighlighted =
+                      highlightService &&
+                      (service.id === highlightService ||
+                        service.name.toLowerCase().includes(highlightService.toLowerCase().trim()) ||
+                        highlightService.toLowerCase().trim().includes(service.name.toLowerCase()));
                     return (
                       <div
-                        key={service.id} className="card-soft flex gap-3 border border-border p-3 transition-all duration-300 hover:border-primary/60"
+                        id={`service-card-${service.id}`}
+                        key={service.id}
+                        className={`card-soft flex gap-3 border p-3 transition-all duration-500 ${
+                          isHighlighted
+                            ? "border-primary ring-4 ring-primary/25 bg-primary/5 shadow-lg scale-[1.015]"
+                            : "border-border hover:border-primary/60"
+                        }`}
                       >
                         <img
                           src={resolveServiceImage(service.name, service.image)}

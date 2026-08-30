@@ -67,6 +67,8 @@ class ServiceCardResponse(BaseModel):
     finalPrice: int
     processingTime: str
     partnerCount: int
+    partnerId: Optional[str] = None
+    partnerName: Optional[str] = None
     badge: Optional[str] = None
     popular: bool = False
 

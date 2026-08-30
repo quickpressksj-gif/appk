@@ -227,7 +227,7 @@ async def get_home(
     """Single round-trip payload behind the Customer Home screen."""
     banners = await catalog.banners()
     categories = await catalog.categories()
-    services = await catalog.services()
+    services = await catalog.services(city=city, area=area, lat=lat, lng=lng)
     partners = await catalog.partners(city=city, area=area, lat=lat, lng=lng)
     offers = await catalog.offers()
 

@@ -494,12 +494,21 @@ function HomeScreen() {
                         <button
                           key={`${service.id}-${index}`}
                           type="button"
-                          onClick={() =>
-                            navigate({
-                              to: "/services/$serviceId",
-                              params: { serviceId: service.categoryId ?? service.id },
-                            })
-                          }
+                          onClick={() => {
+                            const targetPartnerId = (service as any).partnerId || (partners.length > 0 ? partners[0].id : null);
+                            if (targetPartnerId) {
+                              void navigate({
+                                to: "/partner/$partnerId",
+                                params: { partnerId: targetPartnerId },
+                                search: { highlightService: service.id || service.title },
+                              });
+                            } else {
+                              void navigate({
+                                to: "/services/$serviceId",
+                                params: { serviceId: service.categoryId ?? service.id },
+                              });
+                            }
+                          }}
                           className="group card-soft w-64 shrink-0 border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.97]"
                         >
                           <div className="flex items-start gap-3.5">
