@@ -73,6 +73,8 @@ function TrackOrderScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
+  const [loading, setLoading] = useState(true);
+
   /* GET /api/orders/{id} + /tracking — polled every 20s until the order is
      delivered or cancelled, so the timeline advances from real backend data. */
   useEffect(() => {
@@ -80,6 +82,7 @@ function TrackOrderScreen() {
     const controller = new AbortController();
 
     const load = async (initial: boolean) => {
+      if (initial) setLoading(true);
       try {
         const next = await fetchOrderDetail(orderId, { signal: controller.signal, forceRefresh: !initial });
         if (!alive) return;
@@ -89,8 +92,12 @@ function TrackOrderScreen() {
         setEta(live.etaMinutes);
         setError(null);
       } catch (err: any) {
+        if (alive) {
+          setError(err?.message || "Order not found in database. Check your order number or place a new order.");
+        }
+      } finally {
         if (alive && initial) {
-          setError(err?.message || "We couldn't load this order. Check your connection.");
+          setLoading(false);
         }
       }
     };
@@ -162,24 +169,35 @@ function TrackOrderScreen() {
           </div>
         </header>
 
-        {error && !current ? (
+        {error || (!loading && !detail) ? (
           <div className="px-5 pt-6">
             <div className="card-soft border border-border px-5 py-10 text-center">
               <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
                 <XCircle className="size-6" />
               </span>
-              <p className="mt-4 text-sm font-bold text-foreground">Tracking unavailable</p>
-              <p className="mt-1 text-xs text-muted-foreground">{error}</p>
-              <button
-                type="button"
-                onClick={() => setReloadKey((key) => key + 1)}
-                className="mt-5 rounded-full bg-gradient-to-r from-brand-green to-primary px-6 py-3 text-sm font-black tracking-tight text-background shadow-cta transition-transform duration-300 active:scale-[0.96]"
-              >
-                Try again
-              </button>
+              <p className="mt-4 text-base font-black text-foreground">Order #{orderId} Not Found</p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Database me is order number ka koi record nahi mila. Kripya naya order place karein ya number check karein.
+              </p>
+              <div className="mt-6 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((key) => key + 1)}
+                  className="rounded-2xl border border-border bg-card px-6 py-3 text-xs font-bold text-foreground transition-all hover:bg-accent active:scale-[0.97]"
+                >
+                  Retry Search ↻
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/home" })}
+                  className="rounded-full bg-gradient-to-r from-brand-green to-primary px-6 py-3.5 text-sm font-black tracking-tight text-background shadow-cta transition-transform duration-300 active:scale-[0.96]"
+                >
+                  Go to Home & Place Order ➔
+                </button>
+              </div>
             </div>
           </div>
-        ) : !tracking || !current ? (
+        ) : loading && !detail ? (
           <>
             <TrackingSkeleton />
           </>
