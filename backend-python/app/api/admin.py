@@ -8,9 +8,12 @@ blank even against a brand new database.
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
 
 from app.core.deps import current_user, require_roles
 from app.models.admin import (
@@ -988,5 +991,74 @@ async def list_membership_transactions(
 ) -> MembershipHistoryResponse:
     """GET /api/admin/memberships/transactions — Subscription revenue audit ledger."""
     return await admin_membership_repository.list_transactions(limit=limit, offset=offset)
+
+
+# ----------------------------------------------------------- Admin Security Controls
+
+
+@router.get("/security/events")
+async def list_security_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    user: User = Depends(current_user),
+) -> dict:
+    """GET /api/admin/security/events — Real-time authentication & security audit logs."""
+    from app.db.client import database
+    events = await database.find_many("admin_security_events", limit=limit)
+    events.sort(key=lambda x: str(x.get("timestamp") or ""), reverse=True)
+    rate_limits = await database.find_many("admin_rate_limits", limit=50)
+    return {
+        "ok": True,
+        "events": events,
+        "activeLockouts": [r for r in rate_limits if float(r.get("lockedUntil") or 0) > time.time()],
+    }
+
+
+@router.post("/security/unlock-ip")
+async def unlock_client_ip(
+    payload: dict,
+    user: User = Depends(current_user),
+) -> dict:
+    """POST /api/admin/security/unlock-ip — Manually unlock an IP address."""
+    from app.db.client import database
+    ip = str(payload.get("ip") or "").strip()
+    if not ip:
+        raise HTTPException(status_code=400, detail="Client IP is required")
+    await database.delete_many("admin_rate_limits", {"_id": ip})
+    return {"ok": True, "message": f"IP '{ip}' successfully unlocked."}
+
+
+@router.post("/security/change-pin")
+async def change_admin_pin(
+    payload: dict,
+    user: User = Depends(current_user),
+) -> dict:
+    """POST /api/admin/security/change-pin — Update Admin Security Passcode."""
+    from app.config import get_settings
+    from app.core.admin_security import constant_time_compare
+    from app.db.client import database
+    import hmac
+
+    current_pin = str(payload.get("currentPin") or "").strip()
+    new_pin = str(payload.get("newPin") or "").strip()
+
+    settings = get_settings()
+    expected_pin = settings.admin_security_pin.strip()
+
+    if not constant_time_compare(current_pin, expected_pin):
+        raise HTTPException(status_code=401, detail="Current Admin Passcode is incorrect.")
+
+    if len(new_pin) < 4:
+        raise HTTPException(status_code=400, detail="New Passcode must be at least 4 digits/characters.")
+
+    settings.admin_security_pin = new_pin
+    # Persist in Supabase settings
+    await database.update_one(
+        "admin_settings",
+        {"_id": "security_config"},
+        {"_id": "security_config", "adminSecurityPin": new_pin, "updatedAt": datetime.now(timezone.utc).isoformat()},
+        upsert=True,
+    )
+    return {"ok": True, "message": "Admin Security Passcode successfully updated."}
+
 
 

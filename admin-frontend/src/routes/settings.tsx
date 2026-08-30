@@ -36,6 +36,7 @@ const GROUPS = [
   { key: "finance", label: "Taxes & Commission" },
   { key: "platform", label: "Platform General" },
   { key: "integrations", label: "Gateway & API Integrations" },
+  { key: "security", label: "🛡️ Security & Passcode" },
 ] as const;
 
 const LABELS: Record<string, { label: string; hint: string }> = {
@@ -65,7 +66,13 @@ const LABELS: Record<string, { label: string; hint: string }> = {
 
 export function SettingsPage() {
   const settings = useQuery({ queryKey: ["admin", "settings"], queryFn: fetchSettings });
+  const securityEvents = useQuery({ queryKey: ["admin", "security-events"], queryFn: fetchSecurityEvents });
   const [draft, setDraft] = useState<AdminSettings | null>(null);
+
+  // Passcode update state
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
 
   useEffect(() => {
     if (settings.data) setDraft(settings.data);
@@ -78,6 +85,34 @@ export function SettingsPage() {
     },
     onError: () => {
       toast.error("Failed to persist settings.");
+    },
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: async () => {
+      if (newPin !== confirmPin) throw new Error("New Passcode and Confirm Passcode do not match.");
+      return changeAdminPin(currentPin, newPin);
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || "Admin Security Passcode updated successfully!");
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmPin("");
+      void securityEvents.refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to update passcode.");
+    },
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: (ip: string) => unlockClientIp(ip),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      void securityEvents.refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to unlock IP.");
     },
   });
 
@@ -130,10 +165,10 @@ export function SettingsPage() {
           />
           <KpiCard
             kpi={{
-              id: "s-gst",
-              label: "GST Tax Rate",
-              value: (draft?.finance as any)?.gstPercent || "5%",
-              hint: "Calculated on service taxable value",
+              id: "s-security",
+              label: "Admin Security Shield",
+              value: "Enterprise Active",
+              hint: "Brute-force lockout & HMAC timing protection",
               positive: true,
             }}
           />
@@ -155,14 +190,14 @@ export function SettingsPage() {
             ))}
           </TabsList>
 
-          {GROUPS.map((group) => (
+          {GROUPS.filter((g) => g.key !== "security").map((group) => (
             <TabsContent key={group.key} value={group.key}>
               <SectionCard
                 title={group.label}
                 description="Live configuration parameters stored in the database and enforced in real time."
               >
                 <div className="grid gap-5 md:grid-cols-2">
-                  {Object.entries(draft?.[group.key] ?? {}).map(([field, value]) => {
+                  {Object.entries((draft as any)?.[group.key] ?? {}).map(([field, value]) => {
                     const meta = LABELS[field] || { label: field, hint: "" };
                     return (
                       <div key={field} className="space-y-1.5 rounded-2xl border border-zinc-100 bg-zinc-50/50 p-3.5">
@@ -175,7 +210,7 @@ export function SettingsPage() {
                           onChange={(e) =>
                             setDraft((prev) =>
                               prev
-                                ? { ...prev, [group.key]: { ...prev[group.key], [field]: e.target.value } }
+                                ? { ...prev, [group.key]: { ...(prev as any)[group.key], [field]: e.target.value } }
                                 : prev,
                             )
                           }
@@ -190,8 +225,180 @@ export function SettingsPage() {
               </SectionCard>
             </TabsContent>
           ))}
+
+          {/* =========================================================================
+              3. SECURITY & PASSCODE MANAGEMENT TAB
+          ========================================================================= */}
+          <TabsContent value="security" className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Passcode Change Form */}
+              <SectionCard
+                title="Change Super Admin Passcode"
+                description="Update the master 4-digit PIN / security passcode used to log into the Admin Console."
+              >
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    pinMutation.mutate();
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-zinc-900">Current Admin Passcode</Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter existing PIN (default: 4502)"
+                      value={currentPin}
+                      onChange={(e) => setCurrentPin(e.target.value)}
+                      className="h-10 rounded-xl text-xs bg-white border-zinc-200 font-medium"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-zinc-900">New Admin Passcode</Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter new 4+ digit passcode"
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value)}
+                      className="h-10 rounded-xl text-xs bg-white border-zinc-200 font-medium"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-zinc-900">Confirm New Passcode</Label>
+                    <Input
+                      type="password"
+                      placeholder="Re-enter new passcode"
+                      value={confirmPin}
+                      onChange={(e) => setConfirmPin(e.target.value)}
+                      className="h-10 rounded-xl text-xs bg-white border-zinc-200 font-medium"
+                      required
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={!currentPin || !newPin || !confirmPin || pinMutation.isPending}
+                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 shadow-xs"
+                  >
+                    <Lock className="mr-1.5 size-3.5" /> Update Admin Passcode
+                  </Button>
+                </form>
+              </SectionCard>
+
+              {/* Security Shield & Active Lockouts */}
+              <SectionCard
+                title="Brute-Force & Lockout Guard"
+                description="Automated defense active: IP is locked for 15 minutes after 5 consecutive failed attempts."
+              >
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+                        <ShieldCheck className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-black text-emerald-950">Active Defense Shield Enabled</p>
+                        <p className="text-[11px] font-semibold text-emerald-700">
+                          HMAC Constant-Time verification · 5 attempts threshold · 15m lockout
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-zinc-900">Currently Locked IP Addresses</p>
+                    {securityEvents.data?.activeLockouts && securityEvents.data.activeLockouts.length > 0 ? (
+                      <div className="space-y-2">
+                        {securityEvents.data.activeLockouts.map((loc) => (
+                          <div
+                            key={loc._id}
+                            className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50/60 p-3 text-xs"
+                          >
+                            <div>
+                              <p className="font-bold text-red-900">IP: {loc.ip}</p>
+                              <p className="text-[10px] text-red-700">
+                                {loc.failedCount} failed attempts · Last: {new Date(loc.lastAttemptAt).toLocaleTimeString()}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg text-[11px] font-bold text-red-700 border-red-300 hover:bg-red-100"
+                              onClick={() => unlockMutation.mutate(loc.ip)}
+                            >
+                              Unlock IP
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4 text-center text-xs text-zinc-500">
+                        ✨ No IP addresses currently locked out. System healthy.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </SectionCard>
+            </div>
+
+            {/* Security Audit Events Log */}
+            <SectionCard
+              title="Recent Security Audit Logs"
+              description="Real-time timeline of Admin logins, failed passcode attempts, and system lockouts."
+            >
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {securityEvents.data?.events && securityEvents.data.events.length > 0 ? (
+                  securityEvents.data.events.map((ev, idx) => (
+                    <div
+                      key={ev._id || idx}
+                      className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex size-2 rounded-full ${
+                            ev.eventType === "SUCCESSFUL_ADMIN_LOGIN"
+                              ? "bg-emerald-500"
+                              : ev.eventType === "ACCOUNT_LOCKOUT"
+                              ? "bg-red-500"
+                              : "bg-amber-500"
+                          }`}
+                        />
+                        <div>
+                          <p className="font-bold text-zinc-900">
+                            {ev.eventType === "SUCCESSFUL_ADMIN_LOGIN"
+                              ? "✅ Successful Admin Login"
+                              : ev.eventType === "ACCOUNT_LOCKOUT"
+                              ? "🚨 Account IP Lockout Triggered"
+                              : "⚠️ Failed Passcode Attempt"}
+                          </p>
+                          <p className="text-[10px] text-zinc-400">
+                            IP: {ev.clientIp} {ev.userAgent ? `· ${ev.userAgent.slice(0, 40)}...` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-zinc-400">
+                        {new Date(ev.timestamp).toLocaleString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-4 text-center text-xs text-zinc-400">No security events recorded yet.</p>
+                )}
+              </div>
+            </SectionCard>
+          </TabsContent>
         </Tabs>
       </div>
     </AdminShell>
   );
 }
+

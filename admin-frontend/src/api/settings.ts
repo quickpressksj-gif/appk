@@ -73,3 +73,47 @@ export async function fetchSettings(): Promise<AdminSettings> {
 export async function saveSettings(settings: AdminSettings): Promise<AdminSettings> {
   return request<AdminSettings>("/settings", { method: "PUT", body: JSON.stringify(settings) });
 }
+
+export type SecurityEvent = {
+  _id?: string;
+  eventType: string;
+  clientIp: string;
+  userAgent?: string;
+  failedCount?: number;
+  lockedUntil?: number | null;
+  adminId?: string;
+  timestamp: string;
+};
+
+export type ActiveLockout = {
+  _id: string;
+  ip: string;
+  failedCount: number;
+  lockedUntil: number;
+  lastAttemptAt: string;
+};
+
+export type SecurityEventsResponse = {
+  ok: boolean;
+  events: SecurityEvent[];
+  activeLockouts: ActiveLockout[];
+};
+
+export async function fetchSecurityEvents(): Promise<SecurityEventsResponse> {
+  return apiGetJson<SecurityEventsResponse>("/api/admin/security/events");
+}
+
+export async function unlockClientIp(ip: string): Promise<{ ok: boolean; message: string }> {
+  return request<{ ok: boolean; message: string }>("/security/unlock-ip", {
+    method: "POST",
+    body: JSON.stringify({ ip }),
+  });
+}
+
+export async function changeAdminPin(currentPin: string, newPin: string): Promise<{ ok: boolean; message: string }> {
+  return request<{ ok: boolean; message: string }>("/security/change-pin", {
+    method: "POST",
+    body: JSON.stringify({ currentPin, newPin }),
+  });
+}
+

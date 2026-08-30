@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
 
 from app.config import get_settings
 from app.core.deps import current_user
@@ -201,15 +202,33 @@ async def refresh(payload: RefreshRequest) -> AuthSessionResponse:
 
 
 @router.post("/admin/pin", response_model=AuthSessionResponse)
-async def admin_pin_login(payload: dict) -> AuthSessionResponse:
+async def admin_pin_login(payload: dict, request: Request) -> AuthSessionResponse:
+    from app.core.admin_security import (
+        check_admin_rate_limit,
+        constant_time_compare,
+        record_failed_attempt,
+        record_successful_login,
+    )
+
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    user_agent = request.headers.get("user-agent", "")
+
+    # 1. Enforce brute-force & lockout protection
+    await check_admin_rate_limit(client_ip)
+
     settings = get_settings()
     pin = str(payload.get("pin", "")).strip()
     expected_pin = settings.admin_security_pin.strip()
-    if not pin or pin != expected_pin:
+
+    # 2. Constant-time comparison
+    if not pin or not constant_time_compare(pin, expected_pin):
+        failed_count = await record_failed_attempt(client_ip, user_agent)
+        remaining = max(0, 5 - failed_count)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect Admin Passcode (PIN). Access denied.",
+            detail=f"Incorrect Admin Passcode. {remaining} attempt{'s' if remaining != 1 else ''} remaining before temporary lockout.",
         )
+
     admin_user = await users.by_phone("+910000004502", Role.admin)
     if admin_user is None:
         admin_user = await users.create_phone_user(phone="+910000004502", role=Role.admin)
@@ -227,7 +246,11 @@ async def admin_pin_login(payload: dict) -> AuthSessionResponse:
         admin_user.display_name = "QuickPress Super Admin"
         admin_user.is_verified = True
         admin_user.is_onboarded = True
+
+    # 3. Log successful authentication & reset rate limiter
+    await record_successful_login(admin_user.id, client_ip, user_agent)
     return await _issue_session(admin_user)
+
 
 
 @router.post("/logout")
