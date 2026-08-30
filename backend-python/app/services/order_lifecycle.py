@@ -199,14 +199,54 @@ def order_id_of(order: Dict[str, Any]) -> str:
     return str(order.get("_id") or order.get("id"))
 
 
+import re
+
 async def find_order(order_id: str) -> Optional[Dict[str, Any]]:
-    """Resolve an order by its canonical id or its human order code."""
+    """Resolve an order by its canonical id or its human order code with prefix tolerance."""
     if not order_id:
         return None
-    document = await database.find_one(ORDERS, {"_id": order_id})
-    if document is None:
-        document = await database.find_one(ORDERS, {"code": order_id})
-    return document
+    raw = str(order_id).strip()
+    
+    # 1. Direct checks
+    doc = await database.find_one(ORDERS, {"_id": raw})
+    if doc: return doc
+    doc = await database.find_one(ORDERS, {"id": raw})
+    if doc: return doc
+    doc = await database.find_one(ORDERS, {"code": raw})
+    if doc: return doc
+    doc = await database.find_one(ORDERS, {"code": raw.upper()})
+    if doc: return doc
+
+    # 2. Strip ord- or ord_ prefix
+    clean = re.sub(r"^ord[-_]", "", raw, flags=re.IGNORECASE)
+    if clean and clean != raw:
+        doc = await database.find_one(ORDERS, {"_id": clean})
+        if doc: return doc
+        doc = await database.find_one(ORDERS, {"code": clean})
+        if doc: return doc
+        doc = await database.find_one(ORDERS, {"code": clean.upper()})
+        if doc: return doc
+        doc = await database.find_one(ORDERS, {"id": clean})
+        if doc: return doc
+
+    # 3. Try adding ord- or ord_ prefix if not present
+    if not raw.lower().startswith("ord"):
+        doc = await database.find_one(ORDERS, {"_id": f"ord-{raw}"})
+        if doc: return doc
+        doc = await database.find_one(ORDERS, {"_id": f"ord_{raw}"})
+        if doc: return doc
+
+    # 4. Try case-insensitive regex match on code or _id
+    try:
+        pattern = f"^{re.escape(clean)}$"
+        doc = await database.find_one(ORDERS, {"code": {"$regex": pattern, "$options": "i"}})
+        if doc: return doc
+        doc = await database.find_one(ORDERS, {"_id": {"$regex": pattern, "$options": "i"}})
+        if doc: return doc
+    except Exception:
+        pass
+
+    return None
 
 
 async def get_order(order_id: str) -> Dict[str, Any]:

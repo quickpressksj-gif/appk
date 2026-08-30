@@ -368,19 +368,43 @@ class CatalogRepository:
         return cards[:limit] if limit > 0 else cards
 
     async def partner_document(self, partner_id: str) -> Optional[Dict[str, Any]]:
-        return await database.find_one("partner_profiles", {"_id": partner_id})
+        if not partner_id:
+            return None
+        pid = str(partner_id).strip()
+        doc = await database.find_one("partner_profiles", {"_id": pid})
+        if doc: return doc
+        doc = await database.find_one("partner_profiles", {"id": pid})
+        if doc: return doc
+        doc = await database.find_one("partner_profiles", {"partnerId": pid})
+        if doc: return doc
+
+        # If it's a service ID or has svc- prefix:
+        if pid.startswith("svc-"):
+            clean = pid.replace("svc-", "")
+            doc = await database.find_one("partner_profiles", {"_id": clean})
+            if doc: return doc
+            doc = await database.find_one("partner_profiles", {"partnerId": clean})
+            if doc: return doc
+
+        # Check if pid belongs to a service
+        svc = await database.find_one("partner_services", {"_id": pid}) or await database.find_one("partner_services", {"id": pid})
+        if svc and svc.get("partnerId"):
+            return await database.find_one("partner_profiles", {"_id": svc.get("partnerId")})
+
+        return None
 
     async def partner_profile(self, partner_id: str) -> Optional[PartnerProfileResponse]:
         detail = await self.partner_detail(partner_id)
         return detail.partner if detail else None
 
     async def partner_services(self, partner_id: str) -> Optional[List[PartnerServiceResponse]]:
-        doc = await database.find_one("partner_profiles", {"_id": partner_id})
-        if doc is None:
-            doc = await database.find_one("partner_profiles", {"partnerId": partner_id})
+        doc = await self.partner_document(partner_id)
         if doc is None:
             return None
-        services_docs = await database.find_many("partner_services", {"partnerId": partner_id})
+        actual_pid = str(doc.get("_id") or doc.get("partnerId") or partner_id)
+        services_docs = await database.find_many("partner_services", {"partnerId": actual_pid})
+        if not services_docs:
+            services_docs = await database.find_many("partner_services", {"partnerId": partner_id})
         active_services = [
             s for s in services_docs
             if bool(s.get("enabled", s.get("isActive", True))) is True
@@ -411,32 +435,36 @@ class CatalogRepository:
         return services
 
     async def partner_reviews(self, partner_id: str) -> List[PartnerReviewResponse]:
-        docs = await database.find_many("partner_reviews", {"partnerId": partner_id})
+        doc = await self.partner_document(partner_id)
+        actual_pid = str(doc.get("_id") or partner_id) if doc else partner_id
+        docs = await database.find_many("partner_reviews", {"partnerId": actual_pid})
         return [
             PartnerReviewResponse(
                 id=d["_id"],
-                partnerId=partner_id,
+                partnerId=actual_pid,
                 name=d.get("name", "Customer"),
                 initials=d.get("initials", "C"),
-                photo=d.get("photo", ""),
-                rating=float(d.get("rating") or 5.0),
-                text=d.get("text", ""),
-                date=d.get("date", ""),
-                images=list(d.get("images") or []),
+                avatar=d.get("avatar"),
+                rating=float(d.get("rating", 5.0)),
+                date=d.get("date", "Recently"),
+                comment=d.get("comment", ""),
+                verified=bool(d.get("verified", True)),
+                service=d.get("service", "Laundry"),
             )
             for d in docs
         ]
 
     async def partner_detail(self, partner_id: str) -> Optional[PartnerDetailResponse]:
-        doc = await database.find_one("partner_profiles", {"_id": partner_id})
+        doc = await self.partner_document(partner_id)
         if doc is None:
             return None
+        actual_pid = str(doc.get("_id") or partner_id)
         st = str(doc.get("status") or "").lower()
         if st in ("pending", "rejected", "suspended", "blocked"):
             return None
 
         services = await self.partner_services(partner_id) or []
-        settings = await database.find_one("partner_settings", {"_id": partner_id}) or {}
+        settings = await database.find_one("partner_settings", {"_id": actual_pid}) or {}
         reviews = await self.partner_reviews(partner_id)
 
         reviews_count = int(doc.get("totalOrders") or doc.get("reviewsCount") or len(reviews))

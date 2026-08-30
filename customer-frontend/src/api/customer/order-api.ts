@@ -564,18 +564,38 @@ export async function fetchOrderDetail(
   orderId: string,
   options: { signal?: AbortSignal | undefined; forceRefresh?: boolean } = {},
 ): Promise<OrderDetail> {
+  const cleanId = String(orderId || "").trim();
+  if (!cleanId) {
+    throw new Error("Order ID is required");
+  }
+
   if (!options.forceRefresh) {
-    const cached = readScopedCache<OrderDetail>("order-detail", orderId);
+    const cached = readScopedCache<OrderDetail>("order-detail", cleanId);
     if (cached) return cached;
   }
   try {
     const detail = toOrderDetail(
-      await apiGetJson<Order>(`/api/orders/${orderId}`, { signal: options.signal }),
+      await apiGetJson<Order>(`/api/orders/${encodeURIComponent(cleanId)}`, { signal: options.signal }),
     );
-    writeScopedCache("order-detail", orderId, detail);
+    writeScopedCache("order-detail", cleanId, detail);
     return detail;
   } catch (error) {
-    const stale = readStaleScopedCache<OrderDetail>("order-detail", orderId);
+    // If orderId had ord- or ord_ prefix and failed, retry with stripped code
+    const stripped = cleanId.replace(/^ord[-_]/i, "");
+    if (stripped && stripped !== cleanId) {
+      try {
+        const detail = toOrderDetail(
+          await apiGetJson<Order>(`/api/orders/${encodeURIComponent(stripped)}`, { signal: options.signal }),
+        );
+        writeScopedCache("order-detail", cleanId, detail);
+        writeScopedCache("order-detail", stripped, detail);
+        return detail;
+      } catch {
+        /* proceed to stale cache check */
+      }
+    }
+
+    const stale = readStaleScopedCache<OrderDetail>("order-detail", cleanId);
     if (stale) return stale;
     throw error;
   }

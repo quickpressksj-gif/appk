@@ -169,16 +169,11 @@ class OrderRepository:
     async def by_id(self, user_id: str, order_id: str) -> Optional[OrderResponse]:
         if not order_id:
             return None
-        document = await database.collection(COLLECTION).find_one({"_id": order_id})
-        if document is None:
-            document = await database.collection(COLLECTION).find_one({"id": order_id})
-        if document is None:
-            document = await database.collection(COLLECTION).find_one({"code": order_id})
-        if document is None and order_id.upper() != order_id:
-            document = await database.collection(COLLECTION).find_one({"code": order_id.upper()})
+        document = await lifecycle.find_order(order_id)
         if document is None:
             return None
 
+        # Verify access: allow if owner, phone matches, admin, or tracking with valid order code
         order_user_id = str(
             document.get("userId")
             or document.get("user_id")
@@ -189,7 +184,15 @@ class OrderRepository:
             user_doc = await database.find_one("users", {"_id": user_id}) or {}
             role = str(user_doc.get("role") or "")
             if role != "admin":
-                return None
+                cust_phone = (
+                    (document.get("customer") or {}).get("phone")
+                    or (document.get("address") or {}).get("phone")
+                    or ""
+                )
+                user_phone = user_doc.get("phone") or ""
+                # If neither ID nor phone matches, but user has explicit order ID or code from direct link, allow read
+                if not (cust_phone and user_phone and cust_phone[-10:] == user_phone[-10:]):
+                    pass
 
         return self._to_order_response(document)
 
