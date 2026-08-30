@@ -4,9 +4,9 @@
  * Every screen (service details, partner profile, floating cart bar, cart
  * screen, checkout) reads and writes this store.
  *
- * Line items and quantities are immediately persistent and authoritative locally,
- * while asynchronously notifying backend endpoints so quantity is never
- * rolled back or decremented unexpectedly.
+ * Line items and quantities are immediately persistent and authoritative locally.
+ * Network sync is debounced per item (350ms) to prevent race conditions when
+ * rapidly tapping (+ / -).
  */
 
 import {
@@ -38,7 +38,6 @@ export type CartLine = {
 
 export type CartSnapshot = {
   lines: CartLine[];
-  /** Server totals — count / itemsTotal / grandTotal etc. */
   totals: Totals;
   charges: Charges;
   store: CartStoreInfo | null;
@@ -94,6 +93,9 @@ const EMPTY: CartSnapshot = {
 let snapshot: CartSnapshot = EMPTY;
 const listeners = new Set<() => void>();
 let hydrated = false;
+
+// Per-item debounce timers to prevent network race conditions
+const syncDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function toLine(item: CartItem): CartLine {
   return {
@@ -151,7 +153,7 @@ function set(patch: Partial<CartSnapshot>) {
   snapshot.total = snapshot.totals.itemsTotal;
   saveLocalLines(snapshot.lines);
 
-  // Sync to legacy cart state for backward compatibility
+  // Sync to legacy cart state for backward compatibility across all consumers
   setCartState({
     data: {
       items: snapshot.lines.map((l) => ({
@@ -235,27 +237,8 @@ export function lineQty(id: string): number {
   return snapshot.lines.find((line) => line.id === id)?.qty ?? 0;
 }
 
-/** Run an optimistic mutation without rolling back user quantity on network issues. */
-async function mutate(
-  optimistic: CartLine[],
-  request: () => Promise<CartStateResponse | null>,
-): Promise<void> {
-  set({ lines: optimistic, syncing: true, error: null });
-  try {
-    const result = await request();
-    if (result && Array.isArray(result.items)) {
-      applyServerCart(result);
-    }
-  } catch (err) {
-    // Do NOT rollback optimistic line quantities on API failure!
-    // The user's intended quantity remains authoritative on client.
-  } finally {
-    set({ syncing: false });
-  }
-}
-
 /**
- * Add one unit of an item (or bump it when already in the cart).
+ * Add an item or bump quantity. Updates local state in 0ms and debounces server sync.
  */
 export function addCartLine(input: Omit<CartLine, "qty">, qty = 1) {
   const existing = snapshot.lines.find((line) => line.id === input.id);
@@ -265,23 +248,41 @@ export function addCartLine(input: Omit<CartLine, "qty">, qty = 1) {
   }
 
   const optimistic = [...snapshot.lines, { ...input, qty }];
-  void mutate(optimistic, async () => {
-    await postCartItem({
-      itemId: input.id,
-      id: input.id,
-      qty,
-      name: input.name,
-      price: input.price,
-      unit: input.unit,
-      ...(input.image === undefined ? {} : { image: input.image }),
-      ...(input.description === undefined ? {} : { description: input.description }),
-      ...(input.serviceId === undefined ? {} : { serviceId: input.serviceId }),
-      ...(input.partnerId === undefined ? {} : { partnerId: input.partnerId }),
-    });
-    return fetchCartState();
-  });
+  set({ lines: optimistic });
+
+  // Debounce network call by 350ms so rapid taps don't cause race conditions
+  const existingTimer = syncDebounceTimers.get(input.id);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  const newTimer = setTimeout(async () => {
+    syncDebounceTimers.delete(input.id);
+    const finalQty = lineQty(input.id);
+    if (finalQty <= 0) return;
+    try {
+      await postCartItem({
+        itemId: input.id,
+        id: input.id,
+        qty: finalQty,
+        name: input.name,
+        price: input.price,
+        unit: input.unit,
+        ...(input.image === undefined ? {} : { image: input.image }),
+        ...(input.description === undefined ? {} : { description: input.description }),
+        ...(input.serviceId === undefined ? {} : { serviceId: input.serviceId }),
+        ...(input.partnerId === undefined ? {} : { partnerId: input.partnerId }),
+      });
+    } catch {
+      // Local state remains authoritative
+    }
+  }, 350);
+
+  syncDebounceTimers.set(input.id, newTimer);
 }
 
+/**
+ * Step quantity (+ / -). Updates local state in 0ms and debounces server sync.
+ * Prevents quantity rolling back or jumping when tapped repeatedly.
+ */
 export function stepCartLine(id: string, delta: number) {
   const current = lineQty(id);
   const nextQty = Math.max(0, current + delta);
@@ -290,25 +291,51 @@ export function stepCartLine(id: string, delta: number) {
       ? snapshot.lines.filter((line) => line.id !== id)
       : snapshot.lines.map((line) => (line.id === id ? { ...line, qty: nextQty } : line));
 
-  void mutate(optimistic, async () => {
-    if (nextQty === 0) return deleteCartItem(id);
-    const { putCartItem } = await import("./cart-api");
-    return putCartItem(id, nextQty);
-  });
+  // 1. UPDATE SYNCHRONOUSLY IN 0ms (UI never jumps or lags)
+  set({ lines: optimistic });
+
+  // 2. CANCEL any pending in-flight timer for this item
+  const existingTimer = syncDebounceTimers.get(id);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  // 3. DEBOUNCE network sync by 350ms
+  const newTimer = setTimeout(async () => {
+    syncDebounceTimers.delete(id);
+    const finalQty = lineQty(id);
+    try {
+      if (finalQty === 0) {
+        await deleteCartItem(id);
+      } else {
+        const { putCartItem } = await import("./cart-api");
+        await putCartItem(id, finalQty);
+      }
+    } catch {
+      // Local state remains authoritative
+    }
+  }, 350);
+
+  syncDebounceTimers.set(id, newTimer);
 }
 
 export function removeCartLine(id: string) {
-  void mutate(
-    snapshot.lines.filter((line) => line.id !== id),
-    () => deleteCartItem(id),
-  );
+  const existingTimer = syncDebounceTimers.get(id);
+  if (existingTimer) clearTimeout(existingTimer);
+  syncDebounceTimers.delete(id);
+
+  set({ lines: snapshot.lines.filter((line) => line.id !== id) });
+  void deleteCartItem(id).catch(() => undefined);
 }
 
-/** Remove every line — each one through DELETE /api/cart/items/{id}. */
+/** Remove every line — clears timers and deletes from server. */
 export function clearCartLines() {
+  for (const timer of syncDebounceTimers.values()) {
+    clearTimeout(timer);
+  }
+  syncDebounceTimers.clear();
+
   const ids = snapshot.lines.map((line) => line.id);
-  void mutate([], async () => {
-    for (const id of ids) await deleteCartItem(id);
-    return fetchCartState();
-  });
+  set({ lines: [] });
+  void (async () => {
+    for (const id of ids) await deleteCartItem(id).catch(() => undefined);
+  })();
 }
