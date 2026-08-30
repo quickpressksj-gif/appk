@@ -319,6 +319,22 @@ export async function setPartnerStatus(id: string, action: "approve" | "reject" 
   return blockPartner(id, { reason: "Admin quick rejection action" });
 }
 
+/** POST /api/admin/partners */
+export async function createPartner(payload: {
+  businessName: string;
+  ownerName: string;
+  phone: string;
+  email?: string;
+  city: string;
+  zone?: string;
+  address?: string;
+  gstin?: string;
+  pan?: string;
+  commissionRate?: number;
+}) {
+  return apiPostJson<AdminPartner>("/api/admin/partners", payload);
+}
+
 export async function updatePartner(id: string, payload: Record<string, unknown>) {
   return apiPutJson<Record<string, unknown>>(`/api/admin/partners/${encodeURIComponent(id)}`, payload);
 }
@@ -326,3 +342,4 @@ export async function updatePartner(id: string, payload: Record<string, unknown>
 export async function fetchPartner(id: string) {
   return fetchPartner360(id);
 }
+

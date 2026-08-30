@@ -281,6 +281,31 @@ async def list_partners(
     return await admin_partner_repository.list(page, pageSize, q=q, status=status_filter, kyc_status=kyc_status, city=city, zone=zone)
 
 
+@router.post("/partners")
+async def create_partner(payload: CreatePartnerPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.create(payload.model_dump(), user.id)
+    await audit_repository.log(await _actor(user), "partner.create", res.get("_id") or "", payload.model_dump())
+    return res
+
+
+@router.put("/partners/{partner_id}")
+async def update_partner(partner_id: str, payload: AdminPartnerUpdatePayload, user: User = Depends(current_user)):
+    from app.db.client import database
+    existing = await database.find_one("partner_profiles", {"_id": partner_id})
+    if not existing:
+        existing = await database.find_one("partner_profiles", {"partnerId": partner_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+
+    target_id = existing["_id"]
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if data:
+        await database.update("partner_profiles", {"_id": target_id}, data)
+
+    await audit_repository.log(await _actor(user), "partner.update", target_id, data)
+    return await database.find_one("partner_profiles", {"_id": target_id})
+
+
 @router.get("/partners/{partner_id}/360")
 async def get_partner_360(partner_id: str, user: User = Depends(current_user)):
     return await admin_partner_repository.get_partner_360(partner_id)
@@ -292,6 +317,7 @@ async def get_partner(partner_id: str, user: User = Depends(current_user)):
     if partner is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
     return partner
+
 
 
 @router.post("/partners/{partner_id}/approve")

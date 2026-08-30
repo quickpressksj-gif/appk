@@ -65,7 +65,9 @@ import {
   addPartnerNote,
   updatePartnerTags,
   sendPartnerNotification,
+  createPartner,
   type AdminPartner,
+
   type Partner360Data,
   type PartnerDashboardStats,
 } from "../api/partners";
@@ -90,6 +92,14 @@ export function PartnersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Modals state
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [newBizName, setNewBizName] = useState("");
+  const [newOwnerName, setNewOwnerName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newCity, setNewCity] = useState("Kasganj");
+  const [newAddress, setNewAddress] = useState("");
+
   const [suspendModalOpen, setSuspendModalOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [suspendNote, setSuspendNote] = useState("");
@@ -128,6 +138,22 @@ export function PartnersPage() {
   const profile = profile360Query.data;
 
   // Mutations
+  const createMutation = useMutation({
+    mutationFn: (payload: { businessName: string; ownerName: string; phone: string; email?: string; city: string; address?: string }) =>
+      createPartner(payload),
+    onSuccess: (data) => {
+      toast.success(`Partner Store created successfully!`);
+      setAddModalOpen(false);
+      setNewBizName("");
+      setNewOwnerName("");
+      setNewPhone("");
+      setNewEmail("");
+      setNewAddress("");
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
+    },
+    onError: () => toast.error("Failed to create partner store."),
+  });
+
   const approveMutation = useMutation({
     mutationFn: (id: string) => approvePartner(id),
     onSuccess: () => {
@@ -345,6 +371,16 @@ export function PartnersPage() {
               </SelectContent>
             </Select>
 
+            {/* Add Partner Store Button */}
+            <Button
+              size="sm"
+              onClick={() => setAddModalOpen(true)}
+              className="h-9 gap-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+            >
+              <PlusCircle className="size-3.5" />
+              <span>Add Partner Store</span>
+            </Button>
+
             {/* CSV Export */}
             <Button
               variant="outline"
@@ -357,6 +393,7 @@ export function PartnersPage() {
             </Button>
           </div>
         </div>
+
 
         {/* Status Tabs */}
         <div className="flex items-center gap-1 border-b border-zinc-100 pb-3 mb-4 overflow-x-auto text-xs">
@@ -987,6 +1024,109 @@ export function PartnersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* =========================================================================
+          ADD NEW PARTNER STORE MODAL
+      ========================================================================= */}
+      <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
+        <DialogContent className="sm:max-w-lg bg-white text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-emerald-700">
+              <PlusCircle className="size-5" /> Add New Partner Laundry Store
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-500">
+              Register a new laundry partner store directly into Supabase PostgreSQL database.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
+            <div className="col-span-2">
+              <label className="font-bold text-zinc-800">Business / Store Name *</label>
+              <Input
+                value={newBizName}
+                onChange={(e) => setNewBizName(e.target.value)}
+                placeholder="e.g. QuickPress Express Cleaners"
+                className="mt-1 bg-zinc-50 border-zinc-200 font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-zinc-800">Owner Full Name *</label>
+              <Input
+                value={newOwnerName}
+                onChange={(e) => setNewOwnerName(e.target.value)}
+                placeholder="Rajesh Kumar"
+                className="mt-1 bg-zinc-50 border-zinc-200"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-zinc-800">Phone Number (+91) *</label>
+              <Input
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="9876543210"
+                className="mt-1 bg-zinc-50 border-zinc-200 font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-zinc-800">Email Address</label>
+              <Input
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="store@quickpress.in"
+                className="mt-1 bg-zinc-50 border-zinc-200"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-zinc-800">City *</label>
+              <Select value={newCity} onValueChange={setNewCity}>
+                <SelectTrigger className="mt-1 bg-zinc-50 border-zinc-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Kasganj">Kasganj</SelectItem>
+                  <SelectItem value="Bengaluru">Bengaluru</SelectItem>
+                  <SelectItem value="Delhi NCR">Delhi NCR</SelectItem>
+                  <SelectItem value="Aligarh">Aligarh</SelectItem>
+                  <SelectItem value="Noida">Noida</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <label className="font-bold text-zinc-800">Store Address</label>
+              <Input
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+                placeholder="Main Market Road, Near City Station..."
+                className="mt-1 bg-zinc-50 border-zinc-200"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button variant="outline" onClick={() => setAddModalOpen(false)} className="text-xs font-bold">Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!newBizName || !newOwnerName || !newPhone) {
+                  toast.error("Please fill required fields (Store Name, Owner Name, Phone).");
+                  return;
+                }
+                createMutation.mutate({
+                  businessName: newBizName,
+                  ownerName: newOwnerName,
+                  phone: newPhone,
+                  email: newEmail,
+                  city: newCity,
+                  address: newAddress,
+                });
+              }}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+            >
+              Create &amp; Onboard Store
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 }
+

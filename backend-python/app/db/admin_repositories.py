@@ -1183,8 +1183,53 @@ class AdminPartnerRepository:
         await database.update(self.collection, {"_id": partner_id}, {"tags": tags}, upsert=True)
         return {"ok": True, "tags": tags}
 
+    async def create(self, data: Dict[str, Any], admin_id: str) -> Dict[str, Any]:
+        partner_id = f"PRT-{str(uuid.uuid4())[:8].upper()}"
+        now = now_iso()
+        doc = {
+            "_id": partner_id,
+            "partnerId": partner_id,
+            "id": partner_id,
+            "businessName": data.get("businessName"),
+            "ownerName": data.get("ownerName"),
+            "phone": data.get("phone"),
+            "email": data.get("email") or "",
+            "city": data.get("city"),
+            "zone": data.get("zone") or "Main Zone",
+            "address": data.get("address") or "",
+            "gstin": data.get("gstin") or "",
+            "pan": data.get("pan") or "",
+            "commissionRate": data.get("commissionRate", 18.0),
+            "status": "active",
+            "kycStatus": "verified",
+            "isVerified": True,
+            "isOnboarded": True,
+            "isOnline": True,
+            "totalOrders": 0,
+            "revenue": 0.0,
+            "rating": 5.0,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        await database.insert(self.collection, doc)
+        user_doc = {
+            "_id": f"usr-{partner_id.lower()}",
+            "user_id": f"usr-{partner_id.lower()}",
+            "role": "partner",
+            "display_name": data.get("businessName"),
+            "phone": data.get("phone"),
+            "email": data.get("email") or "",
+            "city": data.get("city"),
+            "status": "active",
+            "is_verified": True,
+            "createdAt": now,
+        }
+        await database.insert("users", user_doc)
+        return doc
+
 
 admin_partner_repository = AdminPartnerRepository()
+
 
 
 

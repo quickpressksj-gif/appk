@@ -96,10 +96,21 @@ class CouponPayload(BaseModel):
     description: Optional[str] = None
     expiry: Optional[str] = None
     minOrder: Optional[float] = None
-    status: Optional[str] = None
+class CreatePartnerPayload(BaseModel):
+    businessName: str
+    ownerName: str
+    phone: str
+    email: Optional[str] = None
+    city: str
+    zone: Optional[str] = "Main Zone"
+    address: Optional[str] = None
+    gstin: Optional[str] = None
+    pan: Optional[str] = None
+    commissionRate: Optional[float] = 18.0
 
 
 class AdminPartnerUpdatePayload(BaseModel):
+
     businessName: Optional[str] = None
     ownerName: Optional[str] = None
     phone: Optional[str] = None
