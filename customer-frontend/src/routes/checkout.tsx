@@ -54,7 +54,7 @@ export const Route = createFileRoute("/checkout")({
       {
         name: "description",
         content:
-          "Confirm your delivery address and payment method to place your QuickPress order instantly.",
+          "Confirm your pickup and delivery address and payment method to place your QuickPress order instantly.",
       },
       { property: "og:title", content: "Checkout — QuickPress" },
     ],
@@ -89,8 +89,14 @@ function CheckoutScreen() {
   const [membership, setMembership] = useState<CheckoutMembership | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
 
-  const [addressId, setAddressId] = useState("addr-home");
-  const [showAddressPicker, setShowAddressPicker] = useState(false);
+  // Address selection state (Pickup & Delivery)
+  const [pickupAddressId, setPickupAddressId] = useState("addr-home");
+  const [sameAsPickup, setSameAsPickup] = useState(true);
+  const [deliveryAddressId, setDeliveryAddressId] = useState("addr-home");
+
+  const [showPickupPicker, setShowPickupPicker] = useState(false);
+  const [showDeliveryPicker, setShowDeliveryPicker] = useState(false);
+
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentId, setPaymentId] = useState("pay-upi");
@@ -142,9 +148,16 @@ function CheckoutScreen() {
 
   // Auto-fill phone from address selection
   useEffect(() => {
-    const selected = addresses?.find((a) => a.id === addressId);
+    const selected = addresses?.find((a) => a.id === pickupAddressId);
     if (selected?.phone && !customerPhone) setCustomerPhone(selected.phone);
-  }, [addressId, addresses, customerPhone]);
+  }, [pickupAddressId, addresses, customerPhone]);
+
+  // Sync delivery address with pickup if sameAsPickup is active
+  useEffect(() => {
+    if (sameAsPickup) {
+      setDeliveryAddressId(pickupAddressId);
+    }
+  }, [pickupAddressId, sameAsPickup]);
 
   // Load authoritative checkout state
   const loadCheckout = (discount: number) => {
@@ -156,7 +169,9 @@ function CheckoutScreen() {
         }
         if (checkout.addresses?.length) {
           setAddresses(checkout.addresses);
-          setAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : checkout.selectedAddressId || checkout.addresses[0].id);
+          const initialId = checkout.selectedAddressId || checkout.addresses[0].id;
+          setPickupAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : initialId);
+          setDeliveryAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : initialId);
         }
         setWalletBalance(checkout.walletBalance);
         if (checkout.membership) setMembership(checkout.membership);
@@ -195,7 +210,7 @@ function CheckoutScreen() {
   // Pricing calculations
   const itemsSubtotal = data?.items?.reduce((sum, i) => sum + i.price * i.qty, 0) ?? 199;
   const totalMRP = data?.items?.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0) ?? 249;
-  const deliveryFee = itemsSubtotal > 299 ? 0 : 0; // FREE Delivery for QuickPress
+  const deliveryFee = 0; // FREE Delivery for QuickPress
   const handlingFee = 5;
   const gstCharge = Math.round(itemsSubtotal * 0.18);
   const grandTotal = Math.max(0, itemsSubtotal + deliveryFee + handlingFee + gstCharge - couponDiscount);
@@ -217,10 +232,15 @@ function CheckoutScreen() {
 
     setPlacing(true);
     try {
-      const selectedAddr = addresses.find((entry) => entry.id === addressId) || addresses[0];
+      const selectedPickup = addresses.find((entry) => entry.id === pickupAddressId) || addresses[0];
+      const selectedDelivery = sameAsPickup
+        ? selectedPickup
+        : (addresses.find((entry) => entry.id === deliveryAddressId) || selectedPickup);
+
       const result = await postOrder({
-        addressId: selectedAddr.id,
-        address: selectedAddr,
+        addressId: selectedPickup.id,
+        address: selectedPickup,
+        deliveryAddress: selectedDelivery,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         items: data?.items ?? [],
@@ -251,7 +271,11 @@ function CheckoutScreen() {
   // Place order trigger
   const placeOrder = async () => {
     if (placing || payMutation.isPending) return;
-    if (!addressId) {
+    if (!pickupAddressId) {
+      toast.error("Please select or add a pickup address.");
+      return;
+    }
+    if (!sameAsPickup && !deliveryAddressId) {
       toast.error("Please select or add a delivery address.");
       return;
     }
@@ -301,8 +325,13 @@ function CheckoutScreen() {
     }
   };
 
-  const selectedAddress = addresses.find((a) => a.id === addressId) || addresses[0];
-  const AddrIcon = selectedAddress ? ADDRESS_ICONS[selectedAddress.label] || MapPin : MapPin;
+  const selectedPickup = addresses.find((a) => a.id === pickupAddressId) || addresses[0];
+  const selectedDelivery = sameAsPickup
+    ? selectedPickup
+    : (addresses.find((a) => a.id === deliveryAddressId) || selectedPickup);
+
+  const PickupIcon = selectedPickup ? ADDRESS_ICONS[selectedPickup.label] || MapPin : MapPin;
+  const DeliveryIcon = selectedDelivery ? ADDRESS_ICONS[selectedDelivery.label] || MapPin : MapPin;
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -315,7 +344,7 @@ function CheckoutScreen() {
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-white text-zinc-900 pb-36 font-sans">
       <div className="mx-auto w-full max-w-md bg-white">
-        {/* Top Header Bar (Blinkit Pure White & Green Accent) */}
+        {/* Top Header Bar */}
         <header className="sticky top-0 z-40 w-full bg-white border-b border-zinc-200 shadow-xs">
           <div className="flex items-center justify-between gap-2 px-4 py-3">
             <button
@@ -333,7 +362,7 @@ function CheckoutScreen() {
               </h1>
               <p className="text-[10px] font-extrabold text-[#0c831f] flex items-center justify-center gap-1">
                 <Zap className="size-3 fill-[#0c831f] text-[#0c831f] animate-pulse" />
-                <span>QuickPress 10-15 Min Pickup Promise</span>
+                <span>QuickPress 10-15 Min Doorstep Pickup</span>
               </p>
             </div>
 
@@ -342,7 +371,7 @@ function CheckoutScreen() {
         </header>
 
         <div className="px-4 pt-3 space-y-4">
-          {/* SECTION 1: Delivery Address (First at the Top) */}
+          {/* SECTION 1: Pickup Address (First at Top) */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -350,7 +379,7 @@ function CheckoutScreen() {
                   <MapPin className="size-4" />
                 </span>
                 <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  1. Delivery Address
+                  1. Pickup Address
                 </h2>
               </div>
               <button
@@ -362,49 +391,49 @@ function CheckoutScreen() {
               </button>
             </div>
 
-            {/* Current Selected Address Card */}
-            {selectedAddress ? (
+            {/* Selected Pickup Address Card */}
+            {selectedPickup ? (
               <div className="rounded-xl border-2 border-[#0c831f] bg-emerald-50/50 p-3.5 flex items-start gap-3">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0c831f] text-white shadow-xs">
-                  <AddrIcon className="size-5" />
+                  <PickupIcon className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-black text-zinc-900">{selectedAddress.label}</p>
+                    <p className="text-xs font-black text-zinc-900">{selectedPickup.label}</p>
                     <span className="rounded-md bg-[#0c831f] text-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
-                      Selected
+                      PICKUP LOCATION
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-600 leading-snug">
-                    {selectedAddress.line}, {selectedAddress.city}
+                    {selectedPickup.line}, {selectedPickup.city}
                   </p>
                   <p className="mt-0.5 text-[11px] font-medium text-zinc-500">
-                    Phone: {selectedAddress.phone}
+                    Phone: {selectedPickup.phone}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAddressPicker(!showAddressPicker)}
+                  onClick={() => setShowPickupPicker(!showPickupPicker)}
                   className="text-xs font-black text-[#0c831f] hover:underline cursor-pointer"
                 >
-                  {showAddressPicker ? "Close" : "Change"}
+                  {showPickupPicker ? "Close" : "Change"}
                 </button>
               </div>
             ) : null}
 
-            {/* Selectable Address List if Change clicked */}
-            {showAddressPicker ? (
+            {/* Pickup Address Selector List */}
+            {showPickupPicker ? (
               <div className="space-y-2 pt-2 border-t border-zinc-100">
-                <p className="text-[11px] font-bold text-zinc-500">Select another saved address:</p>
+                <p className="text-[11px] font-bold text-zinc-500">Select another pickup address:</p>
                 {addresses.map((addr) => {
                   const Icon = ADDRESS_ICONS[addr.label] || MapPin;
-                  const isSelected = addr.id === addressId;
+                  const isSelected = addr.id === pickupAddressId;
                   return (
                     <div
                       key={addr.id}
                       onClick={() => {
-                        setAddressId(addr.id);
-                        setShowAddressPicker(false);
+                        setPickupAddressId(addr.id);
+                        setShowPickupPicker(false);
                       }}
                       className={`rounded-xl border p-3 flex items-center justify-between gap-3 cursor-pointer ${
                         isSelected ? "border-[#0c831f] bg-emerald-50/60" : "border-zinc-200 hover:bg-zinc-50"
@@ -423,6 +452,118 @@ function CheckoutScreen() {
                     </div>
                   );
                 })}
+              </div>
+            ) : null}
+
+            {/* SAME AS PICKUP ADDRESS TOGGLE BUTTON */}
+            <div
+              onClick={() => {
+                const nextSame = !sameAsPickup;
+                setSameAsPickup(nextSame);
+                if (nextSame) setDeliveryAddressId(pickupAddressId);
+              }}
+              className="rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100/80 p-3 flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors ${sameAsPickup ? "border-[#0c831f] bg-[#0c831f] text-white" : "border-zinc-300 bg-white"}`}>
+                  {sameAsPickup ? <Check className="size-3.5" /> : null}
+                </span>
+                <span className="text-xs font-bold text-zinc-800 truncate">
+                  Delivery address is same as pickup address
+                </span>
+              </div>
+              {sameAsPickup ? (
+                <span className="rounded bg-emerald-100 text-[#0c831f] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                  SAME
+                </span>
+              ) : (
+                <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider">
+                  DIFFERENT
+                </span>
+              )}
+            </div>
+
+            {/* SEPARATE DELIVERY ADDRESS CARD (Renders when sameAsPickup is FALSE) */}
+            {!sameAsPickup ? (
+              <div className="pt-2 border-t border-dashed border-zinc-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Truck className="size-4 text-blue-600" />
+                    <span className="text-xs font-black uppercase tracking-wider text-zinc-900">
+                      Separate Delivery Address
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/addresses" })}
+                    className="text-xs font-bold text-[#0c831f] hover:underline"
+                  >
+                    + Add New
+                  </button>
+                </div>
+
+                {selectedDelivery ? (
+                  <div className="rounded-xl border-2 border-blue-600 bg-blue-50/50 p-3.5 flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+                      <DeliveryIcon className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-black text-zinc-900">{selectedDelivery.label}</p>
+                        <span className="rounded-md bg-blue-600 text-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                          DELIVERY LOCATION
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-600 leading-snug">
+                        {selectedDelivery.line}, {selectedDelivery.city}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-zinc-500">
+                        Phone: {selectedDelivery.phone}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeliveryPicker(!showDeliveryPicker)}
+                      className="text-xs font-black text-blue-600 hover:underline cursor-pointer"
+                    >
+                      {showDeliveryPicker ? "Close" : "Change"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* Delivery Address Selector List */}
+                {showDeliveryPicker ? (
+                  <div className="space-y-2 pt-2 border-t border-zinc-100">
+                    <p className="text-[11px] font-bold text-zinc-500">Select delivery address:</p>
+                    {addresses.map((addr) => {
+                      const Icon = ADDRESS_ICONS[addr.label] || MapPin;
+                      const isSelected = addr.id === deliveryAddressId;
+                      return (
+                        <div
+                          key={addr.id}
+                          onClick={() => {
+                            setDeliveryAddressId(addr.id);
+                            setShowDeliveryPicker(false);
+                          }}
+                          className={`rounded-xl border p-3 flex items-center justify-between gap-3 cursor-pointer ${
+                            isSelected ? "border-blue-600 bg-blue-50/60" : "border-zinc-200 hover:bg-zinc-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Icon className="size-4 text-zinc-600 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-zinc-900">{addr.label}</p>
+                              <p className="text-[11px] text-zinc-500 truncate">{addr.line}</p>
+                            </div>
+                          </div>
+                          <span className={`size-4 rounded-full border flex items-center justify-center ${isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-zinc-300"}`}>
+                            {isSelected ? <Check className="size-2.5" /> : null}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -630,7 +771,7 @@ function CheckoutScreen() {
             </div>
           </section>
 
-          {/* SECTION 6: Bill Details Breakdown Card (Blinkit Style) */}
+          {/* SECTION 6: Bill Details Breakdown Card */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
             <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900 pb-2 border-b border-zinc-100">
               Bill Details
@@ -698,7 +839,7 @@ function CheckoutScreen() {
           </div>
         </div>
 
-        {/* Sticky Bottom Action Bar (Blinkit Style White Bar + Green CTA Button) */}
+        {/* Sticky Bottom Action Bar */}
         <div className="fixed inset-x-0 bottom-0 z-40 bg-white border-t border-zinc-200 p-3 shadow-2xl">
           <div className="mx-auto w-full max-w-md flex items-center justify-between gap-3">
             <div className="min-w-0">
