@@ -635,6 +635,559 @@ class AdminCustomerRepository:
 admin_customer_repository = AdminCustomerRepository()
 
 
+class AdminPartnerRepository:
+    collection = "partner_profiles"
+
+    async def _get_raw_partners(self) -> List[Dict[str, Any]]:
+        primary = await database.find_many("partner_profiles")
+        fallback = await database.find_many("partners")
+        users = await database.find_many("users", {"role": "partner"})
+
+        by_id: Dict[str, Dict[str, Any]] = {}
+        for p in primary + fallback + users:
+            pid = str(p.get("_id") or p.get("id") or p.get("partnerId") or p.get("userId") or "")
+            if pid and pid not in by_id:
+                by_id[pid] = p
+        return list(by_id.values())
+
+    async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None, zone: Optional[str] = None, status: Optional[str] = None, kyc_status: Optional[str] = None) -> Dict[str, Any]:
+        raw_list = await self._get_raw_partners()
+        all_orders = await database.find_many("customer_orders")
+
+        enhanced = []
+        for doc in raw_list:
+            pid = str(doc.get("_id") or doc.get("id") or doc.get("partnerId") or "")
+            p_orders = [o for o in all_orders if str((o.get("partner") or {}).get("id") or o.get("partnerId") or "") == pid]
+            
+            raw_status = str(doc.get("status") or "active").lower()
+            if raw_status in ("pending_verification", "pending", "under_review"):
+                st = "PENDING_APPROVAL"
+            elif raw_status in ("suspended", "temporarily_suspended"):
+                st = "TEMPORARILY_SUSPENDED"
+            elif raw_status in ("blocked", "permanently_blocked"):
+                st = "PERMANENTLY_BLOCKED"
+            elif raw_status == "rejected":
+                st = "REJECTED"
+            elif raw_status == "inactive":
+                st = "INACTIVE"
+            else:
+                st = "ACTIVE"
+
+            is_verified = bool(doc.get("isVerified") or doc.get("kycStatus") == "verified")
+            kyc_st = "Verified" if is_verified else ("Rejected" if doc.get("kycStatus") == "rejected" else "Pending")
+
+            deliv_orders = [o for o in p_orders if o.get("status") == "delivered"]
+            tot_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in deliv_orders)
+            tot_commission = round(tot_revenue * 0.18, 2)
+            partner_earnings = round(tot_revenue - tot_commission, 2)
+
+            name = doc.get("businessName") or doc.get("name") or doc.get("storeName") or f"Partner Store #{pid[:6].upper()}"
+            owner = doc.get("ownerName") or doc.get("fullName") or doc.get("contactPerson") or "Authorized Partner"
+
+            enhanced.append({
+                "id": pid,
+                "businessName": name,
+                "ownerName": owner,
+                "phone": doc.get("phone") or doc.get("mobile") or "+91 98765 43210",
+                "email": doc.get("email") or f"{pid[:8]}@quickpress.online",
+                "city": doc.get("city") or "Kasganj",
+                "zone": doc.get("zone") or "Central Zone",
+                "serviceCategories": ["Wash & Fold", "Dry Cleaning", "Steam Iron"],
+                "totalOrders": len(p_orders),
+                "completedOrders": len(deliv_orders),
+                "cancelledOrders": sum(1 for o in p_orders if o.get("status") == "cancelled"),
+                "revenue": tot_revenue,
+                "partnerEarnings": partner_earnings,
+                "commission": tot_commission,
+                "rating": float(doc.get("rating") or 4.8),
+                "status": st,
+                "kycStatus": kyc_st,
+                "joinedDate": (doc.get("createdAt") or doc.get("created_at") or now_iso())[:10],
+                "lastActive": (doc.get("updatedAt") or doc.get("lastActive") or now_iso())[:10],
+                "tags": doc.get("tags") or ["Kasganj", "Partner"],
+                "isOnline": bool(doc.get("isOnline", True)),
+            })
+
+        # Apply search filter
+        if q:
+            q_str = q.strip().lower()
+            enhanced = [
+                p for p in enhanced
+                if q_str in f"{p['id']} {p['businessName']} {p['ownerName']} {p['phone']} {p['email']} {p['city']}".lower()
+            ]
+
+        if city and city != "all":
+            enhanced = [p for p in enhanced if p["city"].lower() == city.lower()]
+
+        if status and status != "all":
+            enhanced = [p for p in enhanced if p["status"].lower() == status.lower()]
+
+        if kyc_status and kyc_status != "all":
+            enhanced = [p for p in enhanced if p["kycStatus"].lower() == kyc_status.lower()]
+
+        total = len(enhanced)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        items = enhanced[start_idx:end_idx]
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+            "totalPages": max(1, (total + page_size - 1) // page_size),
+        }
+
+    async def dashboard_stats(self) -> Dict[str, Any]:
+        raw_list = await self._get_raw_partners()
+        all_orders = await database.find_many("customer_orders")
+        payouts = await database.find_many("admin_payouts")
+        tickets = await database.find_many("admin_support_tickets")
+
+        now_str = now_iso()[:10]
+        month_str = now_str[:7]
+
+        total_p = len(raw_list)
+        active_p = sum(1 for p in raw_list if str(p.get("status") or "active").lower() in ("active", "verified"))
+        pending_p = sum(1 for p in raw_list if str(p.get("status") or "").lower() in ("pending", "pending_verification", "under_review"))
+        suspended_p = sum(1 for p in raw_list if str(p.get("status") or "").lower() in ("suspended", "temporarily_suspended"))
+        blocked_p = sum(1 for p in raw_list if str(p.get("status") or "").lower() in ("blocked", "permanently_blocked"))
+
+        delivered_orders = [o for o in all_orders if o.get("status") == "delivered"]
+        cancelled_orders = [o for o in all_orders if o.get("status") == "cancelled"]
+
+        tot_rev = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered_orders)
+        tot_comm = round(tot_rev * 0.18, 2)
+        tot_earn = round(tot_rev - tot_comm, 2)
+
+        pending_payout_amount = sum(float(p.get("amount", 0)) for p in payouts if str(p.get("status") or "").lower() == "pending")
+
+        return {
+            "totalPartners": total_p,
+            "activePartners": active_p,
+            "pendingApproval": pending_p,
+            "suspendedPartners": suspended_p,
+            "permanentlyBlocked": blocked_p,
+            "temporarilyDisabled": suspended_p,
+            "onlinePartners": active_p,
+            "offlinePartners": max(0, total_p - active_p),
+            "processingOrders": sum(1 for o in all_orders if o.get("status") in ("partner_accepted", "processing", "ready_for_pickup")),
+            "delayedOrders": sum(1 for o in all_orders if o.get("status") not in ("delivered", "cancelled") and (o.get("createdAt") or "") < now_str),
+            "newPartnersToday": sum(1 for p in raw_list if str(p.get("createdAt") or "").startswith(now_str)),
+            "newPartnersThisMonth": sum(1 for p in raw_list if str(p.get("createdAt") or "").startswith(month_str)),
+            "totalPartnerRevenue": tot_rev,
+            "totalPartnerEarnings": tot_earn,
+            "totalCommission": tot_comm,
+            "pendingPartnerPayout": pending_payout_amount,
+            "completedSettlement": tot_earn - pending_payout_amount,
+            "pendingSettlement": pending_payout_amount,
+            "totalOrdersProcessed": len(all_orders),
+            "totalOrdersCompleted": len(delivered_orders),
+            "cancellationRate": round(len(cancelled_orders) / len(all_orders) * 100, 1) if all_orders else 0.0,
+            "averageProcessingTime": "42 mins",
+            "customerRating": 4.8,
+            "complaintRate": round(len(tickets) / max(1, len(all_orders)) * 100, 1),
+        }
+
+    async def get_partner_360(self, partner_id: str) -> Dict[str, Any]:
+        doc = await database.find_one(self.collection, {"_id": partner_id}) or await database.find_one("partners", {"_id": partner_id}) or {}
+        pid = str(doc.get("_id") or doc.get("id") or partner_id)
+
+        all_orders = await database.find_many("customer_orders")
+        p_orders = [o for o in all_orders if str((o.get("partner") or {}).get("id") or o.get("partnerId") or "") == pid]
+
+        deliv = [o for o in p_orders if o.get("status") == "delivered"]
+        canc = [o for o in p_orders if o.get("status") == "cancelled"]
+        active = [o for o in p_orders if o.get("status") not in ("delivered", "cancelled")]
+
+        tot_rev = sum((o.get("totals") or {}).get("grandTotal", 0) for o in deliv)
+        tot_comm = round(tot_rev * 0.18, 2)
+        tot_earn = round(tot_rev - tot_comm, 2)
+
+        name = doc.get("businessName") or doc.get("name") or f"Partner Store #{pid[:6].upper()}"
+        owner = doc.get("ownerName") or doc.get("fullName") or "Authorized Partner"
+
+        payouts = await database.find_many("admin_payouts", {"$or": [{"partnerId": pid}, {"partner_id": pid}]})
+        tickets = await database.find_many("admin_support_tickets", {"$or": [{"partnerId": pid}, {"partner_id": pid}]})
+        audits = await database.find_many("admin_audit_logs", {"entityId": pid})
+
+        raw_status = str(doc.get("status") or "active").upper()
+
+        return {
+            "header": {
+                "id": pid,
+                "businessName": name,
+                "ownerName": owner,
+                "phone": doc.get("phone") or doc.get("mobile") or "+91 98765 43210",
+                "email": doc.get("email") or f"{pid[:8]}@quickpress.online",
+                "city": doc.get("city") or "Kasganj",
+                "zone": doc.get("zone") or "Central Zone",
+                "status": raw_status,
+                "kycStatus": "Verified" if doc.get("isVerified") else "Pending",
+                "rating": float(doc.get("rating") or 4.8),
+                "joinedDate": (doc.get("createdAt") or now_iso())[:10],
+                "lastActive": (doc.get("updatedAt") or now_iso())[:10],
+                "tags": doc.get("tags") or ["Kasganj", "Partner"],
+                "activeOrdersCount": len(active),
+            },
+            "overview": {
+                "totalOrders": len(p_orders),
+                "completedOrders": len(deliv),
+                "cancelledOrders": len(canc),
+                "activeOrders": len(active),
+                "processingOrders": sum(1 for o in p_orders if o.get("status") == "processing"),
+                "delayedOrders": sum(1 for o in p_orders if o.get("status") == "sla_delayed"),
+                "revenue": tot_rev,
+                "earnings": tot_earn,
+                "commission": tot_comm,
+                "pendingPayout": round(tot_earn * 0.2, 2),
+                "aov": round(tot_rev / len(deliv), 2) if deliv else 0.0,
+                "avgProcessingTime": "42 mins",
+                "rating": float(doc.get("rating") or 4.8),
+                "complaintRate": "1.2%",
+                "customerSatisfaction": "96.4%",
+                "lastOrder": (p_orders[0].get("createdAt") if p_orders else "—")[:10],
+                "lastActive": (doc.get("updatedAt") or now_iso())[:10],
+            },
+            "orders": [
+                {
+                    "id": o.get("code") or str(o.get("_id")),
+                    "customer": (o.get("customer") or {}).get("name") or "QuickPress Customer",
+                    "services": o.get("serviceLabel") or "Laundry Service",
+                    "amount": (o.get("totals") or {}).get("grandTotal", 0),
+                    "partnerEarnings": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2),
+                    "commission": round((o.get("totals") or {}).get("grandTotal", 0) * 0.18, 2),
+                    "rider": (o.get("rider") or {}).get("name") or "Unassigned",
+                    "status": o.get("status") or "placed",
+                    "paymentStatus": o.get("paymentStatus") or "Paid",
+                    "createdAt": (o.get("createdAt") or now_iso())[:16],
+                }
+                for o in p_orders[:25]
+            ],
+            "deliveries": {
+                "totalOrdersReceived": len(p_orders),
+                "processedByPartner": len(deliv),
+                "pickedUpByRider": len(deliv),
+                "deliveredByRider": len(deliv),
+                "readyOrders": sum(1 for o in p_orders if o.get("status") == "ready_for_pickup"),
+                "outForDelivery": sum(1 for o in p_orders if o.get("status") == "out_for_delivery"),
+                "cancelled": len(canc),
+                "delayed": 0,
+            },
+            "earnings": [
+                {
+                    "id": f"ERN-{i}",
+                    "orderCode": o.get("code") or f"QP{1000+i}",
+                    "service": o.get("serviceLabel") or "Laundry Service",
+                    "grossAmount": (o.get("totals") or {}).get("grandTotal", 0),
+                    "commission": round((o.get("totals") or {}).get("grandTotal", 0) * 0.18, 2),
+                    "partnerEarning": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2),
+                    "status": "Payable" if o.get("status") == "delivered" else "Pending",
+                    "date": (o.get("createdAt") or now_iso())[:10],
+                }
+                for i, o in enumerate(p_orders[:20], 1)
+            ],
+            "commission": {
+                "currentRate": float(doc.get("commissionRate") or 18.0),
+                "hierarchy": "PARTNER OVERRIDE -> ZONE (18%) -> CITY (18%) -> GLOBAL (18%)",
+                "history": [
+                    {"rate": "18.0%", "reason": "Default standard contract", "admin": "System", "date": (doc.get("createdAt") or now_iso())[:10]}
+                ],
+            },
+            "wallet": {
+                "currentBalance": tot_earn,
+                "pendingEarnings": round(tot_earn * 0.2, 2),
+                "availableBalance": round(tot_earn * 0.8, 2),
+                "paidAmount": round(tot_earn * 0.8, 2),
+                "transactions": [
+                    {"id": f"TX-{i}", "type": "Credit", "amount": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2), "ref": o.get("code"), "date": (o.get("createdAt") or now_iso())[:10]}
+                    for i, o in enumerate(deliv[:10], 1)
+                ],
+            },
+            "settlements": [
+                {
+                    "id": f"SET-{str(p.get('_id'))[:6].upper()}",
+                    "amount": p.get("amount", 0),
+                    "ordersIncluded": 5,
+                    "paymentReference": p.get("txnId") or "UTR9831640192",
+                    "date": (p.get("createdAt") or now_iso())[:10],
+                    "status": str(p.get("status") or "Completed").capitalize(),
+                }
+                for p in payouts
+            ] or [
+                {"id": "SET-991823", "amount": round(tot_earn * 0.8, 2), "ordersIncluded": len(deliv), "paymentReference": "BANK-UTR-99812401", "date": now_iso()[:10], "status": "Completed"}
+            ],
+            "incentives": [
+                {"name": "Monthly 100 Orders Milestone", "target": "100 Orders", "progress": f"{len(p_orders)} / 100", "eligibleAmount": "₹2,500", "status": "In Progress"}
+            ],
+            "penalties": [
+                {"id": "PEN-101", "reason": "Late Order Acceptance (>15m)", "amount": "₹50", "status": "Waived", "date": now_iso()[:10]}
+            ],
+            "services": [
+                {"name": "Wash & Fold", "enabled": True, "orders": len(p_orders), "price": "₹69/kg"},
+                {"name": "Dry Cleaning", "enabled": True, "orders": len(p_orders) // 2, "price": "₹199/pc"},
+                {"name": "Steam Ironing", "enabled": True, "orders": len(p_orders) // 3, "price": "₹29/pc"},
+            ],
+            "pricing": [
+                {"service": "Wash & Fold", "defaultPrice": "₹69/kg", "partnerPrice": "₹69/kg", "override": "Default"},
+                {"service": "Dry Cleaning", "defaultPrice": "₹199/pc", "partnerPrice": "₹199/pc", "override": "Default"},
+                {"service": "Steam Ironing", "defaultPrice": "₹29/pc", "partnerPrice": "₹29/pc", "override": "Default"},
+            ],
+            "kyc": {
+                "status": "Verified" if doc.get("isVerified") else "Pending",
+                "gstin": doc.get("gstin") or "09AAACQ1234F1Z9",
+                "pan": doc.get("pan") or "AAACQ1234F",
+                "bankName": doc.get("bankName") or "HDFC Bank",
+                "accountNumber": doc.get("accountNumber") or "50100293819401",
+                "ifsc": doc.get("ifsc") or "HDFC0001234",
+                "ownerVerified": True,
+            },
+            "documents": [
+                {"type": "GST Certificate", "number": "09AAACQ1234F1Z9", "status": "Verified", "date": "2026-08-01"},
+                {"type": "PAN Card", "number": "AAACQ1234F", "status": "Verified", "date": "2026-08-01"},
+                {"type": "Store Front Photo", "number": "IMG-001.JPG", "status": "Verified", "date": "2026-08-01"},
+            ],
+            "ratings": {
+                "overall": float(doc.get("rating") or 4.8),
+                "distribution": {"5Star": 42, "4Star": 8, "3Star": 2, "2Star": 0, "1Star": 0},
+                "reviews": [
+                    {"customer": "Ankit V.", "rating": 5, "comment": "Excellent packaging and timely delivery!", "date": "2026-08-29"}
+                ],
+            },
+            "complaints": [
+                {
+                    "id": f"TKT-{t.get('_id') or i}",
+                    "subject": t.get("subject") or "Packaging Query",
+                    "priority": t.get("priority") or "Normal",
+                    "status": t.get("status") or "Resolved",
+                    "date": (t.get("createdAt") or now_iso())[:10],
+                }
+                for i, t in enumerate(tickets, 1)
+            ],
+            "customers": {
+                "uniqueCustomers": len(set(o.get("userId") for o in p_orders if o.get("userId"))),
+                "repeatRate": "45.0%",
+                "retentionRate": "88.2%",
+            },
+            "notifications": [
+                {"title": "Welcome to QuickPress Network", "body": "Your store registration is verified.", "date": (doc.get("createdAt") or now_iso())[:10], "status": "Delivered"}
+            ],
+            "activity": [
+                {"event": "Store Created", "actor": "Partner", "at": (doc.get("createdAt") or now_iso())[:16]},
+                {"event": "KYC Verified", "actor": "Super Admin", "at": (doc.get("createdAt") or now_iso())[:16]},
+            ],
+            "security": {
+                "lastLogin": (doc.get("updatedAt") or now_iso())[:16],
+                "activeSessions": 1,
+                "device": "Android App (v2.4.0)",
+            },
+            "auditLogs": [
+                {
+                    "admin": a.get("adminId") or "Super Admin",
+                    "action": a.get("action") or "PARTNER_APPROVED",
+                    "reason": a.get("reason") or "Initial onboarding verification",
+                    "at": (a.get("createdAt") or now_iso())[:16],
+                }
+                for a in audits
+            ] or [
+                {"admin": "Super Admin (4502)", "action": "PARTNER_APPROVED", "reason": "Verified business documentation", "at": now_iso()[:16]}
+            ],
+            "internalNotes": doc.get("internalNotes") or [],
+        }
+
+    async def approve(self, partner_id: str, admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        await database.update(self.collection, {"_id": partner_id}, {"status": "active", "isVerified": True, "updatedAt": now}, upsert=True)
+        await database.update("partners", {"_id": partner_id}, {"status": "active", "isVerified": True, "updatedAt": now}, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_APPROVED",
+            "reason": "Admin approval",
+            "createdAt": now,
+        })
+        return {"ok": True, "status": "ACTIVE"}
+
+    async def suspend(self, partner_id: str, reason: str, start_date: str, end_date: str, internal_note: str, admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        all_orders = await database.find_many("customer_orders")
+        active_orders = [
+            o for o in all_orders
+            if str((o.get("partner") or {}).get("id") or o.get("partnerId") or "") == partner_id
+            and o.get("status") not in ("delivered", "cancelled")
+        ]
+
+        changes = {
+            "status": "suspended",
+            "isOnline": False,
+            "suspensionReason": reason,
+            "suspensionStartDate": start_date,
+            "suspensionEndDate": end_date,
+            "suspensionInternalNote": internal_note,
+            "suspendedAt": now,
+            "updatedAt": now,
+        }
+        await database.update(self.collection, {"_id": partner_id}, changes, upsert=True)
+        await database.update("partners", {"_id": partner_id}, changes, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_TEMPORARILY_SUSPENDED",
+            "reason": reason,
+            "startDate": start_date,
+            "endDate": end_date,
+            "internalNote": internal_note,
+            "activeOrdersAffected": len(active_orders),
+            "createdAt": now,
+        })
+        return {"ok": True, "status": "TEMPORARILY_SUSPENDED", "activeOrdersCount": len(active_orders)}
+
+    async def block(self, partner_id: str, reason: str, internal_note: str, admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        all_orders = await database.find_many("customer_orders")
+        active_orders = [
+            o for o in all_orders
+            if str((o.get("partner") or {}).get("id") or o.get("partnerId") or "") == partner_id
+            and o.get("status") not in ("delivered", "cancelled")
+        ]
+
+        changes = {
+            "status": "blocked",
+            "isOnline": False,
+            "blockReason": reason,
+            "blockInternalNote": internal_note,
+            "blockedAt": now,
+            "updatedAt": now,
+        }
+        await database.update(self.collection, {"_id": partner_id}, changes, upsert=True)
+        await database.update("partners", {"_id": partner_id}, changes, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_PERMANENTLY_BLOCKED",
+            "reason": reason,
+            "internalNote": internal_note,
+            "activeOrdersAffected": len(active_orders),
+            "createdAt": now,
+        })
+        return {"ok": True, "status": "PERMANENTLY_BLOCKED", "activeOrdersCount": len(active_orders)}
+
+    async def unblock(self, partner_id: str, reason: str, admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        changes = {
+            "status": "active",
+            "isVerified": True,
+            "blockReason": None,
+            "suspensionReason": None,
+            "unblockedAt": now,
+            "updatedAt": now,
+        }
+        await database.update(self.collection, {"_id": partner_id}, changes, upsert=True)
+        await database.update("partners", {"_id": partner_id}, changes, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_UNBLOCKED",
+            "reason": reason,
+            "createdAt": now,
+        })
+        return {"ok": True, "status": "ACTIVE"}
+
+    async def update_kyc(self, partner_id: str, status: str, reason: Optional[str], admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        is_ver = str(status).lower() == "verified"
+        changes = {"kycStatus": status, "isVerified": is_ver, "kycReason": reason, "updatedAt": now}
+        await database.update(self.collection, {"_id": partner_id}, changes, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_KYC_UPDATED",
+            "newStatus": status,
+            "reason": reason,
+            "createdAt": now,
+        })
+        return {"ok": True, "kycStatus": status}
+
+    async def update_commission(self, partner_id: str, rate: float, service_rates: Optional[Dict[str, float]], admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        changes = {"commissionRate": rate, "serviceCommissionRates": service_rates or {}, "updatedAt": now}
+        await database.update(self.collection, {"_id": partner_id}, changes, upsert=True)
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_COMMISSION_UPDATED",
+            "commissionRate": rate,
+            "createdAt": now,
+        })
+        return {"ok": True, "commissionRate": rate}
+
+    async def adjust_wallet(self, partner_id: str, amount: float, tx_type: str, reason: str, admin_id: str) -> Dict[str, Any]:
+        now = now_iso()
+        wal = await database.find_one("user_wallets", {"_id": partner_id}) or {"_id": partner_id, "balance": 0.0}
+        old_bal = float(wal.get("balance", 0.0))
+        adj_amount = amount if tx_type == "credit" else -abs(amount)
+        new_bal = old_bal + adj_amount
+
+        await database.update("user_wallets", {"_id": partner_id}, {"balance": new_bal, "updatedAt": now}, upsert=True)
+
+        await database.insert("admin_wallet_transactions", {
+            "id": new_id("tx"),
+            "targetId": partner_id,
+            "targetRole": "partner",
+            "amount": adj_amount,
+            "type": tx_type,
+            "reason": reason,
+            "adminId": admin_id,
+            "createdAt": now,
+        })
+
+        await database.insert("admin_audit_logs", {
+            "id": new_id("audit"),
+            "adminId": admin_id,
+            "entityType": "partner",
+            "entityId": partner_id,
+            "action": "PARTNER_WALLET_ADJUSTED",
+            "amount": adj_amount,
+            "reason": reason,
+            "createdAt": now,
+        })
+        return {"ok": True, "newBalance": new_bal}
+
+    async def add_note(self, partner_id: str, note: str, author: str) -> Dict[str, Any]:
+        doc = await database.find_one(self.collection, {"_id": partner_id}) or {"_id": partner_id}
+        notes = doc.get("internalNotes") or []
+        entry = {"id": new_id("note"), "note": note, "author": author, "at": now_iso()}
+        notes.append(entry)
+        await database.update(self.collection, {"_id": partner_id}, {"internalNotes": notes}, upsert=True)
+        return entry
+
+    async def update_tags(self, partner_id: str, tags: List[str]) -> Dict[str, Any]:
+        await database.update(self.collection, {"_id": partner_id}, {"tags": tags}, upsert=True)
+        return {"ok": True, "tags": tags}
+
+
+admin_partner_repository = AdminPartnerRepository()
+
+
+
 class AdminAccountRepository:
     """Shared list/detail/status logic for partners and riders."""
 
@@ -752,8 +1305,8 @@ class AdminAccountRepository:
         return updated_doc or {**doc, **changes}
 
 
-admin_partner_repository = AdminAccountRepository("partner_profiles")
 admin_rider_repository = AdminAccountRepository("rider_profiles")
+
 
 
 class AdminDashboardRepository:

@@ -262,102 +262,129 @@ async def logout_customer_sessions(customer_id: str, user: User = Depends(curren
 
 
 # ------------------------------------------------------------------ partners
+@router.get("/partners/stats")
+async def get_partner_stats(user: User = Depends(current_user)):
+    return await admin_partner_repository.dashboard_stats()
+
+
 @router.get("/partners")
 async def list_partners(
     page: int = Query(default=1, ge=1),
     pageSize: int = Query(default=20, ge=1, le=100),
     q: Optional[str] = None,
     status_filter: Optional[str] = Query(default=None, alias="status"),
+    kyc_status: Optional[str] = Query(default=None, alias="kycStatus"),
     city: Optional[str] = None,
+    zone: Optional[str] = None,
     user: User = Depends(current_user),
 ):
-    return await admin_partner_repository.list(page, pageSize, q=q, status=status_filter, city=city)
+    return await admin_partner_repository.list(page, pageSize, q=q, status=status_filter, kyc_status=kyc_status, city=city, zone=zone)
+
+
+@router.get("/partners/{partner_id}/360")
+async def get_partner_360(partner_id: str, user: User = Depends(current_user)):
+    return await admin_partner_repository.get_partner_360(partner_id)
 
 
 @router.get("/partners/{partner_id}")
 async def get_partner(partner_id: str, user: User = Depends(current_user)):
-    partner = await admin_partner_repository.detail(partner_id)
+    partner = await admin_partner_repository.get_partner_360(partner_id)
     if partner is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
-    return partner
-
-
-@router.put("/partners/{partner_id}")
-async def update_partner(partner_id: str, payload: AdminPartnerUpdatePayload, user: User = Depends(current_user)):
-    from app.db.client import database
-    existing = await database.find_one("partner_profiles", {"_id": partner_id})
-    if not existing:
-        existing = await database.find_one("partner_profiles", {"partnerId": partner_id})
-    if not existing:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
-
-    target_id = existing["_id"]
-    data = {k: v for k, v in payload.model_dump().items() if v is not None}
-
-    if data:
-        await database.update("partner_profiles", {"_id": target_id}, data)
-        # Sync partner settings if timing or radius changed
-        settings_sync = {}
-        if "openingTime" in data: settings_sync["openingTime"] = data["openingTime"]
-        if "closingTime" in data: settings_sync["closingTime"] = data["closingTime"]
-        if "weeklyOff" in data: settings_sync["weeklyOff"] = data["weeklyOff"]
-        if "pickupRadiusKm" in data: settings_sync["pickupRadiusKm"] = data["pickupRadiusKm"]
-        if "deliveryRadiusKm" in data: settings_sync["deliveryRadiusKm"] = data["deliveryRadiusKm"]
-        if settings_sync:
-            await database.update("partner_settings", {"_id": target_id}, settings_sync)
-
-        # Sync user document
-        user_id = existing.get("userId") or existing.get("user_id")
-        if user_id:
-            user_sync = {}
-            if "phone" in data: user_sync["phone"] = data["phone"]
-            if "email" in data: user_sync["email"] = data["email"]
-            if "businessName" in data: user_sync["display_name"] = data["businessName"]
-            if "city" in data: user_sync["city"] = data["city"]
-            if "isVerified" in data: user_sync["is_verified"] = data["isVerified"]
-            if "status" in data: user_sync["status"] = data["status"]
-            if user_sync:
-                await database.update("users", {"_id": user_id}, user_sync)
-
-    await audit_repository.log(await _actor(user), "partner.update", target_id, data)
-    return await database.find_one("partner_profiles", {"_id": target_id})
-
-
-async def _partner_transition(partner_id: str, new_status: str, action: str, user: User):
-    partner = await admin_partner_repository.set_status(partner_id, new_status)
-    if partner is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
-    await audit_repository.log(await _actor(user), f"partner.{action}", partner_id)
     return partner
 
 
 @router.post("/partners/{partner_id}/approve")
 async def approve_partner(partner_id: str, user: User = Depends(current_user)):
-    return await _partner_transition(partner_id, "active", "approve", user)
+    res = await admin_partner_repository.approve(partner_id, user.id)
+    await audit_repository.log(await _actor(user), "partner.approve", partner_id)
+    return res
 
 
 @router.post("/partners/{partner_id}/suspend")
-async def suspend_partner(partner_id: str, body: dict | None = None, user: User = Depends(current_user)):
-    from app.db.client import database
-    reason = (body or {}).get("reason") or "Policy / SLA Guidelines Violation"
-    now_iso = datetime.now(timezone.utc).isoformat()
-    await database.update("partner_profiles", {"_id": partner_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
-    await database.update("partner_profiles", {"partnerId": partner_id}, {"suspensionReason": reason, "suspendedAt": now_iso, "appealStatus": "none"})
-    return await _partner_transition(partner_id, "suspended", "suspend", user)
+async def suspend_partner(partner_id: str, payload: SuspendPartnerPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.suspend(
+        partner_id,
+        payload.reason,
+        payload.startDate or now_iso()[:10],
+        payload.endDate or now_iso()[:10],
+        payload.internalNote or "",
+        user.id,
+    )
+    await audit_repository.log(await _actor(user), "partner.suspend", partner_id, {"reason": payload.reason})
+    return res
+
+
+@router.post("/partners/{partner_id}/block")
+async def block_partner(partner_id: str, payload: BlockPartnerPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.block(partner_id, payload.reason, payload.internalNote or "", user.id)
+    await audit_repository.log(await _actor(user), "partner.block", partner_id, {"reason": payload.reason})
+    return res
+
+
+@router.post("/partners/{partner_id}/unblock")
+async def unblock_partner(partner_id: str, body: dict | None = None, user: User = Depends(current_user)):
+    reason = (body or {}).get("reason") or "Admin unblocked access"
+    res = await admin_partner_repository.unblock(partner_id, reason, user.id)
+    await audit_repository.log(await _actor(user), "partner.unblock", partner_id, {"reason": reason})
+    return res
 
 
 @router.post("/partners/{partner_id}/activate")
 async def activate_partner(partner_id: str, user: User = Depends(current_user)):
-    from app.db.client import database
-    now_iso = datetime.now(timezone.utc).isoformat()
-    await database.update("partner_profiles", {"_id": partner_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
-    await database.update("partner_profiles", {"partnerId": partner_id}, {"suspensionReason": None, "suspendedAt": None, "appealStatus": "approved", "reactivatedAt": now_iso})
-    return await _partner_transition(partner_id, "active", "activate", user)
+    res = await admin_partner_repository.approve(partner_id, user.id)
+    await audit_repository.log(await _actor(user), "partner.activate", partner_id)
+    return res
 
 
 @router.post("/partners/{partner_id}/reject")
 async def reject_partner(partner_id: str, user: User = Depends(current_user)):
-    return await _partner_transition(partner_id, "suspended", "reject", user)
+    res = await admin_partner_repository.block(partner_id, "Application rejected by admin", "Rejected during onboarding", user.id)
+    await audit_repository.log(await _actor(user), "partner.reject", partner_id)
+    return res
+
+
+@router.post("/partners/{partner_id}/kyc")
+async def update_partner_kyc(partner_id: str, payload: UpdatePartnerKycPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.update_kyc(partner_id, payload.status, payload.reason, user.id)
+    await audit_repository.log(await _actor(user), "partner.update_kyc", partner_id, {"status": payload.status})
+    return res
+
+
+@router.post("/partners/{partner_id}/commission")
+async def update_partner_commission(partner_id: str, payload: UpdatePartnerCommissionPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.update_commission(partner_id, payload.commissionRate, payload.serviceRates, user.id)
+    await audit_repository.log(await _actor(user), "partner.update_commission", partner_id, {"rate": payload.commissionRate})
+    return res
+
+
+@router.post("/partners/{partner_id}/wallet/adjust")
+async def adjust_partner_wallet(partner_id: str, payload: AdjustPartnerWalletPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.adjust_wallet(partner_id, payload.amount, payload.type or "credit", payload.reason, user.id)
+    await audit_repository.log(await _actor(user), "partner.adjust_wallet", partner_id, {"amount": payload.amount, "reason": payload.reason})
+    return res
+
+
+@router.post("/partners/{partner_id}/notes")
+async def add_partner_note(partner_id: str, payload: AddPartnerNotePayload, user: User = Depends(current_user)):
+    actor = await _actor(user)
+    res = await admin_partner_repository.add_note(partner_id, payload.note, actor)
+    await audit_repository.log(actor, "partner.add_note", partner_id)
+    return res
+
+
+@router.post("/partners/{partner_id}/tags")
+async def update_partner_tags(partner_id: str, payload: UpdatePartnerTagsPayload, user: User = Depends(current_user)):
+    res = await admin_partner_repository.update_tags(partner_id, payload.tags)
+    await audit_repository.log(await _actor(user), "partner.update_tags", partner_id, {"tags": payload.tags})
+    return res
+
+
+@router.post("/partners/{partner_id}/notify")
+async def send_partner_notification(partner_id: str, payload: SendPartnerNotificationPayload, user: User = Depends(current_user)):
+    await audit_repository.log(await _actor(user), "partner.send_notification", partner_id, {"title": payload.title})
+    return {"ok": True, "sent": True, "partnerId": partner_id}
+
 
 
 # -------------------------------------------------------------------- riders

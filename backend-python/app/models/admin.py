@@ -50,10 +50,48 @@ class SendCustomerNotificationPayload(BaseModel):
     channel: Optional[str] = "push"
 
 
+class SuspendPartnerPayload(BaseModel):
+    reason: str
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    internalNote: Optional[str] = None
+
+
+class BlockPartnerPayload(BaseModel):
+    reason: str
+    internalNote: Optional[str] = None
+
+
+class UpdatePartnerKycPayload(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
+class UpdatePartnerCommissionPayload(BaseModel):
+    commissionRate: float
+    serviceRates: Optional[Dict[str, float]] = None
+
+
+class AddPartnerNotePayload(BaseModel):
+    note: str
+
+
+class UpdatePartnerTagsPayload(BaseModel):
+
+    tags: List[str]
+
+
+class SendPartnerNotificationPayload(BaseModel):
+
+    title: str
+    body: str
+    category: Optional[str] = "operational"
 
 
 class CouponPayload(BaseModel):
+
     code: Optional[str] = None
+
     discount: Optional[str] = None
     description: Optional[str] = None
     expiry: Optional[str] = None
