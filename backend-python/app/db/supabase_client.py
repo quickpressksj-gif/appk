@@ -401,3 +401,31 @@ class SupabaseDatabase:
 
     def __getitem__(self, name: str) -> SupabaseCollection:
         return self.collection(name)
+
+    async def find_one(self, name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return await self.collection(name).find_one(query)
+
+    async def find_many(
+        self, name: str, query: Optional[Dict[str, Any]] = None, *, sort_key: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        docs = await self.collection(name).find_many(query or {})
+        if sort_key:
+            docs.sort(key=lambda d: _sort_key(_get_nested(d, sort_key)))
+        return docs
+
+    async def count(self, name: str, query: Optional[Dict[str, Any]] = None) -> int:
+        return await self.collection(name).count_documents(query or {})
+
+    async def insert(self, name: str, document: Dict[str, Any]) -> Dict[str, Any]:
+        await self.collection(name).insert_one(dict(document))
+        return document
+
+    async def update(
+        self, name: str, query: Dict[str, Any], changes: Dict[str, Any], *, upsert: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        await self.collection(name).update_one(query, {"$set": changes}, upsert=upsert)
+        return await self.find_one(name, query)
+
+    async def delete_one(self, name: str, query: Dict[str, Any]) -> int:
+        return await self.collection(name).delete_one(query)
+

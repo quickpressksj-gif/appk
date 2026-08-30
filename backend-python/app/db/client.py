@@ -205,11 +205,9 @@ def _with_id(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
 
 class Database:
-    """Lazily connected database handle shared by every repository."""
+    """Lazily connected database handle shared by every repository (Supabase PostgreSQL)."""
 
     def __init__(self) -> None:
-        self._client: Any = None
-        self._db: Any = None
         self._supabase: Any = None
         self._memory: Dict[str, InMemoryCollection] = {}
         self._fallback_in_memory: bool = False
@@ -228,21 +226,20 @@ class Database:
     def engine_type(self) -> str:
         if self._supabase is not None:
             return "supabase-postgresql"
-        if self._db is not None:
-            return "mongodb-atlas"
         return "in-memory"
 
     async def connect(self) -> None:
-        """Connect to database (Supabase PostgreSQL / MongoDB Atlas / in-memory)."""
+        """Connect to Supabase PostgreSQL database (or dev in-memory fallback)."""
         settings = get_settings()
         is_prod = settings.app_env.lower() == "production"
         import logging
 
-        # 1. Check Supabase PostgreSQL first (DATABASE_URL)
-        if getattr(settings, "database_url", None) and settings.database_url.strip():
+        # 1. Connect to Supabase PostgreSQL
+        db_url = (getattr(settings, "database_url", None) or "").strip()
+        if db_url:
             try:
                 from app.db.supabase_client import SupabaseDatabase
-                sb_db = SupabaseDatabase(settings.database_url)
+                sb_db = SupabaseDatabase(db_url)
                 await sb_db.connect()
                 self._supabase = sb_db
                 self._engine = "supabase-postgresql"
@@ -251,68 +248,32 @@ class Database:
                 return
             except Exception as err:
                 logging.getLogger(__name__).warning("Supabase PostgreSQL connection failed: %s", err)
-                self._supabase = None
-
-        # 2. Check MongoDB Atlas (MONGODB_URI)
-        if getattr(settings, "mongodb_uri", None) and settings.mongodb_uri.strip():
-            from motor.motor_asyncio import AsyncIOMotorClient  # imported lazily
-            try:
-                self._client = AsyncIOMotorClient(
-                    settings.mongodb_uri,
-                    uuidRepresentation="standard",
-                    serverSelectionTimeoutMS=3000,
-                )
-                self._db = self._client[settings.mongodb_db_name]
-                await self._db.command("ping")
-                self._engine = "mongodb-atlas"
-                self._fallback_in_memory = False
-                logging.getLogger(__name__).info("Connected to MongoDB Atlas successfully.")
-                return
-            except Exception as err:
-                self._client = None
-                self._db = None
                 if is_prod:
-                    logging.getLogger(__name__).error("FATAL: Production database connection to MongoDB Atlas failed: %s", err)
-                    raise RuntimeError(f"FATAL: Production database connection to MongoDB Atlas failed: {err}") from err
-                logging.getLogger(__name__).warning("MongoDB connection fallback to in-memory (dev mode): %s", err)
+                    raise RuntimeError(f"FATAL: Production database connection to Supabase failed: {err}") from err
+                self._supabase = None
 
         self._fallback_in_memory = True
         self._engine = "in-memory"
+        logging.getLogger(__name__).info("Using in-memory database store.")
 
     async def run_migrations(self) -> Optional[Dict[str, Any]]:
-        """Backfill canonical ids and replace legacy unique indexes."""
-        if self._supabase is not None:
-            return {"status": "ok", "engine": "supabase-postgresql"}
-        if self.in_memory or self._db is None:
-            return None
-        from app.db.migrations import run_identity_migrations
-
-        report = await run_identity_migrations(self._db)
-        return report.as_dict()
+        """Supabase PostgreSQL uses declarative jsonb store and dynamic schemas."""
+        return {"status": "ok", "engine": "supabase-postgresql"}
 
     async def verify_migrations(self) -> None:
-        """Assert the identity indexes are in their post-migration shape."""
-        if self._supabase is not None or self.in_memory or self._db is None:
-            return
-        from app.db.migrations import verify_identity_indexes
-
-        await verify_identity_indexes(self._db)
+        """No-op on Supabase PostgreSQL."""
+        return
 
     async def disconnect(self) -> None:
         if self._supabase is not None:
             await self._supabase.disconnect()
             self._supabase = None
-        if self._client is not None:
-            self._client.close()
-            self._client = None
-            self._db = None
 
     def collection(self, name: str) -> Any:
         if self._supabase is not None:
             return self._supabase.collection(name)
-        if self.in_memory or self._db is None:
-            return self._memory.setdefault(name, InMemoryCollection())
-        return self._db[name]
+        return self._memory.setdefault(name, InMemoryCollection())
+
 
     async def find_many(
         self,
@@ -438,69 +399,10 @@ class Database:
 
 
     async def ensure_indexes(self) -> None:
-        """Indexes that back the auth queries. No-op for the in-memory store."""
-        if self.in_memory or self._db is None:
+        """Indexes that back queries. Automatically managed in Supabase PostgreSQL."""
+        if self._supabase is not None:
+            # PostgreSQL indexes are created during connection in supabase_client.py
             return
-        # NOTE: every unique index on a canonical identity field lives in
-        # app/db/migrations.py and is applied by run_identity_migrations()
-        # BEFORE this method and before any seeding runs.
-
-        await self._db["users"].create_index([("phone", 1), ("role", 1)])
-        await self._db["users"].create_index([("email", 1), ("role", 1)])
-        await self._db["refresh_tokens"].create_index("expires_at", expireAfterSeconds=0)
-        await self._db["otp_attempts"].create_index([("phone", 1), ("created_at", -1)])
-        # Sprint 2.7: notification feed lookups.
-        await self._db["notifications"].create_index([("user_id", 1), ("created_at", -1)])
-        await self._db["notifications"].create_index([("user_id", 1), ("read", 1)])
-        # Sprint 2.8: referral lookups.
-        await self._db["referral_transactions"].create_index([("referrer_id", 1), ("created_at", -1)])
-        await self._db["referral_transactions"].create_index("referee_id")
-        await self._db["referral_rewards"].create_index([("user_id", 1), ("created_at", -1)])
-        await self._db["referral_rewards"].create_index("transaction_id")
-        # Sprint 2.10: wallet, payment method, payment and refund lookups.
-        await self._db["wallet_transactions"].create_index([("user_id", 1), ("created_at", -1)])
-        await self._db["payment_methods"].create_index([("user_id", 1), ("order", 1)])
-        await self._db["payments"].create_index([("user_id", 1), ("created_at", -1)])
-        await self._db["payments"].create_index("transaction_id")
-        await self._db["refunds"].create_index([("user_id", 1), ("created_at", -1)])
-        # Sprint 2.11: invoice, FAQ and support ticket lookups.
-        await self._db["invoices"].create_index([("user_id", 1), ("invoice_date", -1)])
-        await self._db["invoices"].create_index("order_id")
-        await self._db["faqs"].create_index([("category_id", 1), ("order", 1)])
-        await self._db["faq_categories"].create_index("order")
-        await self._db["support_tickets"].create_index([("user_id", 1), ("created_at", -1)])
-        await self._db["support_messages"].create_index([("ticket_id", 1), ("created_at", 1)])
-        # --- Sprint 5.2: partner / rider / admin collections -------------
-        await self._db["partner_profiles"].create_index("user_id")
-        await self._db["partner_profiles"].create_index("status")
-        await self._db["partner_services"].create_index([("partner_id", 1), ("name", 1)])
-        await self._db["partner_orders"].create_index([("partner_id", 1), ("created_at", -1)])
-        await self._db["partner_orders"].create_index([("partner_id", 1), ("status", 1)])
-        await self._db["partner_wallet_transactions"].create_index(
-            [("partner_id", 1), ("created_at", -1)]
-        )
-        await self._db["partner_reviews"].create_index([("partner_id", 1), ("created_at", -1)])
-        await self._db["partner_analytics"].create_index([("partner_id", 1), ("date", -1)])
-        await self._db["rider_profiles"].create_index("user_id")
-        await self._db["rider_profiles"].create_index("status")
-        await self._db["rider_deliveries"].create_index([("rider_id", 1), ("created_at", -1)])
-        await self._db["rider_deliveries"].create_index([("rider_id", 1), ("status", 1)])
-        await self._db["rider_earnings"].create_index([("rider_id", 1), ("date", -1)])
-        await self._db["rider_wallet_transactions"].create_index(
-            [("rider_id", 1), ("created_at", -1)]
-        )
-        await self._db["rider_notifications"].create_index([("rider_id", 1), ("created_at", -1)])
-        await self._db["rider_analytics"].create_index([("rider_id", 1), ("date", -1)])
-        await self._db["admin_payouts"].create_index([("status", 1), ("created_at", -1)])
-        await self._db["admin_reports"].create_index([("kind", 1), ("created_at", -1)])
-        await self._db["admin_notifications"].create_index("created_at")
-        await self._db["admin_audit_logs"].create_index("created_at")
-        # P0 order lifecycle: canonical audit trail lookups.
-        await self._db["order_events"].create_index([("orderId", 1), ("timestamp", 1)])
-        await self._db["customer_orders"].create_index([("partner.id", 1), ("createdAt", -1)])
-        await self._db["customer_orders"].create_index([("rider.id", 1), ("createdAt", -1)])
-
-
-
 
 database = Database()
+

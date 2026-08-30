@@ -47,6 +47,21 @@ async def current_user(
     return user
 
 
+async def optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> User | None:
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        payload = decode_token(credentials.credentials, expected_type="access")
+        sub = str(payload.get("sub") or "")
+        if not sub:
+            return None
+        return await users.by_id(sub)
+    except Exception:
+        return None
+
+
 def require_roles(*allowed: Role) -> Callable[[User], User]:
     allowed_set: Set[Role] = set(allowed)
 

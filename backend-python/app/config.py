@@ -18,13 +18,12 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed frontend origins.
     cors_origins: str = "http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,https://www.quickpress.online,https://quickpress.online,https://customer-5ys4.onrender.com"
 
-    # --- MongoDB / Supabase / PostgreSQL ------------------------------
-    mongodb_uri: str = ""            # mongodb+srv://... (empty => fallback to Supabase / in-memory)
-    mongodb_db_name: str = "quickpress"
+    # --- Supabase / PostgreSQL Database ------------------------------
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
     database_url: str = ""           # postgresql://...
+
 
     # --- Firebase Admin ----------------------------------------------
     firebase_project_id: str = ""
@@ -120,7 +119,7 @@ class Settings(BaseSettings):
 
     @property
     def use_in_memory_db(self) -> bool:
-        return not self.mongodb_uri.strip()
+        return not bool((self.database_url or "").strip() or (self.supabase_url or "").strip())
 
     @property
     def refresh_secret(self) -> str:
@@ -165,12 +164,10 @@ def get_settings() -> Settings:
         missing = []
         if not settings.jwt_secret.strip():
             missing.append("JWT_SECRET")
-        # A production deploy must talk to real MongoDB Atlas — never silently
+        # A production deploy must talk to real Supabase PostgreSQL — never silently
         # degrade to the in-memory preview store.
-        if not settings.mongodb_uri.strip():
-            missing.append("MONGODB_URI")
-        if not settings.mongodb_db_name.strip():
-            missing.append("MONGODB_DB_NAME")
+        if not (settings.database_url.strip() or settings.supabase_url.strip()):
+            missing.append("DATABASE_URL / SUPABASE_URL")
         # Wildcard / localhost CORS is not acceptable with credentials enabled.
         origins = settings.cors_origin_list
         if not origins or any(
