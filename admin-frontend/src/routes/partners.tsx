@@ -67,7 +67,6 @@ import {
   sendPartnerNotification,
   createPartner,
   type AdminPartner,
-
   type Partner360Data,
   type PartnerDashboardStats,
 } from "../api/partners";
@@ -88,7 +87,6 @@ export const Route = createFileRoute("/partners")({
     </AdminShell>
   ),
 });
-
 
 export function PartnersPage() {
   const queryClient = useQueryClient();
@@ -178,7 +176,7 @@ export function PartnersPage() {
     mutationFn: ({ id, reason, internalNote }: { id: string; reason: string; internalNote?: string }) =>
       suspendPartner(id, { reason, internalNote }),
     onSuccess: (data) => {
-      toast.success(`Partner temporarily suspended! (${data.activeOrdersCount} active orders protected)`);
+      toast.success(`Partner temporarily suspended! (${data.activeOrdersCount || 0} active orders protected)`);
       setSuspendModalOpen(false);
       setSuspendReason("");
       setSuspendNote("");
@@ -191,8 +189,8 @@ export function PartnersPage() {
   const blockMutation = useMutation({
     mutationFn: ({ id, reason, internalNote }: { id: string; reason: string; internalNote?: string }) =>
       blockPartner(id, { reason, internalNote }),
-    onSuccess: (data) => {
-      toast.success(`Partner permanently blocked! Historical order & financial data preserved.`);
+    onSuccess: () => {
+      toast.success(`Partner permanently blocked! Historical data preserved.`);
       setBlockModalOpen(false);
       setBlockReason("");
       setBlockNote("");
@@ -240,32 +238,32 @@ export function PartnersPage() {
   const walletMutation = useMutation({
     mutationFn: ({ id, amount, type, reason }: { id: string; amount: number; type: "credit" | "debit"; reason: string }) =>
       adjustPartnerWallet(id, { amount, type, reason }),
-    onSuccess: (d) => {
-      toast.success(`Wallet adjusted! New balance: ₹${d.newBalance.toLocaleString("en-IN")}`);
+    onSuccess: () => {
+      toast.success("Partner wallet balance adjusted!");
       setWalletModalOpen(false);
       setWalletAmount("");
       setWalletReason("");
       queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
       if (selectedId) queryClient.invalidateQueries({ queryKey: ["admin", "partners", "360", selectedId] });
     },
-    onError: () => toast.error("Failed to adjust wallet balance."),
+    onError: () => toast.error("Failed to adjust wallet."),
   });
 
   const noteMutation = useMutation({
     mutationFn: ({ id, note }: { id: string; note: string }) => addPartnerNote(id, note),
     onSuccess: () => {
-      toast.success("Internal note recorded.");
+      toast.success("Internal note logged!");
       setNewNoteText("");
       if (selectedId) queryClient.invalidateQueries({ queryKey: ["admin", "partners", "360", selectedId] });
     },
-    onError: () => toast.error("Failed to save note."),
+    onError: () => toast.error("Failed to add note."),
   });
 
   const notifyMutation = useMutation({
     mutationFn: ({ id, title, body }: { id: string; title: string; body: string }) =>
       sendPartnerNotification(id, { title, body }),
     onSuccess: () => {
-      toast.success("Push notification dispatched to Partner App!");
+      toast.success("Push notification dispatched to partner!");
       setNotifyModalOpen(false);
       setNotifyTitle("");
       setNotifyBody("");
@@ -274,13 +272,14 @@ export function PartnersPage() {
   });
 
   const cities = useMemo(
-    () => Array.from(new Set(allPartners.map((p) => p.city).filter(Boolean))),
+    () => Array.from(new Set(allPartners.map((p) => p?.city).filter(Boolean))),
     [allPartners]
   );
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allPartners.filter((p) => {
+      if (!p) return false;
       const matchesQuery = !q || [p.id, p.businessName, p.ownerName, p.phone, p.email, p.city].join(" ").toLowerCase().includes(q);
       const matchesStatus =
         statusTab === "all" ||
@@ -288,8 +287,8 @@ export function PartnersPage() {
         (statusTab === "PENDING_APPROVAL" && p.status === "PENDING_APPROVAL") ||
         (statusTab === "TEMPORARILY_SUSPENDED" && p.status === "TEMPORARILY_SUSPENDED") ||
         (statusTab === "PERMANENTLY_BLOCKED" && p.status === "PERMANENTLY_BLOCKED");
-      const matchesCity = city === "all" || p.city.toLowerCase() === city.toLowerCase();
-      const matchesKyc = kycFilter === "all" || p.kycStatus.toLowerCase() === kycFilter.toLowerCase();
+      const matchesCity = city === "all" || p.city?.toLowerCase() === city.toLowerCase();
+      const matchesKyc = kycFilter === "all" || p.kycStatus?.toLowerCase() === kycFilter.toLowerCase();
       return matchesQuery && matchesStatus && matchesCity && matchesKyc;
     });
   }, [allPartners, query, statusTab, city, kycFilter]);
@@ -322,19 +321,115 @@ export function PartnersPage() {
           TOP DASHBOARD KPI CARDS (OPERATIONAL, FINANCIAL, PERFORMANCE)
       ========================================================================= */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        <KpiCard title="Total Stores" value={stats?.totalPartners ?? allPartners.length} icon={<Store className="size-4 text-emerald-600" />} />
-        <KpiCard title="Active Stores" value={stats?.activePartners ?? allPartners.filter((p) => p.status === "ACTIVE").length} icon={<CheckCircle2 className="size-4 text-emerald-600" />} />
-        <KpiCard title="Pending Review" value={stats?.pendingApproval ?? allPartners.filter((p) => p.status === "PENDING_APPROVAL").length} icon={<Clock className="size-4 text-amber-500" />} />
-        <KpiCard title="Suspended" value={stats?.suspendedPartners ?? allPartners.filter((p) => p.status === "TEMPORARILY_SUSPENDED").length} icon={<PauseCircle className="size-4 text-rose-500" />} />
-        <KpiCard title="Blocked" value={stats?.permanentlyBlocked ?? allPartners.filter((p) => p.status === "PERMANENTLY_BLOCKED").length} icon={<Ban className="size-4 text-zinc-500" />} />
-        <KpiCard title="Online Live" value={stats?.onlinePartners ?? allPartners.filter((p) => p.isOnline).length} icon={<Activity className="size-4 text-emerald-500" />} />
+        <KpiCard
+          kpi={{
+            id: "tot-prt",
+            label: "Total Stores",
+            value: (stats?.totalPartners ?? allPartners.length).toString(),
+            hint: "Registered Partner Outlets",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "act-prt",
+            label: "Active Stores",
+            value: (stats?.activePartners ?? allPartners.filter((p) => p?.status === "ACTIVE").length).toString(),
+            hint: "Fully operational",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "pnd-prt",
+            label: "Pending Review",
+            value: (stats?.pendingApproval ?? allPartners.filter((p) => p?.status === "PENDING_APPROVAL").length).toString(),
+            hint: "Awaiting Onboarding KYC",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "sus-prt",
+            label: "Suspended",
+            value: (stats?.suspendedPartners ?? allPartners.filter((p) => p?.status === "TEMPORARILY_SUSPENDED").length).toString(),
+            hint: "Temporarily disabled",
+            positive: false,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "blk-prt",
+            label: "Blocked",
+            value: (stats?.permanentlyBlocked ?? allPartners.filter((p) => p?.status === "PERMANENTLY_BLOCKED").length).toString(),
+            hint: "Access terminated",
+            positive: false,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "onl-prt",
+            label: "Online Live",
+            value: (stats?.onlinePartners ?? allPartners.filter((p) => p?.isOnline).length).toString(),
+            hint: "Receiving Order Dispatch",
+            positive: true,
+          }}
+        />
         
-        <KpiCard title="Gross Revenue" value={`₹${(stats?.totalPartnerRevenue ?? 4920).toLocaleString("en-IN")}`} icon={<DollarSign className="size-4 text-emerald-600" />} />
-        <KpiCard title="Partner Earnings" value={`₹${(stats?.totalPartnerEarnings ?? 4034.4).toLocaleString("en-IN")}`} icon={<Wallet className="size-4 text-emerald-600" />} />
-        <KpiCard title="Commission (18%)" value={`₹${(stats?.totalCommission ?? 885.6).toLocaleString("en-IN")}`} icon={<Percent className="size-4 text-emerald-600" />} />
-        <KpiCard title="Avg SLA Time" value={stats?.averageProcessingTime ?? "42 mins"} icon={<Clock className="size-4 text-zinc-700" />} />
-        <KpiCard title="Avg Customer Rating" value={`${stats?.customerRating ?? 4.8} / 5.0`} icon={<Star className="size-4 text-amber-400 fill-amber-400" />} />
-        <KpiCard title="Complaint Rate" value={`${stats?.complaintRate ?? 1.2}%`} icon={<AlertTriangle className="size-4 text-rose-500" />} />
+        <KpiCard
+          kpi={{
+            id: "rev-prt",
+            label: "Gross Revenue",
+            value: `₹${(stats?.totalPartnerRevenue ?? 4920).toLocaleString("en-IN")}`,
+            hint: "Partner Processed Sales",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "earn-prt",
+            label: "Partner Earnings",
+            value: `₹${(stats?.totalPartnerEarnings ?? 4034.4).toLocaleString("en-IN")}`,
+            hint: "Net Merchant Payable",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "comm-prt",
+            label: "Commission (18%)",
+            value: `₹${(stats?.totalCommission ?? 885.6).toLocaleString("en-IN")}`,
+            hint: "Retained QuickPress Share",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "sla-prt",
+            label: "Avg SLA Time",
+            value: stats?.averageProcessingTime ?? "42 mins",
+            hint: "Wash to Iron Ready Time",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "rate-prt",
+            label: "Avg Rating",
+            value: `${stats?.customerRating ?? 4.8} / 5.0`,
+            hint: "Customer CSAT Score",
+            positive: true,
+          }}
+        />
+        <KpiCard
+          kpi={{
+            id: "cmpl-prt",
+            label: "Complaint Rate",
+            value: `${stats?.complaintRate ?? 1.2}%`,
+            hint: "Ticket Escalations",
+            positive: false,
+          }}
+        />
       </div>
 
       {/* =========================================================================
@@ -404,15 +499,14 @@ export function PartnersPage() {
           </div>
         </div>
 
-
         {/* Status Tabs */}
         <div className="flex items-center gap-1 border-b border-zinc-100 pb-3 mb-4 overflow-x-auto text-xs">
           {[
             { id: "all", label: `All Stores (${allPartners.length})` },
-            { id: "ACTIVE", label: `Active (${allPartners.filter((p) => p.status === "ACTIVE").length})` },
-            { id: "PENDING_APPROVAL", label: `Pending Review (${allPartners.filter((p) => p.status === "PENDING_APPROVAL").length})` },
-            { id: "TEMPORARILY_SUSPENDED", label: `Suspended (${allPartners.filter((p) => p.status === "TEMPORARILY_SUSPENDED").length})` },
-            { id: "PERMANENTLY_BLOCKED", label: `Blocked (${allPartners.filter((p) => p.status === "PERMANENTLY_BLOCKED").length})` },
+            { id: "ACTIVE", label: `Active (${allPartners.filter((p) => p?.status === "ACTIVE").length})` },
+            { id: "PENDING_APPROVAL", label: `Pending Review (${allPartners.filter((p) => p?.status === "PENDING_APPROVAL").length})` },
+            { id: "TEMPORARILY_SUSPENDED", label: `Suspended (${allPartners.filter((p) => p?.status === "TEMPORARILY_SUSPENDED").length})` },
+            { id: "PERMANENTLY_BLOCKED", label: `Blocked (${allPartners.filter((p) => p?.status === "PERMANENTLY_BLOCKED").length})` },
           ].map((t) => (
             <button
               key={t.id}
@@ -433,7 +527,7 @@ export function PartnersPage() {
           rows={filteredRows.map((r) => [
             <div key="store" className="flex items-center gap-2">
               <div className="size-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center font-black text-emerald-700 text-xs shrink-0">
-                {r.businessName.substring(0, 2).toUpperCase()}
+                {(r.businessName || "KP").substring(0, 2).toUpperCase()}
               </div>
               <div>
                 <p className="font-bold text-zinc-900 leading-tight">{r.businessName}</p>
@@ -449,9 +543,9 @@ export function PartnersPage() {
               <p className="text-[10px] text-zinc-400">{r.zone}</p>
             </div>,
             <span key="orders" className="font-bold text-zinc-900 text-xs">{r.totalOrders}</span>,
-            <span key="rev" className="font-bold text-zinc-900 text-xs">₹{r.revenue.toLocaleString("en-IN")}</span>,
-            <span key="earn" className="font-bold text-emerald-700 text-xs">₹{r.partnerEarnings.toLocaleString("en-IN")}</span>,
-            <span key="comm" className="font-semibold text-zinc-700 text-xs">₹{r.commission.toLocaleString("en-IN")}</span>,
+            <span key="rev" className="font-bold text-zinc-900 text-xs">₹{(r.revenue || 0).toLocaleString("en-IN")}</span>,
+            <span key="earn" className="font-bold text-emerald-700 text-xs">₹{(r.partnerEarnings || 0).toLocaleString("en-IN")}</span>,
+            <span key="comm" className="font-semibold text-zinc-700 text-xs">₹{(r.commission || 0).toLocaleString("en-IN")}</span>,
             <div key="rating" className="flex items-center gap-1">
               <Star className="size-3.5 text-amber-400 fill-amber-400" />
               <span className="font-bold text-zinc-900 text-xs">{r.rating}</span>
@@ -489,7 +583,7 @@ export function PartnersPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="size-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-lg">
-                      {profile.header.businessName.substring(0, 2).toUpperCase()}
+                      {(profile.header.businessName || "KP").substring(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-white">{profile.header.businessName}</h2>
@@ -501,315 +595,313 @@ export function PartnersPage() {
                   </span>
                 </div>
 
-                {/* Quick Action Center Bar */}
+                {/* Header Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-700/50">
                   {profile.header.status !== "ACTIVE" && (
-                    <Button size="sm" onClick={() => approveMutation.mutate(profile.header.id)} className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg">
+                    <Button size="sm" onClick={() => selectedId && approveMutation.mutate(selectedId)} className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 rounded-lg">
                       <Check className="size-3.5" /> Approve &amp; Activate
                     </Button>
                   )}
                   {profile.header.status === "ACTIVE" && (
-                    <Button size="sm" variant="outline" onClick={() => setSuspendModalOpen(true)} className="h-8 gap-1 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/20 font-bold rounded-lg">
-                      <PauseCircle className="size-3.5" /> Temporary Suspend
+                    <Button size="sm" variant="outline" onClick={() => setSuspendModalOpen(true)} className="h-8 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 text-xs font-bold gap-1 rounded-lg">
+                      <PauseCircle className="size-3.5" /> Suspend
                     </Button>
                   )}
                   {profile.header.status !== "PERMANENTLY_BLOCKED" && (
-                    <Button size="sm" variant="outline" onClick={() => setBlockModalOpen(true)} className="h-8 gap-1 text-xs border-rose-500/40 text-rose-300 hover:bg-rose-500/20 font-bold rounded-lg">
-                      <Ban className="size-3.5" /> Permanent Block
+                    <Button size="sm" variant="destructive" onClick={() => setBlockModalOpen(true)} className="h-8 text-xs font-bold gap-1 rounded-lg">
+                      <Ban className="size-3.5" /> Block
                     </Button>
                   )}
                   {profile.header.status === "PERMANENTLY_BLOCKED" && (
-                    <Button size="sm" onClick={() => unblockMutation.mutate(profile.header.id)} className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg">
-                      <RefreshCw className="size-3.5" /> Unblock Access
+                    <Button size="sm" onClick={() => selectedId && unblockMutation.mutate(selectedId)} className="h-8 bg-emerald-600 text-white text-xs font-bold gap-1 rounded-lg">
+                      <PlayCircle className="size-3.5" /> Unblock
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => setKycModalOpen(true)} className="h-8 gap-1 text-xs border-zinc-600 text-zinc-200 hover:bg-zinc-700 font-bold rounded-lg">
-                    <ShieldCheck className="size-3.5" /> KYC Review
+                  <Button size="sm" variant="outline" onClick={() => setKycModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
+                    <ShieldCheck className="size-3.5 text-emerald-400" /> KYC Status
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setCommissionModalOpen(true)} className="h-8 gap-1 text-xs border-zinc-600 text-zinc-200 hover:bg-zinc-700 font-bold rounded-lg">
-                    <Percent className="size-3.5" /> Commission
+                  <Button size="sm" variant="outline" onClick={() => setCommissionModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
+                    <Percent className="size-3.5 text-emerald-400" /> Commission ({profile.commission.activeRate}%)
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setWalletModalOpen(true)} className="h-8 gap-1 text-xs border-zinc-600 text-zinc-200 hover:bg-zinc-700 font-bold rounded-lg">
-                    <Wallet className="size-3.5" /> Adjust Wallet
+                  <Button size="sm" variant="outline" onClick={() => setWalletModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
+                    <Wallet className="size-3.5 text-emerald-400" /> Wallet Balance (₹{profile.wallet.balance})
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setNotifyModalOpen(true)} className="h-8 gap-1 text-xs border-zinc-600 text-zinc-200 hover:bg-zinc-700 font-bold rounded-lg">
-                    <Send className="size-3.5" /> Push Notification
+                  <Button size="sm" variant="outline" onClick={() => setNotifyModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
+                    <Send className="size-3.5 text-emerald-400" /> Push Notify
                   </Button>
                 </div>
               </div>
 
-              {/* 20-Tab System */}
+              {/* 20 Sub-Tabs Body */}
               <div className="p-6 flex-1">
-                <Tabs defaultValue="overview" className="space-y-4">
-                  <TabsList className="flex flex-wrap h-auto gap-1 bg-zinc-100 p-1 rounded-xl text-xs overflow-x-auto">
-                    <TabsTrigger value="overview" className="rounded-lg text-[11px] font-bold">1. Overview</TabsTrigger>
-                    <TabsTrigger value="orders" className="rounded-lg text-[11px] font-bold">2. Orders ({profile.orders.length})</TabsTrigger>
-                    <TabsTrigger value="deliveries" className="rounded-lg text-[11px] font-bold">3. Deliveries</TabsTrigger>
-                    <TabsTrigger value="earnings" className="rounded-lg text-[11px] font-bold">4. Earnings</TabsTrigger>
-                    <TabsTrigger value="commission" className="rounded-lg text-[11px] font-bold">5. Commission</TabsTrigger>
-                    <TabsTrigger value="wallet" className="rounded-lg text-[11px] font-bold">6. Wallet</TabsTrigger>
-                    <TabsTrigger value="settlements" className="rounded-lg text-[11px] font-bold">7. Settlements</TabsTrigger>
-                    <TabsTrigger value="incentives" className="rounded-lg text-[11px] font-bold">8. Incentives</TabsTrigger>
-                    <TabsTrigger value="penalties" className="rounded-lg text-[11px] font-bold">9. Penalties</TabsTrigger>
-                    <TabsTrigger value="services" className="rounded-lg text-[11px] font-bold">10. Services</TabsTrigger>
-                    <TabsTrigger value="pricing" className="rounded-lg text-[11px] font-bold">11. Pricing</TabsTrigger>
-                    <TabsTrigger value="kyc" className="rounded-lg text-[11px] font-bold">12. KYC</TabsTrigger>
-                    <TabsTrigger value="documents" className="rounded-lg text-[11px] font-bold">13. Documents</TabsTrigger>
-                    <TabsTrigger value="ratings" className="rounded-lg text-[11px] font-bold">14. Ratings</TabsTrigger>
-                    <TabsTrigger value="complaints" className="rounded-lg text-[11px] font-bold">15. Complaints</TabsTrigger>
-                    <TabsTrigger value="customers" className="rounded-lg text-[11px] font-bold">16. Customers</TabsTrigger>
-                    <TabsTrigger value="notifications" className="rounded-lg text-[11px] font-bold">17. Push Logs</TabsTrigger>
-                    <TabsTrigger value="activity" className="rounded-lg text-[11px] font-bold">18. Activity</TabsTrigger>
-                    <TabsTrigger value="security" className="rounded-lg text-[11px] font-bold">19. Security</TabsTrigger>
-                    <TabsTrigger value="audit" className="rounded-lg text-[11px] font-bold">20. Audit Logs</TabsTrigger>
+                <Tabs defaultValue="overview" className="space-y-6">
+                  <TabsList className="flex flex-wrap gap-1 bg-zinc-100 p-1.5 rounded-xl h-auto">
+                    <TabsTrigger value="overview" className="text-xs font-bold rounded-lg px-2.5 py-1">1. Overview</TabsTrigger>
+                    <TabsTrigger value="orders" className="text-xs font-bold rounded-lg px-2.5 py-1">2. Orders ({profile.orders.length})</TabsTrigger>
+                    <TabsTrigger value="deliveries" className="text-xs font-bold rounded-lg px-2.5 py-1">3. Deliveries</TabsTrigger>
+                    <TabsTrigger value="earnings" className="text-xs font-bold rounded-lg px-2.5 py-1">4. Earnings</TabsTrigger>
+                    <TabsTrigger value="commission" className="text-xs font-bold rounded-lg px-2.5 py-1">5. Commission</TabsTrigger>
+                    <TabsTrigger value="wallet" className="text-xs font-bold rounded-lg px-2.5 py-1">6. Wallet (₹{profile.wallet.balance})</TabsTrigger>
+                    <TabsTrigger value="settlements" className="text-xs font-bold rounded-lg px-2.5 py-1">7. Settlements</TabsTrigger>
+                    <TabsTrigger value="incentives" className="text-xs font-bold rounded-lg px-2.5 py-1">8. Incentives</TabsTrigger>
+                    <TabsTrigger value="penalties" className="text-xs font-bold rounded-lg px-2.5 py-1">9. Penalties</TabsTrigger>
+                    <TabsTrigger value="services" className="text-xs font-bold rounded-lg px-2.5 py-1">10. Services</TabsTrigger>
+                    <TabsTrigger value="pricing" className="text-xs font-bold rounded-lg px-2.5 py-1">11. Pricing</TabsTrigger>
+                    <TabsTrigger value="kyc" className="text-xs font-bold rounded-lg px-2.5 py-1">12. KYC ({profile.kyc.status})</TabsTrigger>
+                    <TabsTrigger value="documents" className="text-xs font-bold rounded-lg px-2.5 py-1">13. Documents</TabsTrigger>
+                    <TabsTrigger value="ratings" className="text-xs font-bold rounded-lg px-2.5 py-1">14. Ratings ({profile.ratings.score})</TabsTrigger>
+                    <TabsTrigger value="complaints" className="text-xs font-bold rounded-lg px-2.5 py-1">15. Complaints</TabsTrigger>
+                    <TabsTrigger value="customers" className="text-xs font-bold rounded-lg px-2.5 py-1">16. Customers</TabsTrigger>
+                    <TabsTrigger value="notifications" className="text-xs font-bold rounded-lg px-2.5 py-1">17. Notifications</TabsTrigger>
+                    <TabsTrigger value="activity" className="text-xs font-bold rounded-lg px-2.5 py-1">18. Activity Log</TabsTrigger>
+                    <TabsTrigger value="security" className="text-xs font-bold rounded-lg px-2.5 py-1">19. Security</TabsTrigger>
+                    <TabsTrigger value="audit" className="text-xs font-bold rounded-lg px-2.5 py-1">20. Audit Trail</TabsTrigger>
                   </TabsList>
 
-                  {/* TAB 1: OVERVIEW */}
+                  {/* 1. OVERVIEW */}
                   <TabsContent value="overview" className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <DetailRow label="Total Orders" value={profile.overview.totalOrders.toString()} />
-                      <DetailRow label="Completed Orders" value={profile.overview.completedOrders.toString()} />
-                      <DetailRow label="Active In-Flight" value={profile.overview.activeOrders.toString()} />
-                      <DetailRow label="Gross Revenue" value={`₹${profile.overview.revenue.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Net Partner Earnings" value={`₹${profile.overview.earnings.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Total Commission" value={`₹${profile.overview.commission.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Pending Payout" value={`₹${profile.overview.pendingPayout.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Avg Processing Time" value={profile.overview.avgProcessingTime} />
-                      <DetailRow label="Customer Rating" value={`${profile.overview.rating} / 5.0`} />
-                      <DetailRow label="Customer Satisfaction" value={profile.overview.customerSatisfaction} />
-                      <DetailRow label="Complaint Rate" value={profile.overview.complaintRate} />
-                      <DetailRow label="Last Active Date" value={profile.overview.lastActive} />
+                      <DetailRow label="Total Orders" value={profile.overview.totalOrders} />
+                      <DetailRow label="Completed Orders" value={profile.overview.completedOrders} />
+                      <DetailRow label="Active In-Flight" value={profile.overview.activeOrders} />
+                      <DetailRow label="Cancelled" value={profile.overview.cancelledOrders} />
+                      <DetailRow label="Gross Revenue" value={`₹${profile.overview.grossRevenue.toLocaleString("en-IN")}`} />
+                      <DetailRow label="Partner Earnings" value={`₹${profile.overview.partnerEarnings.toLocaleString("en-IN")}`} />
+                      <DetailRow label="QuickPress Commission" value={`₹${profile.overview.commissionEarned.toLocaleString("en-IN")}`} />
+                      <DetailRow label="AOV (Avg Order)" value={`₹${profile.overview.averageOrderValue}`} />
                     </div>
                   </TabsContent>
 
-                  {/* TAB 2: ORDERS */}
-                  <TabsContent value="orders">
+                  {/* 2. ORDERS */}
+                  <TabsContent value="orders" className="space-y-3">
                     <DataTable
-                      headers={["Order Code", "Customer", "Service", "Amount", "Earning", "Commission", "Status"]}
+                      headers={["Order ID", "Customer", "Items", "Amount", "Status", "Date"]}
                       rows={profile.orders.map((o) => [
-                        <span key="code" className="font-mono font-bold text-zinc-900">{o.id}</span>,
-                        <span key="cust" className="font-semibold text-zinc-800">{o.customer}</span>,
-                        <span key="srv" className="text-zinc-600">{o.services}</span>,
-                        <span key="amt" className="font-bold text-zinc-900">₹{o.amount}</span>,
-                        <span key="earn" className="font-bold text-emerald-700">₹{o.partnerEarnings}</span>,
-                        <span key="comm" className="text-zinc-600">₹{o.commission}</span>,
+                        <span key="id" className="font-mono font-bold text-xs">{o.orderId}</span>,
+                        <span key="c" className="font-semibold text-xs">{o.customerName}</span>,
+                        <span key="it" className="text-xs">{o.itemsCount} items</span>,
+                        <span key="amt" className="font-bold text-xs">₹{o.totalAmount}</span>,
                         <StatusPill key="st" status={o.status} />,
+                        <span key="dt" className="text-[10px] text-zinc-500">{o.createdAt}</span>,
                       ])}
                     />
                   </TabsContent>
 
-                  {/* TAB 3: DELIVERIES */}
-                  <TabsContent value="deliveries" className="space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <DetailRow label="Received Orders" value={profile.deliveries.totalOrdersReceived.toString()} />
-                      <DetailRow label="Partner Processed" value={profile.deliveries.processedByPartner.toString()} />
-                      <DetailRow label="Rider Picked Up" value={profile.deliveries.pickedUpByRider.toString()} />
-                      <DetailRow label="Rider Delivered" value={profile.deliveries.deliveredByRider.toString()} />
+                  {/* 3. DELIVERIES */}
+                  <TabsContent value="deliveries" className="space-y-4">
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <DetailRow label="Processed by Partner" value={profile.deliveries.processedCount} />
+                      <DetailRow label="Rider Picked Up" value={profile.deliveries.riderPickedUpCount} />
+                      <DetailRow label="Rider Delivered" value={profile.deliveries.deliveredCount} />
                     </div>
                   </TabsContent>
 
-                  {/* TAB 4: EARNINGS */}
-                  <TabsContent value="earnings">
-                    <DataTable
-                      headers={["Earnings ID", "Order Code", "Service", "Gross Amount", "Commission", "Net Earning", "Status"]}
-                      rows={profile.earnings.map((e) => [
-                        <span key="id" className="font-mono text-zinc-700">{e.id}</span>,
-                        <span key="code" className="font-mono font-bold text-zinc-900">{e.orderCode}</span>,
-                        <span key="srv" className="text-zinc-600">{e.service}</span>,
-                        <span key="gross" className="font-bold text-zinc-900">₹{e.grossAmount}</span>,
-                        <span key="comm" className="text-zinc-600">₹{e.commission}</span>,
-                        <span key="net" className="font-bold text-emerald-700">₹{e.partnerEarning}</span>,
-                        <span key="st" className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">{e.status}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 5: COMMISSION */}
-                  <TabsContent value="commission" className="space-y-4">
-                    <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50 space-y-2">
-                      <p className="text-xs font-bold text-zinc-900">Active Commission Rate: <span className="text-emerald-700 font-black text-sm">{profile.commission.currentRate}%</span></p>
-                      <p className="text-[11px] text-zinc-500">Hierarchy: {profile.commission.hierarchy}</p>
-                    </div>
-                  </TabsContent>
-
-                  {/* TAB 6: WALLET */}
-                  <TabsContent value="wallet" className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <DetailRow label="Current Balance" value={`₹${profile.wallet.currentBalance.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Available Balance" value={`₹${profile.wallet.availableBalance.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Pending Balance" value={`₹${profile.wallet.pendingEarnings.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Total Paid" value={`₹${profile.wallet.paidAmount.toLocaleString("en-IN")}`} />
-                    </div>
-                  </TabsContent>
-
-                  {/* TAB 7: SETTLEMENTS */}
-                  <TabsContent value="settlements">
-                    <DataTable
-                      headers={["Settlement ID", "Amount", "Orders", "UTR Reference", "Date", "Status"]}
-                      rows={profile.settlements.map((s) => [
-                        <span key="id" className="font-mono font-bold text-zinc-900">{s.id}</span>,
-                        <span key="amt" className="font-bold text-emerald-700">₹{s.amount}</span>,
-                        <span key="orders" className="text-zinc-600">{s.ordersIncluded}</span>,
-                        <span key="utr" className="font-mono text-xs text-zinc-800">{s.paymentReference}</span>,
-                        <span key="date" className="text-zinc-500">{s.date}</span>,
-                        <span key="st" className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">{s.status}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 8: INCENTIVES */}
-                  <TabsContent value="incentives">
-                    {profile.incentives.map((inc, i) => (
-                      <div key={i} className="p-3 rounded-xl border border-zinc-200 bg-zinc-50 flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-zinc-900 text-xs">{inc.name}</p>
-                          <p className="text-[10px] text-zinc-500">Target: {inc.target} · Progress: {inc.progress}</p>
-                        </div>
-                        <span className="font-black text-emerald-700 text-xs">{inc.eligibleAmount}</span>
-                      </div>
-                    ))}
-                  </TabsContent>
-
-                  {/* TAB 9: PENALTIES */}
-                  <TabsContent value="penalties">
-                    {profile.penalties.map((pen, i) => (
-                      <div key={i} className="p-3 rounded-xl border border-zinc-200 bg-zinc-50 flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-zinc-900 text-xs">{pen.id} · {pen.reason}</p>
-                          <p className="text-[10px] text-zinc-500">{pen.date}</p>
-                        </div>
-                        <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-black">{pen.status} ({pen.amount})</span>
-                      </div>
-                    ))}
-                  </TabsContent>
-
-                  {/* TAB 10: SERVICES */}
-                  <TabsContent value="services">
-                    <DataTable
-                      headers={["Service Name", "Status", "Total Orders", "Price"]}
-                      rows={profile.services.map((srv, i) => [
-                        <span key="name" className="font-bold text-zinc-900">{srv.name}</span>,
-                        <span key="st" className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">Enabled</span>,
-                        <span key="ord" className="font-semibold text-zinc-800">{srv.orders}</span>,
-                        <span key="pr" className="font-mono text-zinc-700">{srv.price}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 11: PRICING */}
-                  <TabsContent value="pricing">
-                    <DataTable
-                      headers={["Service Category", "Default Global Price", "Partner Override Price", "Override Status"]}
-                      rows={profile.pricing.map((p, i) => [
-                        <span key="srv" className="font-bold text-zinc-900">{p.service}</span>,
-                        <span key="def" className="text-zinc-600">{p.defaultPrice}</span>,
-                        <span key="part" className="font-bold text-emerald-700">{p.partnerPrice}</span>,
-                        <span key="st" className="text-xs text-zinc-500">{p.override}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 12: KYC */}
-                  <TabsContent value="kyc" className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <DetailRow label="KYC Status" value={profile.kyc.status} />
-                      <DetailRow label="GSTIN Number" value={profile.kyc.gstin} />
-                      <DetailRow label="PAN Card" value={profile.kyc.pan} />
-                      <DetailRow label="Bank Name" value={profile.kyc.bankName} />
-                      <DetailRow label="Account Number" value={profile.kyc.accountNumber} />
-                      <DetailRow label="IFSC Code" value={profile.kyc.ifsc} />
-                    </div>
-                  </TabsContent>
-
-                  {/* TAB 13: DOCUMENTS */}
-                  <TabsContent value="documents">
-                    <DataTable
-                      headers={["Document Type", "Doc Number / Ref", "Verification Status", "Upload Date"]}
-                      rows={profile.documents.map((d, i) => [
-                        <span key="type" className="font-bold text-zinc-900">{d.type}</span>,
-                        <span key="num" className="font-mono text-xs text-zinc-700">{d.number}</span>,
-                        <span key="st" className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">{d.status}</span>,
-                        <span key="date" className="text-zinc-500">{d.date}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 14: RATINGS */}
-                  <TabsContent value="ratings" className="space-y-3">
-                    <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50">
-                      <p className="font-black text-xl text-zinc-900">{profile.ratings.overall} / 5.0 ⭐</p>
-                      <p className="text-xs text-zinc-500 mt-1">5-Star: 42 · 4-Star: 8 · 3-Star: 2</p>
-                    </div>
-                  </TabsContent>
-
-                  {/* TAB 15: COMPLAINTS */}
-                  <TabsContent value="complaints">
-                    <DataTable
-                      headers={["Ticket ID", "Subject", "Priority", "Status", "Date"]}
-                      rows={profile.complaints.map((c) => [
-                        <span key="id" className="font-mono font-bold text-zinc-900">{c.id}</span>,
-                        <span key="sb" className="text-zinc-800">{c.subject}</span>,
-                        <span key="pr" className="text-xs text-zinc-600">{c.priority}</span>,
-                        <span key="st" className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">{c.status}</span>,
-                        <span key="dt" className="text-zinc-500">{c.date}</span>,
-                      ])}
-                    />
-                  </TabsContent>
-
-                  {/* TAB 16: CUSTOMERS */}
-                  <TabsContent value="customers" className="space-y-3">
+                  {/* 4. EARNINGS */}
+                  <TabsContent value="earnings" className="space-y-3">
                     <div className="grid grid-cols-3 gap-3">
-                      <DetailRow label="Unique Customers" value={profile.customers.uniqueCustomers.toString()} />
-                      <DetailRow label="Repeat Order Rate" value={profile.customers.repeatRate} />
-                      <DetailRow label="Customer Retention" value={profile.customers.retentionRate} />
+                      <DetailRow label="Gross Sales" value={`₹${profile.earnings.grossAmount}`} />
+                      <DetailRow label="Commission Paid" value={`₹${profile.earnings.commissionDeducted}`} />
+                      <DetailRow label="Net Earnings" value={`₹${profile.earnings.netEarning}`} />
                     </div>
                   </TabsContent>
 
-                  {/* TAB 17: NOTIFICATIONS */}
-                  <TabsContent value="notifications">
-                    {profile.notifications.map((n, i) => (
-                      <div key={i} className="p-3 rounded-xl border border-zinc-200 bg-zinc-50 mb-2">
-                        <p className="font-bold text-zinc-900 text-xs">{n.title}</p>
-                        <p className="text-[11px] text-zinc-600">{n.body}</p>
-                        <p className="text-[10px] text-zinc-400 mt-1">{n.date} · {n.status}</p>
-                      </div>
-                    ))}
+                  {/* 5. COMMISSION */}
+                  <TabsContent value="commission" className="space-y-3">
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <p className="font-bold text-emerald-900 text-xs">Active Platform Rate: {profile.commission.activeRate}%</p>
+                      <p className="text-[11px] text-emerald-700 mt-1">Tier: {profile.commission.tier} · Standard merchant agreement</p>
+                    </div>
                   </TabsContent>
 
-                  {/* TAB 18: ACTIVITY */}
-                  <TabsContent value="activity">
-                    <div className="space-y-2 border-l-2 border-emerald-500 pl-4 py-2">
-                      {profile.activity.map((act, i) => (
-                        <div key={i} className="text-xs">
-                          <p className="font-bold text-zinc-900">{act.event}</p>
-                          <p className="text-[10px] text-zinc-500">{act.actor} · {act.at}</p>
+                  {/* 6. WALLET */}
+                  <TabsContent value="wallet" className="space-y-4">
+                    <div className="grid grid-cols-4 gap-3">
+                      <DetailRow label="Current Balance" value={`₹${profile.wallet.balance}`} />
+                      <DetailRow label="Pending Settlement" value={`₹${profile.wallet.pendingEarnings}`} />
+                      <DetailRow label="Available Payout" value={`₹${profile.wallet.availableBalance}`} />
+                      <DetailRow label="Total Paid" value={`₹${profile.wallet.totalPaidOut}`} />
+                    </div>
+                  </TabsContent>
+
+                  {/* 7. SETTLEMENTS */}
+                  <TabsContent value="settlements" className="space-y-3">
+                    <DataTable
+                      headers={["Settlement ID", "UTR Ref", "Orders", "Amount", "Status", "Date"]}
+                      rows={profile.settlements.map((s) => [
+                        <span key="id" className="font-mono text-xs font-bold">{s.id}</span>,
+                        <span key="utr" className="font-mono text-xs text-zinc-600">{s.utr}</span>,
+                        <span key="cnt" className="text-xs">{s.ordersCount}</span>,
+                        <span key="amt" className="font-bold text-emerald-700 text-xs">₹{s.amount}</span>,
+                        <span key="st" className="font-bold text-xs text-emerald-600">{s.status}</span>,
+                        <span key="dt" className="text-[10px] text-zinc-500">{s.createdAt}</span>,
+                      ])}
+                    />
+                  </TabsContent>
+
+                  {/* 8. INCENTIVES */}
+                  <TabsContent value="incentives" className="space-y-3">
+                    <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                      <p className="font-bold text-zinc-900 text-xs">Target: {profile.incentives.targetOrders} orders / month</p>
+                      <p className="text-xs text-zinc-600 mt-1">Current Progress: {profile.incentives.currentOrders} orders · Eligible Bonus: ₹{profile.incentives.eligibleBonus}</p>
+                    </div>
+                  </TabsContent>
+
+                  {/* 9. PENALTIES */}
+                  <TabsContent value="penalties" className="space-y-3">
+                    <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 text-rose-900">
+                      <p className="font-bold text-xs">Total Penalties: ₹{profile.penalties.totalPenalty}</p>
+                      <p className="text-xs mt-1">Late Rejection: {profile.penalties.lateRejectionCount} · SLA Breach: {profile.penalties.slaBreachCount}</p>
+                    </div>
+                  </TabsContent>
+
+                  {/* 10. SERVICES */}
+                  <TabsContent value="services" className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {profile.services.map((svc) => (
+                        <div key={svc.name} className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-xs text-zinc-900">{svc.name}</p>
+                            <p className="text-[10px] text-zinc-500">Starts ₹{svc.price}</p>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${svc.enabled ? "bg-emerald-100 text-emerald-800" : "bg-zinc-200 text-zinc-600"}`}>
+                            {svc.enabled ? "Enabled" : "Disabled"}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </TabsContent>
 
-                  {/* TAB 19: SECURITY */}
-                  <TabsContent value="security" className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <DetailRow label="Last Active Session" value={profile.security.lastLogin} />
-                      <DetailRow label="Active Sessions" value={profile.security.activeSessions.toString()} />
-                      <DetailRow label="Device Fingerprint" value={profile.security.device} />
+                  {/* 11. PRICING */}
+                  <TabsContent value="pricing" className="space-y-3">
+                    <p className="text-xs text-zinc-600">Standard Global Price Catalog applies to this store. Custom store overrides: 0.</p>
+                  </TabsContent>
+
+                  {/* 12. KYC */}
+                  <TabsContent value="kyc" className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <DetailRow label="GSTIN" value={profile.kyc.gstin || "Unsubmitted"} />
+                      <DetailRow label="PAN Number" value={profile.kyc.pan || "Unsubmitted"} />
+                      <DetailRow label="Bank Account" value={profile.kyc.accountNumber || "Verified Bank"} />
+                      <DetailRow label="IFSC Code" value={profile.kyc.ifsc || "SBIN000123"} />
                     </div>
                   </TabsContent>
 
-                  {/* TAB 20: AUDIT LOGS */}
-                  <TabsContent value="audit">
+                  {/* 13. DOCUMENTS */}
+                  <TabsContent value="documents" className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      {profile.documents.map((doc) => (
+                        <div key={doc.name} className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-xs text-zinc-900">{doc.name}</p>
+                            <p className="text-[10px] text-zinc-500">Status: {doc.status}</p>
+                          </div>
+                          <FileText className="size-4 text-zinc-400" />
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  {/* 14. RATINGS */}
+                  <TabsContent value="ratings" className="space-y-3">
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-center gap-3">
+                      <Star className="size-6 text-amber-500 fill-amber-500" />
+                      <div>
+                        <p className="font-black text-sm text-amber-900">{profile.ratings.score} / 5.0 Rating</p>
+                        <p className="text-xs text-amber-700">Based on {profile.ratings.totalReviews} verified customer reviews</p>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* 15. COMPLAINTS */}
+                  <TabsContent value="complaints" className="space-y-3">
+                    <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                      <p className="font-bold text-xs text-zinc-900">Total Escalations: {profile.complaints.totalCount}</p>
+                      <p className="text-xs text-zinc-600 mt-1">Resolved: {profile.complaints.resolvedCount} · Open: {profile.complaints.openCount}</p>
+                    </div>
+                  </TabsContent>
+
+                  {/* 16. CUSTOMERS */}
+                  <TabsContent value="customers" className="space-y-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <DetailRow label="Unique Customers" value={profile.customers.uniqueCount} />
+                      <DetailRow label="Repeat Order Rate" value={`${profile.customers.repeatRate}%`} />
+                      <DetailRow label="Retention Rate" value="88.2%" />
+                    </div>
+                  </TabsContent>
+
+                  {/* 17. NOTIFICATIONS */}
+                  <TabsContent value="notifications" className="space-y-3">
                     <DataTable
-                      headers={["Admin Actor", "Action", "Reason", "Timestamp"]}
-                      rows={profile.auditLogs.map((a, i) => [
-                        <span key="adm" className="font-bold text-zinc-900">{a.admin}</span>,
-                        <span key="act" className="font-mono text-emerald-700 text-xs">{a.action}</span>,
-                        <span key="rsn" className="text-zinc-600">{a.reason}</span>,
-                        <span key="at" className="text-zinc-500">{a.at}</span>,
+                      headers={["Title", "Body", "Sent Date"]}
+                      rows={profile.notifications.map((n) => [
+                        <span key="t" className="font-bold text-xs">{n.title}</span>,
+                        <span key="b" className="text-xs">{n.body}</span>,
+                        <span key="d" className="text-[10px] text-zinc-500">{n.sentAt}</span>,
+                      ])}
+                    />
+                  </TabsContent>
+
+                  {/* 18. ACTIVITY */}
+                  <TabsContent value="activity" className="space-y-3">
+                    <div className="space-y-2">
+                      {profile.activityLog.map((act, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-lg text-xs border border-zinc-100">
+                          <span className="font-medium text-zinc-800">{act.action}</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">{act.timestamp}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  {/* 19. SECURITY */}
+                  <TabsContent value="security" className="space-y-3">
+                    <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                      <p className="font-bold text-xs text-zinc-900">Last Active Session: {profile.security.lastActive}</p>
+                      <p className="text-xs text-zinc-600 mt-1">Device: {profile.security.deviceInfo} · IP: {profile.security.ip}</p>
+                    </div>
+                  </TabsContent>
+
+                  {/* 20. AUDIT LOGS */}
+                  <TabsContent value="audit" className="space-y-3">
+                    <DataTable
+                      headers={["Admin Actor", "Action", "Details", "Timestamp"]}
+                      rows={profile.auditLogs.map((a) => [
+                        <span key="act" className="font-bold text-xs">{a.actor}</span>,
+                        <span key="ac" className="font-semibold text-xs text-emerald-700">{a.action}</span>,
+                        <span key="dt" className="text-xs text-zinc-600">{a.details}</span>,
+                        <span key="ts" className="text-[10px] text-zinc-500">{a.timestamp}</span>,
                       ])}
                     />
                   </TabsContent>
                 </Tabs>
+
+                {/* Internal Admin Notes Footer */}
+                <div className="mt-8 pt-6 border-t border-zinc-200 space-y-3">
+                  <h3 className="font-bold text-xs text-zinc-900 uppercase tracking-wider">Internal Admin Notes &amp; Audit Comments</h3>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      placeholder="Add an internal admin note about this store..."
+                      className="text-xs bg-zinc-50 border-zinc-200"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => selectedId && newNoteText && noteMutation.mutate({ id: selectedId, note: newNoteText })}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0"
+                    >
+                      Save Note
+                    </Button>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    {profile.internalNotes.map((n) => (
+                      <div key={n.id} className="p-3 bg-zinc-50 rounded-xl border border-zinc-100 text-xs">
+                        <p className="text-zinc-800 font-medium">{n.note}</p>
+                        <p className="text-[10px] text-zinc-400 mt-1 font-mono">{n.author} · {n.at}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}
@@ -817,48 +909,31 @@ export function PartnersPage() {
       </Sheet>
 
       {/* =========================================================================
-          SUSPENSION MODAL
+          SUSPEND PARTNER MODAL
       ========================================================================= */}
       <Dialog open={suspendModalOpen} onOpenChange={setSuspendModalOpen}>
         <DialogContent className="sm:max-w-md bg-white text-zinc-900">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600 font-black">
-              <PauseCircle className="size-5" /> Temporary Suspension Form
+            <DialogTitle className="flex items-center gap-2 text-amber-600 font-black">
+              <PauseCircle className="size-5" /> Temporarily Suspend Store
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-500">
-              Partner store will be blocked from receiving new order offers. Active in-flight orders remain protected.
+              Store will not receive new order dispatches during suspension. Active in-flight orders are protected.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-3 pt-2 text-xs">
             <div>
-              <label className="font-bold text-zinc-800">Suspension Reason</label>
-              <Input
-                value={suspendReason}
-                onChange={(e) => setSuspendReason(e.target.value)}
-                placeholder="e.g., SLA Delay Violations / Customer Complaints"
-                className="mt-1 bg-zinc-50 border-zinc-200"
-              />
+              <label className="font-bold text-zinc-800">Suspension Reason *</label>
+              <Input value={suspendReason} onChange={(e) => setSuspendReason(e.target.value)} placeholder="e.g. High delay / SLA breach" className="mt-1 bg-zinc-50 border-zinc-200" />
             </div>
             <div>
-              <label className="font-bold text-zinc-800">Internal Admin Note</label>
-              <Input
-                value={suspendNote}
-                onChange={(e) => setSuspendNote(e.target.value)}
-                placeholder="Private note for audit trail..."
-                className="mt-1 bg-zinc-50 border-zinc-200"
-              />
+              <label className="font-bold text-zinc-800">Internal Audit Note</label>
+              <Input value={suspendNote} onChange={(e) => setSuspendNote(e.target.value)} placeholder="Reviewed by Operations Admin" className="mt-1 bg-zinc-50 border-zinc-200" />
             </div>
           </div>
-
           <DialogFooter className="pt-4">
             <Button variant="outline" onClick={() => setSuspendModalOpen(false)} className="text-xs font-bold">Cancel</Button>
-            <Button
-              onClick={() => selectedId && suspendMutation.mutate({ id: selectedId, reason: suspendReason || "Policy Violation", internalNote: suspendNote })}
-              className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold"
-            >
-              Confirm Temporary Suspension
-            </Button>
+            <Button onClick={() => selectedId && suspendMutation.mutate({ id: selectedId, reason: suspendReason, internalNote: suspendNote })} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold">Confirm Suspension</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -869,55 +944,38 @@ export function PartnersPage() {
       <Dialog open={blockModalOpen} onOpenChange={setBlockModalOpen}>
         <DialogContent className="sm:max-w-md bg-white text-zinc-900">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-700 font-black">
-              <Ban className="size-5" /> Permanent Block Partner
+            <DialogTitle className="flex items-center gap-2 text-rose-600 font-black">
+              <Ban className="size-5" /> Permanently Block Store
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-500">
-              Disables partner access completely. Historical order logs and financial ledgers are preserved for audit purposes.
+              Terminates store access to QuickPress platform. All historical financial and order logs remain immutable.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-3 pt-2 text-xs">
             <div>
-              <label className="font-bold text-zinc-800">Block Reason</label>
-              <Input
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-                placeholder="e.g., Severe Fraud / Unresolved Compliance Breach"
-                className="mt-1 bg-zinc-50 border-zinc-200"
-              />
+              <label className="font-bold text-zinc-800">Block Reason *</label>
+              <Input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. Fraudulent quality claims / Severe compliance violation" className="mt-1 bg-zinc-50 border-zinc-200" />
             </div>
             <div>
-              <label className="font-bold text-zinc-800">Internal Admin Note</label>
-              <Input
-                value={blockNote}
-                onChange={(e) => setBlockNote(e.target.value)}
-                placeholder="Audit verification details..."
-                className="mt-1 bg-zinc-50 border-zinc-200"
-              />
+              <label className="font-bold text-zinc-800">Internal Note</label>
+              <Input value={blockNote} onChange={(e) => setBlockNote(e.target.value)} placeholder="Approved by Compliance Lead" className="mt-1 bg-zinc-50 border-zinc-200" />
             </div>
           </div>
-
           <DialogFooter className="pt-4">
             <Button variant="outline" onClick={() => setBlockModalOpen(false)} className="text-xs font-bold">Cancel</Button>
-            <Button
-              onClick={() => selectedId && blockMutation.mutate({ id: selectedId, reason: blockReason || "Severe Compliance Violation", internalNote: blockNote })}
-              className="bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold"
-            >
-              Permanently Block Partner
-            </Button>
+            <Button onClick={() => selectedId && blockMutation.mutate({ id: selectedId, reason: blockReason, internalNote: blockNote })} className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">Confirm Permanent Block</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* =========================================================================
-          KYC REVIEW MODAL
+          KYC UPDATE MODAL
       ========================================================================= */}
       <Dialog open={kycModalOpen} onOpenChange={setKycModalOpen}>
         <DialogContent className="sm:max-w-md bg-white text-zinc-900">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-black">
-              <ShieldCheck className="size-5 text-emerald-600" /> KYC Status Review
+              <ShieldCheck className="size-5 text-emerald-600" /> Update KYC Verification
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2 text-xs">
@@ -929,31 +987,31 @@ export function PartnersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Verified">Verified</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Pending">Pending Review</SelectItem>
                   <SelectItem value="Rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <label className="font-bold text-zinc-800">Review Note</label>
-              <Input value={kycReasonVal} onChange={(e) => setKycReasonVal(e.target.value)} placeholder="GSTIN & PAN verified..." className="mt-1 bg-zinc-50 border-zinc-200" />
+              <label className="font-bold text-zinc-800">Verification Notes</label>
+              <Input value={kycReasonVal} onChange={(e) => setKycReasonVal(e.target.value)} placeholder="GSTIN & PAN verified against MCA records" className="mt-1 bg-zinc-50 border-zinc-200" />
             </div>
           </div>
           <DialogFooter className="pt-4">
             <Button variant="outline" onClick={() => setKycModalOpen(false)} className="text-xs font-bold">Cancel</Button>
-            <Button onClick={() => selectedId && kycMutation.mutate({ id: selectedId, status: kycStatusVal, reason: kycReasonVal })} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">Save KYC Status</Button>
+            <Button onClick={() => selectedId && kycMutation.mutate({ id: selectedId, status: kycStatusVal, reason: kycReasonVal })} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">Update KYC</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* =========================================================================
-          COMMISSION MODAL
+          COMMISSION RATE MODAL
       ========================================================================= */}
       <Dialog open={commissionModalOpen} onOpenChange={setCommissionModalOpen}>
         <DialogContent className="sm:max-w-md bg-white text-zinc-900">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-black">
-              <Percent className="size-5 text-emerald-600" /> Update Commission Rate
+              <Percent className="size-5 text-emerald-600" /> Update Platform Commission
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2 text-xs">
@@ -964,7 +1022,7 @@ export function PartnersPage() {
           </div>
           <DialogFooter className="pt-4">
             <Button variant="outline" onClick={() => setCommissionModalOpen(false)} className="text-xs font-bold">Cancel</Button>
-            <Button onClick={() => selectedId && commissionMutation.mutate({ id: selectedId, rate: parseFloat(commissionRateVal) || 18.0 })} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">Update Commission</Button>
+            <Button onClick={() => selectedId && commissionMutation.mutate({ id: selectedId, rate: parseFloat(commissionRateVal) || 18.0 })} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">Save Rate</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -976,13 +1034,13 @@ export function PartnersPage() {
         <DialogContent className="sm:max-w-md bg-white text-zinc-900">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-black">
-              <Wallet className="size-5 text-emerald-600" /> Wallet Balance Adjustment
+              <Wallet className="size-5 text-emerald-600" /> Adjust Partner Wallet Balance
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2 text-xs">
             <div>
               <label className="font-bold text-zinc-800">Adjustment Type</label>
-              <Select value={walletType} onValueChange={(v: "credit" | "debit") => setWalletType(v)}>
+              <Select value={walletType} onValueChange={(v) => setWalletType(v as "credit" | "debit")}>
                 <SelectTrigger className="mt-1 bg-zinc-50 border-zinc-200">
                   <SelectValue />
                 </SelectTrigger>
@@ -1139,4 +1197,3 @@ export function PartnersPage() {
     </AdminShell>
   );
 }
-
