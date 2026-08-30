@@ -23,6 +23,16 @@ import {
   type CartData,
 } from "@/api/customer/cart-api";
 
+const DEFAULT_STORE: CartStore = {
+  id: "partner-kasganj",
+  name: "QuickPress Partner Store",
+  image: "",
+  rating: 4.9,
+  reviews: "1.2k+ reviews",
+  pickupEta: "60 mins",
+  deliveryEta: "Tomorrow by 6 PM",
+};
+
 export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
@@ -47,7 +57,19 @@ function CartScreen() {
   const { isAuthenticated, isLoading } = useAuthGuard();
   const navigate = useNavigate();
   const cart = useCart();
-  const [data, setData] = useState<CartData | null>(getCartState().data);
+  const [data, setData] = useState<CartData | null>(() => {
+    const cached = getCartState().data;
+    if (cached) return cached;
+    if (cart.lines.length > 0) {
+      return {
+        store: DEFAULT_STORE,
+        items: cart.lines as any,
+        charges: { pickup: 0, delivery: 0, handling: 0, gstRate: 0.18, discount: 0, minOrder: 0, grandTotal: cart.total },
+        availableCoupons: [],
+      };
+    }
+    return null;
+  });
 
   // GET /api/cart — partner store & services from backend
   useEffect(() => {
@@ -76,6 +98,8 @@ function CartScreen() {
   // Calculate items subtotal
   const itemsSubtotal = cart.lines.reduce((sum, item) => sum + item.price * item.qty, 0);
 
+  const displayStore = data?.store || DEFAULT_STORE;
+
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950 scroll-smooth">
       <div className="relative mx-auto w-full max-w-md">
@@ -100,17 +124,17 @@ function CartScreen() {
           </div>
         </header>
 
-        {!data ? (
+        {cart.lines.length === 0 && !data ? (
           <CartSkeleton />
         ) : (
           <div className="px-5 pb-36 pt-2">
             {/* Selected store / partner info */}
             <section className="mt-2">
               <div className="card-soft animate-pop flex items-center gap-3 border border-border p-3">
-                {data.store.image ? (
+                {displayStore.image ? (
                   <img
-                    src={data.store.image}
-                    alt={`${data.store.name} laundry store`}
+                    src={displayStore.image}
+                    alt={`${displayStore.name} laundry store`}
                     width={64}
                     height={64}
                     className="size-16 shrink-0 rounded-2xl object-cover"
@@ -119,24 +143,24 @@ function CartScreen() {
                   />
                 ) : (
                   <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold text-xl">
-                    {data.store.name.charAt(0)}
+                    {displayStore.name.charAt(0)}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="min-w-0 truncate text-sm font-bold text-foreground">
-                      {data.store.name}
+                      {displayStore.name}
                     </p>
                     <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
                       <Star className="size-2.5 fill-current" />
-                      {data.store.rating}
+                      {displayStore.rating}
                     </span>
                   </div>
                   <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Clock className="size-3 shrink-0" /> Pickup {data.store.pickupEta}
+                    <Clock className="size-3 shrink-0" /> Pickup {displayStore.pickupEta}
                   </p>
                   <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Truck className="size-3 shrink-0" /> Delivery {data.store.deliveryEta}
+                    <Truck className="size-3 shrink-0" /> Delivery {displayStore.deliveryEta}
                   </p>
                 </div>
               </div>
