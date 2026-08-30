@@ -1,20 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
-  Clock,
   Minus,
   Plus,
   ShoppingBag,
-  Star,
   Trash2,
-  Truck,
   X,
+  Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useCart } from "@/hooks/useCart";
-import { fetchCart, type CartData } from "@/api/customer/cart-api";
 import type { CartLine } from "@/api/customer/cart-store";
 
 interface CartPopupProps {
@@ -25,24 +22,14 @@ interface CartPopupProps {
 export function CartPopup({ isOpen, onClose }: CartPopupProps) {
   const navigate = useNavigate();
   const cart = useCart();
-  const [data, setData] = useState<CartData | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      void fetchCart().then((res) => {
-        setData(res);
-      });
-    }
-  }, [isOpen, cart.count, cart.total]);
-
   if (!isOpen || !mounted) return null;
 
-  // Calculate pure items subtotal
   const itemsSubtotal = cart.lines.reduce((sum, item) => sum + item.price * item.qty, 0);
 
   const content = (
@@ -55,18 +42,19 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Cart"
-        className="relative z-10 w-full max-w-md max-h-[85vh] overflow-hidden rounded-t-[2rem] bg-card border-t border-border shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300"
+        className="relative z-10 w-full max-w-md max-h-[85vh] overflow-hidden rounded-t-[1.75rem] bg-white border-t border-zinc-200 shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300 text-zinc-900 font-sans"
       >
         {/* Header bar */}
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3.5">
           <div className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-[#0c831f]">
               <ShoppingBag className="size-4" />
             </span>
             <div>
-              <h2 className="text-sm font-bold tracking-tight text-foreground">Your Cart</h2>
-              <p className="text-[11px] text-muted-foreground">
-                {cart.count} {cart.count === 1 ? "service" : "services"} selected
+              <h2 className="text-sm font-black text-zinc-900">Your Cart</h2>
+              <p className="text-[10px] font-bold text-[#0c831f] flex items-center gap-1">
+                <Zap className="size-3 fill-[#0c831f] text-[#0c831f]" />
+                <span>{cart.count} {cart.count === 1 ? "item" : "items"} added</span>
               </p>
             </div>
           </div>
@@ -74,58 +62,21 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
             type="button"
             aria-label="Close cart popup"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-transform hover:bg-accent active:scale-95"
+            className="flex size-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 active:scale-95 transition-transform cursor-pointer"
           >
             <X className="size-4" />
           </button>
         </div>
 
         {/* Body content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Partner Info */}
-          {data?.store ? (
-            <div className="card-soft flex items-center gap-3 border border-border p-3 rounded-2xl">
-              {data.store.image ? (
-                <img
-                  src={data.store.image}
-                  alt={data.store.name}
-                  width={64}
-                  height={64}
-                  className="size-12 shrink-0 rounded-xl object-cover"
-                />
-              ) : (
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold text-base">
-                  {data.store.name.charAt(0)}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="truncate text-xs font-bold text-foreground">{data.store.name}</p>
-                  <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.2 text-[9px] font-bold text-primary">
-                    <Star className="size-2.5 fill-current" />
-                    {data.store.rating}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3 shrink-0" /> Pickup {data.store.pickupEta}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Truck className="size-3 shrink-0" /> Delivery {data.store.deliveryEta}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Cart Items List */}
+        <div className="flex-1 overflow-y-auto px-5 py-3.5 space-y-3">
           {cart.lines.length === 0 ? (
-            <div className="py-10 text-center">
-              <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+            <div className="py-12 text-center">
+              <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400">
                 <ShoppingBag className="size-5" />
               </span>
-              <p className="mt-3 text-sm font-bold text-foreground">Your cart is empty</p>
-              <p className="mt-1 text-xs text-muted-foreground">Add services from partner store to continue.</p>
+              <p className="mt-3 text-sm font-black text-zinc-900">Your cart is empty</p>
+              <p className="mt-1 text-xs text-zinc-500">Add services from partner store to continue.</p>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -143,11 +94,11 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
 
         {/* Footer / Proceed to Checkout */}
         {cart.lines.length > 0 ? (
-          <div className="border-t border-border/60 bg-card p-4 shadow-lg">
+          <div className="border-t border-zinc-200 bg-white p-4 shadow-lg">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimated Total</p>
-                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{cart.totals.grandTotal || itemsSubtotal}</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Total</p>
+                <p className="text-xl font-black text-zinc-900">₹{cart.totals.grandTotal || itemsSubtotal}</p>
               </div>
               <button
                 type="button"
@@ -155,9 +106,9 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
                   onClose();
                   void navigate({ to: "/checkout" });
                 }}
-                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 px-5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98] cursor-pointer"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0c831f] hover:bg-emerald-800 px-5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98] cursor-pointer"
               >
-                Proceed to Checkout
+                <span>Proceed to Checkout</span>
                 <ChevronRight className="size-4" />
               </button>
             </div>
@@ -180,50 +131,54 @@ function CartItemRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border border-border p-3 rounded-2xl bg-card shadow-xs">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-bold text-foreground">{item.name}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          ₹{item.price} <span className="text-[10px]">/ {item.unit || "item"}</span>
-        </p>
-        <p className="mt-1 text-xs font-black text-emerald-600 dark:text-emerald-400">
-          Subtotal: ₹{item.price * item.qty}
-        </p>
+    <div className="flex items-center justify-between gap-3 border border-zinc-200 p-3 rounded-xl bg-white shadow-xs">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        {item.image ? (
+          <img
+            src={item.image}
+            alt={item.name}
+            className="size-10 rounded-lg object-cover border border-zinc-100 shrink-0"
+          />
+        ) : (
+          <div className="size-10 rounded-lg bg-emerald-50 text-[#0c831f] font-black text-xs flex items-center justify-center shrink-0">
+            {item.name.charAt(0)}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-xs font-black text-zinc-900">{item.name}</p>
+          <p className="text-[11px] font-medium text-zinc-500">
+            ₹{item.price} / {item.unit || "item"}
+          </p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         {/* Quantity Stepper */}
-        <div className="flex h-8 items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-500/10 px-1.5">
+        <div className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-1.5">
           <button
             type="button"
             aria-label="Decrease quantity"
             onClick={() => (item.qty === 1 ? onRemove() : onStep(-1))}
-            className="flex size-6 items-center justify-center rounded-lg bg-card text-foreground transition-transform active:scale-90 cursor-pointer"
+            className="flex size-6 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-200 transition-transform active:scale-90 cursor-pointer"
           >
-            {item.qty === 1 ? <Trash2 className="size-3 text-destructive" /> : <Minus className="size-3" />}
+            {item.qty === 1 ? <Trash2 className="size-3 text-red-500" /> : <Minus className="size-3" />}
           </button>
-          <span className="w-5 text-center text-xs font-black text-foreground tabular-nums">
+          <span className="w-5 text-center text-xs font-black text-zinc-900 tabular-nums">
             {item.qty}
           </span>
           <button
             type="button"
             aria-label="Increase quantity"
             onClick={() => onStep(1)}
-            className="flex size-6 items-center justify-center rounded-lg bg-emerald-600 text-white transition-transform active:scale-90 cursor-pointer"
+            className="flex size-6 items-center justify-center rounded-md bg-[#0c831f] text-white transition-transform active:scale-90 cursor-pointer"
           >
             <Plus className="size-3" />
           </button>
         </div>
 
-        {/* Delete item */}
-        <button
-          type="button"
-          aria-label={`Remove ${item.name}`}
-          onClick={onRemove}
-          className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive active:scale-90 transition-colors cursor-pointer"
-        >
-          <Trash2 className="size-3.5" />
-        </button>
+        <span className="text-xs font-black text-zinc-900 min-w-12 text-right">
+          ₹{item.price * item.qty}
+        </span>
       </div>
     </div>
   );

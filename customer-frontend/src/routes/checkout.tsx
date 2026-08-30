@@ -195,15 +195,15 @@ function CheckoutScreen() {
   const loadCheckout = (discount: number) => {
     void fetchCheckoutCompat(discount)
       .then((checkout) => {
-        if (checkout.cart) {
+        if (checkout.cart && cartSnapshot.lines.length === 0) {
           setData(checkout.cart);
           setCartState({ data: checkout.cart });
         }
         if (checkout.addresses?.length) {
           setAddresses(checkout.addresses);
           const initialId = checkout.selectedAddressId || checkout.addresses[0].id;
-          setPickupAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev) ? prev : initialId));
-          setDeliveryAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev) ? prev : initialId));
+          setPickupAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev)) ? prev : initialId);
+          setDeliveryAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev)) ? prev : initialId);
         }
         setWalletBalance(checkout.walletBalance);
         if (checkout.membership) setMembership(checkout.membership);
@@ -241,10 +241,8 @@ function CheckoutScreen() {
 
   // Pricing calculations (0ms optimistic from cart store snapshot)
   const cartLines = cartSnapshot.lines;
-  const itemsSubtotal = cartSnapshot.totals.itemsTotal || (data?.items?.reduce((sum, i) => sum + i.price * i.qty, 0) ?? 199);
-  const totalMRP = cartLines.length > 0 
-    ? cartLines.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0)
-    : (data?.items?.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0) ?? 249);
+  const itemsSubtotal = cartLines.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const totalMRP = cartLines.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0);
   const deliveryFee = 0; // FREE Delivery for QuickPress
   const handlingFee = itemsSubtotal > 0 ? 5 : 0;
   const gstCharge = Math.round(itemsSubtotal * 0.18);

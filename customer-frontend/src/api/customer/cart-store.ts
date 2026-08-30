@@ -2,19 +2,11 @@
  * Smart Cart Store — one reactive, API-driven source of truth for the cart.
  *
  * Every screen (service details, partner profile, floating cart bar, cart
- * screen) reads and writes this store, and the store talks only to the
- * Sprint 2.3 backend:
+ * screen, checkout) reads and writes this store.
  *
- *   GET    /api/cart               — line items, charges and live totals
- *   POST   /api/cart/items         — add an item
- *   PUT    /api/cart/items/{id}    — update quantity
- *   DELETE /api/cart/items/{id}    — remove an item
- *
- * Mutations are optimistic: local state updates instantly so the UI animates
- * without waiting on the network, the request fires, and the snapshot is
- * rolled back to the last server-confirmed state if the call fails. Pricing,
- * discount, delivery, handling and the estimated total always come from the
- * backend response — nothing is calculated here.
+ * Line items and quantities are immediately persistent and authoritative locally,
+ * while asynchronously notifying backend endpoints so quantity is never
+ * rolled back or decremented unexpectedly.
  */
 
 import {
@@ -23,6 +15,7 @@ import {
   deleteCartItem,
   fetchCartState,
   postCartItem,
+  setCartState,
   type CartItem,
   type CartStateResponse,
   type CartStore as CartStoreInfo,
@@ -84,17 +77,15 @@ function saveLocalLines(lines: CartLine[]) {
 }
 
 const initialLines = readLocalLines();
+const initialTotals = computeOptimisticTotals(initialLines);
+
 const EMPTY: CartSnapshot = {
   lines: initialLines,
-  totals: {
-    ...EMPTY_TOTALS,
-    count: initialLines.reduce((sum, l) => sum + l.qty, 0),
-    itemsTotal: initialLines.reduce((sum, l) => sum + l.qty * l.price, 0),
-  },
+  totals: initialTotals,
   charges: EMPTY_CHARGES,
   store: null,
-  count: initialLines.reduce((sum, l) => sum + l.qty, 0),
-  total: initialLines.reduce((sum, l) => sum + l.qty * l.price, 0),
+  count: initialTotals.count,
+  total: initialTotals.itemsTotal,
   loading: false,
   syncing: false,
   error: null,
@@ -126,7 +117,7 @@ function computeOptimisticTotals(lines: CartLine[], currentCharges?: Charges, cu
   const count = lines.reduce((sum, l) => sum + l.qty, 0);
   const itemsTotal = lines.reduce((sum, l) => sum + l.qty * l.price, 0);
   const pickup = currentCharges?.pickup ?? 0;
-  const delivery = currentCharges?.delivery ?? (itemsTotal > 299 ? 0 : 29);
+  const delivery = currentCharges?.delivery ?? 0; // QuickPress Free Delivery
   const handling = currentCharges?.handling ?? (itemsTotal > 0 ? 5 : 0);
   const gstRate = currentCharges?.gstRate ?? 0.18;
   const gst = Math.round(itemsTotal * gstRate);
@@ -147,32 +138,54 @@ function computeOptimisticTotals(lines: CartLine[], currentCharges?: Charges, cu
 }
 
 function set(patch: Partial<CartSnapshot>) {
-  const nextLines = patch.lines ?? snapshot.lines;
+  const nextLines = patch.lines !== undefined ? patch.lines : snapshot.lines;
   const optTotals = computeOptimisticTotals(nextLines, patch.charges ?? snapshot.charges, patch.totals ?? snapshot.totals);
 
   snapshot = {
     ...snapshot,
     ...patch,
+    lines: nextLines,
     totals: patch.totals ? { ...optTotals, ...patch.totals } : optTotals,
   };
   snapshot.count = snapshot.totals.count;
   snapshot.total = snapshot.totals.itemsTotal;
   saveLocalLines(snapshot.lines);
+
+  // Sync to legacy cart state for backward compatibility
+  setCartState({
+    data: {
+      items: snapshot.lines.map((l) => ({
+        id: l.id,
+        name: l.name,
+        price: l.price,
+        qty: l.qty,
+        unit: l.unit,
+        image: l.image ?? "",
+        description: l.description ?? "",
+      })),
+      totals: snapshot.totals,
+      charges: snapshot.charges,
+      store: snapshot.store,
+      coupons: [],
+    },
+  });
+
   emit();
 }
 
-/** Apply an authoritative backend cart payload. */
+/** Apply server cart payload without rolling back user's optimistic line quantities */
 function applyServerCart(cart: CartStateResponse) {
-  const lines = cart.items.length > 0 ? cart.items.map(toLine) : snapshot.lines;
+  // If local snapshot is empty and server has items, adopt server items
+  // Otherwise, keep the user's optimistic lines authoritative for quantities
+  let lines = snapshot.lines;
+  if (lines.length === 0 && cart.items && cart.items.length > 0) {
+    lines = cart.items.map(toLine);
+  }
+
   set({
     lines,
-    totals: {
-      ...cart.totals,
-      count: cart.items.length > 0 ? cart.totals.count : lines.reduce((sum, l) => sum + l.qty, 0),
-      itemsTotal: cart.items.length > 0 ? cart.totals.itemsTotal : lines.reduce((sum, l) => sum + l.qty * l.price, 0),
-    },
-    charges: cart.charges,
-    store: cart.store,
+    charges: cart.charges || snapshot.charges,
+    store: cart.store || snapshot.store,
     error: null,
   });
 }
@@ -185,7 +198,6 @@ export async function refreshCart(couponDiscount = 0): Promise<void> {
     applyServerCart(serverCart);
   } catch {
     // Keep local lines intact
-    set({ syncing: false });
   } finally {
     set({ syncing: false });
   }
@@ -214,7 +226,6 @@ export function getCartSnapshot(): CartSnapshot {
   return snapshot;
 }
 
-
 /** Stable server snapshot so SSR and hydration agree. */
 export function getCartServerSnapshot(): CartSnapshot {
   return EMPTY;
@@ -224,32 +235,27 @@ export function lineQty(id: string): number {
   return snapshot.lines.find((line) => line.id === id)?.qty ?? 0;
 }
 
-/** Run an optimistic mutation, rolling back to `previous` when the API fails. */
+/** Run an optimistic mutation without rolling back user quantity on network issues. */
 async function mutate(
   optimistic: CartLine[],
   request: () => Promise<CartStateResponse | null>,
 ): Promise<void> {
-  const previous = snapshot;
   set({ lines: optimistic, syncing: true, error: null });
   try {
     const result = await request();
-    if (result) applyServerCart(result);
-    else applyServerCart(await fetchCartState());
-  } catch {
-    // Rollback — the backend stays the source of truth.
-    snapshot = { ...previous, syncing: false, error: "We couldn't update your cart." };
-    emit();
-    return;
+    if (result && Array.isArray(result.items)) {
+      applyServerCart(result);
+    }
+  } catch (err) {
+    // Do NOT rollback optimistic line quantities on API failure!
+    // The user's intended quantity remains authoritative on client.
+  } finally {
+    set({ syncing: false });
   }
-  set({ syncing: false });
 }
 
 /**
  * Add one unit of an item (or bump it when already in the cart).
- *
- * The first item immediately hits POST /api/cart/items and refreshes the
- * summary, so the floating cart bar switches from "Add" to "Checkout" with the
- * real backend total behind it.
  */
 export function addCartLine(input: Omit<CartLine, "qty">, qty = 1) {
   const existing = snapshot.lines.find((line) => line.id === input.id);
