@@ -42,7 +42,9 @@ import {
   type CartData,
   type PickupOption,
 } from "@/api/customer/cart-api";
+import { clearCartLines } from "@/api/customer/cart-store";
 import {
+
   fetchCheckoutCompat,
   placeOrder as postOrder,
   type CheckoutPaymentMethod,
@@ -309,11 +311,13 @@ function CheckoutScreen() {
       });
       setPlacing(false);
       setPlaced(true);
+      clearCartLines();
       setCartState({ data: null, couponDiscount: 0, couponCode: null, instructions: "" });
       window.setTimeout(() => {
         setPlaced(false);
         void navigate({ to: "/order-success/$orderId", params: { orderId: result.orderId } });
       }, 900);
+
     } catch (err) {
       setPlacing(false);
       setOrderKey(newOrderKey());

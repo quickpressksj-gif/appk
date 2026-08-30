@@ -5,12 +5,13 @@ import {
   Clock,
   Minus,
   Plus,
-  ShoppingBag,
+  Sparkles,
   Star,
   Trash2,
   Truck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { refreshCart, type CartLine } from "@/api/customer/cart-store";
 import { useCart } from "@/hooks/useCart";
@@ -21,6 +22,7 @@ import {
   getCartState,
   setCartState,
   type CartData,
+  type CartStore,
 } from "@/api/customer/cart-api";
 
 const DEFAULT_STORE: CartStore = {
@@ -93,6 +95,15 @@ function CartScreen() {
   // DELETE /api/cart/items/{id}
   const remove = (id: string) => {
     cart.remove(id);
+    toast.success("Item removed from cart");
+  };
+
+  // Clear Entire Cart at once
+  const handleClearCart = () => {
+    cart.clear();
+    setData(null);
+    setCartState({ data: null, couponDiscount: 0, couponCode: null, instructions: "" });
+    toast.success("Cart cleared successfully");
   };
 
   // Calculate items subtotal
@@ -105,7 +116,7 @@ function CartScreen() {
       <div className="relative mx-auto w-full max-w-md">
         {/* Top app bar */}
         <header className="sticky top-0 z-30 mx-auto w-full max-w-md">
-          <div className="glass-panel flex items-center gap-2 px-4 py-3">
+          <div className="glass-panel flex items-center justify-between gap-2 px-4 py-3">
             <button
               type="button"
               aria-label="Go back"
@@ -114,13 +125,22 @@ function CartScreen() {
             >
               <ArrowLeft className="size-5" />
             </button>
-            <p className="min-w-0 flex-1 truncate text-center text-sm font-bold tracking-tight text-foreground">
-              Cart
+            <p className="min-w-0 truncate text-center text-sm font-bold tracking-tight text-foreground">
+              Your Cart
             </p>
-            <span className="flex h-10 shrink-0 items-center gap-1.5 rounded-2xl bg-primary/15 px-3 text-[11px] font-bold text-primary">
-              <ShoppingBag className="size-3.5" />
-              {cart.count} {cart.count === 1 ? "item" : "items"}
-            </span>
+            {cart.count > 0 ? (
+              <button
+                type="button"
+                onClick={handleClearCart}
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-destructive/20 bg-destructive/10 px-3 text-[11px] font-bold text-destructive transition-all hover:bg-destructive/20 active:scale-95 cursor-pointer"
+                title="Clean entire cart"
+              >
+                <Trash2 className="size-3.5" />
+                <span>Clean Cart</span>
+              </button>
+            ) : (
+              <span className="size-9 shrink-0" />
+            )}
           </div>
         </header>
 
@@ -129,61 +149,100 @@ function CartScreen() {
         ) : (
           <div className="px-5 pb-36 pt-2">
             {/* Selected store / partner info */}
-            <section className="mt-2">
-              <div className="card-soft animate-pop flex items-center gap-3 border border-border p-3">
-                {displayStore.image ? (
-                  <img
-                    src={displayStore.image}
-                    alt={`${displayStore.name} laundry store`}
-                    width={64}
-                    height={64}
-                    className="size-16 shrink-0 rounded-2xl object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold text-xl">
-                    {displayStore.name.charAt(0)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 truncate text-sm font-bold text-foreground">
-                      {displayStore.name}
+            {cart.lines.length > 0 ? (
+              <section className="mt-2">
+                <div className="card-soft animate-pop flex items-center gap-3 border border-border p-3">
+                  {displayStore.image ? (
+                    <img
+                      src={displayStore.image}
+                      alt={`${displayStore.name} laundry store`}
+                      width={64}
+                      height={64}
+                      className="size-16 shrink-0 rounded-2xl object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold text-xl">
+                      {displayStore.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 truncate text-sm font-bold text-foreground">
+                        {displayStore.name}
+                      </p>
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                        <Star className="size-2.5 fill-current" />
+                        {displayStore.rating}
+                      </span>
+                    </div>
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Clock className="size-3 shrink-0" /> Pickup {displayStore.pickupEta}
                     </p>
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
-                      <Star className="size-2.5 fill-current" />
-                      {displayStore.rating}
-                    </span>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Truck className="size-3 shrink-0" /> Delivery {displayStore.deliveryEta}
+                    </p>
                   </div>
-                  <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Clock className="size-3 shrink-0" /> Pickup {displayStore.pickupEta}
-                  </p>
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Truck className="size-3 shrink-0" /> Delivery {displayStore.deliveryEta}
-                  </p>
                 </div>
-              </div>
-            </section>
+              </section>
+            ) : null}
 
             {/* Cart items list */}
-            <section className="mt-6">
+            <section className="mt-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold tracking-tight text-foreground">Services</h2>
-                <span className="text-xs text-muted-foreground">
-                  {cart.lines.length} {cart.lines.length === 1 ? "type" : "types"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold tracking-tight text-foreground">Services</h2>
+                  {cart.count > 0 ? (
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-black text-primary">
+                      {cart.count} {cart.count === 1 ? "item" : "items"}
+                    </span>
+                  ) : null}
+                </div>
+                {cart.lines.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleClearCart}
+                    className="text-xs font-bold text-destructive hover:underline flex items-center gap-1"
+                  >
+                    <Trash2 className="size-3" /> Clear All
+                  </button>
+                ) : null}
               </div>
 
               {cart.lines.length === 0 ? (
-                <div className="card-soft animate-pop mt-4 border border-dashed border-border p-8 text-center">
-                  <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                    <ShoppingBag className="size-5" />
-                  </span>
-                  <p className="mt-3 text-sm font-bold text-foreground">Your cart is empty</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Add services from partner store to schedule your laundry pickup.
+                <div className="card-soft animate-pop mt-4 border border-dashed border-border/80 p-8 text-center bg-card/60 backdrop-blur-sm">
+                  <div className="relative mx-auto flex size-16 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-xs">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="size-8"
+                    >
+                      <path d="M4 8h16l-1.8 11.2a2 2 0 0 1-2 1.8H7.8a2 2 0 0 1-2-1.8L4 8Z" fill="currentColor" fillOpacity="0.15" />
+                      <path d="M4 8h16" />
+                      <path d="M8 8V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3" />
+                      <path d="M9 12v5" strokeWidth="1.6" />
+                      <path d="M12 11v6" strokeWidth="1.6" />
+                      <path d="M15 12v5" strokeWidth="1.6" />
+                    </svg>
+                    <span className="absolute -top-1 -right-1 size-3 rounded-full bg-primary/40 animate-ping" />
+                  </div>
+                  <p className="mt-4 text-base font-black text-foreground">Your cart is empty</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
+                    Add services from verified laundry partners to schedule your doorstep pickup.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/home" })}
+                    className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-black text-primary-foreground shadow-cta transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="size-3.5" />
+                    <span>Explore Services & Add</span>
+                  </button>
                 </div>
               ) : (
                 <div className="stagger-children mt-3 space-y-3">
@@ -195,16 +254,19 @@ function CartScreen() {
             </section>
 
             {/* Add more services */}
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/home" })}
-              className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-3xl border border-dashed border-primary/60 bg-primary/5 text-sm font-bold text-primary transition-all duration-300 hover:bg-primary/10 active:scale-[0.985]"
-            >
-              <Plus className="size-4" /> Add more services
-            </button>
+            {cart.lines.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/home" })}
+                className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-3xl border border-dashed border-primary/60 bg-primary/5 text-sm font-bold text-primary transition-all duration-300 hover:bg-primary/10 active:scale-[0.985] cursor-pointer"
+              >
+                <Plus className="size-4" /> Add more services
+              </button>
+            ) : null}
           </div>
         )}
       </div>
+
 
       {/* Sticky bottom bar */}
       {data && cart.lines.length > 0 ? (

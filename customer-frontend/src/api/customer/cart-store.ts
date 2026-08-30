@@ -56,13 +56,45 @@ export type CartSnapshot = {
   error: string | null;
 };
 
+const CART_STORAGE_KEY = "quickpress_cart_cache_v2";
+
+function readLocalLines(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalLines(lines: CartLine[]) {
+  if (typeof window === "undefined") return;
+  try {
+    if (lines.length === 0) {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } else {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(lines));
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+const initialLines = readLocalLines();
 const EMPTY: CartSnapshot = {
-  lines: [],
-  totals: EMPTY_TOTALS,
+  lines: initialLines,
+  totals: {
+    ...EMPTY_TOTALS,
+    count: initialLines.reduce((sum, l) => sum + l.qty, 0),
+    itemsTotal: initialLines.reduce((sum, l) => sum + l.qty * l.price, 0),
+  },
   charges: EMPTY_CHARGES,
   store: null,
-  count: 0,
-  total: 0,
+  count: initialLines.reduce((sum, l) => sum + l.qty, 0),
+  total: initialLines.reduce((sum, l) => sum + l.qty * l.price, 0),
   loading: false,
   syncing: false,
   error: null,
@@ -95,14 +127,20 @@ function set(patch: Partial<CartSnapshot>) {
   snapshot.count = snapshot.totals.count || snapshot.lines.reduce((sum, l) => sum + l.qty, 0);
   snapshot.total =
     snapshot.totals.itemsTotal || snapshot.lines.reduce((sum, l) => sum + l.qty * l.price, 0);
+  saveLocalLines(snapshot.lines);
   emit();
 }
 
 /** Apply an authoritative backend cart payload. */
 function applyServerCart(cart: CartStateResponse) {
+  const lines = cart.items.length > 0 ? cart.items.map(toLine) : snapshot.lines;
   set({
-    lines: cart.items.map(toLine),
-    totals: cart.totals,
+    lines,
+    totals: {
+      ...cart.totals,
+      count: cart.items.length > 0 ? cart.totals.count : lines.reduce((sum, l) => sum + l.qty, 0),
+      itemsTotal: cart.items.length > 0 ? cart.totals.itemsTotal : lines.reduce((sum, l) => sum + l.qty * l.price, 0),
+    },
     charges: cart.charges,
     store: cart.store,
     error: null,
@@ -113,9 +151,11 @@ function applyServerCart(cart: CartStateResponse) {
 export async function refreshCart(couponDiscount = 0): Promise<void> {
   set({ syncing: true });
   try {
-    applyServerCart(await fetchCartState(couponDiscount));
+    const serverCart = await fetchCartState(couponDiscount);
+    applyServerCart(serverCart);
   } catch {
-    set({ error: "We couldn't refresh your cart." });
+    // Keep local lines intact
+    set({ syncing: false });
   } finally {
     set({ syncing: false });
   }
@@ -125,6 +165,10 @@ export async function refreshCart(couponDiscount = 0): Promise<void> {
 export function hydrateCart() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
+  const local = readLocalLines();
+  if (local.length > 0) {
+    set({ lines: local });
+  }
   set({ loading: true });
   void refreshCart().finally(() => set({ loading: false }));
 }
@@ -139,6 +183,7 @@ export function subscribeCartLines(fn: () => void) {
 export function getCartSnapshot(): CartSnapshot {
   return snapshot;
 }
+
 
 /** Stable server snapshot so SSR and hydration agree. */
 export function getCartServerSnapshot(): CartSnapshot {
