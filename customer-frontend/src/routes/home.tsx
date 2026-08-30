@@ -44,6 +44,8 @@ import {
   readRecentSearches,
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
 } from "@/api/customer/services/search-service";
+import { fetchMembership, type Membership } from "@/api/customer/membership-api";
+
 
 import defaultAvatar from "@/shared/assets/default-avatar.jpg";
 import store1 from "@/shared/assets/store-1.jpg";
@@ -150,6 +152,7 @@ function HomeScreen() {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(true);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [reordering, setReordering] = useState<string | null>(null);
+  const [membership, setMembership] = useState<Membership | null>(null);
 
   const handleReorder = async (orderId: string) => {
     setReordering(orderId);
@@ -165,6 +168,7 @@ function HomeScreen() {
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
+    void fetchMembership().then(setMembership).catch(() => {});
   }, []);
 
   const profile = sections.profile.data;
@@ -212,9 +216,13 @@ function HomeScreen() {
   const unreadNotifications = unreadOverride ?? sections.notifications.data ?? 0;
 
   const handleRefresh = useCallback(async () => {
-    await refresh();
+    await Promise.all([
+      refresh(),
+      fetchMembership({ forceRefresh: true }).then(setMembership).catch(() => {}),
+    ]);
     setPull(0);
   }, [refresh]);
+
 
 
   const onTouchStart = (event: React.TouchEvent) => {
@@ -562,7 +570,13 @@ function HomeScreen() {
 
                 {/* Nearby partners — GET /api/partners/nearby */}
                 <section className="mt-8">
-                  <SectionHeading title="Laundry partners near you" action="See all" />
+                  <SectionHeading
+                    title="Laundry partners near you"
+                    action="See all"
+                    onAction={() =>
+                      void navigate({ to: "/search", search: { q: "", scope: "partners" } })
+                    }
+                  />
                   <SectionStatus
                     error={sections.partners.error}
                     empty={!sections.partners.loading && (sections.partners.data?.length ?? 0) === 0}
@@ -577,7 +591,7 @@ function HomeScreen() {
                         onClick={() =>
                           navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
                         }
-                        className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-zinc-950 dark:hover:border-zinc-100 hover:shadow-md active:scale-[0.985]"
+                        className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary/50 hover:shadow-md active:scale-[0.985]"
                       >
                         <div className="flex items-start gap-3.5">
                           <div className="relative shrink-0">
@@ -593,10 +607,11 @@ function HomeScreen() {
                               />
                             </div>
                             <span
-                              className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black ${partner.open
-                                  ? "bg-secondary text-secondary-foreground"
+                              className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                                partner.open
+                                  ? "bg-emerald-500 text-white shadow-xs"
                                   : "bg-zinc-800 text-zinc-100"
-                                }`}
+                              }`}
                             >
                               {partner.open ? "Open" : "Closed"}
                             </span>
@@ -610,19 +625,24 @@ function HomeScreen() {
                               <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-brand-dark">
                                 <Star className="size-3 fill-current" />
                                 {partner.rating}
-                                <span className="font-medium text-muted-foreground text-[10px]">({partner.reviews})</span>
+                                {partner.reviews && partner.reviews !== "0" ? (
+                                  <span className="text-[10px] font-medium text-muted-foreground">
+                                    ({partner.reviews})
+                                  </span>
+                                ) : null}
                               </span>
                             </div>
 
-                            <p className="mt-0.5 truncate text-xs text-muted-foreground font-medium">
+                            <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
                               {partner.services && partner.services.length > 0
                                 ? partner.services.slice(0, 3).join(" · ")
                                 : `${partner.distanceKm} km away`}
                             </p>
 
-                            <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground font-medium">
+                            <div className="mt-2.5 flex items-center gap-3 text-xs font-medium text-muted-foreground">
                               <span className="flex items-center gap-1">
-                                <Clock className="size-3.5 text-primary" /> {partner.pickupTime ?? partner.eta ?? "30 min"}
+                                <Clock className="size-3.5 text-primary" />{" "}
+                                {partner.pickupTime ?? partner.eta ?? "30 min"}
                               </span>
                               <span className="size-1 rounded-full bg-border" />
                               <span className="font-bold text-foreground">
@@ -637,31 +657,112 @@ function HomeScreen() {
                   </div>
                 </section>
 
-                {/* Membership */}
+                {/* Membership Banner (Real Live Engine) */}
                 <section className="mt-8">
-                  <div className="overflow-hidden rounded-3xl bg-brand-dark p-5 shadow-soft">
-                    <div className="flex items-center gap-2">
-                      <Crown className="size-4 text-primary" />
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-                        QuickPress Premium
+                  {membership?.active && membership.planId !== "free" ? (
+                    /* 1. Active Member Status Banner */
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
+                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
+                      <div className="relative flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Crown className="size-4 text-primary" />
+                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                            QuickPress {membership.planName} VIP
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400">
+                          Active Member
+                        </span>
+                      </div>
+
+                      <p className="relative mt-2.5 text-base font-black text-white">
+                        Unlimited ₹0 Delivery & Member Benefits
                       </p>
+
+                      <div className="relative mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-xs text-white/80">
+                        <div className="flex items-center gap-1.5">
+                          <span className="size-1.5 rounded-full bg-primary" />
+                          <span>
+                            {membership.quota.remainingOrders > 0
+                              ? `${membership.quota.remainingOrders} of ${membership.quota.totalOrders} free orders left`
+                              : "Unlimited Free Orders"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="size-1.5 rounded-full bg-emerald-400" />
+                          <span>
+                            {membership.quota.remainingWeightKg > 0
+                              ? `${membership.quota.remainingWeightKg} kg quota left`
+                              : "100% Weight Covered"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {membership.quota.totalSavings > 0 ? (
+                        <div className="relative mt-2.5 flex items-center justify-between rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white">
+                          <span className="text-[11px] text-white/70">Total saved on orders:</span>
+                          <span className="font-black text-emerald-300">
+                            ₹{membership.quota.totalSavings.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => void navigate({ to: "/membership" })}
+                        className="ripple relative mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-black uppercase tracking-wider text-primary-foreground shadow-cta transition-transform hover:brightness-105 active:scale-[0.98]"
+                      >
+                        Manage Plan & View Orders
+                        <ArrowRight className="size-3.5" />
+                      </button>
                     </div>
-                    <p className="mt-3 text-lg font-bold text-secondary-foreground">
-                      Unlimited pickups, priority everything
-                    </p>
-                    <ul className="mt-3 space-y-1.5 text-xs text-secondary-foreground/70">
-                      <li>• Unlimited free pickup & delivery</li>
-                      <li>• Priority support, always first in queue</li>
-                      <li>• Exclusive member-only discounts</li>
-                    </ul>
-                    <button
-                      type="button"
-                      className="mt-5 flex h-12 w-full items-center justify-center rounded-3xl bg-primary text-sm font-bold text-primary-foreground shadow-cta transition-all duration-300 hover:brightness-[1.03] active:scale-[0.985]"
-                    >
-                      Join Membership
-                    </button>
-                  </div>
+                  ) : (
+                    /* 2. Non-Member Upgrade Banner */
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-dark to-brand-green p-5 shadow-soft">
+                      <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/25 blur-2xl" />
+                      <div className="relative flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Crown className="size-4 text-primary" />
+                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                            QuickPress VIP Membership
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                          Save ₹500+/mo
+                        </span>
+                      </div>
+
+                      <p className="relative mt-3 text-lg font-black text-white">
+                        Unlimited ₹0 Delivery &amp; 15% OFF Every Order
+                      </p>
+
+                      <ul className="relative mt-3 space-y-1.5 text-xs text-white/80">
+                        <li className="flex items-center gap-2">
+                          <span className="size-1 rounded-full bg-primary" />
+                          <span>Unlimited free doorstep pickup &amp; delivery</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="size-1 rounded-full bg-primary" />
+                          <span>Up to 20% member discounts on all services</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="size-1 rounded-full bg-primary" />
+                          <span>Priority queue &amp; 2-hour superfast turnarounds</span>
+                        </li>
+                      </ul>
+
+                      <button
+                        type="button"
+                        onClick={() => void navigate({ to: "/membership" })}
+                        className="ripple relative mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-black text-primary-foreground shadow-cta transition-transform hover:brightness-105 active:scale-[0.98]"
+                      >
+                        <Crown className="size-4" />
+                        Join VIP Membership · From ₹99/mo
+                      </button>
+                    </div>
+                  )}
                 </section>
+
 
                 {/* Offers — GET /api/offers */}
                 <section className="mt-8">

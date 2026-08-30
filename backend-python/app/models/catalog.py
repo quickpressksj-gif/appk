@@ -28,14 +28,17 @@ class LocationResponse(BaseModel):
 
 class BannerResponse(BaseModel):
     id: str
-    eyebrow: str
-    title: str
-    subtitle: str
-    cta: str
+    eyebrow: str = ""
+    badge: str = ""
+    title: str = ""
+    subtitle: str = ""
+    cta: str = "Explore"
     image: Optional[str] = None
     tone: str = "primary"
     redirectUrl: Optional[str] = None
+    actionUrl: Optional[str] = None
     priority: int = 99
+
 
 
 class CategoryResponse(BaseModel):

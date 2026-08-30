@@ -52,7 +52,25 @@ class CatalogRepository:
 
     async def banners(self) -> List[BannerResponse]:
         docs = await database.find_many("banners", sort_key="priority")
-        return [BannerResponse(id=d["_id"], **_without_id(d)) for d in docs]
+        if not docs:
+            docs = SEED.get("banners", [])
+        return [
+            BannerResponse(
+                id=str(d.get("_id") or d.get("id") or "b1"),
+                eyebrow=str(d.get("eyebrow") or d.get("badge") or d.get("tagline") or ""),
+                badge=str(d.get("badge") or d.get("eyebrow") or ""),
+                title=str(d.get("title") or "QuickPress Laundry"),
+                subtitle=str(d.get("subtitle") or d.get("description") or ""),
+                cta=str(d.get("cta") or d.get("buttonText") or "Explore"),
+                image=d.get("image") or d.get("imageUrl"),
+                tone=str(d.get("tone") or "primary"),
+                redirectUrl=d.get("redirectUrl") or d.get("actionUrl") or "/home",
+                actionUrl=d.get("actionUrl") or d.get("redirectUrl") or "/home",
+                priority=int(d.get("priority") or 99),
+            )
+            for d in docs
+        ]
+
 
     async def categories(self) -> List[CategoryResponse]:
         docs = await database.find_many("categories", sort_key="sortOrder")
@@ -272,8 +290,15 @@ class CatalogRepository:
             active_services = [s for s in services_docs if s.get("isActive", True) is not False]
             settings = await database.find_one("partner_settings", {"_id": pid}) or {}
 
-            reviews_count = int(p.get("totalOrders") or p.get("reviewsCount") or 0)
+            reviews_count = int(
+                p.get("totalOrders")
+                or p.get("reviewsCount")
+                or p.get("ratingCount")
+                or p.get("reviewCount")
+                or 0
+            )
             reviews = f"{reviews_count / 1000:.1f}k" if reviews_count >= 1000 else str(reviews_count)
+
             pickup = int(settings.get("pickupMinutes") or 30)
             is_open = bool(p.get("isOnline", True) and settings.get("isStoreOpen", True))
             banner = p.get("banner") or p.get("bannerUrl") or p.get("banner_url") or p.get("cover") or p.get("coverImage")
