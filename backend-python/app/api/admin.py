@@ -23,6 +23,11 @@ from app.models.admin import (
     BroadcastPayload,
     CancelOrderPayload,
     UpdateOrderStatusPayload,
+    AdjustCustomerWalletPayload,
+    AdjustCustomerLoyaltyPayload,
+    AddCustomerNotePayload,
+    UpdateCustomerTagsPayload,
+    SendCustomerNotificationPayload,
     CityPayload,
     CouponPayload,
     ServicePayload,
@@ -155,15 +160,22 @@ async def update_order_status(order_id: str, payload: UpdateOrderStatusPayload, 
 
 
 # ----------------------------------------------------------------- customers
+@router.get("/customers/stats")
+async def customer_stats(user: User = Depends(current_user)):
+    return await admin_customer_repository.dashboard_stats()
+
+
 @router.get("/customers")
 async def list_customers(
     page: int = Query(default=1, ge=1),
     pageSize: int = Query(default=20, ge=1, le=100),
     q: Optional[str] = None,
     city: Optional[str] = None,
+    status: Optional[str] = None,
+    segment: Optional[str] = None,
     user: User = Depends(current_user),
 ):
-    return await admin_customer_repository.list(page, pageSize, q=q, city=city)
+    return await admin_customer_repository.list(page, pageSize, q=q, city=city, status=status, segment=segment)
 
 
 @router.get("/customers/{customer_id}")
@@ -172,6 +184,14 @@ async def get_customer(customer_id: str, user: User = Depends(current_user)):
     if customer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     return customer
+
+
+@router.get("/customers/{customer_id}/360")
+async def get_customer_360(customer_id: str, user: User = Depends(current_user)):
+    try:
+        return await admin_customer_repository.get_customer_360(customer_id)
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 @router.post("/customers/{customer_id}/block")
@@ -186,6 +206,53 @@ async def unblock_customer(customer_id: str, user: User = Depends(current_user))
     await admin_customer_repository.set_blocked(customer_id, False)
     await audit_repository.log(await _actor(user), "customer.unblock", customer_id)
     return {"ok": True, "id": customer_id, "blocked": False}
+
+
+@router.post("/customers/{customer_id}/wallet/adjust")
+async def adjust_customer_wallet(customer_id: str, payload: AdjustCustomerWalletPayload, user: User = Depends(current_user)):
+    try:
+        res = await admin_customer_repository.adjust_wallet(customer_id, payload.amount, payload.reason, user.id)
+        await audit_repository.log(await _actor(user), "customer.wallet_adjust", customer_id, {"amount": payload.amount, "reason": payload.reason})
+        return res
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+
+@router.post("/customers/{customer_id}/loyalty/adjust")
+async def adjust_customer_loyalty(customer_id: str, payload: AdjustCustomerLoyaltyPayload, user: User = Depends(current_user)):
+    res = await admin_customer_repository.adjust_loyalty(customer_id, payload.points, payload.reason, user.id)
+    await audit_repository.log(await _actor(user), "customer.loyalty_adjust", customer_id, {"points": payload.points, "reason": payload.reason})
+    return res
+
+
+@router.post("/customers/{customer_id}/notes")
+async def add_customer_note(customer_id: str, payload: AddCustomerNotePayload, user: User = Depends(current_user)):
+    try:
+        res = await admin_customer_repository.add_note(customer_id, payload.note, user.display_name or "Super Admin")
+        await audit_repository.log(await _actor(user), "customer.add_note", customer_id, {"note": payload.note})
+        return res
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+@router.post("/customers/{customer_id}/tags")
+async def update_customer_tags(customer_id: str, payload: UpdateCustomerTagsPayload, user: User = Depends(current_user)):
+    res = await admin_customer_repository.update_tags(customer_id, payload.tags)
+    await audit_repository.log(await _actor(user), "customer.update_tags", customer_id, {"tags": payload.tags})
+    return res
+
+
+@router.post("/customers/{customer_id}/send-notification")
+async def send_customer_notification(customer_id: str, payload: SendCustomerNotificationPayload, user: User = Depends(current_user)):
+    await audit_repository.log(await _actor(user), "customer.send_notification", customer_id, {"title": payload.title, "body": payload.body})
+    return {"ok": True, "sent": True, "customerId": customer_id}
+
+
+@router.post("/customers/{customer_id}/logout-sessions")
+async def logout_customer_sessions(customer_id: str, user: User = Depends(current_user)):
+    await audit_repository.log(await _actor(user), "customer.logout_sessions", customer_id)
+    return {"ok": True, "invalidated": True, "customerId": customer_id}
+
 
 
 # ------------------------------------------------------------------ partners

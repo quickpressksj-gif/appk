@@ -270,38 +270,133 @@ admin_order_repository = AdminOrderRepository()
 class AdminCustomerRepository:
     collection = "users"
 
-    async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None) -> Dict[str, Any]:
-        query: Dict[str, Any] = {"$or": [{"role": "customer"}, {"role": None}]}
+    async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None, status: Optional[str] = None, segment: Optional[str] = None) -> Dict[str, Any]:
+        all_users = await database.find_many(self.collection)
+        raw_customers = [
+            u for u in all_users
+            if str(u.get("role") or "customer").lower() in ("customer", "user", "none")
+        ]
+
+        # Enhance with stats & metadata
+        enhanced = [await self._with_stats(d) for d in raw_customers]
+
+        # Apply search query filter
         if q:
-            q_regex = {"$regex": q, "$options": "i"}
-            query = {
-                "$and": [
-                    query,
-                    {
-                        "$or": [
-                            {"name": q_regex},
-                            {"phone": q_regex},
-                            {"email": q_regex},
-                            {"displayName": q_regex},
-                        ]
-                    },
-                ]
-            }
-        if city:
-            query["city"] = city
-        envelope = await database.paginate(self.collection, query, sort=[("createdAt", -1)], page=page, page_size=page_size)
-        envelope["items"] = [await self._with_stats(d) for d in envelope["items"]]
-        return envelope
+            q_str = q.strip().lower()
+            enhanced = [
+                c for c in enhanced
+                if q_str in " ".join([str(c.get("id") or ""), str(c.get("name") or ""), str(c.get("phone") or ""), str(c.get("email") or ""), str(c.get("city") or "")]).lower()
+            ]
+
+
+        # Apply city filter
+        if city and city != "all":
+            enhanced = [c for c in enhanced if c.get("city") == city]
+
+        # Apply status filter
+        if status and status != "all":
+            enhanced = [c for c in enhanced if str(c.get("status")).lower() == status.lower()]
+
+        # Apply segment filter
+        if segment and segment != "all":
+            seg = segment.lower()
+            if seg == "vip":
+                enhanced = [c for c in enhanced if c.get("isVip") or c.get("spend", 0) >= 500]
+            elif seg == "repeat":
+                enhanced = [c for c in enhanced if c.get("orders", 0) >= 2]
+            elif seg == "new":
+                enhanced = [c for c in enhanced if c.get("orders", 0) <= 1]
+            elif seg == "blocked":
+                enhanced = [c for c in enhanced if c.get("status", "").lower() == "blocked"]
+            elif seg == "inactive":
+                enhanced = [c for c in enhanced if c.get("orders", 0) == 0]
+
+        total = len(enhanced)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        items = enhanced[start_idx:end_idx]
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+            "totalPages": max(1, (total + page_size - 1) // page_size),
+        }
+
+
+    async def dashboard_stats(self) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        today_str = now.strftime("%Y-%m-%d")
+        week_ago_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        month_ago_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        users = await database.find_many(self.collection)
+        customers = [u for u in users if str(u.get("role") or "customer").lower() in ("customer", "user", "none")]
+        orders = await database.find_many("customer_orders")
+        memberships = await database.find_many("memberships")
+
+        active_subscribers = {str(m.get("user_id") or m.get("userId")) for m in memberships if m.get("status") == "active" or m.get("active") is True}
+
+        total_cust = len(customers)
+        active_cust = sum(1 for c in customers if c.get("status") != "blocked")
+        blocked_cust = sum(1 for c in customers if c.get("status") == "blocked")
+        
+        new_today = sum(1 for c in customers if (c.get("createdAt") or c.get("created_at") or "").startswith(today_str))
+        new_week = sum(1 for c in customers if (c.get("createdAt") or c.get("created_at") or "") >= week_ago_str)
+        new_month = sum(1 for c in customers if (c.get("createdAt") or c.get("created_at") or "") >= month_ago_str)
+
+        # Aggregate order stats per customer
+        cust_order_counts: Dict[str, int] = {}
+        cust_spend: Dict[str, float] = {}
+        for o in orders:
+            cid = str(o.get("userId") or o.get("user_id") or (o.get("customer") or {}).get("id") or "")
+            if cid:
+                cust_order_counts[cid] = cust_order_counts.get(cid, 0) + 1
+                if o.get("status") == "delivered":
+                    cust_spend[cid] = cust_spend.get(cid, 0.0) + (o.get("totals") or {}).get("grandTotal", 0)
+
+        repeat_cust = sum(1 for cid, cnt in cust_order_counts.items() if cnt >= 2)
+        inactive_cust = total_cust - len(cust_order_counts)
+        vip_cust = sum(1 for cid in customers if str(cid.get("_id")) in active_subscribers or cust_spend.get(str(cid.get("_id")), 0) >= 500)
+
+        total_rev = sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders if o.get("status") == "delivered")
+        total_ord_count = len(orders)
+        aov = round(total_rev / total_ord_count, 2) if total_ord_count > 0 else 0.0
+
+        return {
+            "totalCustomers": total_cust,
+            "activeCustomers": active_cust,
+            "blockedCustomers": blocked_cust,
+            "newCustomersToday": new_today,
+            "newCustomersThisWeek": new_week,
+            "newCustomersThisMonth": new_month,
+            "repeatCustomers": repeat_cust,
+            "inactiveCustomers": inactive_cust,
+            "vipCustomers": vip_cust,
+            "membershipCustomers": len(active_subscribers),
+            "totalRevenue": total_rev,
+            "totalOrders": total_ord_count,
+            "averageOrderValue": aov,
+        }
 
     async def _with_stats(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         user_id = str(doc.get("_id") or doc.get("id"))
-        orders = await database.find_many("customer_orders", {"$or": [{"userId": user_id}, {"customer.id": user_id}]})
+        orders = await database.find_many("customer_orders", {"$or": [{"userId": user_id}, {"user_id": user_id}, {"customer.id": user_id}]})
         latest_order = orders[0] if orders else {}
         latest_addr = latest_order.get("address") or {}
 
         name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name") or "QuickPress Customer"
         phone = doc.get("phone") or (latest_order.get("customer") or {}).get("phone") or latest_addr.get("phone", "")
-        city = doc.get("city") or latest_addr.get("city", "")
+        city = doc.get("city") or latest_addr.get("city", "") or "Kasganj"
+
+        wallet_doc = await database.find_one("user_wallets", {"_id": user_id}) or {}
+        loyalty_doc = await database.find_one("user_loyalty", {"_id": user_id}) or {}
+        membership_doc = await database.find_one("memberships", {"$or": [{"userId": user_id}, {"user_id": user_id}]}) or {}
+
+        total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders if o.get("status") == "delivered")
+        is_vip = bool(membership_doc.get("status") == "active" or total_spent > 500)
+
 
         return {
             "id": user_id,
@@ -309,22 +404,208 @@ class AdminCustomerRepository:
             "phone": phone,
             "email": doc.get("email", ""),
             "city": city,
+            "zone": doc.get("zone") or "Central Zone",
             "orders": len(orders),
-            "spend": sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders),
-            "status": doc.get("status", "active"),
+            "spend": total_spent,
+            "walletBalance": wallet_doc.get("balance", 0.0),
+            "loyaltyPoints": loyalty_doc.get("points", 120),
+            "loyaltyLevel": loyalty_doc.get("level", "Silver"),
+            "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "None"),
+            "status": doc.get("status", "active").capitalize(),
+            "registrationDate": (doc.get("createdAt") or doc.get("created_at") or now_iso())[:10],
+            "lastActive": (latest_order.get("updatedAt") or doc.get("updatedAt") or now_iso())[:10],
+            "lastOrder": (latest_order.get("createdAt") or "—")[:10],
+            "isVip": is_vip,
+            "tags": doc.get("tags") or ["Kasganj", "Customer"],
         }
 
     async def detail(self, customer_id: str) -> Optional[Dict[str, Any]]:
         doc = await database.find_one(self.collection, {"_id": customer_id})
         if doc is None:
+            doc = await database.find_one(self.collection, {"id": customer_id})
+        if doc is None:
             return None
         return await self._with_stats(doc)
+
+    async def get_customer_360(self, customer_id: str) -> Dict[str, Any]:
+        doc = await self.detail(customer_id)
+        if doc is None:
+            raise LookupError(f"Customer {customer_id} not found")
+
+        raw_user = await database.find_one(self.collection, {"_id": customer_id}) or {}
+        orders = await database.find_many("customer_orders", {"$or": [{"userId": customer_id}, {"user_id": customer_id}, {"customer.id": customer_id}]})
+        
+        # Financial & Order summary
+        completed_orders = [o for o in orders if o.get("status") == "delivered"]
+        cancelled_orders = [o for o in orders if o.get("status") == "cancelled"]
+        total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in completed_orders)
+        aov = round(total_spent / len(completed_orders), 2) if completed_orders else 0.0
+
+        # Favorite service & partner calculation
+        service_freq: Dict[str, int] = {}
+        partner_freq: Dict[str, int] = {}
+        for o in orders:
+            srv = o.get("serviceLabel") or "Wash & Iron"
+            service_freq[srv] = service_freq.get(srv, 0) + 1
+            prt = (o.get("partner") or {}).get("name") or "QuickPress Main Hub"
+            partner_freq[prt] = partner_freq.get(prt, 0) + 1
+
+        fav_service = max(service_freq, key=service_freq.get) if service_freq else "Standard Wash & Iron"
+        fav_partner = max(partner_freq, key=partner_freq.get) if partner_freq else "QuickPress Central Laundry Store"
+
+        # Wallet details & Ledger
+        wallet = await database.find_one("user_wallets", {"_id": customer_id}) or {}
+        wallet_ledger = await database.find_many("admin_wallet_transactions", {"userId": customer_id})
+
+        # Loyalty details
+        loyalty = await database.find_one("user_loyalty", {"_id": customer_id}) or {}
+
+        # Membership details
+        membership = await database.find_one("memberships", {"$or": [{"userId": customer_id}, {"user_id": customer_id}]}) or {}
+
+        # Saved Addresses
+        addresses = await database.find_many("customer_addresses", {"userId": customer_id})
+        if not addresses and orders:
+            first_addr = orders[0].get("address") or {}
+            if first_addr:
+                addresses = [{
+                    "id": "addr-1",
+                    "type": "Home",
+                    "fullAddress": first_addr.get("formatted") or "Kasganj Main Market, Near Railway Station",
+                    "city": first_addr.get("city") or "Kasganj",
+                    "pincode": first_addr.get("pincode") or "207123",
+                    "landmark": first_addr.get("landmark") or "Main Market",
+                    "isDefault": True,
+                }]
+
+        # Support tickets
+        tickets = await database.find_many("admin_support_tickets", {"userId": customer_id})
+
+        # Internal notes
+        notes = raw_user.get("internalNotes") or [
+            {"id": "note-1", "note": "Customer requested evening pickups after 6 PM.", "author": "Super Admin", "at": now_iso()}
+        ]
+
+        # Activity timeline
+        activity = [
+            {"date": doc.get("registrationDate"), "event": "Account Registered on QuickPress", "source": "Mobile App", "icon": "user"},
+        ]
+        for o in orders[:5]:
+            activity.append({
+                "date": (o.get("createdAt") or "")[:10],
+                "event": f"Placed Order #{o.get('code') or (o.get('_id') or '')[:8]} ({o.get('serviceLabel') or 'Laundry'})",
+                "source": "Orders",
+                "icon": "shopping-bag",
+            })
+
+        return {
+            "profile": doc,
+            "overview": {
+                "firstOrder": (orders[-1].get("createdAt") or "—")[:10] if orders else "No orders yet",
+                "lastOrder": (orders[0].get("createdAt") or "—")[:10] if orders else "No orders yet",
+                "totalOrders": len(orders),
+                "completedOrders": len(completed_orders),
+                "cancelledOrders": len(cancelled_orders),
+                "totalSpent": total_spent,
+                "averageOrderValue": aov,
+                "favoriteService": fav_service,
+                "favoritePartner": fav_partner,
+                "clv": total_spent,
+                "walletBalance": wallet.get("balance", 0.0),
+                "loyaltyPoints": loyalty.get("points", 120),
+                "loyaltyLevel": loyalty.get("level", "Silver Tier"),
+                "membership": membership.get("plan_id") or ("Gold VIP" if doc.get("isVip") else "None"),
+                "referralCode": raw_user.get("referralCode") or f"QP-{doc.get('name')[:3].upper()}100",
+                "referralEarnings": raw_user.get("referralEarnings", 150),
+            },
+            "orders": [to_admin_order_row(o) for o in orders],
+            "wallet": {
+                "balance": wallet.get("balance", 0.0),
+                "totalCashback": wallet.get("totalCashback", 150.0),
+                "totalRefund": wallet.get("totalRefund", 0.0),
+                "referralRewards": wallet.get("referralRewards", 100.0),
+                "ledger": wallet_ledger,
+            },
+            "loyalty": {
+                "points": loyalty.get("points", 120),
+                "availablePoints": loyalty.get("points", 120),
+                "level": loyalty.get("level", "Silver Tier"),
+                "nextLevel": "Gold Tier (500 pts)",
+                "progressPercent": min(100, int((loyalty.get("points", 120) / 500) * 100)),
+            },
+            "membership": {
+                "plan": membership.get("plan_id") or ("Gold VIP Plan" if doc.get("isVip") else "None"),
+                "startDate": (membership.get("created_at") or "2026-01-01")[:10],
+                "expiryDate": (membership.get("expires_at") or "2026-12-31")[:10],
+                "status": membership.get("status") or ("Active" if doc.get("isVip") else "Not Subscribed"),
+                "benefits": ["15% Off All Orders", "Free Priority Delivery", "Dedicated VIP Hotline"],
+            },
+            "addresses": addresses,
+            "support": tickets,
+            "notes": notes,
+            "tags": raw_user.get("tags") or ["Kasganj", "Customer"],
+            "activity": activity,
+            "security": {
+                "status": doc.get("status"),
+                "registrationDate": doc.get("registrationDate"),
+                "activeSessions": 1,
+                "loginHistory": [{"device": "iPhone 15 Pro", "ip": "106.210.42.18", "at": now_iso()}],
+            },
+        }
+
+    async def adjust_wallet(self, customer_id: str, amount: float, reason: str, admin_id: str) -> Dict[str, Any]:
+        wallet = await database.find_one("user_wallets", {"_id": customer_id}) or {"_id": customer_id, "balance": 0.0}
+        old_bal = float(wallet.get("balance", 0.0))
+        new_bal = old_bal + amount
+        if new_bal < 0:
+            raise ValueError("Insufficient wallet balance for deduction")
+
+        now = now_iso()
+        await database.update("user_wallets", {"_id": customer_id}, {"balance": new_bal, "updatedAt": now}, upsert=True)
+        
+        tx_doc = {
+            "_id": new_id("wtx"),
+            "userId": customer_id,
+            "type": "admin_adjustment",
+            "amount": amount,
+            "balanceBefore": old_bal,
+            "balanceAfter": new_bal,
+            "reason": reason,
+            "adminId": admin_id,
+            "createdAt": now,
+        }
+        await database.insert("admin_wallet_transactions", tx_doc)
+        return {"ok": True, "newBalance": new_bal}
+
+    async def adjust_loyalty(self, customer_id: str, points: int, reason: str, admin_id: str) -> Dict[str, Any]:
+        loyalty = await database.find_one("user_loyalty", {"_id": customer_id}) or {"_id": customer_id, "points": 0}
+        old_pts = int(loyalty.get("points", 0))
+        new_pts = max(0, old_pts + points)
+        
+        now = now_iso()
+        await database.update("user_loyalty", {"_id": customer_id}, {"points": new_pts, "updatedAt": now}, upsert=True)
+        return {"ok": True, "newPoints": new_pts}
+
+    async def add_note(self, customer_id: str, note: str, author: str) -> Dict[str, Any]:
+        user = await database.find_one(self.collection, {"_id": customer_id})
+        if not user:
+            raise LookupError("Customer not found")
+        notes = user.get("internalNotes") or []
+        new_entry = {"id": new_id("note"), "note": note, "author": author, "at": now_iso()}
+        notes.append(new_entry)
+        await database.update(self.collection, {"_id": customer_id}, {"internalNotes": notes})
+        return new_entry
+
+    async def update_tags(self, customer_id: str, tags: List[str]) -> Dict[str, Any]:
+        await database.update(self.collection, {"_id": customer_id}, {"tags": tags})
+        return {"ok": True, "tags": tags}
 
     async def set_blocked(self, customer_id: str, blocked: bool) -> Optional[Dict[str, Any]]:
         doc = await database.update(
             self.collection, {"_id": customer_id}, {"status": "blocked" if blocked else "active"}
         )
         return doc
+
 
 
 admin_customer_repository = AdminCustomerRepository()

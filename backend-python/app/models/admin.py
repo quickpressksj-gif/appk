@@ -26,6 +26,31 @@ class UpdateOrderStatusPayload(BaseModel):
     reason: Optional[str] = None
 
 
+class AdjustCustomerWalletPayload(BaseModel):
+    amount: float
+    reason: str
+
+
+class AdjustCustomerLoyaltyPayload(BaseModel):
+    points: int
+    reason: str
+
+
+class AddCustomerNotePayload(BaseModel):
+    note: str
+
+
+class UpdateCustomerTagsPayload(BaseModel):
+    tags: List[str]
+
+
+class SendCustomerNotificationPayload(BaseModel):
+    title: str
+    body: str
+    channel: Optional[str] = "push"
+
+
+
 
 class CouponPayload(BaseModel):
     code: Optional[str] = None
