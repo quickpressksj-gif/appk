@@ -447,7 +447,6 @@ RIDER_STATUS = {
     COMPLETED: "at-partner",
     DELIVERY_RIDER_ASSIGNED: "accepted",
     DELIVERY_RIDER_ACCEPTED: "accepted",
-    DISPATCH_OTP_PENDING: "accepted",
     OUT_FOR_DELIVERY: "ready-for-delivery",
     DELIVERY_OTP_PENDING: "ready-for-delivery",
     DELIVERED: "delivered",

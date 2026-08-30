@@ -1,3 +1,4 @@
+
 """Shared FastAPI dependencies — bearer auth, RBAC, and multi-tenant role guards."""
 
 from __future__ import annotations

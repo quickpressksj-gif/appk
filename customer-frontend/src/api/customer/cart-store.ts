@@ -122,11 +122,41 @@ function emit() {
   listeners.forEach((fn) => fn());
 }
 
+function computeOptimisticTotals(lines: CartLine[], currentCharges?: Charges, currentTotals?: Totals): Totals {
+  const count = lines.reduce((sum, l) => sum + l.qty, 0);
+  const itemsTotal = lines.reduce((sum, l) => sum + l.qty * l.price, 0);
+  const pickup = currentCharges?.pickup ?? 0;
+  const delivery = currentCharges?.delivery ?? (itemsTotal > 299 ? 0 : 29);
+  const handling = currentCharges?.handling ?? (itemsTotal > 0 ? 5 : 0);
+  const gstRate = currentCharges?.gstRate ?? 0.18;
+  const gst = Math.round(itemsTotal * gstRate);
+  const discount = currentCharges?.discount ?? 0;
+  const couponDiscount = currentTotals?.couponDiscount ?? 0;
+  const grandTotal = Math.max(0, itemsTotal + pickup + delivery + handling + gst - discount - couponDiscount);
+  return {
+    count,
+    itemsTotal,
+    pickup,
+    delivery,
+    handling,
+    gst,
+    discount,
+    couponDiscount,
+    grandTotal,
+  };
+}
+
 function set(patch: Partial<CartSnapshot>) {
-  snapshot = { ...snapshot, ...patch };
-  snapshot.count = snapshot.totals.count || snapshot.lines.reduce((sum, l) => sum + l.qty, 0);
-  snapshot.total =
-    snapshot.totals.itemsTotal || snapshot.lines.reduce((sum, l) => sum + l.qty * l.price, 0);
+  const nextLines = patch.lines ?? snapshot.lines;
+  const optTotals = computeOptimisticTotals(nextLines, patch.charges ?? snapshot.charges, patch.totals ?? snapshot.totals);
+
+  snapshot = {
+    ...snapshot,
+    ...patch,
+    totals: patch.totals ? { ...optTotals, ...patch.totals } : optTotals,
+  };
+  snapshot.count = snapshot.totals.count;
+  snapshot.total = snapshot.totals.itemsTotal;
   saveLocalLines(snapshot.lines);
   emit();
 }

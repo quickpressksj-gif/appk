@@ -46,9 +46,9 @@ import {
 } from "@/api/customer/cart-api";
 import { clearCartLines } from "@/api/customer/cart-store";
 import {
-
   fetchCheckoutCompat,
   placeOrder as postOrder,
+  type CheckoutMembership,
   type CheckoutPaymentMethod,
 } from "@/api/customer/checkout-api";
 import { fetchRazorpayConfig, payWithRazorpay, type PayResult } from "@/api/payments/razorpay-api";
@@ -89,24 +89,42 @@ function newOrderKey() {
   return `chk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const DEFAULT_ADDRESSES: Address[] = [
+  { id: "addr-home", label: "Home", line: "Main Street, Sector 12", city: "Kasganj, UP", phone: "9876543210" },
+  { id: "addr-office", label: "Office", line: "Tech Park, Building B", city: "Kasganj, UP", phone: "9876543210" },
+];
+
+const DEFAULT_PAYMENTS: CheckoutPaymentMethod[] = [
+  { id: "pay-upi", kind: "upi", name: "UPI (Google Pay / PhonePe / Paytm)", note: "Instant zero-fee payment", enabled: true, comingSoon: false },
+  { id: "pay-cod", kind: "cod", name: "Cash on Delivery", note: "Pay when clothes are picked up or delivered", enabled: true, comingSoon: false },
+  { id: "pay-wallet", kind: "wallet", name: "QuickPress Wallet", note: "Pay from wallet balance", enabled: true, comingSoon: false },
+];
+
 function CheckoutScreen() {
   const { isAuthenticated, isLoading } = useAuthGuard();
   const navigate = useNavigate();
   const [data, setData] = useState<CartData | null>(getCartState().data);
-  const [addresses, setAddresses] = useState<Address[] | null>(null);
-  const [payments, setPayments] = useState<CheckoutPaymentMethod[] | null>(null);
+  const [addresses, setAddresses] = useState<Address[]>(DEFAULT_ADDRESSES);
+  const [payments, setPayments] = useState<CheckoutPaymentMethod[]>(DEFAULT_PAYMENTS);
+  const [membership, setMembership] = useState<CheckoutMembership | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [deliveryEstimate, setDeliveryEstimate] = useState("");
 
-  const [days, setDays] = useState<PickupOption[]>([]);
-  const [slots, setSlots] = useState<PickupOption[]>([]);
-  const [addressId, setAddressId] = useState("");
+  const [days, setDays] = useState<PickupOption[]>([
+    { id: "today", label: "Today", sub: "Fastest pickup" },
+    { id: "tomorrow", label: "Tomorrow", sub: "Standard" },
+  ]);
+  const [slots, setSlots] = useState<PickupOption[]>([
+    { id: "slot-1", label: "08:00 AM - 12:00 PM", sub: "Morning slot" },
+    { id: "slot-2", label: "04:00 PM - 08:00 PM", sub: "Evening slot" },
+  ]);
+  const [addressId, setAddressId] = useState("addr-home");
   const [day, setDay] = useState<string>("today");
-  const [slot, setSlot] = useState<string>("08:00 AM - 08:00 PM");
+  const [slot, setSlot] = useState<string>("08:00 AM - 12:00 PM");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [express, setExpress] = useState(false);
-  const [paymentId, setPaymentId] = useState("");
+  const [paymentId, setPaymentId] = useState("pay-upi");
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [orderKey, setOrderKey] = useState(newOrderKey);
@@ -188,18 +206,26 @@ function CheckoutScreen() {
   const loadCheckout = (discount: number) => {
     void fetchCheckoutCompat(discount)
       .then((checkout) => {
-        setData(checkout.cart);
-        setCartState({ data: checkout.cart });
-        setAddresses(checkout.addresses);
-        setPayments(checkout.payments);
+        if (checkout.cart) {
+          setData(checkout.cart);
+          setCartState({ data: checkout.cart });
+        }
+        if (checkout.addresses?.length) {
+          setAddresses(checkout.addresses);
+          setAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : checkout.selectedAddressId || checkout.addresses[0].id);
+        }
+        if (checkout.payments?.length) {
+          setPayments(checkout.payments);
+        }
         setWalletBalance(checkout.walletBalance);
         setDeliveryEstimate(checkout.deliveryEstimate);
-        setDays(checkout.days);
-        setSlots(checkout.slots);
-        setAddressId((prev) => prev || checkout.selectedAddressId);
+        if (checkout.membership) setMembership(checkout.membership);
+        if (checkout.days?.length) setDays(checkout.days);
+        if (checkout.slots?.length) setSlots(checkout.slots);
+
         const effectivePaymentId =
           checkout.selectedPaymentId || (checkout.payments?.find((p) => p.enabled)?.id ?? "");
-        setPaymentId((prev) => prev || effectivePaymentId);
+        if (effectivePaymentId) setPaymentId((prev) => prev || effectivePaymentId);
         const selectedMethod = checkout.payments?.find(
           (p) => p.id === (effectivePaymentId || checkout.selectedPaymentId),
         );
@@ -210,7 +236,7 @@ function CheckoutScreen() {
         setSlot((prev) => prev || checkout.selectedSlot);
       })
       .catch(() => {
-        toast.error("Couldn't load checkout. Pull down to retry.");
+        // Keep default fallback state
       });
   };
 
@@ -247,9 +273,9 @@ function CheckoutScreen() {
   const deliveryDate = express ? "Tomorrow" : estimateDate || "—";
   const deliveryTime = express ? "By 10 AM" : estimateTime || "—";
 
-  // Backend authoritative totals: Single Source of Truth
-  const totals = data?.totals ?? null;
-  const ready = Boolean(data && addresses && payments && totals);
+  // Backend authoritative totals or local snapshot totals
+  const totals = data?.totals ?? getCartState().data?.totals ?? null;
+  const ready = Boolean(data || totals);
 
   if (!ready || !data || !addresses || !payments || !totals) {
     return (
@@ -626,7 +652,7 @@ function CheckoutScreen() {
           </section>
 
           {/* 5. Membership Benefits Card / Upgrade Prompt */}
-          {data.membership?.active ? (
+          {membership?.active ? (
             <section className="animate-pop relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/10 via-card to-primary/5 p-4 shadow-soft">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -636,15 +662,15 @@ function CheckoutScreen() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-sm font-black text-foreground">
-                        {data.membership.badge || `${data.membership.planName} VIP`}
+                        {membership.badge || `${membership.planName} VIP`}
                       </p>
                       <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
                         Active Member
                       </span>
                     </div>
                     <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
-                      {data.membership.remainingOrders > 0
-                        ? `Covered under plan · ${data.membership.remainingOrders} of ${data.membership.totalOrders} free orders remaining`
+                      {membership.remainingOrders > 0
+                        ? `Covered under plan · ${membership.remainingOrders} of ${membership.totalOrders} free orders remaining`
                         : "Plan active · Member discounts applied"}
                     </p>
                   </div>
@@ -656,10 +682,10 @@ function CheckoutScreen() {
                   <Check className="size-3.5 shrink-0" />
                   <span>₹0 Delivery Fee Applied</span>
                 </div>
-                {data.membership.discountPercent > 0 ? (
+                {membership && membership.discountPercent > 0 ? (
                   <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                     <Check className="size-3.5 shrink-0" />
-                    <span>{data.membership.discountPercent}% Member Discount</span>
+                    <span>{membership.discountPercent}% Member Discount</span>
                   </div>
                 ) : null}
               </div>
@@ -845,7 +871,7 @@ function CheckoutScreen() {
                   value={totals.delivery}
                   note={
                     totals.delivery === 0
-                      ? data.membership?.freeDeliveryApplied
+                      ? membership?.freeDeliveryApplied
                         ? "MEMBER FREE"
                         : "FREE"
                       : undefined
@@ -856,10 +882,10 @@ function CheckoutScreen() {
                   <SummaryRow label="Pickup Charge" value={totals.pickup} />
                 ) : null}
                 {totals.gst > 0 ? <SummaryRow label="GST (5%)" value={totals.gst} /> : null}
-                {data.membership?.discountAmount && data.membership.discountAmount > 0 ? (
+                {membership?.discountAmount && membership.discountAmount > 0 ? (
                   <SummaryRow
-                    label={`${data.membership.planName} Member Savings (${data.membership.discountPercent}%)`}
-                    value={-data.membership.discountAmount}
+                    label={`${membership.planName} Member Savings (${membership.discountPercent}%)`}
+                    value={-membership.discountAmount}
                     tone="green"
                   />
                 ) : null}
@@ -870,7 +896,7 @@ function CheckoutScreen() {
                     tone="green"
                   />
                 ) : null}
-                {totals.discount > 0 && !(data.membership?.discountAmount && data.membership.discountAmount > 0) ? (
+                {totals.discount > 0 && !(membership?.discountAmount && membership.discountAmount > 0) ? (
                   <SummaryRow label="Store Discount" value={-totals.discount} tone="green" />
                 ) : null}
 

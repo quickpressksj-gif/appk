@@ -143,11 +143,11 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
 
         {/* Footer / Proceed to Checkout */}
         {cart.lines.length > 0 ? (
-          <div className="border-t border-border/60 bg-muted/40 p-4">
+          <div className="border-t border-border/60 bg-card p-4 shadow-lg">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted-foreground">Item Subtotal</p>
-                <p className="text-lg font-extrabold text-foreground">₹{itemsSubtotal}</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimated Total</p>
+                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{cart.totals.grandTotal || itemsSubtotal}</p>
               </div>
               <button
                 type="button"
@@ -155,7 +155,7 @@ export function CartPopup({ isOpen, onClose }: CartPopupProps) {
                   onClose();
                   void navigate({ to: "/checkout" });
                 }}
-                className="ripple flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-cta transition-all hover:brightness-[1.03] active:scale-[0.98]"
+                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 px-5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98] cursor-pointer"
               >
                 Proceed to Checkout
                 <ChevronRight className="size-4" />
@@ -180,37 +180,36 @@ function CartItemRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="card-soft flex items-center justify-between gap-3 border border-border p-3 rounded-2xl bg-card">
+    <div className="flex items-center justify-between gap-3 border border-border p-3 rounded-2xl bg-card shadow-xs">
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-bold text-foreground">{item.name}</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           ₹{item.price} <span className="text-[10px]">/ {item.unit || "item"}</span>
         </p>
-        <p className="mt-1 text-xs font-bold text-primary">
+        <p className="mt-1 text-xs font-black text-emerald-600 dark:text-emerald-400">
           Subtotal: ₹{item.price * item.qty}
         </p>
       </div>
 
       <div className="flex items-center gap-2">
         {/* Quantity Stepper */}
-        <div className="flex h-8 items-center gap-1.5 rounded-xl border border-border bg-muted/70 px-1.5">
+        <div className="flex h-8 items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-500/10 px-1.5">
           <button
             type="button"
             aria-label="Decrease quantity"
-            disabled={item.qty <= 1}
-            onClick={() => onStep(-1)}
-            className="flex size-5 items-center justify-center rounded-lg bg-card text-foreground transition-transform active:scale-90 disabled:opacity-40"
+            onClick={() => (item.qty === 1 ? onRemove() : onStep(-1))}
+            className="flex size-6 items-center justify-center rounded-lg bg-card text-foreground transition-transform active:scale-90 cursor-pointer"
           >
-            <Minus className="size-3" />
+            {item.qty === 1 ? <Trash2 className="size-3 text-destructive" /> : <Minus className="size-3" />}
           </button>
-          <span className="w-5 text-center text-xs font-bold text-foreground tabular-nums">
+          <span className="w-5 text-center text-xs font-black text-foreground tabular-nums">
             {item.qty}
           </span>
           <button
             type="button"
             aria-label="Increase quantity"
             onClick={() => onStep(1)}
-            className="flex size-5 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform active:scale-90"
+            className="flex size-6 items-center justify-center rounded-lg bg-emerald-600 text-white transition-transform active:scale-90 cursor-pointer"
           >
             <Plus className="size-3" />
           </button>
@@ -221,7 +220,7 @@ function CartItemRow({
           type="button"
           aria-label={`Remove ${item.name}`}
           onClick={onRemove}
-          className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive active:scale-90 transition-colors"
+          className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive active:scale-90 transition-colors cursor-pointer"
         >
           <Trash2 className="size-3.5" />
         </button>
