@@ -334,13 +334,33 @@ class SupabaseCollection:
         return 0
 
     async def delete_many(self, query: Dict[str, Any]) -> int:
+        pool = await self._db.get_pool()
+        if not query:
+            async with pool.acquire() as conn:
+                res = await conn.execute(
+                    "DELETE FROM quickpress_documents WHERE collection = $1", self._name
+                )
+                # res is like "DELETE 45"
+                try:
+                    return int(res.split(" ")[-1])
+                except Exception:
+                    return 1
+
         docs = await self._fetch_all()
-        matched = [d for d in docs if _matches(d, query)]
-        for doc in matched:
-            doc_id = doc.get("id") or doc.get("_id")
-            if doc_id:
-                await self._delete_doc_id(str(doc_id))
-        return len(matched)
+        matched_ids = []
+        for doc in docs:
+            if _matches(doc, query):
+                doc_id = str(doc.get("id") or doc.get("_id") or "")
+                if doc_id:
+                    matched_ids.append(f"{self._name}:{doc_id}")
+
+        if matched_ids:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "DELETE FROM quickpress_documents WHERE id = ANY($1::text[])", matched_ids
+                )
+        return len(matched_ids)
+
 
 
 class SupabaseDatabase:
