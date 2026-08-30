@@ -270,12 +270,27 @@ admin_order_repository = AdminOrderRepository()
 class AdminCustomerRepository:
     collection = "users"
 
+
     async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None, status: Optional[str] = None, segment: Optional[str] = None) -> Dict[str, Any]:
         all_users = await database.find_many(self.collection)
         raw_customers = [
             u for u in all_users
             if str(u.get("role") or "customer").lower() in ("customer", "user", "none")
         ]
+
+        # Also pull from 'customers' table to ensure no missing users
+        db_customers = await database.find_many("customers")
+        existing_user_ids = {str(u.get("_id") or u.get("id")) for u in raw_customers}
+        for c_doc in db_customers:
+            uid = str(c_doc.get("user_id") or c_doc.get("userId") or c_doc.get("_id"))
+            if uid and uid not in existing_user_ids:
+                u_find = await database.find_one("users", {"_id": uid})
+                if u_find:
+                    raw_customers.append(u_find)
+                    existing_user_ids.add(uid)
+                else:
+                    raw_customers.append({"_id": uid, "role": "customer", "phone": c_doc.get("phone", ""), "status": c_doc.get("status", "active")})
+                    existing_user_ids.add(uid)
 
         # Enhance with stats & metadata
         enhanced = [await self._with_stats(d) for d in raw_customers]
@@ -287,7 +302,6 @@ class AdminCustomerRepository:
                 c for c in enhanced
                 if q_str in " ".join([str(c.get("id") or ""), str(c.get("name") or ""), str(c.get("phone") or ""), str(c.get("email") or ""), str(c.get("city") or "")]).lower()
             ]
-
 
         # Apply city filter
         if city and city != "all":
@@ -324,7 +338,6 @@ class AdminCustomerRepository:
             "totalPages": max(1, (total + page_size - 1) // page_size),
         }
 
-
     async def dashboard_stats(self) -> Dict[str, Any]:
         now = datetime.now(timezone.utc)
         today_str = now.strftime("%Y-%m-%d")
@@ -346,7 +359,6 @@ class AdminCustomerRepository:
         new_week = sum(1 for c in customers if (c.get("createdAt") or c.get("created_at") or "") >= week_ago_str)
         new_month = sum(1 for c in customers if (c.get("createdAt") or c.get("created_at") or "") >= month_ago_str)
 
-        # Aggregate order stats per customer
         cust_order_counts: Dict[str, int] = {}
         cust_spend: Dict[str, float] = {}
         for o in orders:
@@ -386,8 +398,20 @@ class AdminCustomerRepository:
         latest_order = orders[0] if orders else {}
         latest_addr = latest_order.get("address") or {}
 
-        name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name") or "QuickPress Customer"
+        # Derived clean name
+        raw_name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name")
         phone = doc.get("phone") or (latest_order.get("customer") or {}).get("phone") or latest_addr.get("phone", "")
+        email = doc.get("email") or ""
+
+        if not raw_name:
+            if email and "@" in email:
+                prefix = email.split("@")[0].replace("_", " ").replace(".", " ").title()
+                raw_name = prefix
+            elif phone:
+                raw_name = f"Customer ({phone[-4:]})"
+            else:
+                raw_name = f"QuickPress User #{user_id[:6].upper()}"
+
         city = doc.get("city") or latest_addr.get("city", "") or "Kasganj"
 
         wallet_doc = await database.find_one("user_wallets", {"_id": user_id}) or {}
@@ -397,12 +421,11 @@ class AdminCustomerRepository:
         total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders if o.get("status") == "delivered")
         is_vip = bool(membership_doc.get("status") == "active" or total_spent > 500)
 
-
         return {
             "id": user_id,
-            "name": name,
-            "phone": phone,
-            "email": doc.get("email", ""),
+            "name": raw_name,
+            "phone": phone or "+91 98000 00000",
+            "email": email or f"{user_id[:8]}@quickpress.online",
             "city": city,
             "zone": doc.get("zone") or "Central Zone",
             "orders": len(orders),
@@ -411,7 +434,7 @@ class AdminCustomerRepository:
             "loyaltyPoints": loyalty_doc.get("points", 120),
             "loyaltyLevel": loyalty_doc.get("level", "Silver"),
             "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "None"),
-            "status": doc.get("status", "active").capitalize(),
+            "status": str(doc.get("status", "active")).capitalize(),
             "registrationDate": (doc.get("createdAt") or doc.get("created_at") or now_iso())[:10],
             "lastActive": (latest_order.get("updatedAt") or doc.get("updatedAt") or now_iso())[:10],
             "lastOrder": (latest_order.get("createdAt") or "—")[:10],
@@ -420,6 +443,7 @@ class AdminCustomerRepository:
         }
 
     async def detail(self, customer_id: str) -> Optional[Dict[str, Any]]:
+
         doc = await database.find_one(self.collection, {"_id": customer_id})
         if doc is None:
             doc = await database.find_one(self.collection, {"id": customer_id})

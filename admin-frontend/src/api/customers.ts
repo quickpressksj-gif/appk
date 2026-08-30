@@ -33,19 +33,21 @@ export type AdminCustomer = {
 };
 
 function toAdminCustomer(row: BackendCustomer): AdminCustomer {
+  const rawStatus = (row.status || "active").toLowerCase();
   return {
     id: row.id,
-    name: row.name,
-    phone: row.phone,
-    email: row.email,
-    city: row.city,
-    orders: row.orders,
-    spend: `₹${row.spend.toLocaleString("en-IN")}`,
-    wallet: "—",
-    joined: "—",
-    status: row.status === "blocked" ? ("Blocked" as const) : ("Active" as const),
+    name: row.name || "QuickPress Customer",
+    phone: row.phone || "—",
+    email: row.email || "—",
+    city: row.city || "Kasganj",
+    orders: row.orders || 0,
+    spend: `₹${(row.spend || 0).toLocaleString("en-IN")}`,
+    wallet: `₹${((row as any).walletBalance || 0).toLocaleString("en-IN")}`,
+    joined: (row as any).registrationDate || "—",
+    status: rawStatus === "blocked" ? ("Blocked" as const) : ("Active" as const),
   };
 }
+
 
 /** GET /api/admin/customers — pulls every page so console-side search/filter still works. */
 export async function fetchCustomers(): Promise<AdminCustomer[]> {
