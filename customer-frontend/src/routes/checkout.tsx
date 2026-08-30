@@ -13,6 +13,7 @@ import {
   Home,
   Loader2,
   MapPin,
+  Minus,
   Pencil,
   Plus,
   ShieldCheck,
@@ -24,7 +25,7 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { fetchProfile } from "@/api/customer/services/profile-service";
@@ -32,12 +33,19 @@ import { Toaster } from "@/shared/ui/sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import {
   applyCoupon,
+  fetchAddresses,
   getCartState,
   setCartState,
   type Address,
   type CartData,
 } from "@/api/customer/cart-api";
-import { clearCartLines } from "@/api/customer/cart-store";
+import {
+  clearCartLines,
+  getCartSnapshot,
+  getCartServerSnapshot,
+  stepCartLine,
+  subscribeCartLines,
+} from "@/api/customer/cart-store";
 import {
   fetchCheckoutCompat,
   placeOrder as postOrder,
@@ -83,11 +91,25 @@ const BLINKIT_PAYMENT_METHODS: CheckoutPaymentMethod[] = [
 function CheckoutScreen() {
   const { isAuthenticated, isLoading } = useAuthGuard();
   const navigate = useNavigate();
+
+  // Reactive Smart Cart Store
+  const cartSnapshot = useSyncExternalStore(
+    subscribeCartLines,
+    getCartSnapshot,
+    getCartServerSnapshot,
+  );
+
   const [data, setData] = useState<CartData | null>(getCartState().data);
   const [addresses, setAddresses] = useState<Address[]>(DEFAULT_ADDRESSES);
   const [payments, setPayments] = useState<CheckoutPaymentMethod[]>(BLINKIT_PAYMENT_METHODS);
   const [membership, setMembership] = useState<CheckoutMembership | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
+
+  // Real Address Fetching via API Query
+  const addressQuery = useQuery({
+    queryKey: ["addresses", "real", "checkout"],
+    queryFn: () => fetchAddresses(),
+  });
 
   // Address selection state (Pickup & Delivery)
   const [pickupAddressId, setPickupAddressId] = useState("addr-home");
@@ -132,6 +154,16 @@ function CheckoutScreen() {
       }),
   });
 
+  // Populate Real Backend Addresses when loaded
+  useEffect(() => {
+    if (addressQuery.data && addressQuery.data.length > 0) {
+      setAddresses(addressQuery.data);
+      const firstId = addressQuery.data[0].id;
+      setPickupAddressId((prev) => (prev && addressQuery.data.some((a) => a.id === prev) ? prev : firstId));
+      setDeliveryAddressId((prev) => (prev && addressQuery.data.some((a) => a.id === prev) ? prev : firstId));
+    }
+  }, [addressQuery.data]);
+
   // Auto-fill customer profile details
   useEffect(() => {
     let alive = true;
@@ -170,8 +202,8 @@ function CheckoutScreen() {
         if (checkout.addresses?.length) {
           setAddresses(checkout.addresses);
           const initialId = checkout.selectedAddressId || checkout.addresses[0].id;
-          setPickupAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : initialId);
-          setDeliveryAddressId((prev) => (prev && checkout.addresses.some(a => a.id === prev)) ? prev : initialId);
+          setPickupAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev) ? prev : initialId));
+          setDeliveryAddressId((prev) => (prev && checkout.addresses.some((a) => a.id === prev) ? prev : initialId));
         }
         setWalletBalance(checkout.walletBalance);
         if (checkout.membership) setMembership(checkout.membership);
@@ -207,11 +239,14 @@ function CheckoutScreen() {
     }
   };
 
-  // Pricing calculations
-  const itemsSubtotal = data?.items?.reduce((sum, i) => sum + i.price * i.qty, 0) ?? 199;
-  const totalMRP = data?.items?.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0) ?? 249;
+  // Pricing calculations (0ms optimistic from cart store snapshot)
+  const cartLines = cartSnapshot.lines;
+  const itemsSubtotal = cartSnapshot.totals.itemsTotal || (data?.items?.reduce((sum, i) => sum + i.price * i.qty, 0) ?? 199);
+  const totalMRP = cartLines.length > 0 
+    ? cartLines.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0)
+    : (data?.items?.reduce((sum, i) => sum + Math.round(i.price * 1.25) * i.qty, 0) ?? 249);
   const deliveryFee = 0; // FREE Delivery for QuickPress
-  const handlingFee = 5;
+  const handlingFee = itemsSubtotal > 0 ? 5 : 0;
   const gstCharge = Math.round(itemsSubtotal * 0.18);
   const grandTotal = Math.max(0, itemsSubtotal + deliveryFee + handlingFee + gstCharge - couponDiscount);
   const totalSavings = Math.max(0, totalMRP - itemsSubtotal) + couponDiscount;
@@ -243,7 +278,7 @@ function CheckoutScreen() {
         deliveryAddress: selectedDelivery,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
-        items: data?.items ?? [],
+        items: cartLines.length > 0 ? cartLines : (data?.items ?? []),
         pickup: { day: "today", slot: "15-30 mins", express: true },
         payment: method,
         couponCode: appliedCode ?? undefined,
@@ -614,37 +649,80 @@ function CheckoutScreen() {
             </p>
           </section>
 
-          {/* SECTION 3: Order Items Summary */}
-          {data?.items && data.items.length > 0 ? (
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-2.5">
-              <div className="flex items-center justify-between">
+          {/* SECTION 3: Order Items Summary with Quantity (+ / -) Steppers */}
+          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-[#0c831f]">
+                  <Sparkles className="size-4" />
+                </span>
                 <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  Items Selected ({data.items.length})
+                  3. Items Selected ({cartLines.length})
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/home" })}
-                  className="text-xs font-bold text-[#0c831f] hover:underline"
-                >
-                  Edit Items
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/home" })}
+                className="text-xs font-bold text-[#0c831f] hover:underline"
+              >
+                + Add More
+              </button>
+            </div>
 
-              <div className="space-y-2">
-                {data.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs py-1 border-b border-zinc-100 last:border-none">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-6 items-center justify-center rounded-md bg-emerald-50 text-[#0c831f] font-black text-[10px]">
-                        {item.qty}x
-                      </span>
-                      <span className="font-bold text-zinc-800">{item.name}</span>
+            {cartLines.length > 0 ? (
+              <div className="space-y-2.5">
+                {cartLines.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-zinc-100 bg-zinc-50/60"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-zinc-900 truncate">{item.name}</p>
+                      <p className="text-[10px] text-zinc-500">₹{item.price} / {item.unit || "item"}</p>
                     </div>
-                    <span className="font-black text-zinc-900">₹{item.price * item.qty}</span>
+
+                    {/* Interactive Quantity (+ / -) Stepper Control */}
+                    <div className="flex items-center gap-2.5 bg-white border border-emerald-500/40 rounded-lg px-2.5 py-1 shadow-xs">
+                      <button
+                        type="button"
+                        aria-label="Decrease quantity"
+                        onClick={() => stepCartLine(item.id, -1)}
+                        className="flex size-5 items-center justify-center rounded-md bg-emerald-50 text-[#0c831f] font-black text-sm hover:bg-emerald-100 active:scale-90 transition-all cursor-pointer"
+                      >
+                        <Minus className="size-3" />
+                      </button>
+                      <span className="text-xs font-black text-zinc-900 min-w-4 text-center">
+                        {item.qty}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Increase quantity"
+                        onClick={() => stepCartLine(item.id, 1)}
+                        className="flex size-5 items-center justify-center rounded-md bg-[#0c831f] text-white font-black text-sm hover:bg-emerald-800 active:scale-90 transition-all cursor-pointer"
+                      >
+                        <Plus className="size-3" />
+                      </button>
+                    </div>
+
+                    <span className="text-xs font-black text-zinc-900 shrink-0 min-w-14 text-right">
+                      ₹{item.price * item.qty}
+                    </span>
                   </div>
                 ))}
               </div>
-            </section>
-          ) : null}
+            ) : (
+              <div className="py-6 text-center space-y-2">
+                <p className="text-xs text-zinc-500 font-medium">Your cart is currently empty.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/home" })}
+                  className="rounded-xl bg-[#0c831f] text-white px-4 py-2 text-xs font-black shadow-xs active:scale-95"
+                >
+                  Browse Store Items
+                </button>
+              </div>
+            )}
+          </section>
 
           {/* SECTION 4: Promo Codes & Coupons */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
@@ -654,7 +732,7 @@ function CheckoutScreen() {
                   <Tag className="size-4" />
                 </span>
                 <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  Coupons & Offers
+                  4. Coupons & Offers
                 </h2>
               </div>
               {appliedCode ? (
@@ -708,7 +786,7 @@ function CheckoutScreen() {
                 <Smartphone className="size-4" />
               </span>
               <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                Payment Options
+                5. Payment Options
               </h2>
             </div>
 
@@ -774,7 +852,7 @@ function CheckoutScreen() {
           {/* SECTION 6: Bill Details Breakdown Card */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
             <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900 pb-2 border-b border-zinc-100">
-              Bill Details
+              6. Bill Details
             </h2>
 
             <div className="space-y-2 text-xs">
@@ -830,7 +908,7 @@ function CheckoutScreen() {
             ) : null}
           </section>
 
-          {/* SECTION 7: Guarantee Policy */}
+          {/* Guarantee Policy */}
           <div className="rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-xs flex items-start gap-3">
             <ShieldCheck className="size-5 shrink-0 text-[#0c831f] mt-0.5" />
             <p className="text-[11px] text-zinc-500 leading-relaxed">
@@ -859,7 +937,7 @@ function CheckoutScreen() {
             <button
               type="button"
               onClick={() => void placeOrder()}
-              disabled={placing}
+              disabled={placing || cartLines.length === 0}
               className="flex-1 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0c831f] hover:bg-emerald-800 text-white font-black text-sm shadow-md transition-transform active:scale-95 disabled:opacity-60 cursor-pointer"
             >
               {placing ? (
