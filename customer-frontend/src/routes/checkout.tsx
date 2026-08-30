@@ -191,10 +191,15 @@ export function CheckoutPage() {
           image: l.image || "",
           description: l.description || "",
         })),
-        addressId: selectedPickup.id,
+        addressId: selectedPickup?.id || "addr-default",
+        address: selectedPickup,
+        deliveryAddress: selectedDelivery,
         pickup: { day: "Today", slot: "15-30 mins", express: true },
         paymentId: selectedPayment,
+        paymentMethod: selectedPayment,
         total: grandTotal,
+        customerName: customerName.trim(),
+        customerPhone: cleanPhone,
       });
 
       toast.success("Order Placed Successfully! 🎉");
@@ -205,7 +210,7 @@ export function CheckoutPage() {
           to: "/order-success/$orderId",
           params: { orderId: result.orderId || `ord-${Date.now()}` },
         });
-      }, 500);
+      }, 300);
     } catch (err) {
       toast.error("Failed to place order. Please try again.");
       setPlacingOrder(false);

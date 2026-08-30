@@ -29,10 +29,10 @@ export function FloatingCartBar({
     setMounted(true);
   }, []);
 
-  // Preload checkout route in background for 0ms instant open
+  // Preload cart route in background for 0ms instant open
   useEffect(() => {
     if (count > 0) {
-      void router.preloadRoute({ to: "/checkout" }).catch(() => undefined);
+      void router.preloadRoute({ to: "/cart" }).catch(() => undefined);
     }
   }, [count, router]);
 
@@ -60,10 +60,10 @@ export function FloatingCartBar({
       ? hasBottomNav
       : pagesWithBottomNav.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  const handleGoToCheckout = () => {
+  const handleGoToCart = () => {
     setPressed(true);
     window.setTimeout(() => setPressed(false), 200);
-    void navigate({ to: "/checkout" });
+    void navigate({ to: "/cart" });
   };
 
   // Up to 3 item thumbnails
@@ -82,12 +82,12 @@ export function FloatingCartBar({
         <div
           role="button"
           tabIndex={0}
-          onClick={handleGoToCheckout}
-          onPointerEnter={() => void router.preloadRoute({ to: "/checkout" }).catch(() => undefined)}
+          onClick={handleGoToCart}
+          onPointerEnter={() => void router.preloadRoute({ to: "/cart" }).catch(() => undefined)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              handleGoToCheckout();
+              handleGoToCart();
             }
           }}
           className={`group pointer-events-auto flex items-center justify-between gap-3 rounded-2xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2.5 text-white shadow-xl shadow-emerald-950/25 transition-all duration-200 cursor-pointer active:scale-[0.98] ${
