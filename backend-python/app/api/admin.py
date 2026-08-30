@@ -97,6 +97,12 @@ async def dashboard_orders_series(user: User = Depends(current_user)):
     return await admin_dashboard_repository.orders_series()
 
 
+@router.get("/dashboard/system-health")
+async def dashboard_system_health(user: User = Depends(current_user)):
+    return await admin_dashboard_repository.system_health()
+
+
+
 # -------------------------------------------------------------------- orders
 @router.get("/orders")
 async def list_orders(status_filter: Optional[str] = Query(default=None, alias="status"), user: User = Depends(current_user)):

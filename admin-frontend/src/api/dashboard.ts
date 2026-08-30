@@ -136,3 +136,23 @@ export async function fetchLatestOrders(): Promise<TableData> {
     })),
   );
 }
+
+export type SystemHealthService = {
+
+  name: string;
+  status: "HEALTHY" | "WARNING" | "CRITICAL";
+  metric: string;
+  icon: string;
+};
+
+export type SystemHealthData = {
+  status: "HEALTHY" | "WARNING" | "CRITICAL";
+  timestamp: string;
+  services: SystemHealthService[];
+};
+
+/** GET /api/admin/dashboard/system-health */
+export async function fetchSystemHealth(): Promise<SystemHealthData> {
+  return apiGetJson<SystemHealthData>("/api/admin/dashboard/system-health");
+}
+
