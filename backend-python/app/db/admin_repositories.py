@@ -449,36 +449,49 @@ class AdminDashboardRepository:
         pending_payout_docs = [p for p in payouts if p.get("status") in ("Pending", "Requested", "processing")]
         pending_payout_amount = sum(p.get("amount", 0) for p in pending_payout_docs)
 
-        # Attention metrics
-        unassigned_orders = [o for o in live if not o.get("rider")]
+        # Real Membership Subscriptions from Supabase
+        memberships_list = await database.find_many("memberships")
+        active_memberships = [m for m in memberships_list if m.get("status") == "active" or m.get("active") is True]
+        silver_count = sum(1 for m in active_memberships if str(m.get("plan_id") or "").lower() == "silver")
+        gold_count = sum(1 for m in active_memberships if str(m.get("plan_id") or "").lower() == "gold")
+        platinum_count = sum(1 for m in active_memberships if str(m.get("plan_id") or "").lower() in ("platinum", "premium"))
+        membership_mrr = sum(int(m.get("amountPaid") or m.get("amount_paid") or 0) for m in active_memberships)
 
-        # Top services calculation
-        service_counts: Dict[str, Dict[str, Any]] = {}
+        # SLA Delay Warning (Live orders stuck > 45 minutes)
+        now_ts = now.timestamp()
+        delayed_orders = []
+        for o in live:
+            st = o.get("status")
+            if st in ("placed", "pending_partner_acceptance", "partner_accepted"):
+                created_iso = o.get("createdAt") or o.get("created_at") or ""
+                try:
+                    dt = datetime.fromisoformat(created_iso.replace("Z", "+00:00"))
+                    if (now_ts - dt.timestamp()) > 2700:  # 45 minutes
+                        delayed_orders.append(o)
+                except Exception:
+                    pass
+
+        # Real Open Support Tickets
+        tickets = await database.find_many("admin_support_tickets")
+        open_tickets = [t for t in tickets if str(t.get("status") or "").lower() in ("open", "pending", "escalated")]
+
+        # Real City-wise performance breakdown
+        city_groups: Dict[str, Dict[str, Any]] = {}
         for o in orders:
-            s_label = o.get("serviceLabel") or "Standard Laundry"
-            entry = service_counts.setdefault(s_label, {"service": s_label, "orders": 0, "revenue": 0})
-            entry["orders"] += 1
+            c_name = o.get("city") or (o.get("address") or {}).get("city") or "Kasganj"
+            cg = city_groups.setdefault(c_name, {"city": c_name, "orders": 0, "revenue": 0, "partners": 0})
+            cg["orders"] += 1
             if o.get("status") == "delivered":
-                entry["revenue"] += (o.get("totals") or {}).get("grandTotal", 0)
-        top_services = sorted(service_counts.values(), key=lambda x: x["orders"], reverse=True)[:5]
-
-        # Top partners calculation
-        partner_stats: Dict[str, Dict[str, Any]] = {}
+                cg["revenue"] += (o.get("totals") or {}).get("grandTotal", 0)
+        
         for p in partners:
-            p_id = str(p.get("_id") or p.get("id"))
-            p_orders = [o for o in orders if (o.get("partner") or {}).get("id") == p_id or o.get("partnerId") == p_id]
-            p_revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in p_orders if o.get("status") == "delivered")
-            partner_stats[p_id] = {
-                "id": p_id,
-                "name": p.get("businessName") or p.get("name") or p.get("storeName") or "QuickPress Partner",
-                "city": p.get("city") or "Kasganj",
-                "orders": len(p_orders),
-                "revenue": p_revenue,
-                "rating": p.get("rating", 4.9),
-                "status": p.get("status", "active"),
-            }
-        top_partners = sorted(partner_stats.values(), key=lambda x: x["orders"], reverse=True)[:5]
+            pc_name = p.get("city") or "Kasganj"
+            if pc_name in city_groups:
+                city_groups[pc_name]["partners"] += 1
+            else:
+                city_groups[pc_name] = {"city": pc_name, "orders": 0, "revenue": 0, "partners": 1}
 
+        city_breakdown = sorted(city_groups.values(), key=lambda x: x["orders"], reverse=True)
 
         return {
             "totalOrders": len(orders),
@@ -505,8 +518,16 @@ class AdminDashboardRepository:
             "pendingPayouts": len(pending_payout_docs),
             "pendingPayoutAmount": pending_payout_amount,
             "unassignedOrders": len(unassigned_orders),
+            "slaDelayedOrders": len(delayed_orders),
+            "openSupportTickets": len(open_tickets),
+            "activeMembers": len(active_memberships),
+            "silverMembers": silver_count,
+            "goldMembers": gold_count,
+            "platinumMembers": platinum_count,
+            "membershipMRR": membership_mrr,
             "topServices": top_services,
             "topPartners": top_partners,
+            "cityBreakdown": city_breakdown,
             "statusBreakdown": [
                 {
                     "status": status,
@@ -516,6 +537,7 @@ class AdminDashboardRepository:
                 for status, label in ORDER_STATUS_LABEL.items()
             ],
         }
+
 
     async def activity(self) -> List[Dict[str, Any]]:
         orders = await database.find_sorted("customer_orders", sort=[("updatedAt", -1)], limit=10)

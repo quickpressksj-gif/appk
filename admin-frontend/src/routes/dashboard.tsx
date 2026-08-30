@@ -143,7 +143,7 @@ export function DashboardPage() {
         {/* =========================================================================
             1. REQUIRES ATTENTION (ALERT STRIP)
         ========================================================================= */}
-        {data && (data.pendingPartners > 0 || data.pendingPayouts > 0 || data.unassignedOrders > 0) && (
+        {data && ((data as any).pendingPartners > 0 || (data as any).pendingPayouts > 0 || (data as any).unassignedOrders > 0 || (data as any).slaDelayedOrders > 0 || (data as any).openSupportTickets > 0) && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:p-5 shadow-xs">
             <div className="flex items-center justify-between pb-3 border-b border-amber-200/60">
               <div className="flex items-center gap-2">
@@ -152,13 +152,13 @@ export function DashboardPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-amber-950">Requires Immediate Attention</h3>
-                  <p className="text-xs text-amber-800 font-medium">Pending operational tasks awaiting admin resolution</p>
+                  <p className="text-xs text-amber-800 font-medium">Pending operational tasks &amp; system alerts awaiting admin resolution</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-3.5 grid gap-3 sm:grid-cols-3">
-              {data.pendingPartners > 0 && (
+            <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(data as any).pendingPartners > 0 && (
                 <button
                   type="button"
                   onClick={() => navigate({ to: adminRoutes.partners })}
@@ -168,13 +168,13 @@ export function DashboardPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">
                       Partner Approvals
                     </span>
-                    <p className="text-base font-black text-zinc-900">{data.pendingPartners} Pending Applications</p>
+                    <p className="text-base font-black text-zinc-900">{(data as any).pendingPartners} Pending Applications</p>
                   </div>
                   <ChevronRight className="size-4 text-amber-600" />
                 </button>
               )}
 
-              {data.pendingPayouts > 0 && (
+              {(data as any).pendingPayouts > 0 && (
                 <button
                   type="button"
                   onClick={() => navigate({ to: adminRoutes.wallet })}
@@ -184,13 +184,13 @@ export function DashboardPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">
                       Partner Payouts
                     </span>
-                    <p className="text-base font-black text-zinc-900">{currency(data.pendingPayoutAmount)} ({data.pendingPayouts})</p>
+                    <p className="text-base font-black text-zinc-900">{currency((data as any).pendingPayoutAmount)} ({(data as any).pendingPayouts})</p>
                   </div>
                   <ChevronRight className="size-4 text-amber-600" />
                 </button>
               )}
 
-              {data.unassignedOrders > 0 && (
+              {(data as any).unassignedOrders > 0 && (
                 <button
                   type="button"
                   onClick={() => navigate({ to: adminRoutes.orders })}
@@ -200,9 +200,25 @@ export function DashboardPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-sky-700">
                       Fleet Assignment
                     </span>
-                    <p className="text-base font-black text-zinc-900">{data.unassignedOrders} Unassigned Orders</p>
+                    <p className="text-base font-black text-zinc-900">{(data as any).unassignedOrders} Unassigned Orders</p>
                   </div>
                   <ChevronRight className="size-4 text-amber-600" />
+                </button>
+              )}
+
+              {(data as any).slaDelayedOrders > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: adminRoutes.orders })}
+                  className="flex items-center justify-between rounded-xl border border-rose-300 bg-rose-50/50 p-3 text-left transition-all hover:border-rose-400 hover:shadow-sm"
+                >
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-700">
+                      SLA Delay Warning
+                    </span>
+                    <p className="text-base font-black text-rose-900">{(data as any).slaDelayedOrders} Delayed Orders</p>
+                  </div>
+                  <ChevronRight className="size-4 text-rose-600" />
                 </button>
               )}
             </div>
@@ -289,7 +305,25 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 5: Customers */}
+          {/* Card 5: Memberships (Real Subscriptions Hub) */}
+          <div
+            onClick={() => navigate({ to: adminRoutes.memberships })}
+            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-xs transition-all hover:border-emerald-300 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">VIP MEMBERS</span>
+              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+                <Sparkles className="size-3.5" />
+              </div>
+            </div>
+            <p className="mt-2 text-2xl font-black text-emerald-950">{count((data as any)?.activeMembers)}</p>
+            <div className="mt-2 space-y-1 text-[11px] font-semibold text-emerald-900">
+              <p className="flex justify-between"><span>Silver / Gold / Plat:</span> <span className="font-bold">{(data as any)?.silverMembers || 0} / {(data as any)?.goldMembers || 0} / {(data as any)?.platinumMembers || 0}</span></p>
+              <p className="flex justify-between"><span>Subscription MRR:</span> <span className="font-bold text-emerald-700">{currency((data as any)?.membershipMRR)}</span></p>
+            </div>
+          </div>
+
+          {/* Card 6: Customers */}
           <div
             onClick={() => navigate({ to: adminRoutes.customers })}
             className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
@@ -309,26 +343,8 @@ export function DashboardPage() {
               </span></p>
             </div>
           </div>
-
-          {/* Card 6: Payouts */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.wallet })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">PAYOUTS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <ShieldCheck className="size-3.5" />
-              </div>
-            </div>
-            <p className="mt-2 text-2xl font-black text-zinc-900">{count(data?.pendingPayouts)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Pending Sum:</span> <span className="font-bold text-rose-600">{currency(data?.pendingPayoutAmount)}</span></p>
-              <p className="flex justify-between"><span>Cycle:</span> <span className="font-bold text-zinc-900">Daily T+1</span></p>
-              <p className="flex justify-between"><span>Status:</span> <span className="font-bold text-emerald-700">Settled</span></p>
-            </div>
-          </div>
         </div>
+
 
         {/* =========================================================================
             3. ORDER STATUS OVERVIEW (VISUAL PIPELINE)
