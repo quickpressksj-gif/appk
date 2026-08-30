@@ -16,50 +16,67 @@ import type { Kpi } from "../api/client";
 
 /* ------------------------------------------------------------------ KPIs */
 
-export function KpiCard({ kpi }: { kpi: Kpi }) {
-  const positive = kpi.positive !== false;
+export type KpiCardProps = {
+  kpi?: Kpi;
+  title?: string;
+  label?: string;
+  value?: string | number;
+  icon?: ReactNode;
+  delta?: string;
+  positive?: boolean;
+  hint?: string;
+};
+
+export function KpiCard(props: KpiCardProps) {
+  const labelText = props.title || props.label || props.kpi?.label || "";
+  const val = props.value !== undefined ? props.value : (props.kpi?.value ?? "—");
+  const deltaVal = props.delta || props.kpi?.delta;
+  const isPositive = props.positive !== undefined ? props.positive : (props.kpi?.positive !== false);
+  const iconNode = props.icon || <TrendingUp className="size-4" />;
+  const hintText = props.hint || props.kpi?.hint;
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300 hover:border-zinc-300 hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-2xl border border-zinc-200/90 bg-white p-4 sm:p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300 hover:border-zinc-300 hover:shadow-md">
       {/* Top Accent Light Line */}
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
-      <div className="flex items-start justify-between">
-        <p className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
-          {kpi.label}
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-wider text-zinc-500 line-clamp-1">
+          {labelText}
         </p>
-        <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <TrendingUp className="size-4" />
+        <div className="flex size-7 sm:size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+          {iconNode}
         </div>
       </div>
 
       <div className="mt-2.5 flex items-baseline gap-2">
-        <p className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900">{kpi.value}</p>
+        <p className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900">{val}</p>
       </div>
 
       <div className="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2.5">
-        {kpi.delta ? (
+        {deltaVal ? (
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
-              positive
+              isPositive
                 ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                 : "bg-rose-50 text-rose-800 border border-rose-200",
             )}
           >
-            {positive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-            {kpi.delta}
+            {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+            {deltaVal}
           </span>
         ) : (
           <span className="text-[10px] text-zinc-400 font-medium">Realtime sync</span>
         )}
-        {kpi.hint ? (
-          <span className="text-[10px] font-medium text-zinc-400 truncate max-w-[120px]">{kpi.hint}</span>
+        {hintText ? (
+          <span className="text-[10px] font-medium text-zinc-400 truncate max-w-[120px]">{hintText}</span>
         ) : null}
       </div>
     </div>
   );
 }
+
 
 export function KpiGrid({
   kpis,
