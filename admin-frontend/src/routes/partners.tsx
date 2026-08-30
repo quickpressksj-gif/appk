@@ -78,7 +78,17 @@ export const Route = createFileRoute("/partners")({
   beforeLoad: requireAdminSession,
   head: () => adminHead("Partner Management & 360° System", "Approve, monitor, audit, and manage QuickPress laundry partner stores across Supabase."),
   component: PartnersPage,
+  errorComponent: ({ error }) => (
+    <AdminShell title="Partner Control Center">
+      <div className="p-8 text-center text-rose-600 bg-rose-50 rounded-2xl border border-rose-200 m-6">
+        <h3 className="text-lg font-bold">Partner Management Loaded</h3>
+        <p className="text-xs text-rose-500 mt-1">{String((error as Error)?.message || error)}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4 bg-rose-600 text-white font-bold text-xs">Reload Page</Button>
+      </div>
+    </AdminShell>
+  ),
 });
+
 
 export function PartnersPage() {
   const queryClient = useQueryClient();
