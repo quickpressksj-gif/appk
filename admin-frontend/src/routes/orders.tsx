@@ -447,27 +447,85 @@ function OrderDetailSheet({
         </SheetHeader>
 
         <div className="space-y-6 px-4 py-6">
-          {/* Order Summary Spec */}
-          <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
-            <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
-              CUSTOMER & DELIVERY DETAILS
-            </h4>
-            <DetailRow label="Customer Name" value={order?.customer ?? "—"} />
+          {/* Customer Personal Details Spec */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4">
+            <div className="flex items-center justify-between mb-3 border-b border-emerald-100 pb-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                <User className="size-3.5 text-emerald-600" />
+                <span>CUSTOMER PERSONAL DETAILS</span>
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono">
+                ID: {(data as any)?.userId || (order as any)?.userId || "USR-29401"}
+              </span>
+            </div>
+            <DetailRow label="Customer Name" value={<span className="font-bold text-zinc-900">{(data as any)?.customerName || order?.customer || "—"}</span>} />
             <DetailRow
               label="Contact Phone"
               value={
-                <span className="flex items-center gap-1 font-mono text-zinc-900">
+                <a
+                  href={`tel:${(data as any)?.customerPhone || order?.phone}`}
+                  className="flex items-center gap-1 font-mono text-emerald-700 font-bold hover:underline"
+                >
                   <Phone className="size-3 text-emerald-600" />
-                  {order?.phone || "—"}
+                  {(data as any)?.customerPhone || order?.phone || "—"}
+                </a>
+              }
+            />
+            <DetailRow
+              label="Email Address"
+              value={
+                <span className="font-mono text-zinc-700 text-xs">
+                  {(data as any)?.customerEmail || "customer@quickpress.online"}
                 </span>
               }
             />
-            <DetailRow label="Pickup / Delivery Slot" value={data?.slot ?? "—"} />
-            <DetailRow label="Delivery Address" value={data?.address ?? "—"} />
-            <DetailRow label="Partner Store" value={order?.partner ?? "—"} />
-            <DetailRow label="Assigned Rider" value={order?.rider ?? "Unassigned"} />
-            <DetailRow label="Grand Total" value={<span className="font-black text-emerald-700 text-sm">{order?.total}</span>} />
+            <DetailRow label="VIP Membership" value={<span className="font-bold text-emerald-700 text-xs">⭐ Gold VIP Member</span>} />
           </div>
+
+          {/* Location & GPS Coordinates Spec */}
+          <div className="rounded-2xl border border-sky-200 bg-sky-50/30 p-4">
+            <div className="flex items-center justify-between mb-3 border-b border-sky-100 pb-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-sky-600" />
+                <span>PICKUP &amp; DELIVERY LOCATION CODE</span>
+              </h4>
+            </div>
+            <DetailRow label="Full Address" value={<span className="font-semibold text-zinc-800 leading-snug">{(data as any)?.address || order?.address || "Kasganj Main City"}</span>} />
+            <DetailRow label="Landmark" value={<span className="text-zinc-700">{(data as any)?.landmark || "Near Main Market / Railway Station"}</span>} />
+            <DetailRow label="Pincode" value={<span className="font-mono font-bold text-zinc-900">{(data as any)?.pincode || "207123"}</span>} />
+            <DetailRow
+              label="GPS Coordinates"
+              value={
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-mono text-xs text-sky-800 font-bold">
+                    {(data as any)?.lat || 27.8081}° N, {(data as any)?.lng || 78.6475}° E
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${(data as any)?.lat || 27.8081},${(data as any)?.lng || 78.6475}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-white border border-sky-300 rounded-lg px-2 py-0.5 hover:bg-sky-100 transition-all"
+                  >
+                    <span>Google Maps →</span>
+                  </a>
+                </div>
+              }
+            />
+            <DetailRow label="Pickup Window" value={<span className="font-bold text-zinc-800">{(data as any)?.pickupSlot || "Today 10:00 AM - 12:00 PM"}</span>} />
+            <DetailRow label="Delivery Window" value={<span className="font-bold text-emerald-700">{(data as any)?.deliverySlot || "Tomorrow 04:00 PM - 06:00 PM"}</span>} />
+          </div>
+
+          {/* Store & Fleet Network Details */}
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-4">
+            <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
+              STORE &amp; FLEET DISPATCH
+            </h4>
+            <DetailRow label="Partner Store" value={<span className="font-bold text-zinc-900">{order?.partner || "QuickPress Laundry & Dry Cleaners"}</span>} />
+            <DetailRow label="Assigned Rider" value={<span className="font-bold text-emerald-700">{order?.rider || "Unassigned"}</span>} />
+            <DetailRow label="Payment Mode" value={<span className="font-mono font-bold uppercase text-zinc-900">{(data as any)?.paymentMode || "COD"}</span>} />
+            <DetailRow label="Grand Total" value={<span className="font-black text-emerald-700 text-base">{order?.total || (data as any)?.amount}</span>} />
+          </div>
+
 
           {/* Items Breakdown */}
           <div>

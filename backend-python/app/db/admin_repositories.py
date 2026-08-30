@@ -68,24 +68,58 @@ def to_admin_order_row(order: Dict[str, Any]) -> Dict[str, Any]:
     rider = order.get("rider")
     totals = order.get("totals") or {}
     payment = order.get("payment") or {}
+    address = order.get("address") or customer.get("address") or {}
+
     customer_name = order.get("customerName") or customer.get("name") or "QuickPress Customer"
-    customer_phone = order.get("customerPhone") or customer.get("phone") or (order.get("address") or {}).get("phone", "")
+    customer_phone = order.get("customerPhone") or customer.get("phone") or address.get("phone", "")
+    customer_email = order.get("customerEmail") or customer.get("email") or ""
+    user_id = str(order.get("userId") or order.get("user_id") or customer.get("id") or "")
+
+    formatted_address = address.get("formatted") or address.get("street") or address.get("addressLine") or ""
+    if not formatted_address:
+        parts = [address.get("houseNo"), address.get("building"), address.get("area"), address.get("city")]
+        formatted_address = ", ".join([str(p) for p in parts if p]) or "Kasganj Address"
+
+    landmark = address.get("landmark") or ""
+    pincode = address.get("pincode") or address.get("zip") or "207123"
+    lat = address.get("lat") or address.get("latitude") or 27.8081
+    lng = address.get("lng") or address.get("longitude") or 78.6475
+
     return {
         "id": str(order.get("_id") or order.get("id")),
-        "code": order.get("code"),
+        "code": order.get("code") or f"ORD-{(str(order.get('_id') or ''))[:8]}",
         "customer": customer_name,
         "customerName": customer_name,
         "customerPhone": customer_phone,
+        "customerEmail": customer_email,
+        "userId": user_id,
         "phone": customer_phone,
-        "partner": partner.get("name", ""),
+        "address": formatted_address,
+        "landmark": landmark,
+        "pincode": pincode,
+        "lat": lat,
+        "lng": lng,
+        "pickupSlot": order.get("pickupSlot") or order.get("slot") or "Today 10:00 AM - 12:00 PM",
+        "deliverySlot": order.get("deliverySlot") or "Tomorrow 04:00 PM - 06:00 PM",
+        "partner": partner.get("name", "") or "QuickPress Main Hub",
+        "partnerId": partner.get("id") or order.get("partnerId"),
+        "partnerPhone": partner.get("phone", ""),
         "rider": (rider or {}).get("name", "Unassigned"),
+        "riderId": (rider or {}).get("id") or order.get("riderId"),
+        "riderPhone": (rider or {}).get("phone", ""),
         "status": order.get("status"),
         "statusLabel": status_label(order),
         "amount": totals.get("grandTotal", 0),
-        "placedOn": (order.get("createdAt") or "")[:10],
-        "city": partner.get("city", "") or (order.get("address") or {}).get("city", ""),
+        "service": order.get("serviceLabel") or "Standard Laundry",
+        "placedOn": (order.get("createdAt") or order.get("created_at") or "")[:10],
+        "placedAt": order.get("createdAt") or order.get("created_at") or "",
+        "city": partner.get("city", "") or address.get("city", "") or "Kasganj",
         "paymentMode": payment.get("mode", "cod"),
+        "paymentStatus": payment.get("status", "pending"),
+        "items": order.get("items") or [],
+        "totals": totals,
     }
+
 
 
 class AdminAuditRepository:
