@@ -449,6 +449,10 @@ async def get_order(order_id: str, partner_id: str = Depends(_verified_partner_i
 async def accept_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.accept(partner_id, order_id)
+        # Trigger Smart 2-Ride Auto-Dispatch: Ride 1 (Pickup: Customer -> Partner)
+        from app.services.smart_2ride_engine import smart_2ride_engine
+        import asyncio
+        asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(order_id))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
@@ -508,6 +512,10 @@ async def start_processing(order_id: str, partner_id: str = Depends(_verified_pa
 async def complete_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.complete(partner_id, order_id)
+        # Trigger Smart 2-Ride Auto-Dispatch: Ride 2 (Delivery: Partner -> Customer)
+        from app.services.smart_2ride_engine import smart_2ride_engine
+        import asyncio
+        asyncio.create_task(smart_2ride_engine.create_ride_2_delivery(order_id))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
@@ -515,6 +523,22 @@ async def complete_order(order_id: str, partner_id: str = Depends(_verified_part
     except InvalidTransitionError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     return _order_response(doc)
+
+
+@router.post("/orders/{order_id}/verify-handover-otp", response_model=PartnerOrderResponse)
+async def verify_handover_otp(
+    order_id: str, body: dict | None = None, partner_id: str = Depends(_verified_partner_id)
+) -> PartnerOrderResponse:
+    otp = (body or {}).get("otp") or (body or {}).get("code")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        await smart_2ride_engine.verify_handover_otp(order_id, str(otp or ""), partner_id)
+        doc = await partner_order_repository.by_id(partner_id, order_id)
+        return _order_response(doc)
+    except (PermissionError, ValueError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 # --------------------------------------------------------------------------

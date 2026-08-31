@@ -157,6 +157,16 @@ class OrderRepository:
             "delivery": d_code or "",
             "dispatch": disp_code or "",
         }
+        # Enrich rider coordinates if present on document
+        rider_dict = data.get("rider")
+        if isinstance(rider_dict, dict) and rider_dict:
+            r_lat = rider_dict.get("lat") or rider_dict.get("latitude")
+            r_lng = rider_dict.get("lng") or rider_dict.get("longitude")
+            if r_lat is not None and r_lng is not None:
+                rider_dict["latitude"] = float(r_lat)
+                rider_dict["longitude"] = float(r_lng)
+                rider_dict["location"] = {"latitude": float(r_lat), "longitude": float(r_lng)}
+
         return OrderResponse(
             **{
                 k: v

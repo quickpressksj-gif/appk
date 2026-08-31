@@ -246,72 +246,71 @@ function TrackOrderScreen() {
             <section className="">
               <div className="card-soft relative overflow-hidden border border-border">
                 <div className="relative h-56 bg-muted">
-                  <GoogleMapView
-                    className="h-full w-full"
-                    interactive={true}
-                    zoom={15}
-                    center={
-                      (detail?.rider as any)?.location?.latitude || (detail?.rider as any)?.latitude
-                        ? {
-                            latitude: Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude),
-                            longitude: Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude),
-                            label: "Delivery Captain",
-                            tone: "primary",
-                          }
-                        : undefined
-                    }
-                    markers={[
-                      ...(((detail?.rider as any)?.location?.latitude || (detail?.rider as any)?.latitude) &&
-                      ((detail?.rider as any)?.location?.longitude || (detail?.rider as any)?.longitude)
-                        ? [
-                            {
-                              id: "rider",
-                              latitude: Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude),
-                              longitude: Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude),
-                              label: "Delivery Captain",
-                              tone: "primary" as const,
-                            },
-                          ]
+                  {(() => {
+                    const riderLat = live?.riderLocation?.lat ?? Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude);
+                    const riderLng = live?.riderLocation?.lng ?? Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude);
+                    const hasRiderLocation = Boolean(riderLat && riderLng && !isNaN(riderLat) && !isNaN(riderLng));
+
+                    const partnerLat = Number((detail?.partner as any)?.latitude ?? (detail?.partner as any)?.location?.latitude);
+                    const partnerLng = Number((detail?.partner as any)?.longitude ?? (detail?.partner as any)?.location?.longitude);
+                    const hasPartnerLocation = Boolean(partnerLat && partnerLng && !isNaN(partnerLat) && !isNaN(partnerLng));
+
+                    const custLat = Number((detail?.address as any)?.latitude);
+                    const custLng = Number((detail?.address as any)?.longitude);
+                    const hasCustLocation = Boolean(custLat && custLng && !isNaN(custLat) && !isNaN(custLng));
+
+                    const mapCenter = hasRiderLocation
+                      ? { latitude: riderLat, longitude: riderLng, label: "Delivery Captain", tone: "primary" as const }
+                      : hasPartnerLocation
+                        ? { latitude: partnerLat, longitude: partnerLng, label: "QuickPress Store", tone: "secondary" as const }
+                        : hasCustLocation
+                          ? { latitude: custLat, longitude: custLng, label: "Delivery Address", tone: "primary" as const }
+                          : { latitude: 27.8118, longitude: 78.6477, label: "Kasganj", tone: "secondary" as const };
+
+                    const markers = [
+                      ...(hasRiderLocation
+                        ? [{ id: "rider", latitude: riderLat, longitude: riderLng, label: "Delivery Captain (Live)", tone: "primary" as const }]
                         : []),
-                      ...(((detail?.partner as any)?.latitude || (detail?.partner as any)?.location?.latitude) &&
-                      ((detail?.partner as any)?.longitude || (detail?.partner as any)?.location?.longitude)
-                        ? [
-                            {
-                              id: "partner",
-                              latitude: Number((detail?.partner as any)?.latitude ?? (detail?.partner as any)?.location?.latitude),
-                              longitude: Number((detail?.partner as any)?.longitude ?? (detail?.partner as any)?.location?.longitude),
-                              label: "QuickPress Store",
-                              tone: "secondary" as const,
-                            },
-                          ]
+                      ...(hasPartnerLocation
+                        ? [{ id: "partner", latitude: partnerLat, longitude: partnerLng, label: "QuickPress Store", tone: "secondary" as const }]
                         : []),
-                    ]}
-                    fallback={
-                      <div className="relative h-full w-full bg-muted">
-                        <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [background-size:28px_28px]" />
-                        <svg viewBox="0 0 320 176" className="absolute inset-0 h-full w-full">
-                          <path
-                            d="M28 148 C 90 148, 96 96, 150 92 S 244 60, 292 34"
-                            fill="none"
-                            stroke="currentColor"
-                            className="text-primary"
-                            strokeWidth="4"
-                            strokeLinecap="round"
-                            strokeDasharray="10 12"
-                          />
-                        </svg>
-                        <span className="absolute bottom-6 left-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-green shadow-soft">
-                          <MapPin className="size-4" />
-                        </span>
-                        <span className="absolute right-5 top-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-dark shadow-soft">
-                          <Sparkles className="size-4" />
-                        </span>
-                        <span className="absolute left-[44%] top-[46%] flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-cta">
-                          <Truck className="size-5" />
-                        </span>
-                      </div>
-                    }
-                  />
+                      ...(hasCustLocation
+                        ? [{ id: "customer", latitude: custLat, longitude: custLng, label: "Your Location", tone: "primary" as const }]
+                        : []),
+                    ];
+
+                    return (
+                      <GoogleMapView
+                        className="h-full w-full"
+                        interactive={true}
+                        zoom={15}
+                        center={mapCenter}
+                        markers={markers}
+                        fallback={
+                          <div className="relative h-full w-full bg-muted">
+                            <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [background-size:28px_28px]" />
+                            <svg viewBox="0 0 320 176" className="absolute inset-0 h-full w-full">
+                              <path
+                                d="M28 148 C 90 148, 96 96, 150 92 S 244 60, 292 34"
+                                fill="none"
+                                stroke="currentColor"
+                                className="text-primary"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                strokeDasharray="10 12"
+                              />
+                            </svg>
+                            <span className="absolute bottom-6 left-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-green shadow-soft">
+                              <MapPin className="size-4" />
+                            </span>
+                            <span className="absolute right-6 top-6 flex size-9 items-center justify-center rounded-full bg-card text-primary shadow-soft">
+                              <Package className="size-4" />
+                            </span>
+                          </div>
+                        }
+                      />
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center gap-3 border-t border-border p-4">

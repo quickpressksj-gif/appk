@@ -830,12 +830,14 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
     accuracy = body.get("accuracy")
     now_iso = datetime.now(timezone.utc).isoformat()
     if lat is not None and lng is not None:
+        lat_f = float(lat)
+        lng_f = float(lng)
         await database.update(
             "rider_profiles",
             {"_id": rider_id},
             {
-                "lat": float(lat),
-                "lng": float(lng),
+                "lat": lat_f,
+                "lng": lng_f,
                 "heading": heading,
                 "speed": speed,
                 "accuracy": accuracy,
@@ -844,6 +846,48 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
             },
             upsert=True,
         )
+
+        # Broadcast live GPS coordinates to active assigned orders and rooms
+        from app.services.socket_service import EVENT_LOCATION_UPDATED, sio
+        active_orders = await database.find_many(
+            lifecycle.ORDERS,
+            {"rider.id": rider_id, "status": {"$nin": ["delivered", "cancelled"]}},
+        )
+        for ord_doc in active_orders:
+            o_id = str(ord_doc.get("_id") or ord_doc.get("id") or "")
+            u_id = str(ord_doc.get("userId") or (ord_doc.get("customer") or {}).get("id") or "")
+            loc_payload = {
+                "riderId": rider_id,
+                "orderId": o_id,
+                "lat": lat_f,
+                "lng": lng_f,
+                "latitude": lat_f,
+                "longitude": lng_f,
+                "heading": heading,
+                "speed": speed,
+                "accuracy": accuracy,
+                "at": now_iso,
+            }
+            if o_id:
+                await sio.emit(EVENT_LOCATION_UPDATED, loc_payload, room=f"order:{o_id}")
+            if u_id:
+                await sio.emit(EVENT_LOCATION_UPDATED, loc_payload, room=f"customer:{u_id}")
+
+        await sio.emit(
+            EVENT_LOCATION_UPDATED,
+            {
+                "riderId": rider_id,
+                "lat": lat_f,
+                "lng": lng_f,
+                "latitude": lat_f,
+                "longitude": lng_f,
+                "heading": heading,
+                "speed": speed,
+                "at": now_iso,
+            },
+            room="admins",
+        )
+
     return {"ok": True, "lat": lat, "lng": lng, "updatedAt": now_iso}
 
 
@@ -978,6 +1022,23 @@ async def update_settings(body: dict, user: User = Depends(current_user)) -> dic
 # --------------------------------------------------------------------------
 
 
+@router.get("/offers")
+async def get_active_offers(user: User = Depends(current_user)) -> list:
+    """Fetch live pending ride offers dispatched to this rider."""
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION
+    now_iso = datetime.now(timezone.utc).isoformat()
+    offers = await database.find_many(
+        RIDE_ASSIGNMENTS_COLLECTION,
+        {"riderId": rider_id, "status": "pending"},
+    )
+    # Filter unexpired offers
+    valid_offers = [
+        off for off in offers if not off.get("expiresAt") or off.get("expiresAt") > now_iso
+    ]
+    return valid_offers
+
+
 @router.get("/orders")
 async def list_orders(
     q: Optional[str] = None,
@@ -1024,7 +1085,42 @@ async def _rider_action(action, order_id: str, user: User, **kwargs) -> dict:
 
 @router.post("/orders/{order_id}/accept")
 async def accept_order(order_id: str, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    # Check if order_id is a rideId or orderId
+    from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    if not ride:
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id, "status": {"$in": ["OFFER_SENT", "SEARCHING_RIDER"]}})
+    
+    if ride:
+        try:
+            return await smart_2ride_engine.handle_rider_accept(ride["_id"], rider_id)
+        except ValueError as err:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err))
+
     return await _rider_action(rider_delivery_repository.accept, order_id, user)
+
+
+@router.post("/orders/{order_id}/reject")
+async def reject_order(
+    order_id: str, body: dict | None = None, user: User = Depends(current_user)
+) -> dict:
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    if not ride:
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id, "status": "OFFER_SENT"})
+    
+    if ride:
+        return await smart_2ride_engine.handle_rider_reject(ride["_id"], rider_id, reason=(body or {}).get("reason", "Declined"))
+
+    try:
+        order = await rider_delivery_repository.by_id(order_id, rider_id)
+    except lifecycle.OrderAuthorizationError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    return order
 
 
 @router.post("/orders/{order_id}/pickup")
@@ -1032,9 +1128,15 @@ async def accept_order(order_id: str, user: User = Depends(current_user)) -> dic
 async def pickup_order(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:
-    return await _rider_action(
-        rider_delivery_repository.pickup, order_id, user, otp=(body or {}).get("otp")
-    )
+    rider_id = await _rider_id(user)
+    otp = (body or {}).get("otp") or (body or {}).get("code")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        return await smart_2ride_engine.verify_pickup_otp(order_id, str(otp or ""), rider_id)
+    except (PermissionError, ValueError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 @router.post("/orders/{order_id}/drop-at-partner")
@@ -1047,9 +1149,15 @@ async def drop_at_partner(order_id: str, user: User = Depends(current_user)) -> 
 async def start_delivery(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:
-    return await _rider_action(
-        rider_delivery_repository.start_delivery, order_id, user, otp=(body or {}).get("otp")
-    )
+    rider_id = await _rider_id(user)
+    otp = (body or {}).get("otp") or (body or {}).get("code")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        return await smart_2ride_engine.verify_dispatch_otp(order_id, str(otp or ""), rider_id)
+    except (PermissionError, ValueError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 @router.post("/orders/{order_id}/deliver")
@@ -1057,23 +1165,15 @@ async def start_delivery(
 async def deliver_order(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:
-    return await _rider_action(
-        rider_delivery_repository.deliver, order_id, user, otp=(body or {}).get("otp")
-    )
-
-
-@router.post("/orders/{order_id}/reject")
-async def reject_order(
-    order_id: str, body: dict | None = None, user: User = Depends(current_user)
-) -> dict:
     rider_id = await _rider_id(user)
+    otp = (body or {}).get("otp") or (body or {}).get("code")
+    from app.services.smart_2ride_engine import smart_2ride_engine
     try:
-        order = await rider_delivery_repository.by_id(order_id, rider_id)
-    except lifecycle.OrderAuthorizationError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    if order is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    return order
+        return await smart_2ride_engine.verify_delivery_otp(order_id, str(otp or ""), rider_id)
+    except (PermissionError, ValueError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 # --------------------------------------------------------------------------

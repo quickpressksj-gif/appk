@@ -106,6 +106,9 @@ class OrderRiderParty(OrderParty):
     plate: str = ""
     rating: float = 0
     trips: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location: Optional[Dict[str, float]] = None
 
 
 class OrderEvent(BaseModel):
