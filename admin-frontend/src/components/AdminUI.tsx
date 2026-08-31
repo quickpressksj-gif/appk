@@ -165,19 +165,23 @@ export type ColumnDef<T> = {
   className?: string;
 };
 
-export function DataTable<T extends { id: string }>({
+export type DataTableProps<T = any> = {
+  columns?: ColumnDef<T>[];
+  headers?: string[];
+  rows?: any[];
+  loading?: boolean;
+  emptyMessage?: string;
+  onRowClick?: (row: any) => void;
+};
+
+export function DataTable<T extends { id?: string } = any>({
   columns,
-  rows,
+  headers,
+  rows = [],
   loading = false,
   emptyMessage = "No records found",
   onRowClick,
-}: {
-  columns: ColumnDef<T>[];
-  rows: T[];
-  loading?: boolean;
-  emptyMessage?: string;
-  onRowClick?: (row: T) => void;
-}) {
+}: DataTableProps<T>) {
   if (loading) {
     return (
       <div className="space-y-3 p-4">
@@ -188,7 +192,9 @@ export function DataTable<T extends { id: string }>({
     );
   }
 
-  if (rows.length === 0) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  if (safeRows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center">
         <div className="flex size-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 border border-zinc-200">
@@ -200,12 +206,61 @@ export function DataTable<T extends { id: string }>({
     );
   }
 
+  // If headers is provided (simple 2D array of ReactNodes)
+  if (Array.isArray(headers) && headers.length > 0) {
+    return (
+      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+        <Table>
+          <TableHeader className="bg-zinc-50/80">
+            <TableRow className="border-b border-zinc-200 hover:bg-transparent">
+              {headers.map((h, idx) => (
+                <TableHead
+                  key={idx}
+                  className="text-[11px] font-black uppercase tracking-wider text-zinc-500 py-3.5"
+                >
+                  {h}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {safeRows.map((row, rIdx) => (
+              <TableRow
+                key={row?.id || rIdx}
+                onClick={() => onRowClick?.(row)}
+                className={cn(
+                  "border-b border-zinc-100 transition-colors hover:bg-zinc-50/80",
+                  onRowClick ? "cursor-pointer" : "",
+                )}
+              >
+                {Array.isArray(row) ? (
+                  row.map((cell, cIdx) => (
+                    <TableCell key={cIdx} className="py-3.5 text-xs text-zinc-800 font-medium">
+                      {cell ?? "—"}
+                    </TableCell>
+                  ))
+                ) : (
+                  <TableCell colSpan={headers.length} className="py-3.5 text-xs text-zinc-800 font-medium">
+                    {String(row)}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  // If columns is provided (object-based rows)
+  const safeColumns = Array.isArray(columns) ? columns : [];
+
   return (
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
       <Table>
         <TableHeader className="bg-zinc-50/80">
           <TableRow className="border-b border-zinc-200 hover:bg-transparent">
-            {columns.map((col) => (
+            {safeColumns.map((col) => (
               <TableHead
                 key={col.key}
                 className={cn("text-[11px] font-black uppercase tracking-wider text-zinc-500 py-3.5", col.className)}
@@ -216,16 +271,16 @@ export function DataTable<T extends { id: string }>({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
+          {safeRows.map((row, rIdx) => (
             <TableRow
-              key={row.id}
+              key={row?.id || rIdx}
               onClick={() => onRowClick?.(row)}
               className={cn(
                 "border-b border-zinc-100 transition-colors hover:bg-zinc-50/80",
                 onRowClick ? "cursor-pointer" : "",
               )}
             >
-              {columns.map((col) => (
+              {safeColumns.map((col) => (
                 <TableCell key={col.key} className={cn("py-3.5 text-xs text-zinc-800 font-medium", col.className)}>
                   {col.render ? col.render(row) : (row as any)[col.key] ?? "—"}
                 </TableCell>
