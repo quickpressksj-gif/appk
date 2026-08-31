@@ -382,17 +382,19 @@ export async function postOrder(payload: PostOrderPayload): Promise<{ ok: true; 
 
   const methodKind = payload.paymentMethod || payload.paymentId || "upi";
   const isCod = methodKind === "cod";
+  const isWallet = methodKind === "wallet";
+  const paymentMode: "wallet" | "cod" | "online" = isWallet ? "wallet" : isCod ? "cod" : "online";
   const paymentLabel =
-    methodKind === "wallet"
+    isWallet
       ? "QuickPress Wallet"
-      : methodKind === "cod"
+      : isCod
         ? "Cash on Delivery"
         : methodKind === "card"
           ? "Credit / Debit Card"
           : "UPI";
 
   try {
-    const order = await apiPostJson<Order>("/api/orders", {
+    const res = await apiPostJson<any>("/api/orders", {
       serviceLabel: payload.items[0]?.name ?? "Laundry",
       items: payload.items.map((item) => ({
         id: item.id,
@@ -404,7 +406,7 @@ export async function postOrder(payload: PostOrderPayload): Promise<{ ok: true; 
       address: {
         label: address.label || "Home",
         line: address.line || "Main Road",
-        city: address.city || "Indore, MP",
+        city: address.city || "Kasganj",
         phone: payload.customerPhone || address.phone || "9876543210",
       },
       pickup: {
@@ -413,23 +415,32 @@ export async function postOrder(payload: PostOrderPayload): Promise<{ ok: true; 
         express: payload.pickup?.express ?? true,
       },
       payment: {
-        mode: isCod ? "cod" : "online",
+        mode: paymentMode,
         label: paymentLabel,
-        note: isCod ? "Pay on delivery" : "Paid online",
+        note: isCod ? "Pay on delivery" : isWallet ? "Paid via QuickPress Wallet" : "Paid online",
       },
     } satisfies PlaceOrderPayload);
 
-    if (order && order.id) {
+    const confirmedOrder = res?.order || res;
+    const orderId = res?.orderId || res?.order?.id || res?.id || res?.code;
+
+    if (orderId && confirmedOrder) {
       try {
-        sessionStorage.setItem("qp_last_order", JSON.stringify(order));
-        localStorage.setItem(`qp_order_${order.id}`, JSON.stringify(order));
+        sessionStorage.setItem("qp_last_order", JSON.stringify(confirmedOrder));
+        localStorage.setItem(`qp_order_${orderId}`, JSON.stringify(confirmedOrder));
+        if (confirmedOrder.id && confirmedOrder.id !== orderId) {
+          localStorage.setItem(`qp_order_${confirmedOrder.id}`, JSON.stringify(confirmedOrder));
+        }
+        if (confirmedOrder.code && confirmedOrder.code !== orderId) {
+          localStorage.setItem(`qp_order_${confirmedOrder.code}`, JSON.stringify(confirmedOrder));
+        }
         const recentList = JSON.parse(localStorage.getItem("qp_recent_orders") || "[]");
-        recentList.unshift(order);
+        recentList.unshift(confirmedOrder);
         localStorage.setItem("qp_recent_orders", JSON.stringify(recentList.slice(0, 20)));
       } catch {
         /* storage full or unavailable */
       }
-      return { ok: true, orderId: order.id };
+      return { ok: true, orderId };
     }
   } catch (err) {
     console.warn("Backend order placement encountered issue, creating verified fallback order:", err);

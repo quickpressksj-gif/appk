@@ -77,14 +77,16 @@ function OrderSuccessScreen() {
   useEffect(() => {
     let alive = true;
 
-    // Fast-path: immediately check local storage or session storage
+    // Fast-path: immediately check session storage or local storage
     try {
-      const cachedLast = sessionStorage.getItem("qp_last_order");
+      const cachedLast =
+        localStorage.getItem(`qp_order_${orderId}`) ||
+        sessionStorage.getItem("qp_last_order");
       if (cachedLast) {
         const parsed = JSON.parse(cachedLast);
         if (parsed && (parsed.id === orderId || parsed.code === orderId || !order)) {
           setOrder({
-            id: parsed.id || orderId,
+            id: parsed.code || parsed.id || orderId,
             placedAt: "Just now",
             storeName: parsed.partner?.name || "QuickPress Partner Store",
             storeImage: parsed.partner?.image || "/images/partners/store-front.jpg",
@@ -93,7 +95,7 @@ function OrderSuccessScreen() {
             pickup: parsed.pickup || { date: "Today", slot: "15-30 mins", express: true },
             delivery: parsed.delivery || { date: "Tomorrow", slot: "6 PM – 9 PM" },
             payment: {
-              label: parsed.payment?.label || "Online Payment",
+              label: parsed.payment?.label || "QuickPress Wallet",
               note: parsed.payment?.note || "Paid successfully",
               paid: true,
             },
