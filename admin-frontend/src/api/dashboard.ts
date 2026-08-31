@@ -17,65 +17,155 @@ export type TopPartnerItem = {
   status: string;
 };
 
+export type AttentionAlert = {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  title: string;
+  description: string;
+  count: number;
+  actionText: string;
+  actionRoute: string;
+  filterParam?: string;
+};
+
+export type TwoRideSection = {
+  label: string;
+  searching: number;
+  offerSent: number;
+  assigned: number;
+  timeout: number;
+  rejected: number;
+  noRider: number;
+};
+
+export type TwoRideStatus = {
+  ride1: TwoRideSection;
+  ride2: TwoRideSection;
+};
+
+export type PipelineStage = {
+  id: string;
+  label: string;
+  count: number;
+  status: string;
+};
+
+export type RevenueSnapshot = {
+  grossRevenue: number;
+  platformCommission: number;
+  partnerEarnings: number;
+  riderEarnings: number;
+  refunds: number;
+  pendingSettlement: number;
+};
+
+export type FleetStatus = {
+  total: number;
+  online: number;
+  available: number;
+  busy: number;
+  offline: number;
+};
+
+export type PartnerStatus = {
+  total: number;
+  active: number;
+  pending: number;
+  suspended: number;
+  inactive: number;
+};
+
+export type TopRiderItem = {
+  id: string;
+  name: string;
+  deliveries: number;
+  onTimeRate: string;
+  rating: number;
+};
+
+export type CityPerformanceItem = {
+  city: string;
+  orders: number;
+  revenue: number;
+  activeRiders: number;
+  activePartners: number;
+  delayedOrders: number;
+};
+
 export type BackendDashboardSummary = {
   totalOrders: number;
   todayOrders: number;
   liveOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
+  delayedOrders: number;
+  ordersTrend?: { value: number; changePct: number; positive: boolean };
+
   revenue: number;
   todayRevenue: number;
-  weeklyRevenue: number;
-  monthlyRevenue: number;
-  platformEarnings: number;
-  partners: number;
-  pendingPartners: number;
-  activePartners: number;
-  suspendedPartners: number;
-  riders: number;
-  onlineRiders: number;
-  busyRiders: number;
-  availableRiders: number;
-  customers: number;
-  todayCustomers: number;
-  activeCustomers: number;
-  pendingPayouts: number;
+  platformCommission: number;
   pendingPayoutAmount: number;
-  unassignedOrders: number;
-  topServices: TopServiceItem[];
+  totalCustomers: number;
+  activeCustomers: number;
+  revenueTrend?: { value: number; changePct: number; positive: boolean };
+
+  activePartners: number;
+  totalPartners: number;
+  pendingPartners: number;
+  onlineRiders: number;
+  availableRiders: number;
+  busyRiders: number;
+  totalRiders: number;
+  criticalAlertsCount: number;
+
+  attentionAlerts: AttentionAlert[];
+  liveOperations: Record<string, number>;
+  twoRideStatus: TwoRideStatus;
+  pipeline: PipelineStage[];
+  revenueSnapshot: RevenueSnapshot;
+  fleetStatus: FleetStatus;
+  partnerStatus: PartnerStatus;
   topPartners: TopPartnerItem[];
-  statusBreakdown: StatusBreakdown[];
+  topRiders: TopRiderItem[];
+  cityBreakdown: CityPerformanceItem[];
+
+  weeklyRevenue?: number;
+  monthlyRevenue?: number;
+  platformEarnings?: number;
+  pendingPayouts?: number;
+  unassignedOrders?: number;
+  slaDelayedOrders?: number;
+  topServices?: TopServiceItem[];
+  statusBreakdown?: StatusBreakdown[];
 };
 
-export type BackendLatestOrderRow = {
-  id: string;
-  code: string;
-  customer: string;
-  partner: string;
-  rider: string;
-  status: string;
-  statusLabel: string;
-  amount: number;
-  placedOn: string;
-  city: string;
-  paymentMode: string;
+export type GlobalSearchResult = {
+  ok: boolean;
+  query: string;
+  total: number;
+  results: {
+    orders: Array<{ id: string; code: string; customer: string; phone: string; status: string; amount: number }>;
+    customers: Array<{ id: string; name: string; phone: string; email: string; role: string }>;
+    partners: Array<{ id: string; name: string; phone: string; city: string; status: string }>;
+    riders: Array<{ id: string; name: string; phone: string; vehicle: string; isOnline: boolean }>;
+  };
 };
 
-export type BackendActivity = {
-  id: string;
-  title: string;
-  meta: string;
-  time: string;
-  tone: "default" | "success" | "warning" | "danger";
-};
+export async function fetchDashboardSummary(filters?: {
+  date?: string;
+  city?: string;
+  service?: string;
+}): Promise<BackendDashboardSummary> {
+  const params = new URLSearchParams();
+  if (filters?.date) params.set("date", filters.date);
+  if (filters?.city && filters.city !== "all") params.set("city", filters.city);
+  if (filters?.service && filters.service !== "all") params.set("service", filters.service);
+  const qs = params.toString();
+  return apiGetJson<BackendDashboardSummary>(`/api/admin/dashboard${qs ? `?${qs}` : ""}`);
+}
 
-export type BackendSeriesPoint = { label: string; value: number; secondary?: number };
-
-const count = (value: number) => value.toLocaleString("en-IN");
-
-/** GET /api/admin/dashboard */
-export async function fetchDashboardSummary(): Promise<BackendDashboardSummary> {
-  return apiGetJson<BackendDashboardSummary>("/api/admin/dashboard");
+export async function searchGlobal(q: string): Promise<GlobalSearchResult> {
+  return apiGetJson<GlobalSearchResult>(`/api/admin/search?q=${encodeURIComponent(q)}`);
 }
 
 /** Legacy KPI format helper for widgets */

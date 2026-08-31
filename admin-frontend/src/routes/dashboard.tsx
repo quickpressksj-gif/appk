@@ -33,6 +33,7 @@ import { toast } from "sonner";
 
 import { AdminShell } from "../components/AdminShell";
 import { AdminLivePanel } from "../components/AdminLivePanel";
+import { AdminLiveMap } from "../components/AdminLiveMap";
 import { DataTable, SectionCard, StatusPill } from "../components/AdminUI";
 import { OrdersBarChart, RevenueAreaChart } from "../components/AdminCharts";
 import {
@@ -64,13 +65,21 @@ const TONE_DOT: Record<string, string> = {
 export function DashboardPage() {
   const navigate = useNavigate();
   const [healthModalOpen, setHealthModalOpen] = useState(false);
-  const [period, setPeriod] = useState<"today" | "7d" | "30d">("7d");
+  const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "7d" | "30d" | "this_month">("today");
+  const [cityFilter, setCityFilter] = useState<string>("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [chartPeriod, setChartPeriod] = useState<"today" | "7d" | "30d">("7d");
 
-  const summary = useQuery({ queryKey: ["admin", "dashboard", "summary"], queryFn: fetchDashboardSummary });
+  const summary = useQuery({
+    queryKey: ["admin", "dashboard", "summary", dateFilter, cityFilter, serviceFilter],
+    queryFn: () => fetchDashboardSummary({ date: dateFilter, city: cityFilter, service: serviceFilter }),
+    refetchInterval: 15000,
+  });
+
   const health = useQuery({ queryKey: ["admin", "dashboard", "health"], queryFn: fetchSystemHealth });
-  const revenue = useQuery({ queryKey: ["admin", "dashboard", "revenue", period], queryFn: fetchRevenueSeries });
-  const orders = useQuery({ queryKey: ["admin", "dashboard", "orders", period], queryFn: fetchOrdersSeries });
-  const activity = useQuery({ queryKey: ["admin", "dashboard", "activity"], queryFn: fetchRecentActivity });
+  const revenue = useQuery({ queryKey: ["admin", "dashboard", "revenue", chartPeriod], queryFn: fetchRevenueSeries });
+  const orders = useQuery({ queryKey: ["admin", "dashboard", "orders", chartPeriod], queryFn: fetchOrdersSeries });
+  const activity = useQuery({ queryKey: ["admin", "dashboard", "activity"], queryFn: fetchRecentActivity, refetchInterval: 10000 });
   const latest = useQuery({ queryKey: ["admin", "dashboard", "latest"], queryFn: fetchLatestOrders });
 
   const data = summary.data;
@@ -82,9 +91,8 @@ export function DashboardPage() {
     orders.refetch();
     activity.refetch();
     latest.refetch();
-    toast.success("Dashboard metrics refreshed!");
+    toast.success("Command Center data refreshed from Supabase!");
   };
-
 
   const count = (n?: number) => (n ?? 0).toLocaleString("en-IN");
   const currency = (n?: number) => `₹${(n ?? 0).toLocaleString("en-IN")}`;
@@ -108,7 +116,7 @@ export function DashboardPage() {
   return (
     <AdminShell
       title="Platform Command Center"
-      subtitle={`Live operations data as of ${currentDateStr}`}
+      subtitle={`Live operations data as of ${currentDateStr} · Supabase PostgreSQL`}
       actions={
         <>
           {/* System Health Pill */}
@@ -145,229 +153,310 @@ export function DashboardPage() {
     >
       <div className="space-y-6">
         {/* =========================================================================
-            1. REQUIRES ATTENTION (ALERT STRIP)
+            SECTION 3: GLOBAL FILTER BAR
         ========================================================================= */}
-        {data && ((data as any).pendingPartners > 0 || (data as any).pendingPayouts > 0 || (data as any).unassignedOrders > 0 || (data as any).slaDelayedOrders > 0 || (data as any).openSupportTickets > 0) && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:p-5 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-amber-200/60">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-xs">
+          {/* Date Selector */}
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 mr-2">DATE:</span>
+            {[
+              { id: "today", label: "Today" },
+              { id: "yesterday", label: "Yesterday" },
+              { id: "7d", label: "Last 7 Days" },
+              { id: "30d", label: "Last 30 Days" },
+              { id: "this_month", label: "This Month" },
+            ].map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setDateFilter(d.id as any)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                  dateFilter === d.id
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          {/* City & Service Filters */}
+          <div className="flex items-center gap-2">
+            <select
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="h-8 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-bold text-zinc-700 focus:border-emerald-600 focus:outline-none"
+            >
+              <option value="all">All Cities</option>
+              <option value="Kasganj">Kasganj</option>
+              <option value="Aligarh">Aligarh</option>
+              <option value="Mathura">Mathura</option>
+            </select>
+
+            <select
+              value={serviceFilter}
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="h-8 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-bold text-zinc-700 focus:border-emerald-600 focus:outline-none"
+            >
+              <option value="all">All Services</option>
+              <option value="wash">Wash &amp; Iron</option>
+              <option value="dry">Dry Cleaning</option>
+              <option value="iron">Steam Press</option>
+              <option value="shoe">Shoe Care</option>
+            </select>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            SECTION 5: ATTENTION REQUIRED (ACTIONABLE ALERT STRIP)
+        ========================================================================= */}
+        {data?.attentionAlerts && data.attentionAlerts.length > 0 && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-200/80">
               <div className="flex items-center gap-2">
                 <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white font-black text-xs">
                   <AlertTriangle className="size-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-amber-950">Requires Immediate Attention</h3>
-                  <p className="text-xs text-amber-800 font-medium">Pending operational tasks &amp; system alerts awaiting admin resolution</p>
+                  <p className="text-xs text-amber-800 font-medium">Critical items needing admin intervention</p>
                 </div>
               </div>
+              <span className="rounded-full bg-amber-200/80 px-2.5 py-0.5 text-[10px] font-black text-amber-900">
+                {data.attentionAlerts.length} Action Items
+              </span>
             </div>
 
             <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {(data as any).pendingPartners > 0 && (
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: adminRoutes.partners })}
-                  className="flex items-center justify-between rounded-xl border border-amber-300 bg-white p-3 text-left transition-all hover:border-amber-400 hover:shadow-sm"
+              {data.attentionAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`flex flex-col justify-between rounded-xl border p-3.5 bg-white transition-all hover:shadow-sm ${
+                    alert.severity === "critical" ? "border-rose-300 bg-rose-50/40" : "border-amber-300"
+                  }`}
                 >
                   <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">
-                      Partner Approvals
+                    <span className={`text-[10px] font-black uppercase tracking-wider ${alert.severity === "critical" ? "text-rose-600" : "text-amber-700"}`}>
+                      {alert.title}
                     </span>
-                    <p className="text-base font-black text-zinc-900">{(data as any).pendingPartners} Pending Applications</p>
+                    <p className="mt-1 text-xs text-zinc-600 line-clamp-2">{alert.description}</p>
                   </div>
-                  <ChevronRight className="size-4 text-amber-600" />
-                </button>
-              )}
-
-              {(data as any).pendingPayouts > 0 && (
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: adminRoutes.wallet })}
-                  className="flex items-center justify-between rounded-xl border border-amber-300 bg-white p-3 text-left transition-all hover:border-amber-400 hover:shadow-sm"
-                >
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">
-                      Partner Payouts
-                    </span>
-                    <p className="text-base font-black text-zinc-900">{currency((data as any).pendingPayoutAmount)} ({(data as any).pendingPayouts})</p>
-                  </div>
-                  <ChevronRight className="size-4 text-amber-600" />
-                </button>
-              )}
-
-              {(data as any).unassignedOrders > 0 && (
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: adminRoutes.orders })}
-                  className="flex items-center justify-between rounded-xl border border-amber-300 bg-white p-3 text-left transition-all hover:border-amber-400 hover:shadow-sm"
-                >
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-sky-700">
-                      Fleet Assignment
-                    </span>
-                    <p className="text-base font-black text-zinc-900">{(data as any).unassignedOrders} Unassigned Orders</p>
-                  </div>
-                  <ChevronRight className="size-4 text-amber-600" />
-                </button>
-              )}
-
-              {(data as any).slaDelayedOrders > 0 && (
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: adminRoutes.orders })}
-                  className="flex items-center justify-between rounded-xl border border-rose-300 bg-rose-50/50 p-3 text-left transition-all hover:border-rose-400 hover:shadow-sm"
-                >
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-700">
-                      SLA Delay Warning
-                    </span>
-                    <p className="text-base font-black text-rose-900">{(data as any).slaDelayedOrders} Delayed Orders</p>
-                  </div>
-                  <ChevronRight className="size-4 text-rose-600" />
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: alert.actionRoute as any })}
+                    className="mt-3 flex items-center justify-between rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-black text-white hover:bg-zinc-800 active:scale-95"
+                  >
+                    <span>{alert.actionText}</span>
+                    <ChevronRight className="size-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         {/* =========================================================================
-            2. PRIMARY CLICKABLE KPI CARDS
+            SECTION 4: TOP KPI CARDS (ORDERS, BUSINESS, OPERATIONS)
         ========================================================================= */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {/* Card 1: Orders */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.orders })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">ORDERS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <ShoppingBag className="size-3.5" />
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {/* 1. ORDERS CATEGORY */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">ORDERS HEALTH</span>
+                <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                  <TrendingUp className="size-3" />
+                  {data?.ordersTrend ? `${data.ordersTrend.changePct > 0 ? "+" : ""}${data.ordersTrend.changePct}%` : "+0%"} vs prev
+                </span>
+              </div>
+              <p className="mt-2 text-3xl font-black text-zinc-900">{count(data?.totalOrders)}</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
+                <div>
+                  <p className="text-[10px] text-zinc-500">Active</p>
+                  <p className="font-black text-emerald-700">{count(data?.liveOrders)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Delivered</p>
+                  <p className="font-black text-zinc-900">{count(data?.deliveredOrders)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Delayed</p>
+                  <p className="font-black text-rose-600">{count(data?.delayedOrders)}</p>
+                </div>
               </div>
             </div>
-            <p className="mt-2 text-2xl font-black text-zinc-900">{count(data?.totalOrders)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Today's:</span> <span className="font-bold text-zinc-900">{count(data?.todayOrders)}</span></p>
-              <p className="flex justify-between"><span>Active:</span> <span className="font-bold text-emerald-700">{count(data?.liveOrders)}</span></p>
-              <p className="flex justify-between"><span>Completed:</span> <span className="font-bold text-zinc-900">{count(data?.deliveredOrders)}</span></p>
-            </div>
-          </div>
 
-          {/* Card 2: Revenue */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.wallet })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">REVENUE</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Wallet className="size-3.5" />
+            {/* 2. BUSINESS CATEGORY */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">BUSINESS &amp; REVENUE</span>
+                <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                  <TrendingUp className="size-3" />
+                  {data?.revenueTrend ? `${data.revenueTrend.changePct > 0 ? "+" : ""}${data.revenueTrend.changePct}%` : "+0%"} vs prev
+                </span>
+              </div>
+              <p className="mt-2 text-3xl font-black text-emerald-700">{currency(data?.todayRevenue || data?.revenue)}</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
+                <div>
+                  <p className="text-[10px] text-zinc-500">Commission (18%)</p>
+                  <p className="font-black text-emerald-800">{currency(data?.platformCommission)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Pending Payout</p>
+                  <p className="font-black text-amber-700">{currency(data?.pendingPayoutAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Customers</p>
+                  <p className="font-black text-zinc-900">{count(data?.totalCustomers)}</p>
+                </div>
               </div>
             </div>
-            <p className="mt-2 text-2xl font-black text-emerald-700">{currency(data?.revenue)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Today:</span> <span className="font-bold text-zinc-900">{currency(data?.todayRevenue)}</span></p>
-              <p className="flex justify-between"><span>7-Day:</span> <span className="font-bold text-zinc-900">{currency(data?.weeklyRevenue)}</span></p>
-              <p className="flex justify-between"><span>Commission (18%):</span> <span className="font-bold text-emerald-700">{currency(data?.platformEarnings)}</span></p>
-            </div>
-          </div>
 
-          {/* Card 3: Partners */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.partners })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">PARTNERS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Building2 className="size-3.5" />
+            {/* 3. OPERATIONS CATEGORY */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">FLEET &amp; PARTNERS</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Live Telemetry</span>
               </div>
-            </div>
-            <p className="mt-2 text-2xl font-black text-zinc-900">{count(data?.partners)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Active:</span> <span className="font-bold text-emerald-700">{count(data?.activePartners)}</span></p>
-              <p className="flex justify-between"><span>Pending:</span> <span className="font-bold text-rose-600">{count(data?.pendingPartners)}</span></p>
-              <p className="flex justify-between"><span>Suspended:</span> <span className="font-bold text-zinc-900">{count(data?.suspendedPartners)}</span></p>
-            </div>
-          </div>
-
-          {/* Card 4: Riders */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.riders })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">RIDERS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Truck className="size-3.5" />
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-3xl font-black text-zinc-900">{count(data?.onlineRiders)}</p>
+                <span className="text-xs font-bold text-zinc-500">Riders Online / {count(data?.totalRiders)}</span>
               </div>
-            </div>
-            <p className="mt-2 text-2xl font-black text-zinc-900">{count(data?.riders)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Online:</span> <span className="font-bold text-emerald-700">{count(data?.onlineRiders)}</span></p>
-              <p className="flex justify-between"><span>On Delivery:</span> <span className="font-bold text-amber-600">{count(data?.busyRiders)}</span></p>
-              <p className="flex justify-between"><span>Available:</span> <span className="font-bold text-zinc-900">{count(data?.availableRiders)}</span></p>
-            </div>
-          </div>
-
-          {/* Card 5: Memberships (Real Subscriptions Hub) */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.memberships })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-xs transition-all hover:border-emerald-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">VIP MEMBERS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
-                <Sparkles className="size-3.5" />
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
+                <div>
+                  <p className="text-[10px] text-zinc-500">Available</p>
+                  <p className="font-black text-emerald-700">{count(data?.availableRiders)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Active Stores</p>
+                  <p className="font-black text-zinc-900">{count(data?.activePartners)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500">Pending Stores</p>
+                  <p className="font-black text-rose-600">{count(data?.pendingPartners)}</p>
+                </div>
               </div>
-            </div>
-            <p className="mt-2 text-2xl font-black text-emerald-950">{count((data as any)?.activeMembers)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-emerald-900">
-              <p className="flex justify-between"><span>Silver / Gold / Plat:</span> <span className="font-bold">{(data as any)?.silverMembers || 0} / {(data as any)?.goldMembers || 0} / {(data as any)?.platinumMembers || 0}</span></p>
-              <p className="flex justify-between"><span>Subscription MRR:</span> <span className="font-bold text-emerald-700">{currency((data as any)?.membershipMRR)}</span></p>
-            </div>
-          </div>
-
-          {/* Card 6: Customers */}
-          <div
-            onClick={() => navigate({ to: adminRoutes.customers })}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-zinc-300 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">CUSTOMERS</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Users className="size-3.5" />
-              </div>
-            </div>
-            <p className="mt-2 text-2xl font-black text-zinc-900">{count(data?.customers)}</p>
-            <div className="mt-2 space-y-1 text-[11px] font-semibold text-zinc-600">
-              <p className="flex justify-between"><span>Active:</span> <span className="font-bold text-emerald-700">{count(data?.activeCustomers)}</span></p>
-              <p className="flex justify-between"><span>New Today:</span> <span className="font-bold text-zinc-900">{count(data?.todayCustomers)}</span></p>
-              <p className="flex justify-between"><span>Conversion:</span> <span className="font-bold text-zinc-900">
-                {data?.customers ? `${Math.round(((data.activeCustomers || 0) / data.customers) * 100)}%` : "0%"}
-              </span></p>
             </div>
           </div>
         </div>
 
-
         {/* =========================================================================
-            3. ORDER STATUS OVERVIEW (VISUAL PIPELINE)
+            SECTION 7: QUICKPRESS 2-RIDE AUTO ASSIGNMENT STATUS
         ========================================================================= */}
         <SectionCard
-          title="Order Fulfillment Pipeline"
-          description="Live orders tracked through each stage of the QuickPress lifecycle"
+          title="QuickPress 2-Ride Auto Assignment Engine"
+          description="Real-time sequential offer dispatch & claim monitoring across Ride 1 (Pickup) and Ride 2 (Delivery)"
+          actions={
+            <button
+              type="button"
+              onClick={() => navigate({ to: adminRoutes.orders })}
+              className="text-xs font-bold text-emerald-700 hover:underline"
+            >
+              Manage Live Rides →
+            </button>
+          }
         >
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            {(data?.statusBreakdown ?? []).map((step) => (
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Ride 1: Pickup */}
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4">
+              <div className="flex items-center justify-between border-b border-sky-200/60 pb-2.5">
+                <div>
+                  <h4 className="text-xs font-black text-sky-950 uppercase tracking-wide">RIDE 1 — PICKUP</h4>
+                  <p className="text-[11px] text-sky-800 font-medium">Customer Doorstep → Partner Store</p>
+                </div>
+                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                  Customer Pickup
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">Searching</p>
+                  <p className="text-sm font-black text-sky-700">{data?.twoRideStatus?.ride1?.searching || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">Offer Sent</p>
+                  <p className="text-sm font-black text-amber-600">{data?.twoRideStatus?.ride1?.offerSent || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">Assigned</p>
+                  <p className="text-sm font-black text-emerald-700">{data?.twoRideStatus?.ride1?.assigned || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">Timeout</p>
+                  <p className="text-sm font-black text-zinc-700">{data?.twoRideStatus?.ride1?.timeout || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">Rejected</p>
+                  <p className="text-sm font-black text-rose-600">{data?.twoRideStatus?.ride1?.rejected || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-sky-100">
+                  <p className="text-[10px] text-zinc-500">No Rider</p>
+                  <p className="text-sm font-black text-rose-700">{data?.twoRideStatus?.ride1?.noRider || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Ride 2: Delivery */}
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-4">
+              <div className="flex items-center justify-between border-b border-teal-200/60 pb-2.5">
+                <div>
+                  <h4 className="text-xs font-black text-teal-950 uppercase tracking-wide">RIDE 2 — DELIVERY</h4>
+                  <p className="text-[11px] text-teal-800 font-medium">Partner Store → Customer Doorstep</p>
+                </div>
+                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                  Final Delivery
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">Searching</p>
+                  <p className="text-sm font-black text-teal-700">{data?.twoRideStatus?.ride2?.searching || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">Offer Sent</p>
+                  <p className="text-sm font-black text-amber-600">{data?.twoRideStatus?.ride2?.offerSent || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">Assigned</p>
+                  <p className="text-sm font-black text-emerald-700">{data?.twoRideStatus?.ride2?.assigned || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">Timeout</p>
+                  <p className="text-sm font-black text-zinc-700">{data?.twoRideStatus?.ride2?.timeout || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">Rejected</p>
+                  <p className="text-sm font-black text-rose-600">{data?.twoRideStatus?.ride2?.rejected || 0}</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 border border-teal-100">
+                  <p className="text-[10px] text-zinc-500">No Rider</p>
+                  <p className="text-sm font-black text-rose-700">{data?.twoRideStatus?.ride2?.noRider || 0}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+
+        {/* =========================================================================
+            SECTION 8: ORDER FULFILLMENT PIPELINE (VISUAL 9-STAGE PROGRESSION)
+        ========================================================================= */}
+        <SectionCard
+          title="Order Lifecycle Pipeline"
+          description="Click any stage to inspect and filter orders in that operational state"
+        >
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
+            {(data?.pipeline || []).map((stage) => (
               <button
-                key={step.status}
+                key={stage.id}
                 type="button"
                 onClick={() => navigate({ to: adminRoutes.orders })}
                 className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 text-center transition-all hover:border-emerald-500 hover:bg-white hover:shadow-xs active:scale-95"
               >
-                <span className="text-xl font-black text-zinc-900">{step.count}</span>
+                <span className="text-xl font-black text-zinc-900">{stage.count}</span>
                 <span className="mt-1 text-[11px] font-bold text-zinc-600 leading-tight">
-                  {step.label}
+                  {stage.label}
                 </span>
               </button>
             ))}
@@ -375,65 +464,179 @@ export function DashboardPage() {
         </SectionCard>
 
         {/* =========================================================================
-            4. REALTIME LIVE ORDERS & DISPATCH PANEL
+            SECTION 9 & 10: REVENUE SNAPSHOT + LIVE FLEET & PARTNER STATUS
         ========================================================================= */}
-        <AdminLivePanel />
-
-        {/* =========================================================================
-            5. REVENUE & ORDERS ANALYTICS (RECHARTS)
-        ========================================================================= */}
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-3">
+          {/* Revenue Snapshot */}
           <SectionCard
-            title="Revenue Trajectory"
-            description="Gross merchandise volume vs platform earnings"
-            actions={
-              <div className="flex gap-1 rounded-xl bg-zinc-100 p-1">
-                {(["today", "7d", "30d"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPeriod(p)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize transition-all ${
-                      period === p ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-900"
-                    }`}
-                  >
-                    {p === "today" ? "Today" : p === "7d" ? "7 Days" : "30 Days"}
-                  </button>
-                ))}
+            title="Revenue Snapshot"
+            description="Verified financial reconciliation from Supabase orders"
+          >
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+                <span className="text-zinc-600">Gross Revenue</span>
+                <span className="text-zinc-900">{currency(data?.revenueSnapshot?.grossRevenue)}</span>
               </div>
+              <div className="flex justify-between rounded-xl bg-emerald-50 p-2.5 font-bold text-emerald-900">
+                <span>Platform Commission (18%)</span>
+                <span>{currency(data?.revenueSnapshot?.platformCommission)}</span>
+              </div>
+              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+                <span className="text-zinc-600">Partner Earnings</span>
+                <span className="text-zinc-900">{currency(data?.revenueSnapshot?.partnerEarnings)}</span>
+              </div>
+              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+                <span className="text-zinc-600">Rider Earnings</span>
+                <span className="text-zinc-900">{currency(data?.revenueSnapshot?.riderEarnings)}</span>
+              </div>
+              <div className="flex justify-between rounded-xl bg-rose-50 p-2.5 font-bold text-rose-900">
+                <span>Refunds / Cancellations</span>
+                <span>{currency(data?.revenueSnapshot?.refunds)}</span>
+              </div>
+              <div className="flex justify-between rounded-xl bg-amber-50 p-2.5 font-bold text-amber-900">
+                <span>Pending Settlement</span>
+                <span>{currency(data?.revenueSnapshot?.pendingSettlement)}</span>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Riders Status */}
+          <SectionCard
+            title="Rider Fleet Status"
+            description="Active delivery captains ready for dispatch"
+            actions={
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="text-xs font-bold text-emerald-700 hover:underline"
+              >
+                Fleet View →
+              </button>
             }
           >
-            <RevenueAreaChart data={revenue.data} loading={revenue.isLoading} />
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[10px] text-zinc-500">Total Registered</p>
+                <p className="text-lg font-black text-zinc-900">{data?.fleetStatus?.total || 0}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-[10px] text-emerald-800">Online Now</p>
+                <p className="text-lg font-black text-emerald-700">{data?.fleetStatus?.online || 0}</p>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[10px] text-zinc-500">Available</p>
+                <p className="text-lg font-black text-zinc-900">{data?.fleetStatus?.available || 0}</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[10px] text-amber-800">Busy on Trip</p>
+                <p className="text-lg font-black text-amber-700">{data?.fleetStatus?.busy || 0}</p>
+              </div>
+            </div>
           </SectionCard>
 
+          {/* Partners Status */}
           <SectionCard
-            title="Order Fulfillment Velocity"
-            description="Delivered orders vs cancellations"
-          >
-            <OrdersBarChart data={orders.data} loading={orders.isLoading} />
-          </SectionCard>
-        </div>
-
-        {/* =========================================================================
-            6. TOP PARTNERS & TOP SERVICES ROW
-        ========================================================================= */}
-        <div className="grid gap-6 xl:grid-cols-2">
-          {/* Top Partners */}
-          <SectionCard
-            title="Top Partner Stores"
-            description="Leading laundry stores by volume and ratings"
+            title="Partner Stores Readiness"
+            description="Onboarded laundromats and dry cleaner hubs"
             actions={
               <button
                 type="button"
                 onClick={() => navigate({ to: adminRoutes.partners })}
                 className="text-xs font-bold text-emerald-700 hover:underline"
               >
-                All Partners →
+                Stores View →
+              </button>
+            }
+          >
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[10px] text-zinc-500">Total Stores</p>
+                <p className="text-lg font-black text-zinc-900">{data?.partnerStatus?.total || 0}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-[10px] text-emerald-800">Active Stores</p>
+                <p className="text-lg font-black text-emerald-700">{data?.partnerStatus?.active || 0}</p>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <p className="text-[10px] text-rose-800">Pending KYC</p>
+                <p className="text-lg font-black text-rose-600">{data?.partnerStatus?.pending || 0}</p>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[10px] text-zinc-500">Suspended / Inactive</p>
+                <p className="text-lg font-black text-zinc-900">
+                  {(data?.partnerStatus?.suspended || 0) + (data?.partnerStatus?.inactive || 0)}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        {/* =========================================================================
+            SECTION 11: LIVE OPERATIONS MAP (COMPACT EMBED + LINK TO FULL MAP)
+        ========================================================================= */}
+        <SectionCard
+          title="Live Operations Map"
+          description="Real-time GPS telemetry from active rider devices and partner pickup hubs"
+          actions={
+            <button
+              type="button"
+              onClick={() => navigate({ to: adminRoutes.riders })}
+              className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline"
+            >
+              <span>Open Full Live Map</span>
+              <ExternalLink className="size-3" />
+            </button>
+          }
+        >
+          <AdminLiveMap className="h-64" />
+        </SectionCard>
+
+        {/* =========================================================================
+            SECTION 12: ORDERS + REVENUE TREND CHART
+        ========================================================================= */}
+        <SectionCard
+          title="Orders &amp; Revenue Trajectory"
+          description="Delivered orders volume vs platform GMV"
+          actions={
+            <div className="flex gap-1 rounded-xl bg-zinc-100 p-1">
+              {(["today", "7d", "30d"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setChartPeriod(p)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize transition-all ${
+                    chartPeriod === p ? "bg-white text-zinc-900 shadow-xs" : "text-zinc-500 hover:text-zinc-900"
+                  }`}
+                >
+                  {p === "today" ? "Today" : p === "7d" ? "7 Days" : "30 Days"}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          <RevenueAreaChart data={revenue.data} loading={revenue.isLoading} />
+        </SectionCard>
+
+        {/* =========================================================================
+            SECTION 13: TOP PERFORMANCE (TOP 5 PARTNERS & TOP 5 RIDERS)
+        ========================================================================= */}
+        <div className="grid gap-6 xl:grid-cols-2">
+          {/* Top 5 Partners */}
+          <SectionCard
+            title="Top 5 Partner Stores"
+            description="Leading laundry stores by order volume and ratings"
+            actions={
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="text-xs font-bold text-emerald-700 hover:underline"
+              >
+                View All →
               </button>
             }
           >
             <div className="space-y-2.5">
-              {(data?.topPartners ?? []).map((partner) => (
+              {(data?.topPartners || []).slice(0, 5).map((partner) => (
                 <div
                   key={partner.id}
                   onClick={() => navigate({ to: adminRoutes.partners })}
@@ -448,166 +651,229 @@ export function DashboardPage() {
                       <p className="text-[10px] text-zinc-500 font-medium">{partner.city} · ★ {partner.rating}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-emerald-700">{currency(partner.revenue)}</p>
-                    <p className="text-[10px] text-zinc-500 font-semibold">{partner.orders} orders</p>
+                  <div className="text-right text-xs">
+                    <p className="font-black text-zinc-900">{partner.orders} Orders</p>
+                    <p className="text-[10px] font-bold text-emerald-700">{currency(partner.revenue)}</p>
                   </div>
                 </div>
               ))}
-              {(!data?.topPartners || data.topPartners.length === 0) && (
-                <p className="py-6 text-center text-xs text-zinc-400">No partner activity recorded yet.</p>
-              )}
             </div>
           </SectionCard>
 
-          {/* Top Services */}
+          {/* Top 5 Riders */}
           <SectionCard
-            title="Top Service Categories"
-            description="Most booked services by customer frequency"
+            title="Top 5 Delivery Captains"
+            description="Top rated fleet members by deliveries completed and on-time performance"
             actions={
               <button
                 type="button"
-                onClick={() => navigate({ to: adminRoutes.services })}
+                onClick={() => navigate({ to: adminRoutes.riders })}
                 className="text-xs font-bold text-emerald-700 hover:underline"
               >
-                Catalog →
+                View All →
               </button>
             }
           >
-            <div className="space-y-3">
-              {(data?.topServices ?? []).map((item) => (
-                <div key={item.service} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-zinc-800">{item.service}</span>
-                    <span className="text-zinc-900">{item.orders} Orders ({currency(item.revenue)})</span>
+            <div className="space-y-2.5">
+              {(data?.topRiders || []).slice(0, 5).map((rider) => (
+                <div
+                  key={rider.id}
+                  onClick={() => navigate({ to: adminRoutes.riders })}
+                  className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/70 p-3 hover:bg-white hover:border-zinc-200 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 text-sky-800 font-black text-xs">
+                      {rider.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-zinc-900">{rider.name}</p>
+                      <p className="text-[10px] text-zinc-500 font-medium">On-Time: {rider.onTimeRate} · ★ {rider.rating}</p>
+                    </div>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full"
-                      style={{
-                        width: `${Math.min(100, Math.max(15, (item.orders / (data.totalOrders || 1)) * 100))}%`,
-                      }}
-                    />
+                  <div className="text-right text-xs">
+                    <p className="font-black text-zinc-900">{rider.deliveries} Deliveries</p>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Top Rated
+                    </span>
                   </div>
                 </div>
               ))}
-              {(!data?.topServices || data.topServices.length === 0) && (
-                <p className="py-6 text-center text-xs text-zinc-400">No service booking activity recorded yet.</p>
-              )}
             </div>
           </SectionCard>
         </div>
 
         {/* =========================================================================
-            7. LATEST ORDERS & RECENT AUDIT STREAM
+            SECTION 14: CITY / AREA SNAPSHOT TABLE
         ========================================================================= */}
-        <div className="grid gap-6 xl:grid-cols-3 items-start">
-          <div className="xl:col-span-2">
-            <SectionCard
-              title="Recent Orders Pipeline"
-              description="Latest customer laundry bookings across the network"
-              actions={
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: adminRoutes.orders })}
-                  className="text-xs font-black text-emerald-700 hover:underline"
-                >
-                  View All Orders →
-                </button>
-              }
+        <SectionCard
+          title="City &amp; Operating Zone Snapshot"
+          description="Orders, revenue, active fleet, and delay breakdown by operating geography"
+          actions={
+            <button
+              type="button"
+              onClick={() => navigate({ to: adminRoutes.cities })}
+              className="text-xs font-bold text-emerald-700 hover:underline"
             >
-              <DataTable
-                loading={latest.isLoading}
-                rows={latestRows}
-                onRowClick={(r) => navigate({ to: adminRoutes.orders })}
-                columns={[
-                  { key: "id", label: "Order ID", render: (r) => <span className="font-mono font-bold text-zinc-900">#{r.id}</span> },
-                  { key: "customer", label: "Customer", render: (r) => <span className="font-bold text-zinc-900">{r.customer}</span> },
-                  { key: "partner", label: "Store", render: (r) => <span className="text-zinc-600 font-medium">{r.partner}</span> },
-                  { key: "rider", label: "Rider", render: (r) => <span className="text-zinc-500 font-medium">{r.rider}</span> },
-                  { key: "status", label: "Status", render: (r) => <StatusPill value={r.status} /> },
-                  { key: "amount", label: "Total", className: "text-right", render: (r) => <span className="font-black text-emerald-700">{r.amount}</span> },
-                ]}
-              />
-            </SectionCard>
+              View Full Analytics →
+            </button>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2.5">City</th>
+                  <th className="px-3 py-2.5">Total Orders</th>
+                  <th className="px-3 py-2.5">Gross Revenue</th>
+                  <th className="px-3 py-2.5">Active Riders</th>
+                  <th className="px-3 py-2.5">Active Partners</th>
+                  <th className="px-3 py-2.5">Delayed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {(data?.cityBreakdown || []).map((c) => (
+                  <tr key={c.city} className="hover:bg-zinc-50/80">
+                    <td className="px-3 py-2.5 font-bold text-zinc-900">{c.city}</td>
+                    <td className="px-3 py-2.5 font-semibold text-zinc-700">{c.orders}</td>
+                    <td className="px-3 py-2.5 font-black text-emerald-700">{currency(c.revenue)}</td>
+                    <td className="px-3 py-2.5 text-zinc-600">{c.activeRiders}</td>
+                    <td className="px-3 py-2.5 text-zinc-600">{c.activePartners}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`font-bold ${c.delayedOrders > 0 ? "text-rose-600" : "text-zinc-400"}`}>
+                        {c.delayedOrders}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </SectionCard>
 
-          {/* Audit Stream */}
+        {/* =========================================================================
+            SECTION 15 & 16: QUICK ACTIONS + LIVE ACTIVITY STREAM
+        ========================================================================= */}
+        <div className="grid gap-6 xl:grid-cols-2">
+          {/* Quick Actions */}
           <SectionCard
-            title="Audit & Operations Stream"
-            description="Realtime platform governance events"
+            title="Administrative Quick Actions"
+            description="One-click operational dispatch & governance actions"
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.orders })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <ShoppingBag className="size-4 text-emerald-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Create Order</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.customers })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <Users className="size-4 text-sky-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Add Customer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <Building2 className="size-4 text-amber-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Add Partner</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <Truck className="size-4 text-purple-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Add Rider</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.coupons })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <TicketPercent className="size-4 text-emerald-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Create Coupon</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.notifications })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <BellRing className="size-4 text-indigo-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Broadcast Alert</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.orders })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <Truck className="size-4 text-sky-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Manual Dispatch</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.orders })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <AlertTriangle className="size-4 text-rose-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">Delayed Orders</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center hover:bg-zinc-100 active:scale-95"
+              >
+                <Wallet className="size-4 text-emerald-600 mb-1" />
+                <span className="text-[11px] font-bold text-zinc-800">View Refunds</span>
+              </button>
+            </div>
+          </SectionCard>
+
+          {/* Live Activity Stream */}
+          <SectionCard
+            title="Live Operational Activity"
+            description="Real-time audit log of customer orders, rider offers and store handovers"
+            actions={
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.orders })}
+                className="text-xs font-bold text-emerald-700 hover:underline"
+              >
+                View All Activity →
+              </button>
+            }
           >
             <ul className="space-y-3">
-              {(activity.data ?? []).map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-start gap-3 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3"
-                >
-                  <span className={`mt-1 size-2 shrink-0 rounded-full ${TONE_DOT[item.tone] || TONE_DOT["default"]}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-zinc-900 leading-snug">{item.title}</p>
-                    <p className="text-[10px] text-zinc-500 font-medium mt-0.5">
+              {(activity.data || []).slice(0, 8).map((item) => (
+                <li key={item.id} className="flex items-start gap-3 text-xs">
+                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[item.tone] || "bg-zinc-400"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-zinc-900 truncate">{item.title}</p>
+                    <p className="text-[10px] text-zinc-500 font-medium">
                       {item.meta} · {item.time}
                     </p>
                   </div>
                 </li>
               ))}
-              {activity.isLoading ? (
+              {activity.isLoading && (
                 <li className="text-xs text-zinc-400 py-4 text-center">Loading audit stream...</li>
-              ) : null}
+              )}
             </ul>
           </SectionCard>
-        </div>
-
-        {/* =========================================================================
-            8. QUICK ACTIONS BAR
-        ========================================================================= */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs">
-          <div className="mb-3">
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-500">QUICK ADMINISTRATIVE ACTIONS</h3>
-          </div>
-          <div className="flex flex-wrap gap-2.5">
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.partners })}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition-all active:scale-95"
-            >
-              <Building2 className="size-4 text-emerald-600" />
-              <span>Review Partner Applications</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.riders })}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition-all active:scale-95"
-            >
-              <Truck className="size-4 text-sky-600" />
-              <span>Add / Manage Riders</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.coupons })}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition-all active:scale-95"
-            >
-              <TicketPercent className="size-4 text-amber-600" />
-              <span>Create Coupon</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.notifications })}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition-all active:scale-95"
-            >
-              <BellRing className="size-4 text-purple-600" />
-              <span>Broadcast Notification</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.wallet })}
-              className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-bold text-zinc-800 hover:bg-zinc-100 transition-all active:scale-95"
-            >
-              <Wallet className="size-4 text-emerald-600" />
-              <span>Settle Payouts</span>
-            </button>
-          </div>
         </div>
       </div>
 

@@ -73,8 +73,13 @@ async def _actor(user: Optional[User]) -> str:
 
 # ---------------------------------------------------------------- dashboard
 @router.get("/dashboard")
-async def dashboard(user: User = Depends(current_user)):
-    return await admin_dashboard_repository.summary()
+async def dashboard(
+    date: str = Query("today"),
+    city: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
+    user: User = Depends(current_user),
+):
+    return await admin_dashboard_repository.summary(date_filter=date, city=city, service=service)
 
 
 @router.get("/dashboard/activity")
@@ -1205,6 +1210,101 @@ async def change_admin_pin(
         upsert=True,
     )
     return {"ok": True, "message": "Admin Security Passcode successfully updated."}
+ 
+ 
+# ----------------------------------------------------------- Global Server-Side Search
+@router.get("/search")
+async def global_search(
+    q: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(default=10, ge=1, le=50),
+    user: User = Depends(current_user),
+) -> dict:
+    """GET /api/admin/search — Unified server-side search across Orders, Customers, Partners, Riders."""
+    from app.db.client import database
+    query_str = q.strip().lower()
+    
+    results = {
+        "orders": [],
+        "customers": [],
+        "partners": [],
+        "riders": [],
+    }
+
+    # 1. Orders
+    all_orders = await database.find_many("customer_orders")
+    for o in all_orders:
+        o_id = str(o.get("_id") or o.get("id") or "")
+        code = str(o.get("code") or "")
+        c_name = str((o.get("customer") or {}).get("name") or "")
+        c_phone = str((o.get("customer") or {}).get("phone") or "")
+        if query_str in o_id.lower() or query_str in code.lower() or query_str in c_name.lower() or query_str in c_phone:
+            results["orders"].append({
+                "id": o_id,
+                "code": code or o_id[:8],
+                "customer": c_name or "Customer",
+                "phone": c_phone,
+                "status": o.get("status", "placed"),
+                "amount": (o.get("totals") or {}).get("grandTotal", 0),
+            })
+            if len(results["orders"]) >= limit:
+                break
+
+    # 2. Customers
+    all_users = await database.find_many("users")
+    for u in all_users:
+        u_id = str(u.get("_id") or u.get("id") or "")
+        name = str(u.get("name") or u.get("fullName") or u.get("display_name") or "")
+        phone = str(u.get("phone") or u.get("mobile") or "")
+        email = str(u.get("email") or "")
+        if query_str in u_id.lower() or query_str in name.lower() or query_str in phone or query_str in email.lower():
+            results["customers"].append({
+                "id": u_id,
+                "name": name or "QuickPress User",
+                "phone": phone,
+                "email": email,
+                "role": u.get("role", "customer"),
+            })
+            if len(results["customers"]) >= limit:
+                break
+
+    # 3. Partners
+    all_partners = await database.find_many("partner_profiles")
+    for p in all_partners:
+        p_id = str(p.get("_id") or p.get("id") or "")
+        name = str(p.get("storeName") or p.get("name") or "")
+        phone = str(p.get("phone") or "")
+        city = str(p.get("city") or "")
+        if query_str in p_id.lower() or query_str in name.lower() or query_str in phone or query_str in city.lower():
+            results["partners"].append({
+                "id": p_id,
+                "name": name or "QuickPress Partner",
+                "phone": phone,
+                "city": city,
+                "status": p.get("status", "active"),
+            })
+            if len(results["partners"]) >= limit:
+                break
+
+    # 4. Riders
+    all_riders = await database.find_many("rider_profiles")
+    for r in all_riders:
+        r_id = str(r.get("_id") or r.get("id") or r.get("riderId") or "")
+        name = str(r.get("fullName") or r.get("name") or "")
+        phone = str(r.get("phone") or "")
+        vehicle = str(r.get("vehicle") or r.get("vehicleNumber") or "")
+        if query_str in r_id.lower() or query_str in name.lower() or query_str in phone or query_str in vehicle.lower():
+            results["riders"].append({
+                "id": r_id,
+                "name": name or "Delivery Captain",
+                "phone": phone,
+                "vehicle": vehicle,
+                "isOnline": bool(r.get("isOnline")),
+            })
+            if len(results["riders"]) >= limit:
+                break
+
+    total_hits = sum(len(v) for v in results.values())
+    return {"ok": True, "query": q, "total": total_hits, "results": results}
 
 
 
