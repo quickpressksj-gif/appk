@@ -762,3 +762,39 @@ body [data-scroll-x] {
     animation: none;
   }
 }
+
+/* Google Translate UI Overrides for Seamless Native Experience */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame,
+iframe.goog-te-banner-frame {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+}
+
+body {
+  top: 0px !important;
+  position: static !important;
+}
+
+#google_translate_element,
+.skiptranslate:not(.goog-te-combo) {
+  display: none !important;
+}
+
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+font[style] {
+  color: inherit !important;
+  background: inherit !important;
+}
+

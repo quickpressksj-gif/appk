@@ -136,6 +136,37 @@ function RootComponent() {
   // Applies the stored Light / Dark / System choice and follows the OS live.
   useEffect(() => initTheme(), []);
 
+  // Google Translate runtime engine initialization for full app translation
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    (window as any).googleTranslateElementInit = () => {
+      try {
+        if ((window as any).google?.translate?.TranslateElement) {
+          new (window as any).google.translate.TranslateElement(
+            {
+              pageLanguage: "en",
+              includedLanguages: "en,hi",
+              autoDisplay: false,
+              layout: (window as any).google.translate.TranslateElement.InlineLayout.SIMPLE,
+            },
+            "google_translate_element"
+          );
+        }
+      } catch (err) {
+        console.warn("Google translate initialization:", err);
+      }
+    };
+
+    if (!document.getElementById("google-translate-script")) {
+      const script = document.createElement("script");
+      script.id = "google-translate-script";
+      script.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
   // Sabse zyada use hone wale pages ko idle time me pre-load — navigation instant lage.
   useEffect(() => {
     const paths = ["/home", "/history", "/cart", "/search", "/profile", "/offers", "/notifications"];
@@ -149,6 +180,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Hidden container for Google Translate engine */}
+      <div id="google_translate_element" className="hidden" aria-hidden="true" />
       {/* Premium interaction layers — presentation only, no routing/data changes. */}
       <RippleLayer />
       <PullToRefresh />
@@ -161,4 +194,5 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
 

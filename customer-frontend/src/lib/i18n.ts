@@ -176,6 +176,36 @@ export function readStoredLanguage(): LanguageCode {
   }
 }
 
+/** Apply Google Translate cookie and trigger DOM translation */
+export function applyGoogleTranslate(language: string) {
+  if (typeof document === "undefined") return;
+  const code = normalizeLanguage(language);
+  const target = code.startsWith("hi") ? "hi" : "en";
+  const cookieVal = `/en/${target}`;
+
+  try {
+    // 1. Set cookie for current path and root
+    document.cookie = `googtrans=${cookieVal}; path=/;`;
+    if (typeof window !== "undefined" && window.location.hostname) {
+      const host = window.location.hostname;
+      document.cookie = `googtrans=${cookieVal}; path=/; domain=${host};`;
+      const parts = host.split(".");
+      if (parts.length > 2) {
+        document.cookie = `googtrans=${cookieVal}; path=/; domain=.${parts.slice(-2).join(".")};`;
+      }
+    }
+
+    // 2. Trigger Google Translate combo dropdown if already loaded in DOM
+    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
+    if (select) {
+      select.value = target;
+      select.dispatchEvent(new Event("change"));
+    }
+  } catch (e) {
+    console.warn("Failed to apply google translate cookie:", e);
+  }
+}
+
 /** Store language locally and notify all listeners. */
 export function setLanguageLocally(language: string): LanguageCode {
   const code = normalizeLanguage(language);
@@ -191,6 +221,27 @@ export function setLanguageLocally(language: string): LanguageCode {
   }
   for (const listener of listeners) {
     listener(code);
+  }
+  applyGoogleTranslate(code);
+  return code;
+}
+
+/** Switch language application-wide (triggers i18n listeners + Google DOM translator) */
+export function switchAppLanguage(language: string, reloadOnMismatch = true): LanguageCode {
+  const code = setLanguageLocally(language);
+  applyGoogleTranslate(code);
+
+  if (typeof window !== "undefined" && reloadOnMismatch) {
+    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
+    if (select) {
+      select.value = code.startsWith("hi") ? "hi" : "en";
+      select.dispatchEvent(new Event("change"));
+    } else {
+      // Reload page to let Google Translate initialize with the new cookie
+      setTimeout(() => {
+        window.location.reload();
+      }, 150);
+    }
   }
   return code;
 }
@@ -223,7 +274,8 @@ export function useLanguage(): {
 
   return {
     language: lang,
-    setLanguage: (next) => setLanguageLocally(next),
+    setLanguage: (next) => switchAppLanguage(next),
     t: (key: string) => translate(key, lang),
   };
 }
+
