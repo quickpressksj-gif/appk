@@ -847,6 +847,25 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
             upsert=True,
         )
 
+        # Sync to live_locations collection for Admin Live Map
+        r_profile = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
+        r_label = r_profile.get("fullName") or r_profile.get("name") or rider_id
+        await database.update(
+            "live_locations",
+            {"_id": f"rider:{rider_id}"},
+            {
+                "kind": "rider",
+                "label": r_label,
+                "latitude": lat_f,
+                "longitude": lng_f,
+                "heading": heading,
+                "speedKmph": float(speed * 3.6) if speed else 0.0,
+                "status": "online",
+                "updatedAt": now_iso,
+            },
+            upsert=True,
+        )
+
         # Broadcast live GPS coordinates to active assigned orders and rooms
         from app.services.socket_service import EVENT_LOCATION_UPDATED, sio
         active_orders = await database.find_many(

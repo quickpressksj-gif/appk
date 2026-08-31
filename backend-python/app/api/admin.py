@@ -133,7 +133,13 @@ async def order_events(order_id: str, user: User = Depends(current_user)):
 @router.post("/orders/{order_id}/assign-rider")
 async def assign_rider(order_id: str, payload: AssignRiderPayload, user: User = Depends(current_user)):
     try:
-        row = await admin_order_repository.assign_rider(order_id, payload.riderId)
+        if payload.riderId in ("rdr-auto", "auto", ""):
+            from app.services.smart_2ride_engine import smart_2ride_engine
+            # Trigger smart auto-dispatch for the order
+            await smart_2ride_engine.create_ride_1_pickup(order_id)
+            row = await admin_order_repository.detail(order_id)
+        else:
+            row = await admin_order_repository.assign_rider(order_id, payload.riderId)
     except LookupError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
     await audit_repository.log(await _actor(user), "order.assign_rider", order_id, {"riderId": payload.riderId})

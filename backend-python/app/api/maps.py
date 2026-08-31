@@ -233,35 +233,83 @@ async def read_rider_location(rider_id: str):
 
 @router.get("/live", response_model=LiveMapResponse)
 async def live_map() -> LiveMapResponse:
+    # 1. Fetch live locations from live_locations table
     documents: List[Dict[str, Any]] = await database.find_many(LIVE_LOCATIONS)
-    riders = [
-        LiveLocation(
-            id=str(document.get("_id", "")).split(":", 1)[-1],
-            kind="rider",
-            label=str(document.get("label") or ""),
-            latitude=float(document.get("latitude", 0.0)),
-            longitude=float(document.get("longitude", 0.0)),
-            orderId=document.get("orderId"),
-            status=document.get("status"),
-            updatedAt=document.get("updatedAt"),
-        )
-        for document in documents
-        if document.get("kind") == "rider"
-    ]
+    riders_map: Dict[str, LiveLocation] = {}
 
-    partner_documents: List[Dict[str, Any]] = await database.find_many("partners")
-    partners = [
-        LiveLocation(
-            id=str(partner.get("_id") or partner.get("id") or ""),
-            kind="partner",
-            label=str(partner.get("name") or ""),
-            latitude=float(partner.get("latitude") or 0.0),
-            longitude=float(partner.get("longitude") or 0.0),
-            status=str(partner.get("status") or "open"),
-        )
-        for partner in partner_documents
-        if partner.get("latitude") is not None and partner.get("longitude") is not None
-    ]
+    for doc in documents:
+        if doc.get("kind") == "rider":
+            r_id = str(doc.get("_id", "")).split(":", 1)[-1]
+            riders_map[r_id] = LiveLocation(
+                id=r_id,
+                kind="rider",
+                label=str(doc.get("label") or r_id),
+                latitude=float(doc.get("latitude", 0.0)),
+                longitude=float(doc.get("longitude", 0.0)),
+                orderId=doc.get("orderId"),
+                status=doc.get("status") or "online",
+                updatedAt=doc.get("updatedAt"),
+            )
 
-    active = [rider for rider in riders if rider.orderId]
+    # 2. Enrich/Supplement from rider_profiles (Supabase) for any online riders
+    profiles = await database.find_many("rider_profiles", {"isOnline": True})
+    for prof in profiles:
+        p_id = str(prof.get("_id") or prof.get("riderId") or "")
+        p_lat = prof.get("lat") or prof.get("latitude")
+        p_lng = prof.get("lng") or prof.get("longitude")
+        if p_lat is not None and p_lng is not None:
+            p_label = prof.get("fullName") or prof.get("name") or p_id
+            riders_map[p_id] = LiveLocation(
+                id=p_id,
+                kind="rider",
+                label=p_label,
+                latitude=float(p_lat),
+                longitude=float(p_lng),
+                status="online",
+                updatedAt=prof.get("lastLocationAt") or prof.get("updatedAt"),
+            )
+
+    riders = list(riders_map.values())
+
+    # 3. Partner Store Hubs
+    partner_docs: List[Dict[str, Any]] = await database.find_many("partner_profiles")
+    if not partner_docs:
+        partner_docs = await database.find_many("partners")
+
+    partners = []
+    for partner in partner_docs:
+        lat = partner.get("latitude") or partner.get("lat") or (partner.get("location") or {}).get("latitude")
+        lng = partner.get("longitude") or partner.get("lng") or (partner.get("location") or {}).get("longitude")
+        if lat is not None and lng is not None:
+            partners.append(
+                LiveLocation(
+                    id=str(partner.get("_id") or partner.get("id") or ""),
+                    kind="partner",
+                    label=str(partner.get("storeName") or partner.get("name") or "QuickPress Store"),
+                    latitude=float(lat),
+                    longitude=float(lng),
+                    status=str(partner.get("status") or "open"),
+                )
+            )
+
+    # 4. Active Orders in transit
+    active_orders = await database.find_many("customer_orders", {"status": {"$in": ["picked_up", "out_for_delivery", "assigned"]}})
+    active = []
+    for ord_doc in active_orders:
+        addr = ord_doc.get("address") or {}
+        lat = addr.get("latitude") or addr.get("lat")
+        lng = addr.get("longitude") or addr.get("lng")
+        if lat is not None and lng is not None:
+            active.append(
+                LiveLocation(
+                    id=str(ord_doc.get("_id") or ord_doc.get("id")),
+                    kind="order",
+                    label=f"#{ord_doc.get('code', 'Order')} - {ord_doc.get('status')}",
+                    latitude=float(lat),
+                    longitude=float(lng),
+                    orderId=str(ord_doc.get("_id") or ord_doc.get("id")),
+                    status=ord_doc.get("status"),
+                )
+            )
+
     return LiveMapResponse(riders=riders, partners=partners, customers=[], activeOrders=active)
