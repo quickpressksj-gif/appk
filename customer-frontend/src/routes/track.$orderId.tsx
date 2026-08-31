@@ -30,6 +30,8 @@ import { TrackingSkeleton } from "@/components/order/OrderSkeleton";
 import {
   CANCEL_REASONS,
   cancelOrderWithReason,
+  fetchActiveOrders,
+  fetchMyOrders,
   fetchOrderDetail,
   fetchTracking,
   type OrderDetail,
@@ -72,6 +74,7 @@ function TrackOrderScreen() {
   const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0]);
   const [cancelling, setCancelling] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [activeOrders, setActiveOrders] = useState<OrderDetail[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -94,6 +97,12 @@ function TrackOrderScreen() {
       } catch (err: any) {
         if (alive) {
           setError(err?.message || "Order not found in database. Check your order number or place a new order.");
+          // Attempt to fetch active orders as fallback suggestion
+          fetchActiveOrders({ signal: controller.signal })
+            .then((actives) => {
+              if (alive && actives.length > 0) setActiveOrders(actives);
+            })
+            .catch(() => {});
         }
       } finally {
         if (alive && initial) {
@@ -180,6 +189,28 @@ function TrackOrderScreen() {
                 Database me is order number ka koi record nahi mila. Kripya naya order place karein ya number check karein.
               </p>
               <div className="mt-6 flex flex-col gap-2.5">
+                {activeOrders.length > 0 ? (
+                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-left">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-primary">
+                      Active Order Found
+                    </p>
+                    <p className="mt-1 text-xs text-foreground">
+                      Aapka ek active order chal raha hai: <strong>#{activeOrders[0].code || activeOrders[0].id}</strong> ({activeOrders[0].statusLabel})
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate({
+                          to: "/track/$orderId",
+                          params: { orderId: activeOrders[0].id || activeOrders[0].code },
+                        })
+                      }
+                      className="mt-3 w-full rounded-xl bg-primary py-2.5 text-center text-xs font-bold text-primary-foreground shadow-sm hover:brightness-105 active:scale-[0.98]"
+                    >
+                      Track Order #{activeOrders[0].code || activeOrders[0].id} ➔
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setReloadKey((key) => key + 1)}
@@ -212,33 +243,35 @@ function TrackOrderScreen() {
                     interactive={true}
                     zoom={15}
                     center={
-                      detail?.rider?.location?.latitude
+                      (detail?.rider as any)?.location?.latitude || (detail?.rider as any)?.latitude
                         ? {
-                            latitude: detail.rider.location.latitude,
-                            longitude: detail.rider.location.longitude,
+                            latitude: Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude),
+                            longitude: Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude),
                             label: "Delivery Captain",
                             tone: "primary",
                           }
                         : undefined
                     }
                     markers={[
-                      ...(detail?.rider?.location?.latitude && detail?.rider?.location?.longitude
+                      ...(((detail?.rider as any)?.location?.latitude || (detail?.rider as any)?.latitude) &&
+                      ((detail?.rider as any)?.location?.longitude || (detail?.rider as any)?.longitude)
                         ? [
                             {
                               id: "rider",
-                              latitude: detail.rider.location.latitude,
-                              longitude: detail.rider.location.longitude,
+                              latitude: Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude),
+                              longitude: Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude),
                               label: "Delivery Captain",
                               tone: "primary" as const,
                             },
                           ]
                         : []),
-                      ...(detail?.partner?.latitude && detail?.partner?.longitude
+                      ...(((detail?.partner as any)?.latitude || (detail?.partner as any)?.location?.latitude) &&
+                      ((detail?.partner as any)?.longitude || (detail?.partner as any)?.location?.longitude)
                         ? [
                             {
                               id: "partner",
-                              latitude: detail.partner.latitude,
-                              longitude: detail.partner.longitude,
+                              latitude: Number((detail?.partner as any)?.latitude ?? (detail?.partner as any)?.location?.latitude),
+                              longitude: Number((detail?.partner as any)?.longitude ?? (detail?.partner as any)?.location?.longitude),
                               label: "QuickPress Store",
                               tone: "secondary" as const,
                             },

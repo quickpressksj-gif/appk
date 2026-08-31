@@ -580,19 +580,62 @@ export async function fetchOrderDetail(
     writeScopedCache("order-detail", cleanId, detail);
     return detail;
   } catch (error) {
-    // If orderId had ord- or ord_ prefix and failed, retry with stripped code
+    // Strategy 2: If orderId had ord- or ord_ prefix, retry with stripped code; or if raw code, try with ord- prefix
     const stripped = cleanId.replace(/^ord[-_]/i, "");
-    if (stripped && stripped !== cleanId) {
+    const candidates = [
+      stripped !== cleanId ? stripped : "",
+      stripped !== cleanId ? stripped.toUpperCase() : "",
+      !cleanId.toLowerCase().startsWith("ord-") ? `ord-${cleanId}` : "",
+      cleanId.toUpperCase(),
+    ].filter((c): c is string => Boolean(c && c !== cleanId));
+
+    for (const candidate of candidates) {
       try {
         const detail = toOrderDetail(
-          await apiGetJson<Order>(`/api/orders/${encodeURIComponent(stripped)}`, { signal: options.signal }),
+          await apiGetJson<Order>(`/api/orders/${encodeURIComponent(candidate)}`, { signal: options.signal }),
         );
         writeScopedCache("order-detail", cleanId, detail);
-        writeScopedCache("order-detail", stripped, detail);
+        writeScopedCache("order-detail", candidate, detail);
         return detail;
       } catch {
-        /* proceed to stale cache check */
+        /* try next candidate */
       }
+    }
+
+    // Strategy 3: Try tracking endpoint directly /api/orders/{id}/tracking
+    try {
+      const trackingOrder = await apiGetJson<Order>(`/api/orders/${encodeURIComponent(cleanId)}/tracking`, {
+        signal: options.signal,
+      });
+      if (trackingOrder) {
+        const detail = toOrderDetail(trackingOrder);
+        writeScopedCache("order-detail", cleanId, detail);
+        return detail;
+      }
+    } catch {
+      /* proceed to recent orders scan */
+    }
+
+    // Strategy 4: Query /api/orders to find matching order by code, id, or suffix
+    try {
+      const allOrders = await apiGetJson<Order[]>("/api/orders", { signal: options.signal });
+      if (Array.isArray(allOrders) && allOrders.length > 0) {
+        const matched = allOrders.find(
+          (o) =>
+            o.id === cleanId ||
+            o.code === cleanId ||
+            o.id?.toLowerCase() === cleanId.toLowerCase() ||
+            o.code?.toLowerCase() === cleanId.toLowerCase() ||
+            (stripped && (o.id === stripped || o.code === stripped || o.code?.toUpperCase() === stripped.toUpperCase()))
+        );
+        if (matched) {
+          const detail = toOrderDetail(matched);
+          writeScopedCache("order-detail", cleanId, detail);
+          return detail;
+        }
+      }
+    } catch {
+      /* ignore orders list failure */
     }
 
     const stale = readStaleScopedCache<OrderDetail>("order-detail", cleanId);

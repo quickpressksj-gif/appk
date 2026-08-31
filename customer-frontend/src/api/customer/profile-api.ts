@@ -152,39 +152,57 @@ function composeProfile(input: {
     savedThisYear: typeof rawMem.savedThisYear === "number" ? rawMem.savedThisYear : (rawMem.totalSavings ?? 0),
   };
 
-  return {
-    user: {
-      name,
-      initials,
-      avatarUrl: account.photoUrl ?? account.avatarUrl ?? null,
-      verified: Boolean(account.isVerified),
-      phone,
-      email: account.email || "",
-      city: account.city ?? "",
-      memberSince: account.memberSince || input.meta?.memberSince || "Aug 2026",
-      unreadNotifications: input.unread || 0,
-    },
-    stats: {
-      totalOrders: orders.length,
-      rewardPoints: wallet?.rewardPoints ?? 0,
-      walletBalance: wallet?.balance ?? 0,
-      savedAddresses: addresses.length,
-    },
-    wallet: {
-      balance: wallet?.balance ?? 0,
-      cashbackEarned: wallet?.cashbackBalance ?? 0,
-      transactions: transactions.slice(0, 3).map((txn) => ({
-        id: txn.id,
-        title: txn.title,
-        note: txn.date,
-        amount: txn.amount,
-        kind: txn.direction,
-      })),
-    },
-    membership,
-    appVersion: input.meta?.appVersion || "1.0.0",
-  };
-}
+    const rawWallet = wallet as any;
+    const realWalletBalance = Number(
+      rawWallet?.balances?.currentBalance ??
+      rawWallet?.totalBalance ??
+      rawWallet?.balance ??
+      0
+    );
+    const realCashback = Number(
+      rawWallet?.balances?.rewardBalance ??
+      rawWallet?.cashbackBalance ??
+      0
+    );
+    const realRewardPoints = Number(
+      rawWallet?.balances?.membershipCredits ??
+      rawWallet?.rewardPoints ??
+      0
+    );
+
+    return {
+      user: {
+        name,
+        initials,
+        avatarUrl: account.photoUrl ?? account.avatarUrl ?? null,
+        verified: Boolean(account.isVerified),
+        phone,
+        email: account.email || "",
+        city: account.city ?? "",
+        memberSince: account.memberSince || input.meta?.memberSince || "Aug 2026",
+        unreadNotifications: input.unread || 0,
+      },
+      stats: {
+        totalOrders: orders.length,
+        rewardPoints: realRewardPoints,
+        walletBalance: realWalletBalance,
+        savedAddresses: addresses.length,
+      },
+      wallet: {
+        balance: realWalletBalance,
+        cashbackEarned: realCashback,
+        transactions: transactions.slice(0, 3).map((txn) => ({
+          id: txn.id,
+          title: txn.title,
+          note: txn.date,
+          amount: txn.amount,
+          kind: txn.direction,
+        })),
+      },
+      membership,
+      appVersion: input.meta?.appVersion || "1.0.0",
+    };
+  }
 
 
 

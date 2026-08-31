@@ -257,7 +257,7 @@ function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(true);
   }, [load]);
 
   useEffect(() => {

@@ -45,7 +45,6 @@ import {
   SEARCH_SCOPES as SEARCH_SCOPE_OPTIONS,
 } from "@/api/customer/services/search-service";
 import { fetchMembership, type Membership } from "@/api/customer/membership-api";
-import { fetchWallet } from "@/api/customer/wallet-api";
 
 
 import defaultAvatar from "@/shared/assets/default-avatar.jpg";
@@ -167,16 +166,9 @@ function HomeScreen() {
     }
   };
 
-  const [walletBalance, setWalletBalance] = useState<number>(0);
-
   useEffect(() => {
     setRecentSearches(readRecentSearches());
     void fetchMembership().then(setMembership).catch(() => {});
-    void fetchWallet()
-      .then((w) => {
-        setWalletBalance(w.balances?.currentBalance ?? w.totalBalance ?? 0);
-      })
-      .catch(() => {});
   }, []);
 
   const profile = sections.profile.data;
@@ -244,11 +236,6 @@ function HomeScreen() {
     await Promise.all([
       refresh(),
       fetchMembership({ forceRefresh: true }).then(setMembership).catch(() => {}),
-      fetchWallet({ forceRefresh: true })
-        .then((w) => {
-          setWalletBalance(w.balances?.currentBalance ?? w.totalBalance ?? 0);
-        })
-        .catch(() => {}),
     ]);
     setPull(0);
   }, [refresh]);
@@ -363,12 +350,9 @@ function HomeScreen() {
                   type="button"
                   aria-label="Wallet"
                   onClick={() => navigate({ to: "/wallet" })}
-                  className="flex h-10 items-center gap-1.5 rounded-2xl bg-muted text-foreground px-2.5 py-1 text-xs font-black transition-all duration-300 hover:bg-accent active:scale-[0.94] cursor-pointer"
+                  className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground transition-all duration-300 hover:bg-accent active:scale-[0.94]"
                 >
-                  <div className="flex size-6 items-center justify-center rounded-xl bg-[#0c831f] text-white shadow-xs">
-                    <Wallet className="size-3.5" />
-                  </div>
-                  <span className="font-extrabold text-xs">₹{walletBalance}</span>
+                  <Wallet className="size-5" />
                 </button>
                 <button
                   type="button"
