@@ -281,15 +281,15 @@ export function PartnersPage() {
     const q = query.trim().toLowerCase();
     return allPartners.filter((p) => {
       if (!p) return false;
-      const matchesQuery = !q || [p.id, p.businessName, p.ownerName, p.phone, p.email, p.city].join(" ").toLowerCase().includes(q);
+      const matchesQuery = !q || [p.id, p.businessName, p.ownerName, p.phone, p.email, p.city].filter(Boolean).join(" ").toLowerCase().includes(q);
       const matchesStatus =
         statusTab === "all" ||
         (statusTab === "ACTIVE" && p.status === "ACTIVE") ||
         (statusTab === "PENDING_APPROVAL" && p.status === "PENDING_APPROVAL") ||
         (statusTab === "TEMPORARILY_SUSPENDED" && p.status === "TEMPORARILY_SUSPENDED") ||
         (statusTab === "PERMANENTLY_BLOCKED" && p.status === "PERMANENTLY_BLOCKED");
-      const matchesCity = city === "all" || p.city?.toLowerCase() === city.toLowerCase();
-      const matchesKyc = kycFilter === "all" || p.kycStatus?.toLowerCase() === kycFilter.toLowerCase();
+      const matchesCity = city === "all" || String(p.city || "").toLowerCase() === city.toLowerCase();
+      const matchesKyc = kycFilter === "all" || String(p.kycStatus || "").toLowerCase() === kycFilter.toLowerCase();
       return matchesQuery && matchesStatus && matchesCity && matchesKyc;
     });
   }, [allPartners, query, statusTab, city, kycFilter]);

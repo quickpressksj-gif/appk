@@ -126,24 +126,26 @@ const DANGER = new Set([
   "cancelled", "rejected", "suspended", "blocked", "failed", "expired", "disabled", "high", "refunded", "offline",
 ]);
 
-export function statusTone(value: string): keyof typeof TONES {
-  const key = value.toLowerCase();
+export function statusTone(value?: string): keyof typeof TONES {
+  if (!value) return "neutral";
+  const key = String(value).toLowerCase();
   if (POSITIVE.has(key)) return "positive";
   if (WARNING.has(key)) return "warning";
   if (DANGER.has(key)) return "danger";
   return "neutral";
 }
 
-export function StatusPill({ value }: { value: string }) {
+export function StatusPill({ value, status }: { value?: string; status?: string }) {
+  const displayValue = value ?? status ?? "—";
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider whitespace-nowrap shadow-2xs",
-        TONES[statusTone(value)],
+        TONES[statusTone(displayValue)],
       )}
     >
       <span className="size-1.5 rounded-full bg-current" />
-      <span>{value}</span>
+      <span>{displayValue}</span>
     </span>
   );
 }
