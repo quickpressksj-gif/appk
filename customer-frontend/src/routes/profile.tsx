@@ -1367,9 +1367,10 @@ function ProfileScreen() {
         onClose={() => setFavouriteStoresOpen(false)}
       />
 
-      {editing || logoutOpen || settingsOpen || deleteOpen || savedServicesOpen || favouriteStoresOpen ? null : <BottomNav active="profile" />}
+      {editing || logoutOpen || notificationModalOpen || appearanceModalOpen || languageModalOpen || deleteOpen || savedServicesOpen || favouriteStoresOpen ? null : <BottomNav active="profile" />}
       <Toaster position="top-center" />
     </main>
+
   );
 }
 

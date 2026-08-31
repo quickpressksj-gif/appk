@@ -182,6 +182,7 @@ async def get_slots() -> dict:
 
 @router.get("/payment-methods")
 async def get_payment_methods(user: User = Depends(current_user)) -> list[PaymentMethodResponse]:
-    balance = await wallet_balance(user.id)
+    balance = await wallet_balance(user)
     return payment_methods(balance, 100)
+
 

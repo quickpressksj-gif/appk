@@ -222,7 +222,16 @@ class CartRepository:
         line_id = item_id if item_id.startswith(f"{user_id}:") else f"{user_id}:{item_id}"
         document = await database.collection(COLLECTION).find_one({"_id": line_id})
         if document is None:
-            return None
+            # Fallback: search by itemId for this user
+            document = await database.collection(COLLECTION).find_one({"userId": user_id, "itemId": item_id})
+            if document:
+                line_id = str(document["_id"])
+        if document is None:
+            if qty <= 0:
+                return None
+            # If not in backend DB yet, add it as a new cart line
+            clean_item_id = item_id.split(":")[-1]
+            return await self.add_item(user_id, CartItemPayload(id=clean_item_id, itemId=clean_item_id, qty=qty))
         if qty <= 0:
             await database.collection(COLLECTION).delete_many({"_id": line_id})
             return None

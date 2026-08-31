@@ -640,6 +640,22 @@ export async function fetchOrderDetail(
 
     const stale = readStaleScopedCache<OrderDetail>("order-detail", cleanId);
     if (stale) return stale;
+
+    // Strategy 5: Check localStorage / sessionStorage for newly placed order
+    try {
+      const localStored = localStorage.getItem(`qp_order_${cleanId}`) || sessionStorage.getItem("qp_last_order");
+      if (localStored) {
+        const parsed = JSON.parse(localStored);
+        if (parsed && (parsed.id === cleanId || parsed.code === cleanId || cleanId.includes(parsed.code || ""))) {
+          const detail = toOrderDetail(parsed);
+          writeScopedCache("order-detail", cleanId, detail);
+          return detail;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
     throw error;
   }
 }
