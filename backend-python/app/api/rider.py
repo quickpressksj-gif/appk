@@ -856,6 +856,7 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
         for ord_doc in active_orders:
             o_id = str(ord_doc.get("_id") or ord_doc.get("id") or "")
             u_id = str(ord_doc.get("userId") or (ord_doc.get("customer") or {}).get("id") or "")
+            p_id = str((ord_doc.get("partner") or {}).get("id") or ord_doc.get("partnerId") or "")
             loc_payload = {
                 "riderId": rider_id,
                 "orderId": o_id,
@@ -872,6 +873,23 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
                 await sio.emit(EVENT_LOCATION_UPDATED, loc_payload, room=f"order:{o_id}")
             if u_id:
                 await sio.emit(EVENT_LOCATION_UPDATED, loc_payload, room=f"customer:{u_id}")
+            if p_id:
+                await sio.emit(EVENT_LOCATION_UPDATED, loc_payload, room=f"partner:{p_id}")
+        
+        await sio.emit(
+            EVENT_LOCATION_UPDATED,
+            {
+                "riderId": rider_id,
+                "lat": lat_f,
+                "lng": lng_f,
+                "latitude": lat_f,
+                "longitude": lng_f,
+                "heading": heading,
+                "speed": speed,
+                "at": now_iso,
+            },
+            room="partners",
+        )
 
         await sio.emit(
             EVENT_LOCATION_UPDATED,

@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
+import { GoogleMapView } from "@/shared/ui/google-map";
 
 import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { SectionHeading } from "../components/PartnerPrimitives";
@@ -505,27 +506,45 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 </button>
               </div>
 
-              {order?.assignedRider?.lat && order?.assignedRider?.lng ? (
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-emerald-50 p-4 border border-emerald-200/60 text-center">
-                    <p className="text-xs font-black text-emerald-900">Rider is en route</p>
-                    <p className="text-[11px] text-emerald-700 mt-1">
-                      Coordinates: {order.assignedRider.lat.toFixed(4)}, {order.assignedRider.lng.toFixed(4)}
-                    </p>
-                    <p className="text-[10px] text-emerald-600 mt-0.5">
-                      Updated: {order.assignedRider.lastLocationAt ? formatOrderTime(order.assignedRider.lastLocationAt) : "Just now"}
+              {(() => {
+                const rLat = Number(order?.assignedRider?.lat || (order as any)?.rider?.latitude || (order as any)?.rider?.lat);
+                const rLng = Number(order?.assignedRider?.lng || (order as any)?.rider?.longitude || (order as any)?.rider?.lng);
+                const hasRider = Boolean(rLat && rLng && !isNaN(rLat) && !isNaN(rLng));
+
+                return hasRider ? (
+                  <div className="space-y-3">
+                    <div className="relative h-48 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100">
+                      <GoogleMapView
+                        className="h-full w-full"
+                        interactive={true}
+                        zoom={15}
+                        center={{ latitude: rLat, longitude: rLng, label: "Delivery Partner", tone: "primary" }}
+                        markers={[
+                          { id: "rider", latitude: rLat, longitude: rLng, label: "Rider En Route", tone: "primary" },
+                          { id: "store", latitude: 27.8118, longitude: 78.6477, label: "Your Store", tone: "secondary" },
+                        ]}
+                      />
+                    </div>
+                    <div className="rounded-2xl bg-emerald-50 p-3 border border-emerald-200/60 text-center">
+                      <p className="text-xs font-black text-emerald-900">Rider is en route</p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        GPS: {rLat.toFixed(4)}, {rLng.toFixed(4)}
+                      </p>
+                      <p className="text-[10px] text-emerald-600 mt-0.5">
+                        Live Tracking Active
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-zinc-50 p-6 text-center border border-zinc-200/60 space-y-2">
+                    <MapPin className="size-8 text-zinc-400 mx-auto" />
+                    <p className="text-xs font-black text-zinc-800">Waiting for Rider GPS</p>
+                    <p className="text-[11px] text-zinc-500">
+                      GPS coordinates will display here automatically once the assigned rider turns online.
                     </p>
                   </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-zinc-50 p-6 text-center border border-zinc-200/60 space-y-2">
-                  <MapPin className="size-8 text-zinc-400 mx-auto" />
-                  <p className="text-xs font-black text-zinc-800">Rider location unavailable</p>
-                  <p className="text-[11px] text-zinc-500">
-                    GPS updates will appear automatically as the rider moves towards destination.
-                  </p>
-                </div>
-              )}
+                );
+              })()}
 
               <button
                 type="button"
