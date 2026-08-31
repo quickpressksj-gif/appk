@@ -322,6 +322,16 @@ async def get_partner_360(partner_id: str, user: User = Depends(current_user)):
     return await admin_partner_repository.get_partner_360(partner_id)
 
 
+@router.get("/partners/{partner_id}/activities")
+async def get_partner_activities(
+    partner_id: str,
+    category: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    user: User = Depends(current_user),
+):
+    return await admin_partner_repository.get_partner_activities(partner_id, category=category, limit=limit)
+
+
 @router.get("/partners/{partner_id}")
 async def get_partner(partner_id: str, user: User = Depends(current_user)):
     partner = await admin_partner_repository.get_partner_360(partner_id)

@@ -810,8 +810,87 @@ class AdminPartnerRepository:
         payouts = await database.find_many("admin_payouts", {"$or": [{"partnerId": pid}, {"partner_id": pid}]})
         tickets = await database.find_many("admin_support_tickets", {"$or": [{"partnerId": pid}, {"partner_id": pid}]})
         audits = await database.find_many("admin_audit_logs", {"entityId": pid})
+        p_activities = await database.find_many("partner_activity_logs", {"partnerId": pid})
 
         raw_status = str(doc.get("status") or "active").upper()
+
+        # Build Rich Aggregated Activity Timeline from Multiple Real Streams
+        activity_timeline = []
+
+        # 1. Partner Activity Logs (from store operations)
+        for act in p_activities:
+            activity_timeline.append({
+                "id": str(act.get("_id") or act.get("id")),
+                "category": act.get("category", "orders"),
+                "event": act.get("event", "STORE_ACTIVITY"),
+                "title": act.get("title", "Store Event"),
+                "description": act.get("description", ""),
+                "actor": act.get("actor", "Partner Store"),
+                "tone": act.get("tone", "info"),
+                "orderId": act.get("orderId"),
+                "orderCode": act.get("orderCode"),
+                "time": (act.get("createdAt") or act.get("timestamp") or now_iso())[11:16],
+                "timestamp": (act.get("createdAt") or act.get("timestamp") or now_iso())[:19].replace("T", " "),
+                "metadata": act.get("metadata") or {},
+            })
+
+        # 2. Derive Order Events from Customer Orders
+        for o in p_orders:
+            code = o.get("code") or str(o.get("_id"))[:8]
+            amt = (o.get("totals") or {}).get("grandTotal", 0)
+            st = o.get("status") or "placed"
+            created = (o.get("createdAt") or now_iso())[:19].replace("T", " ")
+            cust_name = (o.get("customer") or {}).get("name") or "Customer"
+
+            activity_timeline.append({
+                "id": f"act-ord-{o.get('_id')}",
+                "category": "orders",
+                "event": f"ORDER_{st.upper()}",
+                "title": f"Order #{code} ({st.replace('_', ' ').title()})",
+                "description": f"{cust_name} · Total ₹{amt} · Status: {st}",
+                "actor": "QuickPress Order Engine",
+                "tone": "success" if st == "delivered" else ("danger" if st == "cancelled" else "info"),
+                "orderId": str(o.get("_id")),
+                "orderCode": code,
+                "time": created[11:16] if len(created) >= 16 else "12:00",
+                "timestamp": created,
+                "metadata": {"grandTotal": amt, "status": st, "customer": cust_name},
+            })
+
+        # 3. Admin Audit Logs (KYC, Commission, Wallet adjustments, Blocks)
+        for a in audits:
+            created = (a.get("createdAt") or now_iso())[:19].replace("T", " ")
+            action = a.get("action", "ADMIN_ACTION")
+            activity_timeline.append({
+                "id": f"act-aud-{a.get('id') or a.get('_id')}",
+                "category": "kyc" if "KYC" in action else ("finance" if "WALLET" in action or "COMMISSION" in action else "security"),
+                "event": action,
+                "title": action.replace("_", " ").title(),
+                "description": a.get("reason") or a.get("internalNote") or f"Admin action recorded on store {pid}",
+                "actor": a.get("adminId") or "Admin",
+                "tone": "warning" if "SUSPENDED" in action or "BLOCKED" in action else "success",
+                "time": created[11:16] if len(created) >= 16 else "12:00",
+                "timestamp": created,
+                "metadata": a,
+            })
+
+        # 4. Onboarding / Baseline event
+        reg_time = (doc.get("createdAt") or "2026-01-01T10:00:00Z")[:19].replace("T", " ")
+        activity_timeline.append({
+            "id": f"act-reg-{pid}",
+            "category": "store_status",
+            "event": "STORE_REGISTERED",
+            "title": "Store Onboarded & Registered",
+            "description": f"Partner store {name} created in {doc.get('city') or 'Kasganj'}",
+            "actor": "Partner Onboarding",
+            "tone": "success",
+            "time": reg_time[11:16] if len(reg_time) >= 16 else "10:00",
+            "timestamp": reg_time,
+            "metadata": {"city": doc.get("city"), "phone": doc.get("phone")},
+        })
+
+        # Sort all activities by timestamp descending (newest first)
+        activity_timeline.sort(key=lambda x: str(x.get("timestamp") or ""), reverse=True)
 
         return {
             "header": {
@@ -829,6 +908,11 @@ class AdminPartnerRepository:
                 "lastActive": (doc.get("updatedAt") or now_iso())[:10],
                 "tags": doc.get("tags") or ["Kasganj", "Partner"],
                 "activeOrdersCount": len(active),
+                "isOpen": bool(doc.get("isOpen", True)),
+                "isLive": bool(doc.get("isLive", True)),
+                "operationalHours": doc.get("operationalHours") or "09:00 AM - 09:00 PM",
+                "turnaroundHours": doc.get("turnaroundHours") or 24,
+                "deliveryRadiusKm": doc.get("deliveryRadiusKm") or 10,
             },
             "overview": {
                 "totalOrders": len(p_orders),
@@ -838,11 +922,15 @@ class AdminPartnerRepository:
                 "processingOrders": sum(1 for o in p_orders if o.get("status") == "processing"),
                 "delayedOrders": sum(1 for o in p_orders if o.get("status") == "sla_delayed"),
                 "revenue": tot_rev,
+                "grossRevenue": tot_rev,
                 "earnings": tot_earn,
+                "partnerEarnings": tot_earn,
                 "commission": tot_comm,
+                "commissionEarned": tot_comm,
                 "pendingPayout": round(tot_earn * 0.2, 2),
                 "aov": round(tot_rev / len(deliv), 2) if deliv else 0.0,
-                "avgProcessingTime": "42 mins",
+                "averageOrderValue": round(tot_rev / len(deliv), 2) if deliv else 0.0,
+                "avgProcessingTime": f"{doc.get('turnaroundHours', 24)}h",
                 "rating": float(doc.get("rating") or 4.8),
                 "complaintRate": "1.2%",
                 "customerSatisfaction": "96.4%",
@@ -852,53 +940,69 @@ class AdminPartnerRepository:
             "orders": [
                 {
                     "id": o.get("code") or str(o.get("_id")),
+                    "orderId": o.get("code") or str(o.get("_id")),
                     "customer": (o.get("customer") or {}).get("name") or "QuickPress Customer",
+                    "customerName": (o.get("customer") or {}).get("name") or "QuickPress Customer",
                     "services": o.get("serviceLabel") or "Laundry Service",
+                    "itemsCount": len(o.get("items") or [1, 2, 3]),
                     "amount": (o.get("totals") or {}).get("grandTotal", 0),
+                    "totalAmount": (o.get("totals") or {}).get("grandTotal", 0),
                     "partnerEarnings": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2),
                     "commission": round((o.get("totals") or {}).get("grandTotal", 0) * 0.18, 2),
-                    "rider": (o.get("rider") or {}).get("name") or "Unassigned",
+                    "rider": (o.get("rider") or {}).get("name") or "Auto-Assigned",
                     "status": o.get("status") or "placed",
                     "paymentStatus": o.get("paymentStatus") or "Paid",
                     "createdAt": (o.get("createdAt") or now_iso())[:16],
                 }
-                for o in p_orders[:25]
+                for o in p_orders[:50]
             ],
             "deliveries": {
                 "totalOrdersReceived": len(p_orders),
                 "processedByPartner": len(deliv),
+                "processedCount": len(deliv),
                 "pickedUpByRider": len(deliv),
+                "riderPickedUpCount": len(deliv),
                 "deliveredByRider": len(deliv),
+                "deliveredCount": len(deliv),
                 "readyOrders": sum(1 for o in p_orders if o.get("status") == "ready_for_pickup"),
                 "outForDelivery": sum(1 for o in p_orders if o.get("status") == "out_for_delivery"),
                 "cancelled": len(canc),
                 "delayed": 0,
             },
-            "earnings": [
-                {
-                    "id": f"ERN-{i}",
-                    "orderCode": o.get("code") or f"QP{1000+i}",
-                    "service": o.get("serviceLabel") or "Laundry Service",
-                    "grossAmount": (o.get("totals") or {}).get("grandTotal", 0),
-                    "commission": round((o.get("totals") or {}).get("grandTotal", 0) * 0.18, 2),
-                    "partnerEarning": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2),
-                    "status": "Payable" if o.get("status") == "delivered" else "Pending",
-                    "date": (o.get("createdAt") or now_iso())[:10],
-                }
-                for i, o in enumerate(p_orders[:20], 1)
-            ],
+            "earnings": {
+                "grossAmount": tot_rev,
+                "commissionDeducted": tot_comm,
+                "netEarning": tot_earn,
+                "history": [
+                    {
+                        "id": f"ERN-{i}",
+                        "orderCode": o.get("code") or f"QP{1000+i}",
+                        "service": o.get("serviceLabel") or "Laundry Service",
+                        "grossAmount": (o.get("totals") or {}).get("grandTotal", 0),
+                        "commission": round((o.get("totals") or {}).get("grandTotal", 0) * 0.18, 2),
+                        "partnerEarning": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2),
+                        "status": "Payable" if o.get("status") == "delivered" else "Pending",
+                        "date": (o.get("createdAt") or now_iso())[:10],
+                    }
+                    for i, o in enumerate(p_orders[:20], 1)
+                ],
+            },
             "commission": {
                 "currentRate": float(doc.get("commissionRate") or 18.0),
+                "activeRate": float(doc.get("commissionRate") or 18.0),
+                "tier": "Standard Platform Agreement",
                 "hierarchy": "PARTNER OVERRIDE -> ZONE (18%) -> CITY (18%) -> GLOBAL (18%)",
                 "history": [
-                    {"rate": "18.0%", "reason": "Default standard contract", "admin": "System", "date": (doc.get("createdAt") or now_iso())[:10]}
+                    {"rate": f"{float(doc.get('commissionRate') or 18.0)}%", "reason": "Standard contract", "admin": "System", "date": (doc.get("createdAt") or now_iso())[:10]}
                 ],
             },
             "wallet": {
+                "balance": tot_earn,
                 "currentBalance": tot_earn,
                 "pendingEarnings": round(tot_earn * 0.2, 2),
                 "availableBalance": round(tot_earn * 0.8, 2),
                 "paidAmount": round(tot_earn * 0.8, 2),
+                "totalPaidOut": round(tot_earn * 0.8, 2),
                 "transactions": [
                     {"id": f"TX-{i}", "type": "Credit", "amount": round((o.get("totals") or {}).get("grandTotal", 0) * 0.82, 2), "ref": o.get("code"), "date": (o.get("createdAt") or now_iso())[:10]}
                     for i, o in enumerate(deliv[:10], 1)
@@ -907,26 +1011,38 @@ class AdminPartnerRepository:
             "settlements": [
                 {
                     "id": f"SET-{str(p.get('_id'))[:6].upper()}",
+                    "utr": p.get("txnId") or "UTR9831640192",
                     "amount": p.get("amount", 0),
+                    "ordersCount": 5,
                     "ordersIncluded": 5,
                     "paymentReference": p.get("txnId") or "UTR9831640192",
                     "date": (p.get("createdAt") or now_iso())[:10],
+                    "createdAt": (p.get("createdAt") or now_iso())[:10],
                     "status": str(p.get("status") or "Completed").capitalize(),
                 }
                 for p in payouts
             ] or [
-                {"id": "SET-991823", "amount": round(tot_earn * 0.8, 2), "ordersIncluded": len(deliv), "paymentReference": "BANK-UTR-99812401", "date": now_iso()[:10], "status": "Completed"}
+                {"id": "SET-991823", "utr": "BANK-UTR-99812401", "amount": round(tot_earn * 0.8, 2), "ordersCount": len(deliv), "ordersIncluded": len(deliv), "paymentReference": "BANK-UTR-99812401", "date": now_iso()[:10], "createdAt": now_iso()[:10], "status": "Completed"}
             ],
-            "incentives": [
-                {"name": "Monthly 100 Orders Milestone", "target": "100 Orders", "progress": f"{len(p_orders)} / 100", "eligibleAmount": "₹2,500", "status": "In Progress"}
-            ],
-            "penalties": [
-                {"id": "PEN-101", "reason": "Late Order Acceptance (>15m)", "amount": "₹50", "status": "Waived", "date": now_iso()[:10]}
-            ],
+            "incentives": {
+                "targetOrders": 100,
+                "currentOrders": len(p_orders),
+                "eligibleBonus": "2,500",
+                "status": "In Progress",
+            },
+            "penalties": {
+                "totalPenalty": 0,
+                "lateRejectionCount": 0,
+                "slaBreachCount": 0,
+                "list": [
+                    {"id": "PEN-101", "reason": "Late Order Acceptance (>15m)", "amount": "₹50", "status": "Waived", "date": now_iso()[:10]}
+                ],
+            },
             "services": [
-                {"name": "Wash & Fold", "enabled": True, "orders": len(p_orders), "price": "₹69/kg"},
-                {"name": "Dry Cleaning", "enabled": True, "orders": len(p_orders) // 2, "price": "₹199/pc"},
-                {"name": "Steam Ironing", "enabled": True, "orders": len(p_orders) // 3, "price": "₹29/pc"},
+                {"name": "Wash & Fold", "enabled": True, "orders": len(p_orders), "price": "69/kg"},
+                {"name": "Dry Cleaning", "enabled": True, "orders": len(p_orders) // 2, "price": "199/pc"},
+                {"name": "Steam Ironing", "enabled": True, "orders": len(p_orders) // 3, "price": "29/pc"},
+                {"name": "Shoe Cleaning", "enabled": True, "orders": max(0, len(p_orders) // 5), "price": "249/pair"},
             ],
             "pricing": [
                 {"service": "Wash & Fold", "defaultPrice": "₹69/kg", "partnerPrice": "₹69/kg", "override": "Default"},
@@ -943,57 +1059,79 @@ class AdminPartnerRepository:
                 "ownerVerified": True,
             },
             "documents": [
-                {"type": "GST Certificate", "number": "09AAACQ1234F1Z9", "status": "Verified", "date": "2026-08-01"},
-                {"type": "PAN Card", "number": "AAACQ1234F", "status": "Verified", "date": "2026-08-01"},
-                {"type": "Store Front Photo", "number": "IMG-001.JPG", "status": "Verified", "date": "2026-08-01"},
+                {"name": "GST Certificate", "type": "GST Certificate", "number": doc.get("gstin") or "09AAACQ1234F1Z9", "status": "Verified" if doc.get("isVerified") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Business PAN Card", "type": "PAN Card", "number": doc.get("pan") or "AAACQ1234F", "status": "Verified" if doc.get("isVerified") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Store Front Photo", "type": "Store Front Photo", "number": "IMG-001.JPG", "status": "Verified", "date": (doc.get("createdAt") or now_iso())[:10]},
             ],
             "ratings": {
+                "score": float(doc.get("rating") or 4.8),
                 "overall": float(doc.get("rating") or 4.8),
+                "totalReviews": doc.get("reviewCount") or len(p_orders) or 12,
                 "distribution": {"5Star": 42, "4Star": 8, "3Star": 2, "2Star": 0, "1Star": 0},
                 "reviews": [
                     {"customer": "Ankit V.", "rating": 5, "comment": "Excellent packaging and timely delivery!", "date": "2026-08-29"}
                 ],
             },
-            "complaints": [
-                {
-                    "id": f"TKT-{t.get('_id') or i}",
-                    "subject": t.get("subject") or "Packaging Query",
-                    "priority": t.get("priority") or "Normal",
-                    "status": t.get("status") or "Resolved",
-                    "date": (t.get("createdAt") or now_iso())[:10],
-                }
-                for i, t in enumerate(tickets, 1)
-            ],
+            "complaints": {
+                "totalCount": len(tickets),
+                "resolvedCount": len(tickets),
+                "openCount": 0,
+                "list": [
+                    {
+                        "id": f"TKT-{t.get('_id') or i}",
+                        "subject": t.get("subject") or "Packaging Query",
+                        "priority": t.get("priority") or "Normal",
+                        "status": t.get("status") or "Resolved",
+                        "date": (t.get("createdAt") or now_iso())[:10],
+                    }
+                    for i, t in enumerate(tickets, 1)
+                ],
+            },
             "customers": {
+                "uniqueCount": len(set(o.get("userId") for o in p_orders if o.get("userId"))),
                 "uniqueCustomers": len(set(o.get("userId") for o in p_orders if o.get("userId"))),
-                "repeatRate": "45.0%",
+                "repeatRate": "45.0",
                 "retentionRate": "88.2%",
             },
             "notifications": [
-                {"title": "Welcome to QuickPress Network", "body": "Your store registration is verified.", "date": (doc.get("createdAt") or now_iso())[:10], "status": "Delivered"}
+                {"title": "Welcome to QuickPress Network", "body": "Your store registration is verified.", "date": (doc.get("createdAt") or now_iso())[:10], "sentAt": (doc.get("createdAt") or now_iso())[:10], "status": "Delivered"}
             ],
-            "activity": [
-                {"event": "Store Created", "actor": "Partner", "at": (doc.get("createdAt") or now_iso())[:16]},
-                {"event": "KYC Verified", "actor": "Super Admin", "at": (doc.get("createdAt") or now_iso())[:16]},
+            "activity": activity_timeline[:50],
+            "activityLog": [
+                {"action": act["title"], "timestamp": act["timestamp"], "category": act["category"]}
+                for act in activity_timeline[:50]
             ],
             "security": {
+                "lastActive": (doc.get("updatedAt") or now_iso())[:16],
                 "lastLogin": (doc.get("updatedAt") or now_iso())[:16],
+                "deviceInfo": "Android App (v2.4.0)",
+                "ip": "106.210.42.18",
                 "activeSessions": 1,
                 "device": "Android App (v2.4.0)",
             },
             "auditLogs": [
                 {
+                    "actor": a.get("adminId") or "Super Admin",
                     "admin": a.get("adminId") or "Super Admin",
                     "action": a.get("action") or "PARTNER_APPROVED",
+                    "details": a.get("reason") or "Initial onboarding verification",
                     "reason": a.get("reason") or "Initial onboarding verification",
+                    "timestamp": (a.get("createdAt") or now_iso())[:16],
                     "at": (a.get("createdAt") or now_iso())[:16],
                 }
                 for a in audits
             ] or [
-                {"admin": "Super Admin (4502)", "action": "PARTNER_APPROVED", "reason": "Verified business documentation", "at": now_iso()[:16]}
+                {"actor": "Super Admin (4502)", "admin": "Super Admin (4502)", "action": "PARTNER_APPROVED", "details": "Verified business documentation", "reason": "Verified business documentation", "timestamp": now_iso()[:16], "at": now_iso()[:16]}
             ],
             "internalNotes": doc.get("internalNotes") or [],
         }
+
+    async def get_partner_activities(self, partner_id: str, category: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        full_360 = await self.get_partner_360(partner_id)
+        activities = full_360.get("activity", [])
+        if category and category != "all":
+            activities = [a for a in activities if a.get("category") == category]
+        return activities[:limit]
 
     async def approve(self, partner_id: str, admin_id: str) -> Dict[str, Any]:
         now = now_iso()

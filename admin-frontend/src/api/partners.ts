@@ -62,6 +62,21 @@ export type BackendPartnerListPage = {
 
 export type AdminPartner = BackendPartnerItem;
 
+export type PartnerActivityItem = {
+  id: string;
+  category: "orders" | "store_status" | "finance" | "catalog" | "kyc" | "security" | string;
+  event: string;
+  title: string;
+  description: string;
+  actor: string;
+  time: string;
+  timestamp: string;
+  tone?: "success" | "warning" | "danger" | "info" | "default";
+  orderId?: string;
+  orderCode?: string;
+  metadata?: Record<string, any>;
+};
+
 export type Partner360Data = {
   header: {
     id: string;
@@ -78,6 +93,11 @@ export type Partner360Data = {
     lastActive: string;
     tags: string[];
     activeOrdersCount: number;
+    isOpen?: boolean;
+    isLive?: boolean;
+    operationalHours?: string;
+    turnaroundHours?: number;
+    deliveryRadiusKm?: number;
   };
   overview: {
     totalOrders: number;
@@ -87,10 +107,14 @@ export type Partner360Data = {
     processingOrders: number;
     delayedOrders: number;
     revenue: number;
+    grossRevenue: number;
     earnings: number;
+    partnerEarnings: number;
     commission: number;
+    commissionEarned: number;
     pendingPayout: number;
     aov: number;
+    averageOrderValue: number;
     avgProcessingTime: string;
     rating: number;
     complaintRate: string;
@@ -100,9 +124,13 @@ export type Partner360Data = {
   };
   orders: Array<{
     id: string;
+    orderId?: string;
     customer: string;
+    customerName?: string;
     services: string;
+    itemsCount?: number;
     amount: number;
+    totalAmount?: number;
     partnerEarnings: number;
     commission: number;
     rider: string;
@@ -113,57 +141,80 @@ export type Partner360Data = {
   deliveries: {
     totalOrdersReceived: number;
     processedByPartner: number;
+    processedCount?: number;
     pickedUpByRider: number;
+    riderPickedUpCount?: number;
     deliveredByRider: number;
+    deliveredCount?: number;
     readyOrders: number;
     outForDelivery: number;
     cancelled: number;
     delayed: number;
   };
-  earnings: Array<{
-    id: string;
-    orderCode: string;
-    service: string;
+  earnings: {
     grossAmount: number;
-    commission: number;
-    partnerEarning: number;
-    status: string;
-    date: string;
-  }>;
+    commissionDeducted: number;
+    netEarning: number;
+    history?: Array<{
+      id: string;
+      orderCode: string;
+      service: string;
+      grossAmount: number;
+      commission: number;
+      partnerEarning: number;
+      status: string;
+      date: string;
+    }>;
+  };
   commission: {
     currentRate: number;
+    activeRate?: number;
+    tier?: string;
     hierarchy: string;
     history: Array<{ rate: string; reason: string; admin: string; date: string }>;
   };
   wallet: {
+    balance?: number;
     currentBalance: number;
     pendingEarnings: number;
     availableBalance: number;
     paidAmount: number;
+    totalPaidOut?: number;
     transactions: Array<{ id: string; type: string; amount: number; ref: string; date: string }>;
   };
   settlements: Array<{
     id: string;
+    utr?: string;
     amount: number;
+    ordersCount?: number;
     ordersIncluded: number;
     paymentReference: string;
     date: string;
+    createdAt?: string;
     status: string;
   }>;
-  incentives: Array<{
-    name: string;
-    target: string;
-    progress: string;
-    eligibleAmount: string;
-    status: string;
-  }>;
-  penalties: Array<{
-    id: string;
-    reason: string;
-    amount: string;
-    status: string;
-    date: string;
-  }>;
+  incentives: {
+    targetOrders?: number;
+    currentOrders?: number;
+    eligibleBonus?: string;
+    status?: string;
+    name?: string;
+    target?: string;
+    progress?: string;
+    eligibleAmount?: string;
+  };
+  penalties: {
+    totalPenalty?: number;
+    lateRejectionCount?: number;
+    slaBreachCount?: number;
+    list?: Array<{
+      id: string;
+      reason: string;
+      amount: string;
+      status: string;
+      date: string;
+    }>;
+  };
   services: Array<{
     name: string;
     enabled: boolean;
@@ -186,24 +237,33 @@ export type Partner360Data = {
     ownerVerified: boolean;
   };
   documents: Array<{
+    name?: string;
     type: string;
     number: string;
     status: string;
     date: string;
   }>;
   ratings: {
+    score?: number;
     overall: number;
+    totalReviews?: number;
     distribution: Record<string, number>;
     reviews: Array<{ customer: string; rating: number; comment: string; date: string }>;
   };
-  complaints: Array<{
-    id: string;
-    subject: string;
-    priority: string;
-    status: string;
-    date: string;
-  }>;
+  complaints: {
+    totalCount?: number;
+    resolvedCount?: number;
+    openCount?: number;
+    list?: Array<{
+      id: string;
+      subject: string;
+      priority: string;
+      status: string;
+      date: string;
+    }>;
+  };
   customers: {
+    uniqueCount?: number;
     uniqueCustomers: number;
     repeatRate: string;
     retentionRate: string;
@@ -212,22 +272,30 @@ export type Partner360Data = {
     title: string;
     body: string;
     date: string;
+    sentAt?: string;
     status: string;
   }>;
-  activity: Array<{
-    event: string;
-    actor: string;
-    at: string;
+  activity: PartnerActivityItem[];
+  activityLog?: Array<{
+    action: string;
+    timestamp: string;
+    category?: string;
   }>;
   security: {
     lastLogin: string;
+    lastActive?: string;
+    deviceInfo?: string;
+    ip?: string;
     activeSessions: number;
     device: string;
   };
   auditLogs: Array<{
+    actor?: string;
     admin: string;
     action: string;
+    details?: string;
     reason: string;
+    timestamp?: string;
     at: string;
   }>;
   internalNotes: Array<{
@@ -341,5 +409,12 @@ export async function updatePartner(id: string, payload: Record<string, unknown>
 
 export async function fetchPartner(id: string) {
   return fetchPartner360(id);
+}
+
+/** GET /api/admin/partners/{id}/activities */
+export async function fetchPartnerActivities(id: string, category?: string, limit = 50): Promise<PartnerActivityItem[]> {
+  let url = `/api/admin/partners/${encodeURIComponent(id)}/activities?limit=${limit}`;
+  if (category && category !== "all") url += `&category=${encodeURIComponent(category)}`;
+  return apiGetJson<PartnerActivityItem[]>(url);
 }
 

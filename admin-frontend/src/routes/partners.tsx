@@ -98,6 +98,7 @@ export function PartnersPage() {
   const [statusTab, setStatusTab] = useState("all");
   const [kycFilter, setKycFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activityCategoryFilter, setActivityCategoryFilter] = useState("all");
 
   // Modals state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -579,24 +580,51 @@ export function PartnersPage() {
           ) : profile ? (
             <div className="flex flex-col h-full">
               {/* Header Banner */}
-              <div className="p-6 bg-gradient-to-r from-zinc-900 to-zinc-800 text-white space-y-4">
+              <div className="p-6 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white space-y-4 border-b border-zinc-800">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="size-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-lg">
+                  <div className="flex items-center gap-3.5">
+                    <div className="size-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-xl shadow-inner">
                       {(profile.header.businessName || "KP").substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-white">{profile.header.businessName}</h2>
-                      <p className="text-xs text-zinc-300">ID: {profile.header.id} · {profile.header.ownerName} · {profile.header.city}</p>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-black text-white tracking-tight">{profile.header.businessName}</h2>
+                        {profile.header.isOpen ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                            <span className="size-1.5 rounded-full bg-emerald-400"></span> STORE OPEN
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                            <span className="size-1.5 rounded-full bg-rose-400"></span> CLOSED
+                          </span>
+                        )}
+                        {profile.header.isLive && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                            LIVE DISPATCH
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-zinc-300 mt-1 flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-emerald-400 font-bold">ID: {profile.header.id}</span>
+                        <span>•</span>
+                        <span>{profile.header.ownerName}</span>
+                        <span>•</span>
+                        <span>{profile.header.phone}</span>
+                        <span>•</span>
+                        <span>{profile.header.city} ({profile.header.zone})</span>
+                      </p>
                     </div>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${profile.header.status === "ACTIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-amber-500/20 text-amber-300 border border-amber-500/40"}`}>
-                    {profile.header.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${profile.header.status === "ACTIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-amber-500/20 text-amber-300 border border-amber-500/40"}`}>
+                      {profile.header.status}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">Turnaround: {profile.header.turnaroundHours ?? 24}h • Radius: {profile.header.deliveryRadiusKm ?? 10}km</span>
+                  </div>
                 </div>
 
                 {/* Header Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-700/50">
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-800">
                   {profile.header.status !== "ACTIVE" && (
                     <Button size="sm" onClick={() => selectedId && approveMutation.mutate(selectedId)} className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 rounded-lg">
                       <Check className="size-3.5" /> Approve &amp; Activate
@@ -618,13 +646,13 @@ export function PartnersPage() {
                     </Button>
                   )}
                   <Button size="sm" variant="outline" onClick={() => setKycModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <ShieldCheck className="size-3.5 text-emerald-400" /> KYC Status
+                    <ShieldCheck className="size-3.5 text-emerald-400" /> KYC Status ({profile.kyc.status})
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setCommissionModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <Percent className="size-3.5 text-emerald-400" /> Commission ({profile.commission.activeRate}%)
+                    <Percent className="size-3.5 text-emerald-400" /> Commission ({profile.commission.activeRate ?? profile.commission.currentRate}%)
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setWalletModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <Wallet className="size-3.5 text-emerald-400" /> Wallet Balance (₹{profile.wallet.balance})
+                    <Wallet className="size-3.5 text-emerald-400" /> Wallet Balance (₹{profile.wallet.balance ?? profile.wallet.currentBalance})
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setNotifyModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
                     <Send className="size-3.5 text-emerald-400" /> Push Notify
@@ -632,43 +660,174 @@ export function PartnersPage() {
                 </div>
               </div>
 
-              {/* 20 Sub-Tabs Body */}
+              {/* Sub-Tabs Body */}
               <div className="p-6 flex-1">
-                <Tabs defaultValue="overview" className="space-y-6">
+                <Tabs defaultValue="activity" className="space-y-6">
                   <TabsList className="flex flex-wrap gap-1 bg-zinc-100 p-1.5 rounded-xl h-auto">
-                    <TabsTrigger value="overview" className="text-xs font-bold rounded-lg px-2.5 py-1">1. Overview</TabsTrigger>
-                    <TabsTrigger value="orders" className="text-xs font-bold rounded-lg px-2.5 py-1">2. Orders ({profile.orders.length})</TabsTrigger>
-                    <TabsTrigger value="deliveries" className="text-xs font-bold rounded-lg px-2.5 py-1">3. Deliveries</TabsTrigger>
-                    <TabsTrigger value="earnings" className="text-xs font-bold rounded-lg px-2.5 py-1">4. Earnings</TabsTrigger>
-                    <TabsTrigger value="commission" className="text-xs font-bold rounded-lg px-2.5 py-1">5. Commission</TabsTrigger>
-                    <TabsTrigger value="wallet" className="text-xs font-bold rounded-lg px-2.5 py-1">6. Wallet (₹{profile.wallet.balance})</TabsTrigger>
-                    <TabsTrigger value="settlements" className="text-xs font-bold rounded-lg px-2.5 py-1">7. Settlements</TabsTrigger>
-                    <TabsTrigger value="incentives" className="text-xs font-bold rounded-lg px-2.5 py-1">8. Incentives</TabsTrigger>
-                    <TabsTrigger value="penalties" className="text-xs font-bold rounded-lg px-2.5 py-1">9. Penalties</TabsTrigger>
-                    <TabsTrigger value="services" className="text-xs font-bold rounded-lg px-2.5 py-1">10. Services</TabsTrigger>
-                    <TabsTrigger value="pricing" className="text-xs font-bold rounded-lg px-2.5 py-1">11. Pricing</TabsTrigger>
-                    <TabsTrigger value="kyc" className="text-xs font-bold rounded-lg px-2.5 py-1">12. KYC ({profile.kyc.status})</TabsTrigger>
-                    <TabsTrigger value="documents" className="text-xs font-bold rounded-lg px-2.5 py-1">13. Documents</TabsTrigger>
-                    <TabsTrigger value="ratings" className="text-xs font-bold rounded-lg px-2.5 py-1">14. Ratings ({profile.ratings.score})</TabsTrigger>
-                    <TabsTrigger value="complaints" className="text-xs font-bold rounded-lg px-2.5 py-1">15. Complaints</TabsTrigger>
-                    <TabsTrigger value="customers" className="text-xs font-bold rounded-lg px-2.5 py-1">16. Customers</TabsTrigger>
-                    <TabsTrigger value="notifications" className="text-xs font-bold rounded-lg px-2.5 py-1">17. Notifications</TabsTrigger>
-                    <TabsTrigger value="activity" className="text-xs font-bold rounded-lg px-2.5 py-1">18. Activity Log</TabsTrigger>
-                    <TabsTrigger value="security" className="text-xs font-bold rounded-lg px-2.5 py-1">19. Security</TabsTrigger>
-                    <TabsTrigger value="audit" className="text-xs font-bold rounded-lg px-2.5 py-1">20. Audit Trail</TabsTrigger>
+                    <TabsTrigger value="activity" className="text-xs font-bold rounded-lg px-2.5 py-1 text-emerald-800 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+                      🌟 1. Live Activity Feed ({profile.activity?.length || 0})
+                    </TabsTrigger>
+                    <TabsTrigger value="overview" className="text-xs font-bold rounded-lg px-2.5 py-1">2. Overview</TabsTrigger>
+                    <TabsTrigger value="orders" className="text-xs font-bold rounded-lg px-2.5 py-1">3. Orders ({profile.orders.length})</TabsTrigger>
+                    <TabsTrigger value="deliveries" className="text-xs font-bold rounded-lg px-2.5 py-1">4. Deliveries</TabsTrigger>
+                    <TabsTrigger value="earnings" className="text-xs font-bold rounded-lg px-2.5 py-1">5. Earnings</TabsTrigger>
+                    <TabsTrigger value="commission" className="text-xs font-bold rounded-lg px-2.5 py-1">6. Commission</TabsTrigger>
+                    <TabsTrigger value="wallet" className="text-xs font-bold rounded-lg px-2.5 py-1">7. Wallet (₹{profile.wallet.balance ?? profile.wallet.currentBalance})</TabsTrigger>
+                    <TabsTrigger value="settlements" className="text-xs font-bold rounded-lg px-2.5 py-1">8. Settlements</TabsTrigger>
+                    <TabsTrigger value="services" className="text-xs font-bold rounded-lg px-2.5 py-1">9. Services ({profile.services.length})</TabsTrigger>
+                    <TabsTrigger value="pricing" className="text-xs font-bold rounded-lg px-2.5 py-1">10. Pricing</TabsTrigger>
+                    <TabsTrigger value="kyc" className="text-xs font-bold rounded-lg px-2.5 py-1">11. KYC &amp; Docs</TabsTrigger>
+                    <TabsTrigger value="ratings" className="text-xs font-bold rounded-lg px-2.5 py-1">12. Ratings ({profile.ratings.score ?? profile.ratings.overall})</TabsTrigger>
+                    <TabsTrigger value="complaints" className="text-xs font-bold rounded-lg px-2.5 py-1">13. Complaints</TabsTrigger>
+                    <TabsTrigger value="customers" className="text-xs font-bold rounded-lg px-2.5 py-1">14. Customers</TabsTrigger>
+                    <TabsTrigger value="security" className="text-xs font-bold rounded-lg px-2.5 py-1">15. Security</TabsTrigger>
+                    <TabsTrigger value="audit" className="text-xs font-bold rounded-lg px-2.5 py-1">16. Admin Audit Trail</TabsTrigger>
                   </TabsList>
 
-                  {/* 1. OVERVIEW */}
+                  {/* 1. 360° LIVE ACTIVITY FEED TAB (FULL ADVANCED SURVEILLANCE) */}
+                  <TabsContent value="activity" className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gradient-to-r from-emerald-50 via-zinc-50 to-zinc-50 rounded-xl border border-emerald-200/60">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Activity className="size-4 text-emerald-600 animate-pulse" />
+                          <h3 className="font-black text-xs text-zinc-900 uppercase tracking-wider">360° Realtime Activity Stream</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                            {profile.activity?.length || 0} Events Recorded
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Every single order action, store operating status toggle, laundry stage, and financial transaction recorded from Supabase.
+                        </p>
+                      </div>
+
+                      {/* Category Filter Pills */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { id: "all", label: `All (${profile.activity?.length || 0})` },
+                          { id: "orders", label: `Orders (${profile.activity?.filter((a) => a.category === "orders").length || 0})` },
+                          { id: "store_status", label: `Store Status (${profile.activity?.filter((a) => a.category === "store_status").length || 0})` },
+                          { id: "finance", label: `Finance (${profile.activity?.filter((a) => a.category === "finance").length || 0})` },
+                          { id: "kyc", label: `KYC (${profile.activity?.filter((a) => a.category === "kyc").length || 0})` },
+                          { id: "security", label: `Security (${profile.activity?.filter((a) => a.category === "security").length || 0})` },
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => setActivityCategoryFilter(cat.id)}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                              activityCategoryFilter === cat.id
+                                ? "bg-emerald-600 text-white shadow-sm"
+                                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200"
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Filtered Activity Timeline Cards */}
+                    {(() => {
+                      const filteredActivities = (profile.activity || []).filter((a) =>
+                        activityCategoryFilter === "all" ? true : a.category === activityCategoryFilter
+                      );
+
+                      if (filteredActivities.length === 0) {
+                        return (
+                          <div className="p-8 text-center bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-500 text-xs font-semibold">
+                            No activities logged under category &ldquo;{activityCategoryFilter}&rdquo;.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="relative pl-6 space-y-3 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-200">
+                          {filteredActivities.map((act, idx) => {
+                            const isOrder = act.category === "orders";
+                            const isFinance = act.category === "finance";
+                            const isStatus = act.category === "store_status";
+                            const isSuccess = act.tone === "success" || act.event.includes("ACCEPTED") || act.event.includes("READY") || act.event.includes("APPROVED");
+                            const isDanger = act.tone === "danger" || act.event.includes("REJECTED") || act.event.includes("BLOCKED");
+
+                            return (
+                              <div
+                                key={act.id || idx}
+                                className="relative flex items-start justify-between gap-3 p-3.5 bg-white rounded-xl border border-zinc-200 shadow-sm hover:border-emerald-300 transition-colors"
+                              >
+                                {/* Circle Node */}
+                                <div
+                                  className={`absolute -left-6 top-3.5 size-3.5 rounded-full border-2 border-white ${
+                                    isSuccess
+                                      ? "bg-emerald-500 ring-2 ring-emerald-200"
+                                      : isDanger
+                                      ? "bg-rose-500 ring-2 ring-rose-200"
+                                      : isFinance
+                                      ? "bg-amber-500 ring-2 ring-amber-200"
+                                      : "bg-blue-500 ring-2 ring-blue-200"
+                                  }`}
+                                />
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                        isSuccess
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                          : isDanger
+                                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                          : isFinance
+                                          ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                          : "bg-zinc-100 text-zinc-700 border border-zinc-200"
+                                      }`}
+                                    >
+                                      {act.category.replace("_", " ")}
+                                    </span>
+                                    <h4 className="font-bold text-xs text-zinc-900">{act.title}</h4>
+                                    {act.orderCode && (
+                                      <span className="font-mono text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                        #{act.orderCode}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <p className="text-xs text-zinc-600 mt-1">{act.description}</p>
+
+                                  <div className="flex items-center gap-3 mt-2 text-[10px] text-zinc-400 font-medium">
+                                    <span>Actor: <strong className="text-zinc-700">{act.actor}</strong></span>
+                                    <span>•</span>
+                                    <span className="font-mono">{act.timestamp || act.time}</span>
+                                    {act.orderId && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="font-mono">Ref ID: {act.orderId}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span className="inline-block px-2 py-1 bg-zinc-50 border border-zinc-200 rounded-lg text-[10px] font-mono text-zinc-600">
+                                    {act.time || act.timestamp?.slice(11, 16)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </TabsContent>
+
+                  {/* 2. OVERVIEW */}
                   <TabsContent value="overview" className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <DetailRow label="Total Orders" value={profile.overview.totalOrders} />
                       <DetailRow label="Completed Orders" value={profile.overview.completedOrders} />
                       <DetailRow label="Active In-Flight" value={profile.overview.activeOrders} />
                       <DetailRow label="Cancelled" value={profile.overview.cancelledOrders} />
-                      <DetailRow label="Gross Revenue" value={`₹${profile.overview.grossRevenue.toLocaleString("en-IN")}`} />
-                      <DetailRow label="Partner Earnings" value={`₹${profile.overview.partnerEarnings.toLocaleString("en-IN")}`} />
-                      <DetailRow label="QuickPress Commission" value={`₹${profile.overview.commissionEarned.toLocaleString("en-IN")}`} />
-                      <DetailRow label="AOV (Avg Order)" value={`₹${profile.overview.averageOrderValue}`} />
+                      <DetailRow label="Gross Revenue" value={`₹${(profile.overview.grossRevenue ?? profile.overview.revenue).toLocaleString("en-IN")}`} />
+                      <DetailRow label="Partner Earnings" value={`₹${(profile.overview.partnerEarnings ?? profile.overview.earnings).toLocaleString("en-IN")}`} />
+                      <DetailRow label="QuickPress Commission" value={`₹${(profile.overview.commissionEarned ?? profile.overview.commission).toLocaleString("en-IN")}`} />
+                      <DetailRow label="AOV (Avg Order)" value={`₹${profile.overview.averageOrderValue ?? profile.overview.aov}`} />
                     </div>
                   </TabsContent>
 
@@ -841,17 +1000,6 @@ export function PartnersPage() {
                     />
                   </TabsContent>
 
-                  {/* 18. ACTIVITY */}
-                  <TabsContent value="activity" className="space-y-3">
-                    <div className="space-y-2">
-                      {profile.activityLog.map((act, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-lg text-xs border border-zinc-100">
-                          <span className="font-medium text-zinc-800">{act.action}</span>
-                          <span className="text-[10px] text-zinc-500 font-mono">{act.timestamp}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </TabsContent>
 
                   {/* 19. SECURITY */}
                   <TabsContent value="security" className="space-y-3">

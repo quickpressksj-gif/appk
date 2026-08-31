@@ -404,7 +404,27 @@ async def get_settings(partner_id: str = Depends(_partner_id)) -> BusinessSettin
 async def update_settings(
     payload: BusinessSettingsUpdate, partner_id: str = Depends(_partner_id)
 ) -> BusinessSettingsResponse:
-    doc = await partner_repository.update_settings(partner_id, payload.model_dump())
+    data = payload.model_dump(exclude_unset=True)
+    doc = await partner_repository.update_settings(partner_id, data)
+    from app.services.partner_activity_logger import log_partner_activity
+    import asyncio
+    status_desc = []
+    if "isOpen" in data:
+        status_desc.append("Store " + ("Opened" if data["isOpen"] else "Closed"))
+    if "isLive" in data:
+        status_desc.append("Accepting Orders: " + ("ON" if data["isLive"] else "OFF"))
+    if not status_desc:
+        status_desc.append("Business settings adjusted")
+    asyncio.create_task(log_partner_activity(
+        partner_id=partner_id,
+        category="store_status",
+        event="STORE_SETTINGS_UPDATED",
+        title="Store Operating Status Updated",
+        description=", ".join(status_desc),
+        actor="Partner",
+        tone="info",
+        metadata=data,
+    ))
     return BusinessSettingsResponse(**{k: v for k, v in doc.items() if k in BusinessSettingsResponse.model_fields})
 
 
@@ -449,9 +469,22 @@ async def get_order(order_id: str, partner_id: str = Depends(_verified_partner_i
 async def accept_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.accept(partner_id, order_id)
+        # Log Partner Activity
+        from app.services.partner_activity_logger import log_partner_activity
+        import asyncio
+        asyncio.create_task(log_partner_activity(
+            partner_id=partner_id,
+            category="orders",
+            event="ORDER_ACCEPTED",
+            title=f"Order #{doc.get('code', order_id[:8])} Accepted",
+            description=f"Store accepted incoming order for processing",
+            actor="Partner",
+            order_id=order_id,
+            order_code=doc.get("code"),
+            tone="success",
+        ))
         # Trigger Smart 2-Ride Auto-Dispatch: Ride 1 (Pickup: Customer -> Partner)
         from app.services.smart_2ride_engine import smart_2ride_engine
-        import asyncio
         asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(order_id))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
@@ -467,7 +500,21 @@ async def reject_order(
     order_id: str, payload: RejectOrderPayload | None = None, partner_id: str = Depends(_verified_partner_id)
 ) -> PartnerOrderResponse:
     try:
-        doc = await partner_order_repository.reject(partner_id, order_id, (payload or RejectOrderPayload()).reason)
+        reason = (payload or RejectOrderPayload()).reason
+        doc = await partner_order_repository.reject(partner_id, order_id, reason)
+        from app.services.partner_activity_logger import log_partner_activity
+        import asyncio
+        asyncio.create_task(log_partner_activity(
+            partner_id=partner_id,
+            category="orders",
+            event="ORDER_REJECTED",
+            title=f"Order #{doc.get('code', order_id[:8])} Rejected",
+            description=f"Reason: {reason}",
+            actor="Partner",
+            order_id=order_id,
+            order_code=doc.get("code"),
+            tone="danger",
+        ))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
@@ -481,6 +528,19 @@ async def reject_order(
 async def receive_laundry(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.receive_laundry(partner_id, order_id)
+        from app.services.partner_activity_logger import log_partner_activity
+        import asyncio
+        asyncio.create_task(log_partner_activity(
+            partner_id=partner_id,
+            category="orders",
+            event="LAUNDRY_RECEIVED",
+            title=f"Garments Received #{doc.get('code', order_id[:8])}",
+            description="Pickup rider delivered customer garments to store hub",
+            actor="Partner",
+            order_id=order_id,
+            order_code=doc.get("code"),
+            tone="info",
+        ))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
@@ -495,6 +555,19 @@ async def receive_laundry(order_id: str, partner_id: str = Depends(_verified_par
 async def start_processing(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.start_processing(partner_id, order_id)
+        from app.services.partner_activity_logger import log_partner_activity
+        import asyncio
+        asyncio.create_task(log_partner_activity(
+            partner_id=partner_id,
+            category="orders",
+            event="PROCESSING_STARTED",
+            title=f"Processing Started #{doc.get('code', order_id[:8])}",
+            description="Washing / dry-cleaning cycle commenced at store",
+            actor="Partner",
+            order_id=order_id,
+            order_code=doc.get("code"),
+            tone="info",
+        ))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
     except PartnerNotFoundError as error:
@@ -504,17 +577,26 @@ async def start_processing(order_id: str, partner_id: str = Depends(_verified_pa
     return _order_response(doc)
 
 
-
-
-
 @router.post("/orders/{order_id}/ready", response_model=PartnerOrderResponse)
 @router.post("/orders/{order_id}/complete", response_model=PartnerOrderResponse)
 async def complete_order(order_id: str, partner_id: str = Depends(_verified_partner_id)) -> PartnerOrderResponse:
     try:
         doc = await partner_order_repository.complete(partner_id, order_id)
+        from app.services.partner_activity_logger import log_partner_activity
+        import asyncio
+        asyncio.create_task(log_partner_activity(
+            partner_id=partner_id,
+            category="orders",
+            event="READY_FOR_DELIVERY",
+            title=f"Order Packed & Ready #{doc.get('code', order_id[:8])}",
+            description="Garments cleaned, steam pressed and packed. Ready for Ride 2 delivery rider",
+            actor="Partner",
+            order_id=order_id,
+            order_code=doc.get("code"),
+            tone="success",
+        ))
         # Trigger Smart 2-Ride Auto-Dispatch: Ride 2 (Delivery: Partner -> Customer)
         from app.services.smart_2ride_engine import smart_2ride_engine
-        import asyncio
         asyncio.create_task(smart_2ride_engine.create_ride_2_delivery(order_id))
     except PartnerAccessError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
