@@ -72,6 +72,7 @@ function dateLabel(iso: string): string {
 }
 
 export function timeOfStatus(order: Order, status: OrderLifecycleStatus): string {
+  if (!order || !Array.isArray(order.events)) return "—";
   const event = order.events.find((item) => item.status === status);
   return event ? timeLabel(event.at) : "—";
 }
@@ -122,7 +123,8 @@ export function toPartnerOrder(order: Order): PartnerOrder {
       price: item.price,
     })),
     timeline: stages.map((stage) => {
-      const event = order.events.find((item) => item.status === stage.status);
+      const events = Array.isArray(order?.events) ? order.events : [];
+      const event = events.find((item) => item.status === stage.status);
       return {
         id: stage.id,
         label: stage.label,
@@ -165,29 +167,30 @@ export function toRiderOrder(order: Order): RiderOrder {
   ];
 
   const task = riderTaskType(order);
-  const customerAddress = `${order.address.line}, ${order.address.city}`;
-  const partnerAddress = `${order.partner.name}, ${order.partner.city}`;
+  const customerAddress = `${order.address?.line || ""}, ${order.address?.city || ""}`;
+  const partnerAddress = `${order.partner?.name || ""}, ${order.partner?.city || ""}`;
 
   return {
     id: order.id,
     code: order.code,
     taskType: task,
     status: RIDER_STATUS_BY_STATUS[order.status] ?? "assigned",
-    customerName: order.customer.name,
-    customerPhone: order.customer.phone,
-    partnerName: order.partner.name,
-    partnerPhone: order.partner.phone,
+    customerName: order.customer?.name || "Customer",
+    customerPhone: order.customer?.phone || "",
+    partnerName: order.partner?.name || "QuickPress Partner",
+    partnerPhone: order.partner?.phone || "",
     pickupAddress: task === "pickup" ? customerAddress : partnerAddress,
     deliveryAddress: task === "pickup" ? partnerAddress : customerAddress,
-    distanceKm: Number((2 + (order.code.charCodeAt(order.code.length - 1) % 7) * 0.6).toFixed(1)),
-    etaMinutes: 12 + (order.code.charCodeAt(order.code.length - 1) % 5) * 4,
-    estimatedEarning: 35 + Math.round(order.totals.grandTotal * 0.05),
-    itemCount: order.items.reduce((sum, item) => sum + item.qty, 0),
-    slot: task === "pickup" ? order.pickup.slot : order.delivery.slot,
+    distanceKm: Number((2 + ((order.code || "").charCodeAt((order.code || "").length - 1 || 0) % 7) * 0.6).toFixed(1)),
+    etaMinutes: 12 + ((order.code || "").charCodeAt((order.code || "").length - 1 || 0) % 5) * 4,
+    estimatedEarning: 35 + Math.round((order.totals?.grandTotal || 0) * 0.05),
+    itemCount: Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + item.qty, 0) : 0,
+    slot: task === "pickup" ? (order.pickup?.slot || "") : (order.delivery?.slot || ""),
     placedAt: timeLabel(order.createdAt),
-    paymentMode: order.payment.mode,
+    paymentMode: order.payment?.mode || "cod",
     timeline: stages.map((stage) => {
-      const event = order.events.find((item) => item.status === stage.status);
+      const events = Array.isArray(order?.events) ? order.events : [];
+      const event = events.find((item) => item.status === stage.status);
       return {
         id: stage.id,
         label: stage.label,

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Clock,
   ExternalLink,
+  Headphones,
   HelpCircle,
   Loader2,
   MapPin,
@@ -34,6 +35,7 @@ import {
   fetchMyOrders,
   fetchOrderDetail,
   fetchTracking,
+  toTracking,
   type OrderDetail,
   type TrackingData,
 } from "@/api/customer/order-api";
@@ -96,13 +98,16 @@ function TrackOrderScreen() {
         setError(null);
       } catch (err: any) {
         if (alive) {
-          setError(err?.message || "Order not found in database. Check your order number or place a new order.");
-          // Attempt to fetch active orders as fallback suggestion
-          fetchActiveOrders({ signal: controller.signal })
-            .then((actives) => {
-              if (alive && actives.length > 0) setActiveOrders(actives);
-            })
-            .catch(() => {});
+          // If we already have detail loaded, do not flash error on background poll failure
+          if (initial || !detail) {
+            setError(err?.message || "Order not found in database. Check your order number or place a new order.");
+            // Attempt to fetch active orders as fallback suggestion
+            fetchActiveOrders({ signal: controller.signal })
+              .then((actives) => {
+                if (alive && actives.length > 0) setActiveOrders(actives);
+              })
+              .catch(() => {});
+          }
         }
       } finally {
         if (alive && initial) {
@@ -189,25 +194,28 @@ function TrackOrderScreen() {
                 Database me is order number ka koi record nahi mila. Kripya naya order place karein ya number check karein.
               </p>
               <div className="mt-6 flex flex-col gap-2.5">
-                {activeOrders.length > 0 ? (
+                {activeOrders.length > 0 && activeOrders[0] ? (
                   <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-left">
                     <p className="text-[11px] font-black uppercase tracking-wider text-primary">
                       Active Order Found
                     </p>
                     <p className="mt-1 text-xs text-foreground">
-                      Aapka ek active order chal raha hai: <strong>#{activeOrders[0].code || activeOrders[0].id}</strong> ({activeOrders[0].statusLabel})
+                      Aapka ek active order chal raha hai: <strong>#{activeOrders[0]?.code || activeOrders[0]?.id}</strong> ({activeOrders[0]?.statusLabel})
                     </p>
                     <button
                       type="button"
-                      onClick={() =>
-                        navigate({
-                          to: "/track/$orderId",
-                          params: { orderId: activeOrders[0].id || activeOrders[0].code },
-                        })
-                      }
+                      onClick={() => {
+                        const targetId = activeOrders[0]?.id || activeOrders[0]?.code;
+                        if (targetId) {
+                          navigate({
+                            to: "/track/$orderId",
+                            params: { orderId: targetId },
+                          });
+                        }
+                      }}
                       className="mt-3 w-full rounded-xl bg-primary py-2.5 text-center text-xs font-bold text-primary-foreground shadow-sm hover:brightness-105 active:scale-[0.98]"
                     >
-                      Track Order #{activeOrders[0].code || activeOrders[0].id} ➔
+                      Track Order #{activeOrders[0]?.code || activeOrders[0]?.id} ➔
                     </button>
                   </div>
                 ) : null}
@@ -232,7 +240,7 @@ function TrackOrderScreen() {
           <>
             <TrackingSkeleton />
           </>
-        ) : (
+        ) : tracking ? (
           <div className="px-5 pb-44 pt-3">
             {/* Live Interactive Map */}
             <section className="">
@@ -330,8 +338,8 @@ function TrackOrderScreen() {
                     <Navigation className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p key={current.id} className="animate-pop text-sm font-bold text-foreground">
-                      {current.label}
+                    <p key={current?.id || "status"} className="animate-pop text-sm font-bold text-foreground">
+                      {current?.label || "Processing"}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">{tracking.liveNote}</p>
                   </div>
@@ -577,8 +585,138 @@ function TrackOrderScreen() {
               </section>
             ) : null}
 
+            {/* Real Order Details: Items & Laundry Breakdown */}
+            {detail?.items && detail.items.length > 0 ? (
+              <section className="mt-8">
+                <SectionHeading
+                  title={`Order items (${detail.items.reduce((s, it) => s + (it.qty || 1), 0)})`}
+                />
+                <div className="card-soft mt-3 divide-y divide-border border border-border">
+                  {detail.items.map((item, idx) => (
+                    <div
+                      key={item.id ? `${item.id}-${idx}` : `item-${idx}`}
+                      className="flex items-center justify-between p-3.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1 pr-3">
+                        <p className="font-bold text-foreground truncate">{item.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Qty: {item.qty} × ₹{item.price}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-bold text-foreground">
+                        ₹{(item.qty || 1) * (item.price || 0)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Real Bill Summary */}
+            {detail?.totals ? (
+              <section className="mt-6">
+                <SectionHeading title="Bill summary" />
+                <div className="card-soft mt-3 border border-border p-4 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Items total</span>
+                    <span className="font-semibold text-foreground">₹{detail.totals.itemsTotal ?? 0}</span>
+                  </div>
+                  {(detail.totals.pickup ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Pickup fee</span>
+                      <span className="font-semibold text-foreground">₹{detail.totals.pickup}</span>
+                    </div>
+                  ) : null}
+                  {(detail.totals.delivery ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Delivery fee</span>
+                      <span className="font-semibold text-foreground">₹{detail.totals.delivery}</span>
+                    </div>
+                  ) : null}
+                  {(detail.totals.handling ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Handling fee</span>
+                      <span className="font-semibold text-foreground">₹{detail.totals.handling}</span>
+                    </div>
+                  ) : null}
+                  {(detail.totals.gst ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Taxes & GST</span>
+                      <span className="font-semibold text-foreground">₹{detail.totals.gst}</span>
+                    </div>
+                  ) : null}
+                  {(detail.totals.discount ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between text-brand-green font-medium">
+                      <span>Discount</span>
+                      <span>-₹{detail.totals.discount}</span>
+                    </div>
+                  ) : null}
+                  {(detail.totals as any).couponDiscount && (detail.totals as any).couponDiscount > 0 ? (
+                    <div className="flex items-center justify-between text-brand-green font-medium">
+                      <span>Coupon discount</span>
+                      <span>-₹{(detail.totals as any).couponDiscount}</span>
+                    </div>
+                  ) : null}
+
+                  <div className="border-t border-border pt-2.5 mt-2 flex items-center justify-between font-black text-sm text-foreground">
+                    <span>Total Amount</span>
+                    <span className="text-brand-green font-black text-base">₹{detail.totals.grandTotal ?? 0}</span>
+                  </div>
+
+                  {detail.payment ? (
+                    <div className="mt-2.5 pt-2.5 border-t border-dashed border-border flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-muted-foreground">Payment:</span>
+                        <span className="text-xs font-bold text-foreground">{detail.payment.label || "QuickPress"}</span>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                          detail.payment.paid
+                            ? "bg-brand-green/10 text-brand-green border border-brand-green/20"
+                            : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                        }`}
+                      >
+                        {detail.payment.paid ? "Paid" : "Pay on delivery"}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Pickup & Delivery Schedule */}
+            {detail?.pickup || detail?.delivery ? (
+              <section className="mt-6">
+                <SectionHeading title="Scheduled time slots" />
+                <div className="card-soft mt-3 grid grid-cols-2 gap-2.5 border border-border p-3.5">
+                  <div className="rounded-2xl bg-muted/50 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Pickup Slot
+                    </p>
+                    <p className="mt-1 text-xs font-black text-foreground">
+                      {detail.pickup?.date || "Today"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {detail.pickup?.slot || "Standard Slot"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-muted/50 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Delivery Est.
+                    </p>
+                    <p className="mt-1 text-xs font-black text-foreground">
+                      {detail.delivery?.date || "Scheduled"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {detail.delivery?.slot || "Standard Slot"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             {/* Delivery address */}
-            <section className="mt-8">
+            <section className="mt-6">
               <SectionHeading title="Delivery address" />
               <div className="card-soft mt-3 flex items-start gap-3 border border-border p-4">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground">
@@ -704,7 +842,7 @@ function TrackOrderScreen() {
               </div>
             </section>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Sticky bottom bar */}
