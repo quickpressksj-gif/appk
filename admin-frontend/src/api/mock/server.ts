@@ -662,24 +662,76 @@ const routes: Array<[string, string, Handler]> = [
   ],
   [
     "GET",
+    "/api/admin/customers/stats",
+    ({ account }) => {
+      account("admin");
+      const db = getDb();
+      const customers = db.accounts.filter((item) => item.role === "customer");
+      return {
+        totalCustomers: customers.length,
+        activeCustomers: customers.length,
+        blockedCustomers: 0,
+        newCustomersToday: 1,
+        newCustomersThisWeek: customers.length,
+        newCustomersThisMonth: customers.length,
+        repeatCustomers: 2,
+        inactiveCustomers: 0,
+        vipCustomers: 1,
+        membershipCustomers: 1,
+        totalRevenue: 2450,
+        totalOrders: db.orders.length,
+        averageOrderValue: 350,
+      };
+    },
+  ],
+  [
+    "GET",
     "/api/admin/customers",
     ({ account }) => {
       account("admin");
       const db = getDb();
-      return db.accounts
+      const items = db.accounts
         .filter((item) => item.role === "customer")
         .map((customer) => {
           const orders = db.orders.filter((order) => order.customer.id === customer.id);
+          const spend = orders.reduce((sum, order) => sum + order.totals.grandTotal, 0);
           return {
             id: customer.id,
             name: customer.name,
             phone: customer.phone,
             email: customer.email,
-            city: customer.city,
+            city: customer.city || "Kasganj",
+            zone: "Central Zone",
             orders: orders.length,
-            spend: orders.reduce((sum, order) => sum + order.totals.grandTotal, 0),
+            completedOrders: orders.filter((o) => o.status === "delivered").length,
+            cancelledOrders: orders.filter((o) => o.status === "cancelled").length,
+            spend,
+            spendRaw: spend,
+            walletBalance: 150.0,
+            walletRaw: 150.0,
+            loyaltyPoints: 120,
+            loyaltyLevel: "Silver Tier",
+            membership: "Standard",
+            status: "active",
+            registrationDate: "2026-08-30",
+            registrationTimestamp: "2026-08-30T04:49:41.200Z",
+            lastActive: "2026-08-30",
+            lastLoginTimestamp: "2026-08-30T04:49:42.400Z",
+            lastOrder: orders.length > 0 ? "2026-08-31" : "—",
+            lastOrderTimestamp: orders.length > 0 ? "2026-08-31T12:00:00Z" : undefined,
+            isVip: spend >= 500,
+            tags: ["Customer", "Kasganj"],
+            addressCount: 1,
+            primaryAddress: `${customer.city || "Kasganj"}, Uttar Pradesh`,
+            deviceInfo: "Mobile App (Android/iOS)",
           };
         });
+      return {
+        items,
+        total: items.length,
+        page: 1,
+        pageSize: 100,
+      };
     },
   ],
   [
@@ -1752,6 +1804,147 @@ const routes: Array<[string, string, Handler]> = [
     ({ account }) => {
       account("admin");
       return getDb().notifications;
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/customers/:id/360",
+    ({ params, account }) => {
+      account("admin");
+      const db = getDb();
+      const customer = db.accounts.find(
+        (item) => item.id === params.id && item.role === "customer",
+      );
+      if (!customer) throw new ApiError("not-found", "Customer not found", 404);
+      const orders = db.orders.filter((order) => order.customer.id === customer.id);
+      const spend = orders.reduce((sum, o) => sum + o.totals.grandTotal, 0);
+      return {
+        profile: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          city: customer.city || "Kasganj",
+          zone: "Central Zone",
+          orders: orders.length,
+          completedOrders: orders.filter((o) => o.status === "delivered").length,
+          cancelledOrders: orders.filter((o) => o.status === "cancelled").length,
+          spend: `₹${spend}`,
+          spendRaw: spend,
+          wallet: "₹150",
+          walletRaw: 150,
+          loyaltyPoints: 120,
+          loyaltyLevel: "Silver Tier",
+          membership: "Standard",
+          joined: "2026-08-30",
+          registrationTimestamp: "2026-08-30T04:49:41.200Z",
+          lastActive: "2026-08-30",
+          lastLoginTimestamp: "2026-08-30T04:49:42.400Z",
+          lastOrder: orders.length > 0 ? "2026-08-31" : "—",
+          isVip: spend >= 500,
+          status: "Active",
+          tags: ["Customer", "Kasganj"],
+          addressCount: 1,
+          primaryAddress: `${customer.city || "Kasganj"}, Uttar Pradesh`,
+          deviceInfo: "Mobile App (Android/iOS)",
+        },
+        overview: {
+          firstOrder: orders.length > 0 ? orders[0].createdAt : "—",
+          lastOrder: orders.length > 0 ? orders[orders.length - 1].createdAt : "—",
+          firstLoginAt: "2026-08-30T04:49:41.200Z",
+          lastLoginAt: "2026-08-30T04:49:42.400Z",
+          totalOrders: orders.length,
+          completedOrders: orders.filter((o) => o.status === "delivered").length,
+          cancelledOrders: orders.filter((o) => o.status === "cancelled").length,
+          totalSpent: spend,
+          averageOrderValue: orders.length > 0 ? Math.round(spend / orders.length) : 0,
+          favoriteService: "Premium Laundry",
+          favoritePartner: "QuickPress Kasganj Hub",
+          clv: spend,
+          walletBalance: 150,
+          loyaltyPoints: 120,
+          loyaltyLevel: "Silver Tier",
+          membership: "Standard Plan",
+          referralCode: "QP-100",
+          referralEarnings: 50,
+          referredCount: 1,
+        },
+        orders: orders.map((o) => ({
+          id: o.id,
+          code: o.id,
+          service: o.items[0]?.name || "Laundry Order",
+          placedOn: o.createdAt,
+          total: `₹${o.totals.grandTotal}`,
+          amount: o.totals.grandTotal,
+          status: o.status,
+          partner: "QuickPress Hub",
+          address: customer.address || "Kasganj",
+        })),
+        wallet: {
+          balance: 150,
+          totalCashback: 50,
+          totalRefund: 0,
+          referralRewards: 50,
+          ledger: [
+            {
+              id: "tx_1",
+              type: "welcome_bonus",
+              amount: 100,
+              balanceBefore: 0,
+              balanceAfter: 100,
+              reason: "Welcome signup bonus",
+              createdAt: "2026-08-30T04:49:45Z",
+            },
+          ],
+        },
+        loyalty: {
+          points: 120,
+          availablePoints: 120,
+          level: "Silver Tier",
+          nextLevel: "Gold Tier",
+          progressPercent: 40,
+        },
+        membership: {
+          plan: "Standard Plan",
+          startDate: "2026-08-30",
+          expiryDate: "2027-08-30",
+          status: "Active",
+          benefits: ["10% discount on 1st order", "Standard support"],
+        },
+        addresses: [
+          {
+            id: "addr_1",
+            type: "Home",
+            fullAddress: `${customer.city || "Kasganj"}, Uttar Pradesh`,
+            city: customer.city || "Kasganj",
+            pincode: "207123",
+            landmark: "Near Main Market",
+            isDefault: true,
+          },
+        ],
+        support: [],
+        notes: [],
+        tags: ["Customer", "Kasganj"],
+        activity: [],
+        security: {
+          status: "Active",
+          registrationDate: "2026-08-30",
+          registrationTimestamp: "2026-08-30T04:49:41.200Z",
+          lastLoginTimestamp: "2026-08-30T04:49:42.400Z",
+          deviceInfo: "Mobile App (Android/iOS)",
+          ipAddress: "103.212.144.52",
+          activeSessions: 1,
+          loginHistory: [
+            {
+              device: "Android 14 (Mobile App)",
+              ip: "103.212.144.52",
+              at: "2026-08-30T04:49:42.400Z",
+              location: "Kasganj, UP",
+              action: "Initial OTP Login",
+            },
+          ],
+        },
+      };
     },
   ],
   [

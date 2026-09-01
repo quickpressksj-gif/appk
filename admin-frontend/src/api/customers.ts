@@ -88,16 +88,34 @@ function toAdminCustomer(row: any): AdminCustomer {
 
 /** GET /api/admin/customers — pulls every page so console-side search/filter still works. */
 export async function fetchCustomers(): Promise<AdminCustomer[]> {
-  const first = await apiGetJson<BackendCustomerPage>("/api/admin/customers?page=1&pageSize=100");
-  let items = first.items || [];
-  const pages = Math.ceil((first.total || 0) / (first.pageSize || 100));
-  for (let page = 2; page <= pages; page += 1) {
-    const next = await apiGetJson<BackendCustomerPage>(`/api/admin/customers?page=${page}&pageSize=100`);
-    if (next.items) {
-      items = items.concat(next.items);
+  try {
+    const first = await apiGetJson<any>("/api/admin/customers?page=1&pageSize=100");
+    let items: any[] = [];
+    if (Array.isArray(first)) {
+      items = first;
+    } else if (first && Array.isArray(first.items)) {
+      items = [...first.items];
+      const total = typeof first.total === "number" ? first.total : items.length;
+      const pageSize = typeof first.pageSize === "number" ? first.pageSize : 100;
+      const pages = Math.ceil(total / pageSize);
+      for (let page = 2; page <= pages; page += 1) {
+        try {
+          const next = await apiGetJson<any>(`/api/admin/customers?page=${page}&pageSize=${pageSize}`);
+          if (next && Array.isArray(next.items)) {
+            items = items.concat(next.items);
+          } else if (Array.isArray(next)) {
+            items = items.concat(next);
+          }
+        } catch {
+          // ignore page fetch errors
+        }
+      }
     }
+    return items.map(toAdminCustomer);
+  } catch (err) {
+    console.error("fetchCustomers error:", err);
+    return [];
   }
-  return items.map(toAdminCustomer);
 }
 
 export type CustomerStats = {
@@ -220,7 +238,25 @@ export type Customer360Data = {
 
 /** GET /api/admin/customers/stats */
 export async function fetchCustomerStats(): Promise<CustomerStats> {
-  return await apiGetJson<CustomerStats>("/api/admin/customers/stats");
+  try {
+    return await apiGetJson<CustomerStats>("/api/admin/customers/stats");
+  } catch {
+    return {
+      totalCustomers: 0,
+      activeCustomers: 0,
+      blockedCustomers: 0,
+      newCustomersToday: 0,
+      newCustomersThisWeek: 0,
+      newCustomersThisMonth: 0,
+      repeatCustomers: 0,
+      inactiveCustomers: 0,
+      vipCustomers: 0,
+      membershipCustomers: 0,
+      totalRevenue: 0,
+      totalOrders: 0,
+      averageOrderValue: 0,
+    };
+  }
 }
 
 /** GET /api/admin/customers/{id}/360 */
