@@ -270,30 +270,128 @@ admin_order_repository = AdminOrderRepository()
 class AdminCustomerRepository:
     collection = "users"
 
-
     async def list(self, page: int, page_size: int, q: Optional[str] = None, city: Optional[str] = None, status: Optional[str] = None, segment: Optional[str] = None) -> Dict[str, Any]:
-        all_users = await database.find_many(self.collection)
+        # Batch fetch all tables in parallel to eliminate N+1 round trips
+        (
+            all_users,
+            db_customers,
+            all_orders,
+            all_wallets,
+            all_loyalty,
+            all_memberships,
+            all_addresses,
+        ) = await asyncio.gather(
+            database.find_many("users"),
+            database.find_many("customers"),
+            database.find_many("customer_orders"),
+            database.find_many("user_wallets"),
+            database.find_many("user_loyalty"),
+            database.find_many("memberships"),
+            database.find_many("customer_addresses"),
+        )
+
+        orders_by_user: Dict[str, list] = defaultdict(list)
+        for o in (all_orders or []):
+            uid = str(o.get("userId") or o.get("user_id") or (o.get("customer") or {}).get("id") or "")
+            if uid:
+                orders_by_user[uid].append(o)
+
+        wallets_by_user = {str(w.get("_id")): w for w in (all_wallets or []) if w.get("_id")}
+        loyalty_by_user = {str(l.get("_id")): l for l in (all_loyalty or []) if l.get("_id")}
+        memberships_by_user: Dict[str, Any] = {}
+        for m in (all_memberships or []):
+            uid = str(m.get("userId") or m.get("user_id") or m.get("_id") or "")
+            if uid:
+                memberships_by_user[uid] = m
+
+        addresses_by_user: Dict[str, list] = defaultdict(list)
+        for a in (all_addresses or []):
+            uid = str(a.get("userId") or a.get("user_id") or a.get("customerId") or "")
+            if uid:
+                addresses_by_user[uid].append(a)
+
         raw_customers = [
-            u for u in all_users
+            u for u in (all_users or [])
             if str(u.get("role") or "customer").lower() in ("customer", "user", "none")
         ]
-
-        # Also pull from 'customers' table to ensure no missing users
-        db_customers = await database.find_many("customers")
         existing_user_ids = {str(u.get("_id") or u.get("id")) for u in raw_customers}
-        for c_doc in db_customers:
+        for c_doc in (db_customers or []):
             uid = str(c_doc.get("user_id") or c_doc.get("userId") or c_doc.get("_id"))
             if uid and uid not in existing_user_ids:
-                u_find = await database.find_one("users", {"_id": uid})
-                if u_find:
-                    raw_customers.append(u_find)
-                    existing_user_ids.add(uid)
-                else:
-                    raw_customers.append({"_id": uid, "role": "customer", "phone": c_doc.get("phone", ""), "status": c_doc.get("status", "active")})
-                    existing_user_ids.add(uid)
+                raw_customers.append({
+                    "_id": uid,
+                    "name": c_doc.get("name", ""),
+                    "phone": c_doc.get("phone", ""),
+                    "role": "customer",
+                    "status": c_doc.get("status", "active"),
+                    "city": c_doc.get("city", "Kasganj"),
+                })
+                existing_user_ids.add(uid)
 
-        # Enhance with stats & metadata
-        enhanced = [await self._with_stats(d) for d in raw_customers]
+        enhanced = []
+        for doc in raw_customers:
+            uid = str(doc.get("_id") or doc.get("id"))
+            u_orders = orders_by_user.get(uid, [])
+            latest_order = u_orders[0] if u_orders else {}
+            latest_addr = latest_order.get("address") or {}
+
+            raw_name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name")
+            phone = doc.get("phone") or (latest_order.get("customer") or {}).get("phone") or latest_addr.get("phone", "")
+            email = doc.get("email") or ""
+            if not raw_name:
+                if email and "@" in email:
+                    raw_name = email.split("@")[0].replace("_", " ").replace(".", " ").title()
+                elif phone:
+                    raw_name = f"Customer ({phone[-4:]})"
+                else:
+                    raw_name = f"QuickPress User #{uid[:6].upper()}"
+
+            city_val = doc.get("city") or latest_addr.get("city", "") or "Kasganj"
+            wallet_doc = wallets_by_user.get(uid, {})
+            loyalty_doc = loyalty_by_user.get(uid, {})
+            membership_doc = memberships_by_user.get(uid, {})
+
+            completed_orders = [o for o in u_orders if o.get("status") == "delivered"]
+            cancelled_orders = [o for o in u_orders if o.get("status") == "cancelled"]
+            total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in completed_orders)
+            is_vip = bool(membership_doc.get("status") == "active" or total_spent >= 500)
+
+            u_addrs = addresses_by_user.get(uid, [])
+            default_addr = next((a for a in u_addrs if a.get("isDefault")), u_addrs[0] if u_addrs else None)
+            primary_addr_str = default_addr.get("fullAddress") if default_addr else (latest_addr.get("formatted") or f"{city_val}, Uttar Pradesh")
+
+            created_raw = doc.get("created_at") or doc.get("createdAt") or doc.get("registered_at") or "2026-08-30T00:00:00Z"
+            last_login_raw = doc.get("last_login_at") or doc.get("lastLoginAt") or doc.get("updated_at") or doc.get("updatedAt") or created_raw
+
+            enhanced.append({
+                "id": uid,
+                "name": raw_name,
+                "phone": phone or "+91 98000 00000",
+                "email": email or f"{uid[:8]}@quickpress.online",
+                "city": city_val,
+                "zone": doc.get("zone") or "Central Zone",
+                "orders": len(u_orders),
+                "completedOrders": len(completed_orders),
+                "cancelledOrders": len(cancelled_orders),
+                "spend": total_spent,
+                "spendRaw": total_spent,
+                "walletBalance": float(wallet_doc.get("balance", 0.0)),
+                "loyaltyPoints": int(loyalty_doc.get("points", 120)),
+                "loyaltyLevel": loyalty_doc.get("level", "Silver Tier"),
+                "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "Standard"),
+                "status": str(doc.get("status", "active")).capitalize(),
+                "registrationDate": str(created_raw)[:10],
+                "registrationTimestamp": str(created_raw),
+                "lastActive": str(last_login_raw)[:10],
+                "lastLoginTimestamp": str(last_login_raw),
+                "lastOrder": (latest_order.get("createdAt") or "—")[:10],
+                "lastOrderTimestamp": latest_order.get("createdAt") or None,
+                "isVip": is_vip,
+                "tags": doc.get("tags") or ["Customer", "Kasganj"],
+                "addressCount": max(len(u_addrs), 1 if latest_addr else 0),
+                "primaryAddress": primary_addr_str,
+                "deviceInfo": doc.get("deviceInfo") or "Mobile App (Android/iOS)",
+            })
 
         # Apply search query filter
         if q:
@@ -305,7 +403,7 @@ class AdminCustomerRepository:
 
         # Apply city filter
         if city and city != "all":
-            enhanced = [c for c in enhanced if c.get("city") == city]
+            enhanced = [c for c in enhanced if str(c.get("city") or "").lower() == city.lower()]
 
         # Apply status filter
         if status and status != "all":
@@ -315,7 +413,7 @@ class AdminCustomerRepository:
         if segment and segment != "all":
             seg = segment.lower()
             if seg == "vip":
-                enhanced = [c for c in enhanced if c.get("isVip") or c.get("spend", 0) >= 500]
+                enhanced = [c for c in enhanced if c.get("isVip") or c.get("spendRaw", 0) >= 500]
             elif seg == "repeat":
                 enhanced = [c for c in enhanced if c.get("orders", 0) >= 2]
             elif seg == "new":
@@ -344,12 +442,18 @@ class AdminCustomerRepository:
         week_ago_str = (now - timedelta(days=7)).strftime("%Y-%m-%d")
         month_ago_str = (now - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        users = await database.find_many(self.collection)
-        customers = [u for u in users if str(u.get("role") or "customer").lower() in ("customer", "user", "none")]
-        orders = await database.find_many("customer_orders")
-        memberships = await database.find_many("memberships")
+        (
+            users,
+            orders,
+            memberships,
+        ) = await asyncio.gather(
+            database.find_many(self.collection),
+            database.find_many("customer_orders"),
+            database.find_many("memberships"),
+        )
+        customers = [u for u in (users or []) if str(u.get("role") or "customer").lower() in ("customer", "user", "none")]
 
-        active_subscribers = {str(m.get("user_id") or m.get("userId")) for m in memberships if m.get("status") == "active" or m.get("active") is True}
+        active_subscribers = {str(m.get("user_id") or m.get("userId")) for m in (memberships or []) if m.get("status") == "active" or m.get("active") is True}
 
         total_cust = len(customers)
         active_cust = sum(1 for c in customers if c.get("status") != "blocked")
@@ -361,7 +465,7 @@ class AdminCustomerRepository:
 
         cust_order_counts: Dict[str, int] = {}
         cust_spend: Dict[str, float] = {}
-        for o in orders:
+        for o in (orders or []):
             cid = str(o.get("userId") or o.get("user_id") or (o.get("customer") or {}).get("id") or "")
             if cid:
                 cust_order_counts[cid] = cust_order_counts.get(cid, 0) + 1
@@ -369,11 +473,11 @@ class AdminCustomerRepository:
                     cust_spend[cid] = cust_spend.get(cid, 0.0) + (o.get("totals") or {}).get("grandTotal", 0)
 
         repeat_cust = sum(1 for cid, cnt in cust_order_counts.items() if cnt >= 2)
-        inactive_cust = total_cust - len(cust_order_counts)
+        inactive_cust = max(0, total_cust - len(cust_order_counts))
         vip_cust = sum(1 for cid in customers if str(cid.get("_id")) in active_subscribers or cust_spend.get(str(cid.get("_id")), 0) >= 500)
 
-        total_rev = sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders if o.get("status") == "delivered")
-        total_ord_count = len(orders)
+        total_rev = sum((o.get("totals") or {}).get("grandTotal", 0) for o in (orders or []) if o.get("status") == "delivered")
+        total_ord_count = len(orders or [])
         aov = round(total_rev / total_ord_count, 2) if total_ord_count > 0 else 0.0
 
         return {
@@ -392,83 +496,13 @@ class AdminCustomerRepository:
             "averageOrderValue": aov,
         }
 
-    async def _with_stats(self, doc: Dict[str, Any]) -> Dict[str, Any]:
-        user_id = str(doc.get("_id") or doc.get("id"))
-        orders = await database.find_many("customer_orders", {"$or": [{"userId": user_id}, {"user_id": user_id}, {"customer.id": user_id}]})
-        latest_order = orders[0] if orders else {}
-        latest_addr = latest_order.get("address") or {}
-
-        # Derived clean name
-        raw_name = doc.get("name") or doc.get("displayName") or (latest_order.get("customer") or {}).get("name")
-        phone = doc.get("phone") or (latest_order.get("customer") or {}).get("phone") or latest_addr.get("phone", "")
-        email = doc.get("email") or ""
-
-        if not raw_name:
-            if email and "@" in email:
-                prefix = email.split("@")[0].replace("_", " ").replace(".", " ").title()
-                raw_name = prefix
-            elif phone:
-                raw_name = f"Customer ({phone[-4:]})"
-            else:
-                raw_name = f"QuickPress User #{user_id[:6].upper()}"
-
-        city = doc.get("city") or latest_addr.get("city", "") or "Kasganj"
-
-        wallet_doc = await database.find_one("user_wallets", {"_id": user_id}) or {}
-        loyalty_doc = await database.find_one("user_loyalty", {"_id": user_id}) or {}
-        membership_doc = await database.find_one("memberships", {"$or": [{"userId": user_id}, {"user_id": user_id}]}) or {}
-
-        completed_orders = [o for o in orders if o.get("status") == "delivered"]
-        cancelled_orders = [o for o in orders if o.get("status") == "cancelled"]
-        total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in completed_orders)
-        is_vip = bool(membership_doc.get("status") == "active" or total_spent >= 500)
-
-        # Addresses
-        saved_addresses = await database.find_many("customer_addresses", {"userId": user_id})
-        default_addr = next((a for a in saved_addresses if a.get("isDefault")), saved_addresses[0] if saved_addresses else None)
-        primary_addr_str = default_addr.get("fullAddress") if default_addr else (latest_addr.get("formatted") or f"{city}, Uttar Pradesh")
-
-        created_raw = doc.get("created_at") or doc.get("createdAt") or doc.get("registered_at") or now_iso()
-        last_login_raw = doc.get("last_login_at") or doc.get("lastLoginAt") or doc.get("updated_at") or doc.get("updatedAt") or created_raw
-
-        return {
-            "id": user_id,
-            "name": raw_name,
-            "phone": phone or "+91 98000 00000",
-            "email": email or f"{user_id[:8]}@quickpress.online",
-            "city": city,
-            "zone": doc.get("zone") or "Central Zone",
-            "orders": len(orders),
-            "completedOrders": len(completed_orders),
-            "cancelledOrders": len(cancelled_orders),
-            "spend": total_spent,
-            "spendRaw": total_spent,
-            "walletBalance": float(wallet_doc.get("balance", 0.0)),
-            "loyaltyPoints": int(loyalty_doc.get("points", 120)),
-            "loyaltyLevel": loyalty_doc.get("level", "Silver Tier"),
-            "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "Standard"),
-            "status": str(doc.get("status", "active")).capitalize(),
-            "registrationDate": str(created_raw)[:10],
-            "registrationTimestamp": str(created_raw),
-            "lastActive": str(last_login_raw)[:10],
-            "lastLoginTimestamp": str(last_login_raw),
-            "lastOrder": (latest_order.get("createdAt") or "—")[:10],
-            "lastOrderTimestamp": latest_order.get("createdAt") or None,
-            "isVip": is_vip,
-            "tags": doc.get("tags") or ["Customer", "Kasganj"],
-            "addressCount": max(len(saved_addresses), 1 if latest_addr else 0),
-            "primaryAddress": primary_addr_str,
-            "deviceInfo": doc.get("deviceInfo") or "Mobile App (Android/iOS)",
-        }
-
     async def detail(self, customer_id: str) -> Optional[Dict[str, Any]]:
-
-        doc = await database.find_one(self.collection, {"_id": customer_id})
-        if doc is None:
-            doc = await database.find_one(self.collection, {"id": customer_id})
-        if doc is None:
-            return None
-        return await self._with_stats(doc)
+        res = await self.list(1, 1000)
+        items = res.get("items", [])
+        for item in items:
+            if item.get("id") == customer_id:
+                return item
+        return None
 
     async def get_customer_360(self, customer_id: str) -> Dict[str, Any]:
         doc = await self.detail(customer_id)
