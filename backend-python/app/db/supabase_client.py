@@ -213,38 +213,65 @@ class SupabaseCollection:
         self._name = name
 
     async def _fetch_all(self) -> List[Dict[str, Any]]:
-        pool = await self._db.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT data FROM quickpress_documents WHERE collection = $1", self._name
-            )
-            return [json.loads(r["data"]) for r in rows]
+        for attempt in range(3):
+            try:
+                async with self._db.semaphore:
+                    pool = await self._db.get_pool()
+                    async with pool.acquire() as conn:
+                        rows = await conn.fetch(
+                            "SELECT data FROM quickpress_documents WHERE collection = $1", self._name
+                        )
+                        return [json.loads(r["data"]) for r in rows]
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Error fetching collection {self._name}: {e}")
+                    raise
+                await asyncio.sleep(0.1 * (attempt + 1))
+        return []
 
     async def _save_doc(self, doc: Dict[str, Any]) -> None:
         doc_id = str(doc.get("_id") or doc.get("id") or uuid.uuid4().hex)
         if "_id" not in doc:
             doc["_id"] = doc_id
         payload = json.dumps(doc, default=str)
-        pool = await self._db.get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO quickpress_documents (id, collection, data, updated_at)
-                VALUES ($1, $2, $3::jsonb, NOW())
-                ON CONFLICT (id) DO UPDATE
-                SET data = EXCLUDED.data, updated_at = NOW();
-                """,
-                f"{self._name}:{doc_id}",
-                self._name,
-                payload,
-            )
+        for attempt in range(3):
+            try:
+                async with self._db.semaphore:
+                    pool = await self._db.get_pool()
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            INSERT INTO quickpress_documents (id, collection, data, updated_at)
+                            VALUES ($1, $2, $3::jsonb, NOW())
+                            ON CONFLICT (id) DO UPDATE
+                            SET data = EXCLUDED.data, updated_at = NOW();
+                            """,
+                            f"{self._name}:{doc_id}",
+                            self._name,
+                            payload,
+                        )
+                        return
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Error saving doc in {self._name}: {e}")
+                    raise
+                await asyncio.sleep(0.1 * (attempt + 1))
 
     async def _delete_doc_id(self, doc_id: str) -> None:
-        pool = await self._db.get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "DELETE FROM quickpress_documents WHERE id = $1", f"{self._name}:{doc_id}"
-            )
+        for attempt in range(3):
+            try:
+                async with self._db.semaphore:
+                    pool = await self._db.get_pool()
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            "DELETE FROM quickpress_documents WHERE id = $1", f"{self._name}:{doc_id}"
+                        )
+                        return
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Error deleting doc in {self._name}: {e}")
+                    raise
+                await asyncio.sleep(0.1 * (attempt + 1))
 
     def find(self, query: Optional[Dict[str, Any]] = None) -> SupabaseCursor:
         return SupabaseCursor(self, query or {})
@@ -267,11 +294,7 @@ class SupabaseCollection:
     async def insert_one(self, document: Dict[str, Any]) -> Any:
         doc = dict(document)
         await self._save_doc(doc)
-
-        class InsertResult:
-            inserted_id = doc.get("_id") or doc.get("id")
-
-        return InsertResult()
+        return doc
 
     async def insert_many(self, documents: Sequence[Dict[str, Any]]) -> None:
         for doc in documents:
@@ -279,20 +302,26 @@ class SupabaseCollection:
 
     async def update_one(
         self, query: Dict[str, Any], update: Dict[str, Any], upsert: bool = False
-    ) -> int:
+    ) -> Any:
         docs = await self._fetch_all()
-        target = next((d for d in docs if _matches(d, query)), None)
-        if target is None:
-            if not upsert:
-                return 0
-            target = {**query, **update.get("$setOnInsert", {})}
-            _apply_update(target, update)
-            await self._save_doc(target)
-            return 1
-
-        _apply_update(target, update)
+        matched = [d for d in docs if _matches(d, query)]
+        if not matched:
+            if upsert:
+                new_doc = dict(query)
+                if "$set" in update:
+                    new_doc.update(update["$set"])
+                else:
+                    new_doc.update(update)
+                await self._save_doc(new_doc)
+            return None
+        target = matched[0]
+        if "$set" in update:
+            for k, v in update["$set"].items():
+                _set_nested(target, k, v)
+        else:
+            target.update(update)
         await self._save_doc(target)
-        return 1
+        return target
 
     async def update_many(self, query: Dict[str, Any], update: Dict[str, Any]) -> int:
         docs = await self._fetch_all()
@@ -334,43 +363,28 @@ class SupabaseCollection:
         return 0
 
     async def delete_many(self, query: Dict[str, Any]) -> int:
-        pool = await self._db.get_pool()
-        if not query:
-            async with pool.acquire() as conn:
-                res = await conn.execute(
-                    "DELETE FROM quickpress_documents WHERE collection = $1", self._name
-                )
-                # res is like "DELETE 45"
-                try:
-                    return int(res.split(" ")[-1])
-                except Exception:
-                    return 1
-
         docs = await self._fetch_all()
-        matched_ids = []
-        for doc in docs:
-            if _matches(doc, query):
-                doc_id = str(doc.get("id") or doc.get("_id") or "")
-                if doc_id:
-                    matched_ids.append(f"{self._name}:{doc_id}")
-
-        if matched_ids:
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "DELETE FROM quickpress_documents WHERE id = ANY($1::text[])", matched_ids
-                )
-        return len(matched_ids)
-
+        matched = [d for d in docs if _matches(d, query)]
+        for m in matched:
+            doc_id = str(m.get("_id") or m.get("id"))
+            await self._delete_doc_id(doc_id)
+        return len(matched)
 
 
 class SupabaseDatabase:
-    """Supabase PostgreSQL Database Client."""
+    """Supabase PostgreSQL Database Client with Transaction Pooling and Concurrency Safety."""
 
     def __init__(self, database_url: str) -> None:
-        self.database_url = database_url
+        # Route to Supabase Transaction Pooler (port 6543) for unlimited pooled sessions
+        if ":5432" in database_url and ("supabase.co" in database_url or "pooler.supabase.com" in database_url):
+            self.database_url = database_url.replace(":5432", ":6543")
+        else:
+            self.database_url = database_url
+
         self._pool: Optional[asyncpg.Pool] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._collections: Dict[str, SupabaseCollection] = {}
+        self.semaphore = asyncio.Semaphore(5)
 
     async def get_pool(self) -> asyncpg.Pool:
         current_loop = asyncio.get_running_loop()
@@ -382,15 +396,16 @@ class SupabaseDatabase:
                     pass
             self._pool = await asyncpg.create_pool(
                 self.database_url,
-                min_size=2,
+                min_size=1,
                 max_size=10,
-                command_timeout=15,
+                command_timeout=20,
+                statement_cache_size=0,
             )
             self._loop = current_loop
         return self._pool
 
     async def connect(self) -> None:
-        logger.info("Connecting to Supabase PostgreSQL...")
+        logger.info("Connecting to Supabase PostgreSQL (Transaction Pooler)...")
         pool = await self.get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
