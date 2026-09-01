@@ -13,11 +13,11 @@ repeated idempotency key can never create an order.
 
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.deps import current_user
+from app.core.deps import current_user, optional_user
 from app.db.address_repositories import address_repository
 from app.db.order_repositories import delivery_estimate, order_repository
 from app.db.reorder_repositories import reorder_repository
