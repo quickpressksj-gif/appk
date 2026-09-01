@@ -3712,60 +3712,242 @@ class AdminPartnerServiceRepository:
 admin_partner_service_repository = AdminPartnerServiceRepository()
 
 
+_SEED_SUPPORT_TICKETS = [
+    {
+        "_id": "tck-cust-001",
+        "id": "tck-cust-001",
+        "ticketNumber": "TCK-8921",
+        "subject": "Pickup slot delay for dry clean clothes",
+        "raisedBy": "Amit Kumar Sharma",
+        "phone": "+91 98719 62596",
+        "role": "Customer",
+        "source": "Customer",
+        "priority": "High",
+        "status": "In progress",
+        "category": "Pickup Delay",
+        "refOrder": "ORD-KSJ-001",
+        "assignee": "Himanshu (Lead Admin)",
+        "createdAt": "2026-09-01T09:15:00Z",
+        "updatedAt": "2026-09-01T10:30:00Z",
+        "replies": [
+            {
+                "_id": "msg-1",
+                "author": "Amit Kumar Sharma",
+                "role": "Customer",
+                "body": "Hi, I scheduled a pickup at 10 AM today for dry clean blazers but no rider has arrived yet.",
+                "at": "2026-09-01T09:15:00Z",
+            },
+            {
+                "_id": "msg-2",
+                "author": "QuickPress Support",
+                "role": "Admin",
+                "body": "Hello Amit, our captain Rahul is on the way and will reach your doorstep within 10 minutes. Apologies for the slight traffic delay!",
+                "at": "2026-09-01T09:25:00Z",
+            },
+        ],
+    },
+    {
+        "_id": "tck-part-002",
+        "id": "tck-part-002",
+        "ticketNumber": "TCK-8922",
+        "subject": "Steam Ironing Machine Breakdown in Hub",
+        "raisedBy": "Kasganj Super Clean Hub",
+        "phone": "+91 98765 43210",
+        "role": "Partner",
+        "source": "Partner",
+        "priority": "High",
+        "status": "Open",
+        "category": "Store Operations",
+        "refOrder": "ORD-KSJ-003",
+        "assignee": "Operations Support",
+        "createdAt": "2026-09-01T11:00:00Z",
+        "updatedAt": "2026-09-01T11:00:00Z",
+        "replies": [
+            {
+                "_id": "msg-3",
+                "author": "Kasganj Super Clean Hub",
+                "role": "Partner",
+                "body": "Our main industrial steam boiler has a heating coil malfunction. Please reroute new steam iron orders to Soron Gate Hub for today.",
+                "at": "2026-09-01T11:00:00Z",
+            },
+        ],
+    },
+    {
+        "_id": "tck-rdr-003",
+        "id": "tck-rdr-003",
+        "ticketNumber": "TCK-8923",
+        "subject": "Customer Unreachable at Bilram Gate Address",
+        "raisedBy": "Rahul Express Rider",
+        "phone": "+91 98719 44021",
+        "role": "Rider",
+        "source": "Rider",
+        "priority": "Medium",
+        "status": "In progress",
+        "category": "Delivery Issue",
+        "refOrder": "ORD-KSJ-004",
+        "assignee": "Dispatch Support",
+        "createdAt": "2026-09-01T12:20:00Z",
+        "updatedAt": "2026-09-01T12:35:00Z",
+        "replies": [
+            {
+                "_id": "msg-4",
+                "author": "Rahul Express Rider",
+                "role": "Rider",
+                "body": "I am standing outside house #14 near Bilram Gate for 10 mins. The customer's phone is switched off.",
+                "at": "2026-09-01T12:20:00Z",
+            },
+            {
+                "_id": "msg-5",
+                "author": "QuickPress Support",
+                "role": "Admin",
+                "body": "Rahul, we just reached the alternate number. The customer's brother is opening the main gate right now.",
+                "at": "2026-09-01T12:35:00Z",
+            },
+        ],
+    },
+    {
+        "_id": "tck-cust-004",
+        "id": "tck-cust-004",
+        "ticketNumber": "TCK-8924",
+        "subject": "Coupon FIRST50 not applying on cart checkout",
+        "raisedBy": "Pooja Verma",
+        "phone": "+91 98123 45678",
+        "role": "Customer",
+        "source": "Customer",
+        "priority": "Low",
+        "status": "Resolved",
+        "category": "Promo Code",
+        "refOrder": "—",
+        "assignee": "Himanshu (Lead Admin)",
+        "createdAt": "2026-08-31T16:00:00Z",
+        "updatedAt": "2026-08-31T16:30:00Z",
+        "replies": [
+            {
+                "_id": "msg-6",
+                "author": "Pooja Verma",
+                "role": "Customer",
+                "body": "It shows coupon expired when I try to book my wash.",
+                "at": "2026-08-31T16:00:00Z",
+            },
+            {
+                "_id": "msg-7",
+                "author": "QuickPress Support",
+                "role": "Admin",
+                "body": "Hi Pooja, the min cart requirement is ₹199. We have credited ₹50 promo wallet balance directly to your account so you can book right away!",
+                "at": "2026-08-31T16:30:00Z",
+            },
+        ],
+    },
+]
+
+
 class SupportRepository:
     collection = "admin_support_tickets"
 
     async def list(self) -> List[Dict[str, Any]]:
         help_tickets = await database.find_sorted("support_tickets", sort=[("created_at", -1)])
         admin_tickets = await database.find_sorted(self.collection, sort=[("createdAt", -1)])
-        
+
         results: List[Dict[str, Any]] = []
-        for t in help_tickets:
-            customer_doc = await database.find_one("customers", {"_id": t.get("user_id")}) or await database.find_one("users", {"_id": t.get("user_id")})
-            customer_name = (customer_doc or {}).get("name") or (customer_doc or {}).get("display_name") or t.get("user_id") or "Customer"
+        for t in (admin_tickets or []):
             results.append({
                 "_id": str(t["_id"]),
                 "id": str(t["_id"]),
-                "ticketNumber": t.get("ticket_number") or str(t["_id"]),
-                "subject": t.get("subject") or t.get("description") or "Customer Issue",
-                "customer": customer_name,
+                "ticketNumber": t.get("ticketNumber") or f"TCK-{str(t['_id'])[:4].upper()}",
+                "subject": t.get("subject") or "Support Request",
+                "raisedBy": t.get("raisedBy") or t.get("customer") or "User",
+                "phone": t.get("phone") or "+91 98719 62596",
+                "role": (t.get("role") or t.get("source") or "Customer").capitalize(),
+                "source": (t.get("source") or t.get("role") or "Customer").capitalize(),
                 "priority": (t.get("priority") or "Medium").capitalize(),
                 "status": (t.get("status") or "Open").capitalize(),
-                "createdAt": t.get("created_at") or t.get("createdAt") or now_iso(),
+                "category": t.get("category", "General Inquiry"),
+                "refOrder": t.get("refOrder", "—"),
+                "assignee": t.get("assignee") or "Himanshu (Lead Admin)",
+                "createdAt": t.get("createdAt") or t.get("created_at") or now_iso(),
+                "updatedAt": t.get("updatedAt") or t.get("updated_at") or now_iso(),
                 "replies": t.get("replies") or [],
             })
-            
-        for t in admin_tickets:
-            if not any(r["id"] == str(t["_id"]) for r in results):
+
+        for t in (help_tickets or []):
+            tid = str(t["_id"])
+            if not any(r["id"] == tid for r in results):
+                customer_doc = await database.find_one("customers", {"_id": t.get("user_id")}) or await database.find_one("users", {"_id": t.get("user_id")})
+                customer_name = (customer_doc or {}).get("name") or (customer_doc or {}).get("display_name") or t.get("user_id") or "Customer"
+                customer_phone = (customer_doc or {}).get("phone") or "+91 98719 62596"
                 results.append({
-                    "_id": str(t["_id"]),
-                    "id": str(t["_id"]),
-                    "ticketNumber": t.get("ticketNumber") or str(t["_id"]),
-                    "subject": t.get("subject") or "Support Request",
-                    "customer": t.get("customer") or "Customer",
-                    "priority": t.get("priority", "Medium"),
-                    "status": t.get("status", "Open"),
-                    "createdAt": t.get("createdAt") or now_iso(),
+                    "_id": tid,
+                    "id": tid,
+                    "ticketNumber": t.get("ticket_number") or f"TCK-{tid[:4].upper()}",
+                    "subject": t.get("subject") or t.get("description") or "Customer Issue",
+                    "raisedBy": customer_name,
+                    "phone": customer_phone,
+                    "role": "Customer",
+                    "source": "Customer",
+                    "priority": (t.get("priority") or "Medium").capitalize(),
+                    "status": (t.get("status") or "Open").capitalize(),
+                    "category": t.get("category", "Order Inquiry"),
+                    "refOrder": t.get("order_id") or t.get("orderId") or "—",
+                    "assignee": "Himanshu (Lead Admin)",
+                    "createdAt": t.get("created_at") or t.get("createdAt") or now_iso(),
+                    "updatedAt": t.get("updated_at") or t.get("updatedAt") or now_iso(),
                     "replies": t.get("replies") or [],
                 })
+
+        if not results:
+            results = list(_SEED_SUPPORT_TICKETS)
+
         return results
 
     async def get(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        doc = await database.find_one(self.collection, {"_id": ticket_id})
+        if doc is not None:
+            return doc
         doc = await database.find_one("support_tickets", {"_id": ticket_id})
         if doc is not None:
             return doc
-        return await database.find_one(self.collection, {"_id": ticket_id})
+        for t in _SEED_SUPPORT_TICKETS:
+            if t["_id"] == ticket_id or t["id"] == ticket_id:
+                return t
+        return None
 
     async def close(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        now = now_iso()
         doc = await database.find_one("support_tickets", {"_id": ticket_id})
         if doc is not None:
-            return await database.update("support_tickets", {"_id": ticket_id}, {"status": "resolved", "updated_at": now_iso()})
-        return await database.update(self.collection, {"_id": ticket_id}, {"status": "Resolved"})
+            return await database.update("support_tickets", {"_id": ticket_id}, {"status": "resolved", "updated_at": now})
+        doc = await database.find_one(self.collection, {"_id": ticket_id})
+        if doc is not None:
+            return await database.update(self.collection, {"_id": ticket_id}, {"status": "Resolved", "updatedAt": now})
+        # If seed ticket, insert as resolved
+        for t in _SEED_SUPPORT_TICKETS:
+            if t["_id"] == ticket_id or t["id"] == ticket_id:
+                cloned = dict(t)
+                cloned["status"] = "Resolved"
+                cloned["updatedAt"] = now
+                await database.insert(self.collection, cloned)
+                return cloned
+        return None
 
     async def reply(self, ticket_id: str, body: str) -> Optional[Dict[str, Any]]:
+        now = now_iso()
+        new_msg = {
+            "_id": f"msg-{uuid.uuid4().hex[:8]}",
+            "author": "QuickPress Support",
+            "role": "Admin",
+            "body": body,
+            "at": now,
+        }
+
+        doc = await database.find_one(self.collection, {"_id": ticket_id})
+        if doc is not None:
+            replies = list(doc.get("replies") or [])
+            replies.append(new_msg)
+            await database.update(self.collection, {"_id": ticket_id}, {"replies": replies, "status": "In progress", "updatedAt": now})
+            return {"ok": True, "ticketId": ticket_id, "body": body, "message": new_msg}
+
         doc = await database.find_one("support_tickets", {"_id": ticket_id})
         if doc is not None:
-            now = now_iso()
             msg = {
                 "_id": f"msg-{uuid.uuid4().hex[:12]}",
                 "ticket_id": ticket_id,
@@ -3778,14 +3960,18 @@ class SupportRepository:
             }
             await database.insert("support_messages", msg)
             await database.update("support_tickets", {"_id": ticket_id}, {"status": "in-progress", "last_message_at": now, "updated_at": now})
-            return {"ok": True, "ticketId": ticket_id, "body": body}
+            return {"ok": True, "ticketId": ticket_id, "body": body, "message": new_msg}
 
-        doc = await database.find_one(self.collection, {"_id": ticket_id})
-        if doc is not None:
-            replies = list(doc.get("replies") or [])
-            replies.append({"body": body, "at": now_iso(), "author": "admin"})
-            await database.update(self.collection, {"_id": ticket_id}, {"replies": replies})
-            return {"ok": True, "ticketId": ticket_id, "body": body}
+        # For seed tickets, create in database
+        for t in _SEED_SUPPORT_TICKETS:
+            if t["_id"] == ticket_id or t["id"] == ticket_id:
+                cloned = dict(t)
+                cloned["replies"] = list(t.get("replies") or []) + [new_msg]
+                cloned["status"] = "In progress"
+                cloned["updatedAt"] = now
+                await database.insert(self.collection, cloned)
+                return {"ok": True, "ticketId": ticket_id, "body": body, "message": new_msg}
+
         return None
 
 
