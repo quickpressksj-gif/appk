@@ -42,6 +42,7 @@ from app.db.admin_repositories import (
     admin_order_repository,
     admin_partner_repository,
     admin_partner_service_repository,
+    admin_refund_repository,
     admin_rider_repository,
     admin_settings_repository,
     admin_wallet_repository,
@@ -1163,6 +1164,68 @@ async def reject_withdrawal(withdrawal_id: str, user: User = Depends(current_use
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
     await audit_repository.log(await _actor(user), "wallet.withdrawal.reject", withdrawal_id)
     return {"ok": True, "id": withdrawal_id, "action": "reject"}
+
+
+# --------------------------------------------------------------------- refunds
+@router.get("/refunds")
+async def list_admin_refunds(user: User = Depends(current_user)):
+    return await admin_refund_repository.list()
+
+
+@router.get("/refunds/stats")
+async def admin_refunds_stats(user: User = Depends(current_user)):
+    return await admin_refund_repository.get_stats()
+
+
+@router.post("/refunds/initiate")
+async def initiate_admin_refund(payload: dict, user: User = Depends(current_user)):
+    actor = await _actor(user)
+    order_id = str(payload.get("orderId") or "—")
+    user_id = str(payload.get("userId") or payload.get("customerId") or "")
+    customer_name = str(payload.get("customerName") or "Customer")
+    customer_phone = str(payload.get("customerPhone") or "+91 98719 62596")
+    amount = float(payload.get("amount") or 0.0)
+    method = str(payload.get("method") or "wallet").lower()
+    reason = str(payload.get("reason") or "Order Cancellation")
+    notes = str(payload.get("notes") or "")
+
+    if amount <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refund amount must be greater than 0")
+
+    result = await admin_refund_repository.initiate(
+        order_id=order_id,
+        user_id=user_id,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        amount=amount,
+        method=method,
+        reason=reason,
+        notes=notes,
+        admin_actor=actor,
+    )
+    await audit_repository.log(actor, "refund.initiate", result.get("_id", "—"), meta={"orderId": order_id, "amount": amount, "method": method})
+    return result
+
+
+@router.post("/refunds/{refund_id}/approve")
+async def approve_admin_refund(refund_id: str, user: User = Depends(current_user)):
+    actor = await _actor(user)
+    result = await admin_refund_repository.approve(refund_id, actor)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refund record not found")
+    await audit_repository.log(actor, "refund.approve", refund_id)
+    return {"ok": True, "refundId": refund_id, "status": "Completed"}
+
+
+@router.post("/refunds/{refund_id}/reject")
+async def reject_admin_refund(refund_id: str, payload: dict, user: User = Depends(current_user)):
+    actor = await _actor(user)
+    reason = str(payload.get("reason") or "Refund claim rejected by administration")
+    result = await admin_refund_repository.reject(refund_id, reason, actor)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refund record not found")
+    await audit_repository.log(actor, "refund.reject", refund_id, meta={"reason": reason})
+    return {"ok": True, "refundId": refund_id, "status": "Rejected"}
 
 
 # -------------------------------------------------------------- notifications

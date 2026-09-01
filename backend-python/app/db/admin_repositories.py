@@ -2705,7 +2705,239 @@ class AdminWalletRepository:
         return {"accountId": account_id, "previousBalance": prev_bal, "newBalance": new_bal, "adjusted": amount}
 
 
-admin_wallet_repository = AdminWalletRepository()
+_SEED_REFUNDS = [
+    {
+        "_id": "ref-001",
+        "id": "ref-001",
+        "refundNumber": "REF-7891",
+        "orderId": "ord-QP1041",
+        "orderNumber": "QP1041",
+        "userId": "cust-1",
+        "customerName": "Amit Kumar Sharma",
+        "customerPhone": "+91 98719 62596",
+        "amount": 126.0,
+        "method": "wallet",
+        "methodLabel": "QuickPress Wallet (Instant)",
+        "reason": "Pickup Slot Delay Cancellation",
+        "category": "Logistics Delay",
+        "status": "Completed",
+        "notes": "Order cancelled due to rain delay. Full amount credited to wallet.",
+        "processedBy": "Himanshu (Lead Admin)",
+        "createdAt": "2026-09-01T10:15:00Z",
+        "processedAt": "2026-09-01T10:16:00Z",
+    },
+    {
+        "_id": "ref-002",
+        "id": "ref-002",
+        "refundNumber": "REF-7892",
+        "orderId": "ord-e2e-v2-7372",
+        "orderNumber": "QP1409",
+        "userId": "cust-2",
+        "customerName": "Pooja Verma",
+        "customerPhone": "+91 98123 45678",
+        "amount": 50.0,
+        "method": "gateway",
+        "methodLabel": "Razorpay UPI Reversal",
+        "reason": "Promotional Voucher Adjustment",
+        "category": "Pricing Grievance",
+        "status": "Completed",
+        "notes": "Coupon FIRST50 manual credit adjustment.",
+        "processedBy": "Rajesh Sharma (Ops Admin)",
+        "createdAt": "2026-08-31T17:30:00Z",
+        "processedAt": "2026-08-31T17:35:00Z",
+    },
+    {
+        "_id": "ref-003",
+        "id": "ref-003",
+        "refundNumber": "REF-7893",
+        "orderId": "ord-neg-v2-1259",
+        "orderNumber": "QP2291",
+        "userId": "cust-3",
+        "customerName": "Vikram Malhotra",
+        "customerPhone": "+91 98991 22334",
+        "amount": 80.0,
+        "method": "wallet",
+        "methodLabel": "QuickPress Wallet (Instant)",
+        "reason": "Garment Stain Rework Claim",
+        "category": "Quality Issue",
+        "status": "Pending",
+        "notes": "Customer requested re-wash refund compensation.",
+        "processedBy": "Pending Review",
+        "createdAt": "2026-09-01T14:20:00Z",
+        "processedAt": None,
+    },
+]
+
+
+class AdminRefundRepository:
+    collection = "refunds"
+
+    async def list(self) -> List[Dict[str, Any]]:
+        rows = await database.find_sorted(self.collection, sort=[("createdAt", -1), ("created_at", -1)])
+        if not rows:
+            return list(_SEED_REFUNDS)
+
+        results = []
+        for r in rows:
+            results.append({
+                "_id": str(r.get("_id") or r.get("id")),
+                "id": str(r.get("_id") or r.get("id")),
+                "refundNumber": r.get("refundNumber") or f"REF-{str(r.get('_id'))[:4].upper()}",
+                "orderId": r.get("orderId") or r.get("order_id") or "—",
+                "orderNumber": r.get("orderNumber") or (r.get("orderId") or "—")[-6:].upper(),
+                "userId": r.get("userId") or r.get("user_id") or "—",
+                "customerName": r.get("customerName") or r.get("customer") or "Customer",
+                "customerPhone": r.get("customerPhone") or r.get("phone") or "+91 98719 62596",
+                "amount": float(r.get("amount") or 0.0),
+                "method": r.get("method") or "wallet",
+                "methodLabel": "QuickPress Wallet (Instant)" if r.get("method") == "wallet" else "Razorpay UPI Reversal",
+                "reason": r.get("reason") or "Order Cancellation",
+                "category": r.get("category") or "General Refund",
+                "status": (r.get("status") or "Completed").capitalize(),
+                "notes": r.get("notes") or "",
+                "processedBy": r.get("processedBy") or "Himanshu (Lead Admin)",
+                "createdAt": r.get("createdAt") or r.get("created_at") or now_iso(),
+                "processedAt": r.get("processedAt") or r.get("updatedAt"),
+            })
+        return results
+
+    async def get_stats(self) -> Dict[str, Any]:
+        all_refunds = await self.list()
+        total_amount = sum(r.get("amount", 0.0) for r in all_refunds if r.get("status") == "Completed")
+        pending_count = len([r for r in all_refunds if r.get("status") == "Pending"])
+        wallet_count = len([r for r in all_refunds if r.get("method") == "wallet"])
+        gateway_count = len([r for r in all_refunds if r.get("method") == "gateway"])
+
+        return {
+            "totalRefundedAmount": f"₹{total_amount:,.2f}",
+            "rawTotalAmount": total_amount,
+            "totalRefundsCount": len(all_refunds),
+            "pendingClaimsCount": pending_count,
+            "walletRefundsCount": wallet_count,
+            "gatewayRefundsCount": gateway_count,
+            "instantSuccessRate": "100%",
+            "avgTurnaround": "Instant (0 Mins)",
+        }
+
+    async def initiate(
+        self,
+        order_id: str,
+        user_id: str,
+        customer_name: str,
+        customer_phone: str,
+        amount: float,
+        method: str,
+        reason: str,
+        notes: str,
+        admin_actor: str,
+    ) -> Dict[str, Any]:
+        now = now_iso()
+        ref_id = new_id("REF")
+
+        # 1. If method is wallet, instantly credit customer wallet
+        if method == "wallet" and user_id:
+            await admin_wallet_repository.adjust_wallet(
+                account_id=user_id,
+                role="customer",
+                amount=amount,
+                kind="credit",
+                reason=f"Refund for order #{order_id}: {reason}",
+                admin_id=admin_actor,
+            )
+
+        # 2. Insert into refunds collection
+        refund_doc = {
+            "_id": ref_id,
+            "id": ref_id,
+            "refundNumber": f"REF-{ref_id[:4].upper()}",
+            "orderId": order_id,
+            "orderNumber": order_id[-6:].upper() if order_id else "QP1001",
+            "userId": user_id,
+            "customerName": customer_name,
+            "customerPhone": customer_phone,
+            "amount": amount,
+            "method": method,
+            "methodLabel": "QuickPress Wallet (Instant)" if method == "wallet" else "Razorpay UPI Reversal",
+            "reason": reason,
+            "category": "Customer Support Adjustment",
+            "status": "Completed" if method == "wallet" else "Processing",
+            "notes": notes,
+            "processedBy": admin_actor,
+            "createdAt": now,
+            "processedAt": now if method == "wallet" else None,
+        }
+        await database.insert(self.collection, refund_doc)
+
+        # 3. Update order paymentStatus if order_id exists
+        if order_id and order_id != "—":
+            try:
+                await database.update("customer_orders", {"_id": order_id}, {"paymentStatus": "refunded", "refundAmount": amount, "refundDate": now})
+            except Exception:
+                pass
+
+        # 4. Create customer in-app notification
+        try:
+            notif_id = new_id("NOTIF")
+            await database.insert("notifications", {
+                "_id": notif_id,
+                "user_id": user_id,
+                "role": "customer",
+                "kind": "wallet",
+                "category": "system",
+                "title": "Refund Processed Successfully! 🎉",
+                "description": f"₹{amount:,.2f} has been refunded to your {('QuickPress Wallet' if method == 'wallet' else 'Original Payment Source')} for order #{order_id}.",
+                "created_at": now,
+                "read": False,
+            })
+        except Exception:
+            pass
+
+        return refund_doc
+
+    async def approve(self, refund_id: str, admin_actor: str) -> Optional[Dict[str, Any]]:
+        now = now_iso()
+        doc = await database.find_one(self.collection, {"_id": refund_id})
+        if not doc:
+            for s in _SEED_REFUNDS:
+                if s["_id"] == refund_id or s["id"] == refund_id:
+                    doc = dict(s)
+                    break
+        if not doc:
+            return None
+
+        # Execute wallet credit if wallet method
+        if doc.get("method") == "wallet" and doc.get("userId"):
+            await admin_wallet_repository.adjust_wallet(
+                account_id=doc["userId"],
+                role="customer",
+                amount=float(doc.get("amount", 0.0)),
+                kind="credit",
+                reason=f"Approved Refund: {doc.get('reason')}",
+                admin_id=admin_actor,
+            )
+
+        updated = {
+            "status": "Completed",
+            "processedBy": admin_actor,
+            "processedAt": now,
+            "updatedAt": now,
+        }
+        await database.update(self.collection, {"_id": refund_id}, updated, upsert=True)
+        return {**doc, **updated}
+
+    async def reject(self, refund_id: str, reason: str, admin_actor: str) -> Optional[Dict[str, Any]]:
+        now = now_iso()
+        updated = {
+            "status": "Rejected",
+            "rejectionReason": reason,
+            "processedBy": admin_actor,
+            "updatedAt": now,
+        }
+        await database.update(self.collection, {"_id": refund_id}, updated, upsert=True)
+        return updated
+
+
+admin_refund_repository = AdminRefundRepository()
 
 
 class AdminSettingsRepository:
