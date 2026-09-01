@@ -21,6 +21,22 @@ import {
   Info,
   MapPin,
   Building2,
+  IndianRupee,
+  Bike,
+  Users,
+  Eye,
+  RefreshCw,
+  Phone,
+  Star,
+  ShoppingBag,
+  ExternalLink,
+  Check,
+  Save,
+  Sliders,
+  DollarSign,
+  ArrowUpRight,
+  ShieldCheck,
+  Radio,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { AdminShell } from "../components/AdminShell";
 import { DataTable, DetailRow, SectionCard, StatusPill, KpiCard } from "../components/AdminUI";
@@ -52,12 +69,15 @@ import {
   deleteService,
   fetchPartnerServices,
   fetchServiceCategories,
-  fetchServices,
+  fetchServicesIntelligence,
+  fetchServiceStats,
   togglePartnerServiceStatus,
   updateService,
   type LaundryService,
   type PartnerServiceRow,
   type ServiceCategory,
+  type ServiceIntelligence,
+  type ServiceRider,
 } from "../api/services";
 import { fetchPartners } from "../api/partners";
 import { adminHead } from "../lib/head";
@@ -65,27 +85,30 @@ import { requireAdminSession } from "../lib/require-admin-session";
 
 export const Route = createFileRoute("/services")({
   beforeLoad: requireAdminSession,
-  head: () => adminHead("Services Catalog & Partner Pricing", "Master platform service catalog and individual partner rate cards."),
+  head: () => adminHead("Services & Revenue Intelligence", "Master platform service catalog, revenue breakdown, rider allocation, and partner rate cards."),
   component: ServicesPage,
 });
 
 export function ServicesPage() {
   const queryClient = useQueryClient();
-  const services = useQuery({ queryKey: ["admin", "services"], queryFn: fetchServices });
-  const categories = useQuery({ queryKey: ["admin", "service-categories"], queryFn: fetchServiceCategories });
-  const partnerServices = useQuery({ queryKey: ["admin", "partner-services"], queryFn: () => fetchPartnerServices() });
-  const partners = useQuery({ queryKey: ["admin", "partners"], queryFn: fetchPartners });
+  const intelQuery = useQuery({ queryKey: ["admin", "services", "intelligence"], queryFn: fetchServicesIntelligence });
+  const statsQuery = useQuery({ queryKey: ["admin", "services", "stats"], queryFn: fetchServiceStats });
+  const categoriesQuery = useQuery({ queryKey: ["admin", "service-categories"], queryFn: fetchServiceCategories });
+  const partnerServicesQuery = useQuery({ queryKey: ["admin", "partner-services"], queryFn: () => fetchPartnerServices() });
+  const partnersQuery = useQuery({ queryKey: ["admin", "partners"], queryFn: fetchPartners });
 
-  const [activeTab, setActiveTab] = useState("master");
-  const [partnerFilter, setPartnerFilter] = useState("all");
-  const [cityFilter, setCityFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<"services" | "riders_matrix" | "partner_rates" | "categories">("services");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"revenue" | "orders" | "price" | "name">("revenue");
+  const [selectedService, setSelectedService] = useState<ServiceIntelligence | null>(null);
 
-  const allMasterServices = services.data ?? [];
-  const allPartnerServices = partnerServices.data ?? [];
-  const allCategories = categories.data ?? [];
-  const allPartners = partners.data ?? [];
+  const allIntelligence = intelQuery.data ?? [];
+  const stats = statsQuery.data;
+  const allCategories = categoriesQuery.data ?? [];
+  const allPartnerServices = partnerServicesQuery.data ?? [];
+  const allPartners = partnersQuery.data ?? [];
 
   const partnerStatusMutation = useMutation({
     mutationFn: ({ serviceId, action }: { serviceId: string; action: "activate" | "suspend" | "disable" | "enable" }) =>
@@ -93,6 +116,7 @@ export function ServicesPage() {
     onSuccess: () => {
       toast.success("Partner service status updated successfully!");
       queryClient.invalidateQueries({ queryKey: ["admin", "partner-services"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
     },
     onError: () => {
       toast.error("Failed to update partner service status.");
@@ -103,45 +127,156 @@ export function ServicesPage() {
     mutationFn: (id: string) => deleteService(id),
     onSuccess: () => {
       toast.success("Master service removed from catalog.");
-      queryClient.invalidateQueries({ queryKey: ["admin", "services"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "stats"] });
     },
     onError: () => {
       toast.error("Failed to delete master service.");
     },
   });
 
-  const cities = useMemo(
-    () => Array.from(new Set(allPartnerServices.map((p) => p.city).filter(Boolean))),
-    [allPartnerServices],
-  );
-
   const metrics = useMemo(() => {
-    const totalMaster = allMasterServices.length;
-    const totalPartnerOfferings = allPartnerServices.length;
-    const activeOfferings = allPartnerServices.filter((p) => p.status === "Active").length;
-    const storesWithServices = new Set(allPartnerServices.map((p) => p.partnerId)).size;
-    return { totalMaster, totalPartnerOfferings, activeOfferings, storesWithServices };
-  }, [allMasterServices, allPartnerServices]);
+    const totalServices = stats?.totalServices ?? allIntelligence.length;
+    const totalRevenue = stats?.totalServiceRevenue ?? allIntelligence.reduce((acc, s) => acc + s.financials.grossRevenue, 0);
+    const totalOrders = stats?.totalOrdersDelivered ?? allIntelligence.reduce((acc, s) => acc + s.financials.totalOrders, 0);
+    const topService = stats?.topGrossingService ?? (allIntelligence[0]?.name || "Wash & Iron");
+    const topRevenue = stats?.topGrossingRevenue ?? (allIntelligence[0]?.financials.grossRevenue || 0);
+    const activeRiders = stats?.activeRidersDispatching ?? 5;
+    const activeStores = stats?.activePartnerStores ?? allPartners.length;
 
-  const filteredPartnerServices = useMemo(() => {
+    return { totalServices, totalRevenue, totalOrders, topService, topRevenue, activeRiders, activeStores };
+  }, [allIntelligence, stats, allPartners]);
+
+  // Filtered & Sorted Services Intelligence Rows
+  const filteredServices = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return allPartnerServices.filter((p) => {
+    let filtered = allIntelligence.filter((s) => {
       const matchSearch =
         !q ||
-        [p.name, p.partnerName, p.category, p.city].join(" ").toLowerCase().includes(q);
-      const matchPartner = partnerFilter === "all" || p.partnerId === partnerFilter;
-      const matchCity = cityFilter === "all" || p.city === cityFilter;
-      const matchCat = categoryFilter === "all" || p.category.toLowerCase() === categoryFilter.toLowerCase();
-      return matchSearch && matchPartner && matchCity && matchCat;
+        [s.name, s.category, s.description, ...s.assignedRiders.map((r) => r.name)]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      const matchCat = categoryFilter === "all" || s.category.toLowerCase() === categoryFilter.toLowerCase() || s.categoryId === categoryFilter;
+      const matchStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
+      return matchSearch && matchCat && matchStatus;
     });
-  }, [allPartnerServices, searchQuery, partnerFilter, cityFilter, categoryFilter]);
+
+    if (sortBy === "revenue") {
+      filtered.sort((a, b) => b.financials.grossRevenue - a.financials.grossRevenue);
+    } else if (sortBy === "orders") {
+      filtered.sort((a, b) => b.financials.totalOrders - a.financials.totalOrders);
+    } else if (sortBy === "price") {
+      filtered.sort((a, b) => b.basePrice - a.basePrice);
+    } else if (sortBy === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return filtered;
+  }, [allIntelligence, searchQuery, categoryFilter, statusFilter, sortBy]);
+
+  // Unique list of all riders across services for Matrix view
+  const riderMatrixList = useMemo(() => {
+    const ridersMap = new Map<string, { rider: ServiceRider; services: Array<{ serviceName: string; trips: number; earnings: number }> }>();
+    for (const s of allIntelligence) {
+      for (const r of s.assignedRiders) {
+        if (!ridersMap.has(r.name)) {
+          ridersMap.set(r.name, { rider: r, services: [] });
+        }
+        ridersMap.get(r.name)!.services.push({
+          serviceName: s.name,
+          trips: r.tripsForThisService,
+          earnings: r.earningsForThisService,
+        });
+      }
+    }
+    return Array.from(ridersMap.values());
+  }, [allIntelligence]);
+
+  const handleExportCSV = () => {
+    if (filteredServices.length === 0) {
+      toast.error("No service records to export.");
+      return;
+    }
+    const headers = [
+      "Service ID",
+      "Service Name",
+      "Category",
+      "Base Price",
+      "Unit",
+      "Turnaround SLA",
+      "Gross Revenue (INR)",
+      "Platform Commission (INR)",
+      "Partner Payout (INR)",
+      "Rider Earnings (INR)",
+      "Total Orders",
+      "Completed Orders",
+      "Assigned Riders List",
+      "Status",
+    ];
+    const csvRows = [headers.join(",")];
+    for (const s of filteredServices) {
+      const ridersStr = s.assignedRiders.map((r) => `${r.name} (${r.tripsForThisService} trips)`).join("; ");
+      csvRows.push(
+        [
+          `"${s.id}"`,
+          `"${s.name}"`,
+          `"${s.category}"`,
+          `"${s.basePrice}"`,
+          `"${s.unit}"`,
+          `"${s.sla}"`,
+          `"${s.financials.grossRevenue}"`,
+          `"${s.financials.platformCommission}"`,
+          `"${s.financials.partnerEarnings}"`,
+          `"${s.financials.riderEarnings}"`,
+          `"${s.financials.totalOrders}"`,
+          `"${s.financials.completedOrders}"`,
+          `"${ridersStr}"`,
+          `"${s.status}"`,
+        ].join(","),
+      );
+    }
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `QuickPress_Services_Revenue_Riders_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Services & Revenue Intelligence CSV exported! 🚀");
+  };
 
   return (
     <AdminShell
-      title="Services Catalog & Partner Rates"
-      subtitle="Platform-wide Master Service Catalog and individual partner rate cards."
+      title="Services & Revenue Intelligence"
+      subtitle="Master service catalog, real-time revenue analytics, active rider fleet allocation, and multi-partner pricing."
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              intelQuery.refetch();
+              statsQuery.refetch();
+              categoriesQuery.refetch();
+              partnerServicesQuery.refetch();
+              toast.success("Services intelligence updated!");
+            }}
+            disabled={intelQuery.isRefetching}
+            className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100"
+          >
+            <RefreshCw className={`size-3.5 mr-1.5 ${intelQuery.isRefetching ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleExportCSV}
+            className="h-8 rounded-xl bg-zinc-900 px-3 text-xs font-bold text-white hover:bg-zinc-800 shadow-xs"
+          >
+            <Download className="size-3.5 mr-1.5" />
+            <span>Export CSV</span>
+          </Button>
+
           <CreateCategoryDialog />
           <CreateServiceDialog categories={allCategories} />
         </div>
@@ -149,378 +284,825 @@ export function ServicesPage() {
     >
       <div className="space-y-6">
         {/* =========================================================================
-            1. TOP METRIC CARDS
+            1. TOP KPI SUMMARY METRICS
         ========================================================================= */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <KpiCard
             kpi={{
-              id: "tot-master",
-              label: "Master Services",
-              value: metrics.totalMaster.toLocaleString("en-IN"),
-              hint: "Platform standardized catalog",
+              id: "tot-srv",
+              label: "Platform Services",
+              value: metrics.totalServices.toLocaleString("en-IN"),
+              hint: "Active catalog offerings",
               positive: true,
             }}
           />
           <KpiCard
             kpi={{
-              id: "tot-partner-rates",
-              label: "Partner Rate Cards",
-              value: metrics.totalPartnerOfferings.toLocaleString("en-IN"),
-              hint: "Active partner pricing entries",
+              id: "tot-rev",
+              label: "Total Service GMV",
+              value: `₹${metrics.totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+              hint: "Gross revenue generated",
               positive: true,
             }}
           />
           <KpiCard
             kpi={{
-              id: "act-offerings",
-              label: "Active Partner Rates",
-              value: metrics.activeOfferings.toLocaleString("en-IN"),
-              hint: `${metrics.totalPartnerOfferings ? Math.round((metrics.activeOfferings / metrics.totalPartnerOfferings) * 100) : 0}% active`,
+              id: "tot-ord",
+              label: "Orders Handled",
+              value: metrics.totalOrders.toLocaleString("en-IN"),
+              hint: "Fulfilled service orders",
               positive: true,
             }}
           />
           <KpiCard
             kpi={{
-              id: "stores-with-services",
-              label: "Stores with Pricing",
-              value: metrics.storesWithServices.toLocaleString("en-IN"),
-              hint: "Partner stores with rate cards",
+              id: "top-srv",
+              label: "Top Grossing Service",
+              value: metrics.topService,
+              hint: `₹${metrics.topRevenue.toLocaleString("en-IN")} generated`,
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "rdr-srv",
+              label: "Riders Dispatching",
+              value: `${metrics.activeRiders} Riders`,
+              hint: "Allocated fleet partners",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "prt-srv",
+              label: "Partner Store Hubs",
+              value: `${metrics.activeStores} Stores`,
+              hint: "Kasganj rate cards active",
               positive: true,
             }}
           />
         </div>
 
         {/* =========================================================================
-            2. MAIN TABS
+            2. MAIN TABS NAVIGATION & TOOLBAR
         ========================================================================= */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-zinc-100 p-1 rounded-xl">
-            <TabsTrigger value="master" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-              Master Services ({allMasterServices.length})
-            </TabsTrigger>
-            <TabsTrigger value="partner" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-              Partner Rates & Pricing ({allPartnerServices.length})
-            </TabsTrigger>
-            <TabsTrigger value="categories" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-              Categories ({allCategories.length})
-            </TabsTrigger>
-          </TabsList>
+        <SectionCard>
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-100">
+            <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+              <TabsList className="bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="services" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  📊 Master Services & Revenue ({allIntelligence.length})
+                </TabsTrigger>
+                <TabsTrigger value="riders_matrix" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  🚴 Service ↔ Rider Allocation Matrix
+                </TabsTrigger>
+                <TabsTrigger value="partner_rates" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  🏪 Partner Store Rate Cards ({allPartnerServices.length})
+                </TabsTrigger>
+                <TabsTrigger value="categories" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  🏷️ Categories ({allCategories.length})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-          {/* =========================================================================
-              TAB 1: MASTER SERVICES CATALOG
-          ========================================================================= */}
-          <TabsContent value="master" className="space-y-4">
-            <SectionCard
-              title="Platform Master Service Catalog"
-              description="Standard services available for partner onboarding. Partners select these and set their own custom prices."
-            >
-              <DataTable
-                loading={services.isLoading}
-                rows={allMasterServices}
-                emptyMessage="No master services found in catalog."
-                columns={[
-                  {
-                    key: "name",
-                    label: "Master Service",
-                    render: (r) => (
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-black text-xs">
-                          <Sparkles className="size-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-zinc-900 text-xs">{r.name}</p>
-                          <p className="text-[10px] text-zinc-400 font-medium line-clamp-1">{r.description || "Standard laundry service"}</p>
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-500">
+              <Layers className="size-4 text-emerald-600" />
+              <span>Showing {filteredServices.length} Services</span>
+            </div>
+          </div>
+
+          {activeTab === "services" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Search */}
+              <div className="relative lg:col-span-2">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search service name, category, or assigned rider name..."
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              {/* Category Filter */}
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {allCategories.map((c) => (
+                    <SelectItem key={c.id} value={c.name}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Sort By */}
+              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revenue">💰 Highest Revenue First</SelectItem>
+                  <SelectItem value="orders">📦 Most Orders Volume</SelectItem>
+                  <SelectItem value="price">🏷️ Base Unit Price</SelectItem>
+                  <SelectItem value="name">🔤 Service Name (A-Z)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* =========================================================================
+            3. TAB CONTENT VIEWS
+        ========================================================================= */}
+        {activeTab === "services" && (
+          <SectionCard
+            title="Platform Master Services & Financial Intelligence"
+            description="Click or tap any service row to inspect the complete 360° Profile with live Revenue Breakdown, Assigned Delivery Riders, and Partner Stores."
+          >
+            <DataTable
+              loading={intelQuery.isLoading}
+              rows={filteredServices}
+              onRowClick={(row) => setSelectedService(row)}
+              emptyMessage="No services found matching the selected filters."
+              columns={[
+                {
+                  key: "name",
+                  label: "Service & Category",
+                  render: (s) => (
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-800 font-black text-xs shadow-xs border border-emerald-200/60">
+                        {s.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-900 text-xs flex items-center gap-1.5">
+                          {s.name}
+                          {s.financials.grossRevenue > 0 && <span className="rounded bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 font-black">Top Selling</span>}
+                        </p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium mt-0.5">
+                          <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-bold text-zinc-700">{s.category}</span>
+                          <span>·</span>
+                          <span className="flex items-center gap-0.5 text-zinc-600">
+                            <Clock className="size-3 text-zinc-400" /> {s.sla}
+                          </span>
                         </div>
                       </div>
-                    ),
-                  },
-                  {
-                    key: "category",
-                    label: "Category",
-                    render: (r) => (
-                      <span className="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
-                        {r.category}
+                    </div>
+                  ),
+                },
+                {
+                  key: "price",
+                  label: "Base Unit Rate",
+                  render: (s) => (
+                    <div className="text-xs">
+                      <p className="font-black text-zinc-900">₹{s.basePrice.toFixed(2)}</p>
+                      <p className="text-[10px] text-zinc-400 font-medium">/{s.unit}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "orders",
+                  label: "Orders Handled",
+                  render: (s) => (
+                    <div className="text-xs">
+                      <span className="font-black text-zinc-900">{s.financials.totalOrders} total</span>
+                      {s.financials.inProgressOrders > 0 && (
+                        <p className="text-[10px] font-bold text-sky-600 animate-pulse">
+                          ● {s.financials.inProgressOrders} active now
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: "revenue",
+                  label: "Gross Revenue (GMV)",
+                  render: (s) => (
+                    <div className="text-xs">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700 border border-emerald-200">
+                        <IndianRupee className="size-3.5" />
+                        {s.financials.grossRevenue.toFixed(2)}
                       </span>
-                    ),
-                  },
-                  {
-                    key: "unit",
-                    label: "Billing Unit",
-                    render: (r) => <span className="font-mono text-xs text-zinc-700 uppercase font-bold">{r.unit}</span>,
-                  },
-                  {
-                    key: "sla",
-                    label: "Standard SLA",
-                    render: (r) => (
-                      <span className="inline-flex items-center gap-1 text-xs text-zinc-600 font-medium">
-                        <Clock className="size-3 text-zinc-400" />
-                        {r.sla}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "price",
-                    label: "Reference Price",
-                    render: (r) => (
-                      <span className="font-mono text-xs font-bold text-zinc-600">
-                        {r.price > 0 ? `₹${r.price}/${r.unit}` : "Partner-defined"}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "status",
-                    label: "Catalog Status",
-                    render: (r) => <StatusPill value={r.status} />,
-                  },
-                  {
-                    key: "actions",
-                    label: "",
-                    className: "text-right",
-                    render: (r) => (
-                      <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-[10px] text-zinc-400 font-medium mt-0.5">
+                        Comm (18%): ₹{s.financials.platformCommission.toFixed(2)}
+                      </p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "riders",
+                  label: "Assigned Delivery Fleet",
+                  render: (s) => (
+                    <div className="text-xs">
+                      <div className="flex items-center gap-1">
+                        <Bike className="size-3.5 text-sky-600" />
+                        <span className="font-bold text-zinc-900">{s.assignedRiders.length} Riders Active</span>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 truncate max-w-[150px]">
+                        {s.assignedRiders.slice(0, 2).map((r) => r.name).join(", ") || "Kasganj Fleet Pool"}
+                      </p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "partnerStores",
+                  label: "Partner Stores",
+                  render: (s) => (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
+                      <Store className="size-3 text-zinc-400" />
+                      {s.partnerStoresCount} Stores
+                    </span>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (s) => <StatusPill value={s.status} />,
+                },
+                {
+                  key: "actions",
+                  label: "",
+                  className: "text-right",
+                  render: (s) => (
+                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-emerald-700"
+                        onClick={() => setSelectedService(s)}
+                      >
+                        <Eye className="size-3.5 mr-1" /> 360° View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-8 p-0 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                        onClick={() => deleteMasterMutation.mutate(s.id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </SectionCard>
+        )}
+
+        {/* TAB 2: SERVICE ↔ RIDER ALLOCATION MATRIX */}
+        {activeTab === "riders_matrix" && (
+          <SectionCard
+            title="Rider Fleet ↔ Service Fulfillment Matrix"
+            description="Explore which delivery riders handle each service category, along with their live trip delivery count and service earnings."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {riderMatrixList.map(({ rider, services }) => (
+                <div key={rider.name} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 text-sky-800 font-black text-xs">
+                        {rider.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-900 text-xs">{rider.name}</p>
+                        <p className="font-mono text-[10px] text-zinc-400 font-semibold">{rider.plate}</p>
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        rider.liveState === "Online"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : rider.liveState === "On delivery"
+                          ? "bg-sky-50 text-sky-700 border border-sky-200"
+                          : "bg-zinc-100 text-zinc-500"
+                      }`}
+                    >
+                      ● {rider.liveState}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Services Dispatched</p>
+                    <div className="divide-y divide-zinc-50">
+                      {services.map((srv) => (
+                        <div key={srv.serviceName} className="flex items-center justify-between py-1 text-xs">
+                          <span className="font-medium text-zinc-800 flex items-center gap-1.5">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            {srv.serviceName}
+                          </span>
+                          <div className="text-right">
+                            <span className="font-bold text-zinc-900">{srv.trips} trips</span>
+                            {srv.earnings > 0 && <span className="ml-1.5 font-bold text-emerald-600">(+₹{srv.earnings.toFixed(0)})</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-zinc-100 text-[11px]">
+                    <span className="text-zinc-500 font-medium">Vehicle: {rider.vehicle}</span>
+                    <a href={`tel:${rider.phone}`} className="font-bold text-emerald-700 flex items-center gap-1 hover:underline">
+                      <Phone className="size-3" /> Call Rider
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* TAB 3: PARTNER STORE RATE CARDS */}
+        {activeTab === "partner_rates" && (
+          <SectionCard
+            title="Partner Store Rate Cards & Custom Pricing"
+            description="Individual rates, turnaround times, and status controls for each laundry partner store."
+          >
+            <DataTable
+              loading={partnerServicesQuery.isLoading}
+              rows={allPartnerServices}
+              emptyMessage="No partner service offerings configured yet."
+              columns={[
+                {
+                  key: "name",
+                  label: "Service Offering",
+                  render: (p) => (
+                    <div>
+                      <p className="font-bold text-zinc-900 text-xs">{p.name}</p>
+                      <p className="text-[10px] text-zinc-400 font-medium">{p.category}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "partner",
+                  label: "Partner Store Hub",
+                  render: (p) => (
+                    <div>
+                      <p className="font-bold text-zinc-900 text-xs flex items-center gap-1">
+                        <Store className="size-3 text-emerald-600" /> {p.partnerName}
+                      </p>
+                      <p className="text-[10px] text-zinc-400">{p.city}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "price",
+                  label: "Store Price",
+                  render: (p) => <span className="font-black text-xs text-zinc-900">₹{p.price} /{p.unit}</span>,
+                },
+                {
+                  key: "turnaroundHours",
+                  label: "Turnaround (TAT)",
+                  render: (p) => (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
+                      <Clock className="size-3 text-zinc-400" /> {p.turnaroundHours} hrs
+                    </span>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Store Status",
+                  render: (p) => <StatusPill value={p.status} />,
+                },
+                {
+                  key: "actions",
+                  label: "Governance",
+                  className: "text-right",
+                  render: (p) => (
+                    <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {p.status === "Active" ? (
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                          onClick={() => {
-                            if (confirm(`Remove "${r.name}" from Master Service catalog?`)) {
-                              deleteMasterMutation.mutate(r.id);
-                            }
-                          }}
+                          className="h-8 rounded-xl text-zinc-500 hover:text-rose-600 hover:bg-rose-50 text-xs font-bold"
+                          onClick={() => partnerStatusMutation.mutate({ serviceId: p.id, action: "disable" })}
                         >
-                          <Trash2 className="size-3.5" />
+                          <PauseCircle className="size-3.5 mr-1" /> Disable
                         </Button>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </SectionCard>
-          </TabsContent>
-
-          {/* =========================================================================
-              TAB 2: PARTNER SERVICES & RATES (PRICING MATRIX)
-          ========================================================================= */}
-          <TabsContent value="partner" className="space-y-4">
-            <SectionCard>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="relative lg:col-span-2">
-                  <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
-                  <input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by store name, service, category, or city..."
-                    className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  />
-                </div>
-
-                <Select value={partnerFilter} onValueChange={setPartnerFilter}>
-                  <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
-                    <SelectValue placeholder="All Partner Stores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Partner Stores</SelectItem>
-                    {allPartners.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.store} ({p.city})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={cityFilter} onValueChange={setCityFilter}>
-                  <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
-                    <SelectValue placeholder="All Cities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Cities</SelectItem>
-                    {cities.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Partner Custom Rate Cards"
-              description="Each laundry partner sets their own selling price. Customers pay the partner-specific price when ordering from that store."
-            >
-              <DataTable
-                loading={partnerServices.isLoading}
-                rows={filteredPartnerServices}
-                emptyMessage="No partner service rates match these filters."
-                columns={[
-                  {
-                    key: "partnerName",
-                    label: "Partner Store",
-                    render: (r) => (
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700">
-                          <Store className="size-3.5" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-zinc-900 text-xs">{r.partnerName}</p>
-                          <p className="text-[10px] text-zinc-400 font-medium">{r.city} · #{r.partnerId}</p>
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: "name",
-                    label: "Service Offering",
-                    render: (r) => (
-                      <div>
-                        <p className="font-bold text-zinc-900 text-xs">{r.name}</p>
-                        <span className="inline-block rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-semibold text-zinc-600">
-                          {r.category}
-                        </span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: "price",
-                    label: "Partner Selling Price",
-                    render: (r) => (
-                      <div>
-                        <span className="font-black text-emerald-700 text-sm">₹{r.price}</span>
-                        <span className="text-zinc-400 text-xs font-semibold"> / {r.unit}</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: "turnaroundHours",
-                    label: "SLA / Turnaround",
-                    render: (r) => (
-                      <span className="text-xs text-zinc-600 font-medium">
-                        {r.turnaroundHours} hours
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "ordersCount",
-                    label: "Orders Delivered",
-                    render: (r) => (
-                      <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-bold text-zinc-800">
-                        {r.ordersCount} orders
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "revenue",
-                    label: "Store Revenue",
-                    render: (r) => (
-                      <span className="font-black text-zinc-900 text-xs">
-                        ₹{r.revenue.toLocaleString("en-IN")}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "status",
-                    label: "Service Status",
-                    render: (r) => <StatusPill value={r.status} />,
-                  },
-                  {
-                    key: "actions",
-                    label: "",
-                    className: "text-right",
-                    render: (r) => (
-                      <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {r.status === "Suspended" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 rounded-lg border-emerald-300 text-emerald-700 px-2.5 text-xs font-bold hover:bg-emerald-50"
-                            onClick={() => partnerStatusMutation.mutate({ serviceId: r.id, action: "activate" })}
-                          >
-                            <PlayCircle className="mr-1 size-3.5" /> Reactivate
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 px-2.5 text-xs font-bold"
-                            onClick={() => partnerStatusMutation.mutate({ serviceId: r.id, action: "suspend" })}
-                          >
-                            <PauseCircle className="mr-1 size-3.5" /> Suspend
-                          </Button>
-                        )}
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </SectionCard>
-          </TabsContent>
-
-          {/* =========================================================================
-              TAB 3: SERVICE CATEGORIES
-          ========================================================================= */}
-          <TabsContent value="categories" className="space-y-4">
-            <SectionCard
-              title="Platform Service Categories"
-              description="Taxonomy and grouping used across the Customer, Partner, and Admin apps."
-            >
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {allCategories.map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:shadow-sm"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                          <Layers className="size-5" />
-                        </div>
-                        <StatusPill value={cat.status} />
-                      </div>
-                      <h4 className="mt-3 text-sm font-black text-zinc-900">{cat.name}</h4>
-                      <p className="mt-1 text-xs text-zinc-500 font-medium line-clamp-2">
-                        {cat.description || "Primary laundry service classification category"}
-                      </p>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold"
+                          onClick={() => partnerStatusMutation.mutate({ serviceId: p.id, action: "enable" })}
+                        >
+                          <PlayCircle className="size-3.5 mr-1" /> Enable
+                        </Button>
+                      )}
                     </div>
-                    <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-400 font-semibold">
-                      <span>{cat.services} active services</span>
-                      <span className="font-mono text-[10px]">#{cat.id}</span>
+                  ),
+                },
+              ]}
+            />
+          </SectionCard>
+        )}
+
+        {/* TAB 4: SERVICE CATEGORIES */}
+        {activeTab === "categories" && (
+          <SectionCard
+            title="Service Taxonomy & Categories"
+            description="Manage platform service classification (Wash & Fold, Dry Cleaning, Steam Iron, Premium Care)."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {allCategories.map((cat) => (
+                <div key={cat.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex size-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 font-bold">
+                      <Sparkles className="size-5" />
                     </div>
+                    <StatusPill value={cat.status} />
                   </div>
-                ))}
-              </div>
-            </SectionCard>
-          </TabsContent>
-        </Tabs>
+                  <div>
+                    <h4 className="font-black text-zinc-900 text-sm">{cat.name}</h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">{cat.description || "Everyday laundry processing services."}</p>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs font-bold text-zinc-600">
+                    <span>{cat.services} Active Services</span>
+                    <span className="text-emerald-700 font-bold">Enabled</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
       </div>
+
+      {/* =========================================================================
+          4. SERVICE 360° INTELLIGENCE DRAWER SHEET
+      ========================================================================= */}
+      <Service360Sheet
+        service={selectedService}
+        onClose={() => setSelectedService(null)}
+      />
     </AdminShell>
   );
 }
 
+/* =========================================================================
+   5. SERVICE 360° DRAWER SHEET (5 TABS: REVENUE, RIDERS, PARTNERS, ORDERS, SPECS)
+========================================================================= */
+function Service360Sheet({
+  service,
+  onClose,
+}: {
+  service: ServiceIntelligence | null;
+  onClose: () => void;
+  onAction?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("revenue");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    price: 60,
+    unit: "per kg",
+    sla: "24 hrs",
+    description: "",
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: any) => updateService(service!.id, payload),
+    onSuccess: () => {
+      toast.success("Service specifications updated successfully! 🎉");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "stats"] });
+    },
+    onError: () => {
+      toast.error("Failed to update service.");
+    },
+  });
+
+  if (!service) return null;
+
+  return (
+    <Sheet open={Boolean(service)} onOpenChange={(open) => (open ? null : onClose())}>
+      <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto bg-white text-zinc-900 border-zinc-200 p-0 flex flex-col">
+        {/* Header */}
+        <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 px-6 py-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black text-sm shadow-md">
+                {service.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="text-base font-black text-zinc-900">{service.name}</SheetTitle>
+                  <StatusPill value={service.status} />
+                </div>
+                <SheetDescription className="text-xs text-zinc-500 font-medium flex items-center gap-2 mt-0.5">
+                  <span className="font-bold text-zinc-700">{service.category}</span>
+                  <span>·</span>
+                  <span>Base Rate: ₹{service.basePrice.toFixed(2)} /{service.unit}</span>
+                </SheetDescription>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={isEditing ? "default" : "outline"}
+                className={`h-8 rounded-xl text-xs font-bold ${
+                  isEditing ? "bg-zinc-900 text-white" : "border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+                }`}
+                onClick={() => {
+                  if (!isEditing) {
+                    setEditForm({
+                      name: service.name,
+                      price: service.basePrice,
+                      unit: service.unit,
+                      sla: service.sla,
+                      description: service.description,
+                    });
+                  }
+                  setIsEditing(!isEditing);
+                }}
+              >
+                <Pencil className="size-3 mr-1" />
+                {isEditing ? "View 360°" : "Edit Service"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl bg-zinc-50 p-2.5 border border-zinc-100 text-center">
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Gross Revenue</p>
+              <p className="text-xs font-black text-emerald-600">₹{service.financials.grossRevenue.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Total Orders</p>
+              <p className="text-xs font-black text-zinc-900">{service.financials.totalOrders}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Assigned Fleet</p>
+              <p className="text-xs font-black text-sky-600">{service.assignedRiders.length} Riders</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Avg Order Value</p>
+              <p className="text-xs font-black text-zinc-900">₹{service.financials.aov.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 p-6 space-y-6">
+          {isEditing ? (
+            <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 p-5">
+              <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700 flex items-center gap-2">
+                <Pencil className="size-4 text-emerald-600" />
+                <span>Edit Service Pricing & Specifications</span>
+              </h4>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Service Name</label>
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Base Price (₹)</label>
+                  <Input
+                    type="number"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm((p) => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Unit (e.g. per kg, per item)</label>
+                  <Input
+                    value={editForm.unit}
+                    onChange={(e) => setEditForm((p) => ({ ...p, unit: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Turnaround SLA</label>
+                  <Input
+                    value={editForm.sla}
+                    onChange={(e) => setEditForm((p) => ({ ...p, sla: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Description</label>
+                  <Input
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <Button
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold h-10"
+                  onClick={() => updateMutation.mutate(editForm)}
+                  disabled={updateMutation.isPending}
+                >
+                  <Save className="size-3.5 mr-1.5" />
+                  {updateMutation.isPending ? "Saving..." : "Save Service Changes"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-xl border-zinc-200 text-zinc-700 text-xs font-bold h-10"
+                  onClick={() => setIsEditing(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid grid-cols-4 w-full bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="revenue" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  💰 Revenue Breakdown
+                </TabsTrigger>
+                <TabsTrigger value="riders" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  🚴 Assigned Riders ({service.assignedRiders.length})
+                </TabsTrigger>
+                <TabsTrigger value="orders" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  📦 Orders ({service.recentOrders.length})
+                </TabsTrigger>
+                <TabsTrigger value="specs" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  ⚙️ Specifications
+                </TabsTrigger>
+              </TabsList>
+
+              {/* TAB 1: REVENUE BREAKDOWN */}
+              <TabsContent value="revenue" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-emerald-800 uppercase">Gross Revenue Generated</p>
+                      <p className="text-2xl font-black text-emerald-950 mt-1">₹{service.financials.grossRevenue.toFixed(2)}</p>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 text-xs font-black px-3 py-1 border border-emerald-200">
+                      {service.financials.completedOrders} Delivered Orders
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3-Way Split Breakdown */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-1">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Platform Commission</p>
+                    <p className="text-base font-black text-zinc-900">₹{service.financials.platformCommission.toFixed(2)}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">18% standard rate</p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-1">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Partner Stores</p>
+                    <p className="text-base font-black text-zinc-900">₹{service.financials.partnerEarnings.toFixed(2)}</p>
+                    <p className="text-[10px] text-sky-700 font-bold">70% wash processing</p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-1">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Rider Fleet</p>
+                    <p className="text-base font-black text-zinc-900">₹{service.financials.riderEarnings.toFixed(2)}</p>
+                    <p className="text-[10px] text-amber-700 font-bold">12% delivery share</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">ORDER VOLUME INTELLIGENCE</h4>
+                  <DetailRow label="Total Booked Orders" value={<span className="font-bold">{service.financials.totalOrders}</span>} />
+                  <DetailRow label="Successfully Delivered" value={<span className="font-bold text-emerald-700">{service.financials.completedOrders}</span>} />
+                  <DetailRow label="In-Progress Transit" value={<span className="font-bold text-sky-700">{service.financials.inProgressOrders}</span>} />
+                  <DetailRow label="Cancelled Orders" value={<span className="font-bold text-rose-600">{service.financials.cancelledOrders}</span>} />
+                  <DetailRow label="Average Order Value (AOV)" value={<span className="font-black text-zinc-900">₹{service.financials.aov.toFixed(2)}</span>} />
+                </div>
+              </TabsContent>
+
+              {/* TAB 2: ASSIGNED RIDERS */}
+              <TabsContent value="riders" className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Delivery Fleet Handling This Service</h4>
+                  <span className="text-xs font-bold text-sky-700">{service.assignedRiders.length} Allocated Riders</span>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
+                  {service.assignedRiders.map((r) => (
+                    <div key={r.name} className="p-3.5 flex items-center justify-between text-xs hover:bg-zinc-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 text-sky-800 font-black text-xs">
+                          {r.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-zinc-900">{r.name}</p>
+                          <p className="font-mono text-[10px] text-zinc-400 font-semibold">{r.vehicle} · {r.plate}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="font-bold text-zinc-900">{r.tripsForThisService} deliveries</p>
+                          <p className="text-[10px] text-emerald-600 font-bold">Earned: ₹{r.earningsForThisService.toFixed(0)}</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            r.liveState === "Online"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          ● {r.liveState}
+                        </span>
+                        <a
+                          href={`tel:${r.phone}`}
+                          className="flex size-8 items-center justify-center rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+                        >
+                          <Phone className="size-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                  {service.assignedRiders.length === 0 && (
+                    <div className="p-6 text-center text-xs text-zinc-400">All registered riders are ready for instant dispatch.</div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* TAB 3: RECENT ORDERS */}
+              <TabsContent value="orders" className="space-y-4 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Recent Service Bookings</h4>
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
+                  {service.recentOrders.map((o) => (
+                    <div key={o.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-zinc-50 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-zinc-900">{o.code}</span>
+                          <span className="text-[10px] text-zinc-500 font-medium">Customer: {o.customer}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Hub: {o.partner} · Rider: {o.rider}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-zinc-900">₹{o.amount}</p>
+                        <span className="text-[10px] text-emerald-600 font-bold capitalize">{o.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {service.recentOrders.length === 0 && (
+                    <div className="p-6 text-center text-xs text-zinc-400">No orders placed under this service yet.</div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* TAB 4: SPECIFICATIONS */}
+              <TabsContent value="specs" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">SERVICE SPECIFICATIONS</h4>
+                  <DetailRow label="Service Identifier" value={<span className="font-mono">{service.id}</span>} />
+                  <DetailRow label="Category" value={service.category} />
+                  <DetailRow label="Base Platform Rate" value={<span className="font-bold">₹{service.basePrice.toFixed(2)} /{service.unit}</span>} />
+                  <DetailRow label="Turnaround SLA" value={service.sla} />
+                  <DetailRow label="Description" value={service.description || "Standard laundry fulfillment."} />
+                  <DetailRow label="Partner Offerings" value={`${service.partnerStoresCount} Stores`} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/* =========================================================================
+   6. CREATE SERVICE & CREATE CATEGORY DIALOGS
+========================================================================= */
 function CreateServiceDialog({ categories }: { categories: ServiceCategory[] }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || "");
-  const [unit, setUnit] = useState("kg");
+  const [category, setCategory] = useState(categories[0]?.id || "");
   const [price, setPrice] = useState("");
+  const [unit, setUnit] = useState("per kg");
   const [description, setDescription] = useState("");
 
   const createMutation = useMutation({
     mutationFn: () =>
       createService({
         name,
-        category: categoryId,
+        category: category || categories[0]?.id || "cat-1",
+        price: parseFloat(price) || 0,
         unit,
-        price: Number(price) || 0,
         description,
       }),
     onSuccess: () => {
-      toast.success(`Master service "${name}" added to catalog.`);
-      queryClient.invalidateQueries({ queryKey: ["admin", "services"] });
+      toast.success("New master service added to catalog! 🎉");
       setOpen(false);
       setName("");
       setPrice("");
       setDescription("");
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "stats"] });
     },
     onError: () => {
       toast.error("Failed to create master service.");
@@ -530,38 +1112,30 @@ function CreateServiceDialog({ categories }: { categories: ServiceCategory[] }) 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white transition-all hover:bg-emerald-700 active:scale-95 shadow-xs"
-        >
-          <Plus className="size-3.5" />
-          <span>Add Master Service</span>
-        </button>
+        <Button size="sm" className="h-8 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs">
+          <Plus className="size-3.5 mr-1" />
+          <span>Add Service</span>
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-white border-zinc-200">
+      <DialogContent className="sm:max-w-md bg-white text-zinc-900 border-zinc-200">
         <DialogHeader>
-          <DialogTitle className="text-base font-black text-zinc-900">Add Master Service</DialogTitle>
-          <DialogDescription className="text-xs text-zinc-500 font-medium">
-            Create a standardized platform service that partners can offer with their own pricing.
+          <DialogTitle className="text-base font-black">Add Master Service</DialogTitle>
+          <DialogDescription className="text-xs text-zinc-500">
+            Create a new platform-wide laundry service with default base pricing.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-zinc-700">Service Name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Blanket Cleaning, Curtain Care"
-              className="h-10 rounded-xl text-xs"
-            />
+        <div className="space-y-3 py-2 text-xs">
+          <div className="space-y-1">
+            <Label className="text-xs font-bold">Service Name</Label>
+            <Input placeholder="e.g. Woolen Blanket Dry Cleaning" value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-xs" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-zinc-700">Category</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger className="h-10 rounded-xl text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -574,54 +1148,44 @@ function CreateServiceDialog({ categories }: { categories: ServiceCategory[] }) 
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-zinc-700">Pricing Unit</Label>
-              <Select value={unit} onValueChange={setUnit}>
-                <SelectTrigger className="h-10 rounded-xl text-xs">
-                  <SelectValue placeholder="Unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="kg">Per Kilogram (kg)</SelectItem>
-                  <SelectItem value="item">Per Item / Piece</SelectItem>
-                  <SelectItem value="pair">Per Pair</SelectItem>
-                  <SelectItem value="sqft">Per Sq Ft</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Base Price (₹)</Label>
+              <Input type="number" placeholder="60" value={price} onChange={(e) => setPrice(e.target.value)} className="h-9 text-xs" />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-zinc-700">Reference / Guideline Price (₹)</Label>
-            <Input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="e.g. 120 (Partners can override with own rate)"
-              className="h-10 rounded-xl text-xs font-mono"
-            />
+          <div className="space-y-1">
+            <Label className="text-xs font-bold">Pricing Unit</Label>
+            <Select value={unit} onValueChange={setUnit}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="per kg">per kg (Weight)</SelectItem>
+                <SelectItem value="per item">per item (Piece)</SelectItem>
+                <SelectItem value="per pair">per pair (Shoes)</SelectItem>
+                <SelectItem value="per meter">per meter (Curtains)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-zinc-700">Service Description</Label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Short summary for customer care and partner guidelines"
-              className="h-10 rounded-xl text-xs"
-            />
+          <div className="space-y-1">
+            <Label className="text-xs font-bold">Description</Label>
+            <Input placeholder="Short summary of the process..." value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 text-xs" />
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" className="rounded-xl text-xs font-bold" onClick={() => setOpen(false)}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)} className="rounded-xl text-xs font-bold">
             Cancel
           </Button>
           <Button
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white"
-            disabled={!name.trim() || createMutation.isPending}
+            size="sm"
             onClick={() => createMutation.mutate()}
+            disabled={!name || createMutation.isPending}
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white"
           >
-            Create Master Service
+            {createMutation.isPending ? "Adding..." : "Add to Catalog"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -638,11 +1202,11 @@ function CreateCategoryDialog() {
   const createMutation = useMutation({
     mutationFn: () => createCategory({ name, description }),
     onSuccess: () => {
-      toast.success(`Category "${name}" created.`);
-      queryClient.invalidateQueries({ queryKey: ["admin", "service-categories"] });
+      toast.success("New category added! 🎉");
       setOpen(false);
       setName("");
       setDescription("");
+      queryClient.invalidateQueries({ queryKey: ["admin", "service-categories"] });
     },
     onError: () => {
       toast.error("Failed to create category.");
@@ -652,54 +1216,41 @@ function CreateCategoryDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-50 active:scale-95 shadow-xs"
-        >
-          <Layers className="size-3.5" />
+        <Button size="sm" variant="outline" className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100">
+          <Tag className="size-3.5 mr-1" />
           <span>New Category</span>
-        </button>
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-white border-zinc-200">
+      <DialogContent className="sm:max-w-md bg-white text-zinc-900 border-zinc-200">
         <DialogHeader>
-          <DialogTitle className="text-base font-black text-zinc-900">Add Service Category</DialogTitle>
-          <DialogDescription className="text-xs text-zinc-500 font-medium">
-            Create a taxonomy category to organize platform services.
+          <DialogTitle className="text-base font-black">Create Service Category</DialogTitle>
+          <DialogDescription className="text-xs text-zinc-500">
+            Add a category to group related laundry, pressing, or dry cleaning services.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-zinc-700">Category Name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Home Care, Express Care, Luxury Garments"
-              className="h-10 rounded-xl text-xs"
-            />
+        <div className="space-y-3 py-2 text-xs">
+          <div className="space-y-1">
+            <Label className="text-xs font-bold">Category Name</Label>
+            <Input placeholder="e.g. Shoe & Sneaker Care" value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-xs" />
           </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-zinc-700">Description</Label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description"
-              className="h-10 rounded-xl text-xs"
-            />
+          <div className="space-y-1">
+            <Label className="text-xs font-bold">Description</Label>
+            <Input placeholder="Short category description..." value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 text-xs" />
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" className="rounded-xl text-xs font-bold" onClick={() => setOpen(false)}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)} className="rounded-xl text-xs font-bold">
             Cancel
           </Button>
           <Button
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white"
-            disabled={!name.trim() || createMutation.isPending}
+            size="sm"
             onClick={() => createMutation.mutate()}
+            disabled={!name || createMutation.isPending}
+            className="rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 text-xs font-bold"
           >
-            Create Category
+            {createMutation.isPending ? "Creating..." : "Create Category"}
           </Button>
         </DialogFooter>
       </DialogContent>

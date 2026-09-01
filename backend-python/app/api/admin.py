@@ -689,6 +689,16 @@ async def list_states(user: User = Depends(current_user)):
 
 
 # ------------------------------------------------------------------- services
+@router.get("/services/stats")
+async def service_stats(user: User = Depends(current_user)):
+    return await service_repository.dashboard_stats()
+
+
+@router.get("/services/intelligence")
+async def services_intelligence(user: User = Depends(current_user)):
+    return await service_repository.get_intelligence()
+
+
 @router.get("/services")
 async def list_services(user: User = Depends(current_user)):
     return await service_repository.list()
@@ -697,6 +707,14 @@ async def list_services(user: User = Depends(current_user)):
 @router.get("/services/categories")
 async def list_categories(user: User = Depends(current_user)):
     return await category_repository.list()
+
+
+@router.get("/services/{service_id}/360")
+async def get_service_360(service_id: str, user: User = Depends(current_user)):
+    try:
+        return await service_repository.get_service_360(service_id)
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
 @router.get("/services/pricing")

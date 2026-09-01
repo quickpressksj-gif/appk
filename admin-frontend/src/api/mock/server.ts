@@ -2613,6 +2613,82 @@ const routes: Array<[string, string, Handler]> = [
   ],
   [
     "GET",
+    "/api/admin/services/stats",
+    ({ account }) => {
+      account("admin");
+      const db = getDb();
+      return {
+        totalServices: db.services?.length || 6,
+        totalServiceRevenue: 492,
+        totalOrdersDelivered: 20,
+        topGrossingService: "Wash & Iron",
+        topGrossingRevenue: 372,
+        activeRidersDispatching: 5,
+        activePartnerStores: 8,
+      };
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/services/intelligence",
+    ({ account }) => {
+      account("admin");
+      const db = getDb();
+      const services = db.services || [];
+      const categories = db.categories || [];
+      const catMap = new Map(categories.map((c: any) => [c.id, c.name]));
+      return services.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        category: catMap.get(s.categoryId) || "Laundry",
+        categoryId: s.categoryId,
+        unit: s.unit || "per kg",
+        basePrice: Number(s.price || 60),
+        description: s.description || "",
+        sla: "24 hrs",
+        status: "Active",
+        financials: {
+          grossRevenue: s.name.includes("Iron") ? 372 : 120,
+          platformCommission: s.name.includes("Iron") ? 66.96 : 21.6,
+          partnerEarnings: s.name.includes("Iron") ? 260.4 : 84.0,
+          riderEarnings: s.name.includes("Iron") ? 44.64 : 14.4,
+          totalOrders: s.name.includes("Iron") ? 10 : 4,
+          completedOrders: s.name.includes("Iron") ? 8 : 3,
+          inProgressOrders: 1,
+          cancelledOrders: 0,
+          aov: Number(s.price || 60),
+        },
+        assignedRiders: [
+          {
+            riderId: "rdr-1",
+            name: "Rahul Express Rider",
+            phone: "+91 98719 62596",
+            vehicle: "Motorbike",
+            plate: "UP-87-AK-4402",
+            rating: 4.9,
+            liveState: "Online",
+            tripsForThisService: 6,
+            earningsForThisService: 44.64,
+          },
+          {
+            riderId: "rdr-2",
+            name: "Test Rider",
+            phone: "+91 98765 43210",
+            vehicle: "EV Scooter",
+            plate: "UP-87-EV-1008",
+            rating: 4.8,
+            liveState: "On delivery",
+            tripsForThisService: 4,
+            earningsForThisService: 28.5,
+          },
+        ],
+        partnerStoresCount: 8,
+        recentOrders: [],
+      }));
+    },
+  ],
+  [
+    "GET",
     "/api/admin/services/categories",
     ({ account }) => {
       account("admin");
