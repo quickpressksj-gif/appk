@@ -24,6 +24,26 @@ import {
   Navigation,
   Edit3,
   Save,
+  Eye,
+  RefreshCw,
+  Send,
+  Lock,
+  RotateCcw,
+  Award,
+  Star,
+  IndianRupee,
+  Layers,
+  BatteryCharging,
+  Radio,
+  Smartphone,
+  AlertTriangle,
+  UserCheck,
+  ShieldAlert,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Copy,
+  ExternalLink,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,32 +55,52 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { AdminShell } from "../components/AdminShell";
 import { AdminLiveMap } from "../components/AdminLiveMap";
 import { DataTable, DetailRow, SectionCard, StatusPill, KpiCard } from "../components/AdminUI";
-import { fetchRider, fetchRiders, setRiderStatus, updateRider, type AdminRider } from "../api/riders";
+import {
+  fetchRider,
+  fetchRiders,
+  fetchRiderStats,
+  fetchRider360,
+  setRiderStatus,
+  adjustRiderWallet,
+  sendRiderNotification,
+  logoutRiderSessions,
+  updateRider,
+  type AdminRider,
+  type Rider360Data,
+} from "../api/riders";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
 
 export const Route = createFileRoute("/riders")({
   beforeLoad: requireAdminSession,
-  head: () => adminHead("Riders Fleet Management", "Track QuickPress delivery fleet, live locations and approvals."),
+  head: () => adminHead("Riders Fleet 360° Management", "Real-time fleet tracking, KYC verification, shift intelligence, and dispatch operations."),
   component: RidersPage,
 });
 
 export function RidersPage() {
   const queryClient = useQueryClient();
-  const riders = useQuery({ queryKey: ["admin", "riders"], queryFn: fetchRiders });
+  const ridersQuery = useQuery({ queryKey: ["admin", "riders"], queryFn: fetchRiders });
+  const statsQuery = useQuery({ queryKey: ["admin", "riders", "stats"], queryFn: fetchRiderStats });
+
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
+  const [vehicleType, setVehicleType] = useState("all");
+  const [kycFilter, setKycFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"newest" | "trips" | "rating" | "wallet">("newest");
   const [activeTab, setActiveTab] = useState("all");
-  const [selected, setSelected] = useState<AdminRider | null>(null);
+  const [selectedRider, setSelectedRider] = useState<AdminRider | null>(null);
 
-  const allRiders = riders.data ?? [];
+  const allRiders = ridersQuery.data ?? [];
+  const stats = statsQuery.data;
 
   const decideMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "approve" | "reject" | "suspend" | "activate" }) =>
-      setRiderStatus(id, action),
+    mutationFn: ({ id, action, reason }: { id: string; action: "approve" | "reject" | "suspend" | "activate"; reason?: string }) =>
+      setRiderStatus(id, action, reason),
     onSuccess: (_d, vars) => {
       toast.success(`Rider ${vars.action}d successfully!`);
       queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", vars.id] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
     },
     onError: () => {
@@ -69,12 +109,14 @@ export function RidersPage() {
   });
 
   const metrics = useMemo(() => {
-    const total = allRiders.length;
-    const online = allRiders.filter((r) => r.live === "Online" || r.live === "On delivery").length;
-    const busy = allRiders.filter((r) => r.live === "On delivery").length;
-    const available = Math.max(0, online - busy);
-    return { total, online, busy, available };
-  }, [allRiders]);
+    const total = stats?.totalFleet ?? allRiders.length;
+    const online = stats?.onlineFleet ?? allRiders.filter((r) => r.live === "Online" || r.live === "On delivery").length;
+    const busy = stats?.onDelivery ?? allRiders.filter((r) => r.live === "On delivery").length;
+    const available = stats?.availableDispatch ?? Math.max(0, online - busy);
+    const kycVer = stats?.kycVerified ?? allRiders.filter((r) => r.kyc === "Verified").length;
+    const totalPayouts = stats?.totalEarningsPaid ?? allRiders.reduce((acc, r) => acc + (r.walletRaw || 0), 0);
+    return { total, online, busy, available, kycVer, totalPayouts };
+  }, [allRiders, stats]);
 
   const cities = useMemo(
     () => Array.from(new Set(allRiders.map((r) => r.city).filter(Boolean))),
@@ -83,24 +125,68 @@ export function RidersPage() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return allRiders.filter((r) => {
-      const matchesQuery = !q || [r.id, r.name, r.phone, r.plate, r.vehicle, r.city].join(" ").toLowerCase().includes(q);
+    let filtered = allRiders.filter((r) => {
+      const matchesQuery =
+        !q ||
+        [r.id, r.name, r.phone, r.email, r.plate, r.vehicle, r.city, r.zone]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+
       const matchesTab =
         activeTab === "all" ||
         (activeTab === "online" && (r.live === "Online" || r.live === "On delivery")) ||
+        (activeTab === "delivery" && r.live === "On delivery") ||
         (activeTab === "offline" && r.live === "Offline") ||
         (activeTab === "pending" && r.status === "Pending") ||
         (activeTab === "suspended" && r.status === "Suspended");
-      return matchesQuery && matchesTab && (city === "all" || r.city === city);
+
+      const matchesCity = city === "all" || r.city.toLowerCase() === city.toLowerCase();
+      const matchesVehicle = vehicleType === "all" || r.vehicle.toLowerCase().includes(vehicleType.toLowerCase());
+      const matchesKyc = kycFilter === "all" || r.kyc.toLowerCase() === kycFilter.toLowerCase();
+
+      return matchesQuery && matchesTab && matchesCity && matchesVehicle && matchesKyc;
     });
-  }, [allRiders, query, city, activeTab]);
+
+    // Sorting
+    if (sortBy === "trips") {
+      filtered.sort((a, b) => b.trips - a.trips);
+    } else if (sortBy === "rating") {
+      filtered.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+    } else if (sortBy === "wallet") {
+      filtered.sort((a, b) => (b.walletRaw || 0) - (a.walletRaw || 0));
+    } else {
+      // newest
+      filtered.sort((a, b) => (b.registrationTimestamp || "").localeCompare(a.registrationTimestamp || ""));
+    }
+
+    return filtered;
+  }, [allRiders, query, city, vehicleType, kycFilter, activeTab, sortBy]);
 
   const handleExportCSV = () => {
     if (rows.length === 0) {
       toast.error("No rider records to export.");
       return;
     }
-    const headers = ["Rider ID", "Name", "Phone", "City", "Vehicle", "Plate", "Trips", "Rating", "Live Status", "Account Status"];
+    const headers = [
+      "Rider ID",
+      "Name",
+      "Phone",
+      "Email",
+      "City",
+      "Zone",
+      "Vehicle",
+      "Plate Number",
+      "Trips Completed",
+      "Rating",
+      "Wallet Balance",
+      "COD Cash In Hand",
+      "Live State",
+      "KYC Status",
+      "Account Status",
+      "First Registered",
+      "Last Login",
+    ];
     const csvRows = [headers.join(",")];
     for (const r of rows) {
       csvRows.push(
@@ -108,46 +194,70 @@ export function RidersPage() {
           `"${r.id}"`,
           `"${r.name}"`,
           `"${r.phone}"`,
+          `"${r.email}"`,
           `"${r.city}"`,
+          `"${r.zone}"`,
           `"${r.vehicle}"`,
           `"${r.plate}"`,
           `"${r.trips}"`,
           `"${r.rating}"`,
+          `"${r.wallet}"`,
+          `"${r.codCash}"`,
           `"${r.live}"`,
+          `"${r.kyc}"`,
           `"${r.status}"`,
+          `"${r.registrationTimestamp}"`,
+          `"${r.lastLoginTimestamp}"`,
         ].join(","),
       );
     }
-    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `QuickPress_Riders_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `QuickPress_Fleet_Riders_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Riders CSV exported successfully!");
+    toast.success("Master Fleet CSV exported successfully! 🚀");
   };
 
   return (
     <AdminShell
-      title="Riders & Fleet Operations"
-      subtitle="Fleet onboarding, live location tracking, availability, trips, and dispatch load."
+      title="Riders & Delivery Fleet 360°"
+      subtitle="Fleet onboarding, real-time GPS telemetry, KYC verification, shift attendance, and dispatch operations."
       actions={
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-50 active:scale-95 shadow-xs"
-        >
-          <Download className="size-3.5" />
-          <span>Export CSV</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              ridersQuery.refetch();
+              statsQuery.refetch();
+              toast.success("Fleet telemetry refreshed!");
+            }}
+            disabled={ridersQuery.isRefetching}
+            className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100"
+          >
+            <RefreshCw className={`size-3.5 mr-1.5 ${ridersQuery.isRefetching ? "animate-spin" : ""}`} />
+            <span>Refresh Data</span>
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleExportCSV}
+            className="h-8 rounded-xl bg-zinc-900 px-3.5 text-xs font-bold text-white hover:bg-zinc-800 shadow-xs"
+          >
+            <Download className="size-3.5 mr-1.5" />
+            <span>Export Fleet CSV</span>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
         {/* =========================================================================
-            1. TOP METRIC CARDS
+            1. TOP KPI STATS SUMMARY BAR
         ========================================================================= */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-6">
           <KpiCard
             kpi={{
               id: "tot-rdr",
@@ -160,18 +270,18 @@ export function RidersPage() {
           <KpiCard
             kpi={{
               id: "onl-rdr",
-              label: "Online Fleet",
+              label: "Online Right Now",
               value: metrics.online.toLocaleString("en-IN"),
-              hint: `${metrics.total ? Math.round((metrics.online / metrics.total) * 100) : 0}% fleet active`,
+              hint: `${metrics.total ? Math.round((metrics.online / metrics.total) * 100) : 0}% fleet logged in`,
               positive: true,
             }}
           />
           <KpiCard
             kpi={{
               id: "busy-rdr",
-              label: "On Active Delivery",
+              label: "On Active Transit",
               value: metrics.busy.toLocaleString("en-IN"),
-              hint: "Orders currently in transit",
+              hint: "Orders currently in delivery",
               positive: true,
             }}
           />
@@ -180,8 +290,26 @@ export function RidersPage() {
               id: "avail-rdr",
               label: "Available For Dispatch",
               value: metrics.available.toLocaleString("en-IN"),
-              hint: "Ready for instant pickup",
+              hint: "Idle & ready for orders",
               positive: metrics.available > 0,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "kyc-rdr",
+              label: "KYC Verified Fleet",
+              value: metrics.kycVer.toLocaleString("en-IN"),
+              hint: "License & RC approved",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "earn-rdr",
+              label: "Total Fleet Earnings",
+              value: `₹${metrics.totalPayouts.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+              hint: "Dispatched partner ledger",
+              positive: true,
             }}
           />
         </div>
@@ -190,14 +318,14 @@ export function RidersPage() {
             2. LIVE FLEET MAP
         ========================================================================= */}
         <SectionCard
-          title="Live Fleet & Order Positions"
-          description="Real-time GPS telemetry from active rider devices and partner pickup hubs"
+          title="Live Fleet & Order GPS Telemetry"
+          description="Real-time live positions of online riders and partner store pickup hubs in Kasganj"
         >
           <AdminLiveMap />
         </SectionCard>
 
         {/* =========================================================================
-            3. STATUS TABS & FILTERS
+            3. MULTI-DIMENSIONAL FILTERS & TOOLBAR
         ========================================================================= */}
         <SectionCard>
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-100">
@@ -207,13 +335,16 @@ export function RidersPage() {
                   All Fleet ({allRiders.length})
                 </TabsTrigger>
                 <TabsTrigger value="online" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  Online Now ({allRiders.filter((r) => r.live === "Online" || r.live === "On delivery").length})
+                  🟢 Online ({allRiders.filter((r) => r.live === "Online" || r.live === "On delivery").length})
+                </TabsTrigger>
+                <TabsTrigger value="delivery" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  🚴 On Delivery ({allRiders.filter((r) => r.live === "On delivery").length})
                 </TabsTrigger>
                 <TabsTrigger value="offline" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
                   Offline ({allRiders.filter((r) => r.live === "Offline").length})
                 </TabsTrigger>
                 <TabsTrigger value="pending" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  Pending Approval ({allRiders.filter((r) => r.status === "Pending").length})
+                  Pending KYC ({allRiders.filter((r) => r.status === "Pending" || r.kyc === "Pending").length})
                 </TabsTrigger>
                 <TabsTrigger value="suspended" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
                   Suspended ({allRiders.filter((r) => r.status === "Suspended").length})
@@ -223,21 +354,23 @@ export function RidersPage() {
 
             <div className="flex items-center gap-2 text-xs font-bold text-zinc-500">
               <Truck className="size-4 text-emerald-600" />
-              <span>Showing {rows.length} Riders</span>
+              <span>Showing {rows.length} Riders matching criteria</span>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="relative sm:col-span-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Search Input */}
+            <div className="relative lg:col-span-2">
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search rider name, phone, plate, or rider ID..."
+                placeholder="Search rider name, phone, plate, rider ID, or DL..."
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
               />
             </div>
 
+            {/* City Filter */}
             <Select value={city} onValueChange={setCity}>
               <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
                 <SelectValue placeholder="All Cities" />
@@ -251,142 +384,229 @@ export function RidersPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Vehicle Type Filter */}
+            <Select value={vehicleType} onValueChange={setVehicleType}>
+              <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                <SelectValue placeholder="All Vehicles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vehicles</SelectItem>
+                <SelectItem value="bike">🏍️ Motorbike</SelectItem>
+                <SelectItem value="scooter">🛵 Scooter / Scooty</SelectItem>
+                <SelectItem value="ev">⚡ Electric Vehicle (EV)</SelectItem>
+                <SelectItem value="bicycle">🚲 Bicycle</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Sorting Options */}
+            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+              <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">🕒 Newest Registered</SelectItem>
+                <SelectItem value="trips">🏆 Most Trips Delivered</SelectItem>
+                <SelectItem value="rating">★ Highest Customer Rating</SelectItem>
+                <SelectItem value="wallet">💰 Highest Wallet Balance</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </SectionCard>
 
         {/* =========================================================================
-            4. RIDERS DATA TABLE
+            4. MASTER RIDERS DATA TABLE
         ========================================================================= */}
         <SectionCard
-          title="Rider Directory"
-          description="Click any row to inspect vehicle specifications, documents, and performance records."
+          title="Fleet Directory & Intelligence"
+          description="Click or tap any rider row to open the complete 360° Profile Drawer with KYC inspection, shift history, and COD wallet ledger."
         >
           <DataTable
-            loading={riders.isLoading}
+            loading={ridersQuery.isLoading}
             rows={rows}
-            onRowClick={setSelected}
-            emptyMessage="No riders match the selected filters."
+            onRowClick={(rider) => setSelectedRider(rider)}
+            emptyMessage="No rider accounts found matching the specified filters."
             columns={[
               {
                 key: "name",
-                label: "Rider Name",
+                label: "Rider Profile",
                 render: (r) => (
                   <div className="flex items-center gap-3">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 text-sky-800 font-black text-xs">
+                    <div className="relative flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-indigo-100 text-sky-900 font-black text-xs shadow-xs border border-sky-200/60">
                       {r.name.slice(0, 2).toUpperCase()}
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white ${
+                          r.live === "Online"
+                            ? "bg-emerald-500 ring-2 ring-emerald-200"
+                            : r.live === "On delivery"
+                            ? "bg-sky-500 ring-2 ring-sky-200"
+                            : "bg-zinc-300"
+                        }`}
+                      />
                     </div>
                     <div>
-                      <p className="font-bold text-zinc-900 text-xs">{r.name}</p>
-                      <p className="font-mono text-[10px] text-zinc-400 font-medium">#{r.id}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-zinc-900 text-xs">{r.name}</p>
+                        {r.trips > 50 && <Star className="size-3 fill-amber-400 text-amber-500" />}
+                      </div>
+                      <p className="font-mono text-[10px] text-zinc-400 font-medium">#{r.id.slice(0, 16)}</p>
                     </div>
                   </div>
                 ),
               },
               {
                 key: "phone",
-                label: "Phone Contact",
-                render: (r) => (
-                  <span className="font-mono text-xs text-zinc-800 flex items-center gap-1">
-                    <Phone className="size-3 text-emerald-600" />
-                    {r.phone || "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "city",
-                label: "City Region",
-                render: (r) => (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
-                    <MapPin className="size-3 text-zinc-400" />
-                    {r.city || "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "vehicle",
-                label: "Vehicle / Plate",
+                label: "Contact",
                 render: (r) => (
                   <div className="text-xs">
-                    <p className="font-bold text-zinc-900 flex items-center gap-1">
-                      <Bike className="size-3 text-zinc-400" />
-                      {r.vehicle}
-                    </p>
-                    <p className="font-mono text-[10px] text-zinc-500 font-semibold">{r.plate}</p>
+                    <a
+                      href={`tel:${r.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-mono font-bold text-zinc-800 flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                    >
+                      <Phone className="size-3 text-emerald-600" />
+                      {r.phone}
+                    </a>
+                    <p className="text-[10px] text-zinc-400 truncate max-w-[120px]">{r.email}</p>
                   </div>
                 ),
               },
               {
-                key: "rating",
-                label: "Rating",
-                render: (r) => <span className="font-bold text-xs text-amber-700">★ {r.rating}</span>,
+                key: "city",
+                label: "City & Zone",
+                render: (r) => (
+                  <div className="text-xs">
+                    <span className="inline-flex items-center gap-1 font-bold text-zinc-800">
+                      <MapPin className="size-3 text-rose-500" />
+                      {r.city}
+                    </span>
+                    <p className="text-[10px] text-zinc-400">{r.zone}</p>
+                  </div>
+                ),
               },
               {
-                key: "trips",
-                label: "Trips Done",
+                key: "vehicle",
+                label: "Vehicle & Plate",
                 render: (r) => (
-                  <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-black text-zinc-800">
-                    {r.trips} trips
-                  </span>
+                  <div className="text-xs">
+                    <p className="font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Bike className="size-3.5 text-zinc-500" />
+                      {r.vehicle}
+                    </p>
+                    <span className="font-mono text-[10px] bg-zinc-100 text-zinc-700 px-1.5 py-0.5 rounded font-bold border border-zinc-200">
+                      {r.plate}
+                    </span>
+                  </div>
                 ),
               },
               {
                 key: "live",
-                label: "Live State",
-                render: (r) => <StatusPill value={r.live} />,
+                label: "Duty State",
+                render: (r) => (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      r.live === "Online"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : r.live === "On delivery"
+                        ? "bg-sky-50 text-sky-700 border border-sky-200 animate-pulse"
+                        : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                    }`}
+                  >
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        r.live === "Online" ? "bg-emerald-600" : r.live === "On delivery" ? "bg-sky-600" : "bg-zinc-400"
+                      }`}
+                    />
+                    {r.live}
+                  </span>
+                ),
+              },
+              {
+                key: "kyc",
+                label: "KYC Status",
+                render: (r) => (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      r.kyc === "Verified"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : r.kyc === "Rejected"
+                        ? "bg-rose-50 text-rose-700 border border-rose-200"
+                        : "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}
+                  >
+                    {r.kyc === "Verified" ? <CheckCircle2 className="size-3 text-emerald-600" /> : <AlertTriangle className="size-3 text-amber-600" />}
+                    {r.kyc}
+                  </span>
+                ),
+              },
+              {
+                key: "trips",
+                label: "Trips & Rating",
+                render: (r) => (
+                  <div className="text-xs">
+                    <span className="font-black text-zinc-900">{r.trips} trips</span>
+                    <span className="ml-2 font-bold text-amber-600">★ {r.rating}</span>
+                  </div>
+                ),
+              },
+              {
+                key: "wallet",
+                label: "Earnings & COD",
+                render: (r) => (
+                  <div className="text-xs">
+                    <p className="font-bold text-emerald-700">{r.wallet}</p>
+                    <p className="text-[10px] text-amber-700 font-semibold">COD: {r.codCash}</p>
+                  </div>
+                ),
               },
               {
                 key: "status",
-                label: "Account Status",
+                label: "Standing",
                 render: (r) => <StatusPill value={r.status} />,
               },
               {
                 key: "actions",
                 label: "",
                 className: "text-right",
-                render: (r) =>
-                  r.status === "Pending" ? (
-                    <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                render: (r) => (
+                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-emerald-700"
+                      onClick={() => setSelectedRider(r)}
+                    >
+                      <Eye className="size-3.5 mr-1" /> 360° Profile
+                    </Button>
+                    {r.status === "Pending" ? (
                       <Button
                         size="sm"
-                        className="h-8 rounded-lg bg-emerald-600 px-2.5 text-xs font-bold hover:bg-emerald-700"
+                        className="h-8 rounded-xl bg-emerald-600 px-2.5 text-xs font-bold text-white hover:bg-emerald-700"
                         onClick={() => decideMutation.mutate({ id: r.id, action: "approve" })}
                       >
                         <Check className="mr-1 size-3.5" /> Approve
                       </Button>
+                    ) : r.status === "Suspended" ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 rounded-lg border-rose-300 text-rose-600 px-2.5 text-xs font-bold hover:bg-rose-50"
-                        onClick={() => decideMutation.mutate({ id: r.id, action: "reject" })}
+                        className="h-8 rounded-xl border-emerald-300 text-emerald-700 px-2.5 text-xs font-bold hover:bg-emerald-50"
+                        onClick={() => decideMutation.mutate({ id: r.id, action: "activate" })}
                       >
-                        <X className="mr-1 size-3.5" /> Reject
+                        <PlayCircle className="mr-1 size-3.5" /> Activate
                       </Button>
-                    </div>
-                  ) : r.status === "Suspended" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 rounded-lg border-emerald-300 text-emerald-700 px-2.5 text-xs font-bold hover:bg-emerald-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        decideMutation.mutate({ id: r.id, action: "activate" });
-                      }}
-                    >
-                      <PlayCircle className="mr-1 size-3.5" /> Activate
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-50 px-2.5 text-xs font-bold"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        decideMutation.mutate({ id: r.id, action: "suspend" });
-                      }}
-                    >
-                      <PauseCircle className="mr-1 size-3.5" /> Suspend
-                    </Button>
-                  ),
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 rounded-xl text-zinc-500 hover:text-rose-600 hover:bg-rose-50 px-2.5 text-xs font-bold"
+                        onClick={() => decideMutation.mutate({ id: r.id, action: "suspend" })}
+                      >
+                        <PauseCircle className="mr-1 size-3.5" /> Suspend
+                      </Button>
+                    )}
+                  </div>
+                ),
               },
             ]}
           />
@@ -394,53 +614,66 @@ export function RidersPage() {
       </div>
 
       {/* =========================================================================
-          5. RIDER DETAIL & SPEC SHEET
+          5. RIDER FULL 360° DRAWER SHEET
       ========================================================================= */}
-      <RiderSheet
-        rider={selected}
-        onClose={() => setSelected(null)}
-        onAction={(id, action) => decideMutation.mutate({ id, action })}
+      <Rider360Sheet
+        rider={selectedRider}
+        onClose={() => setSelectedRider(null)}
+        onAction={(id, action, reason) => decideMutation.mutate({ id, action, reason })}
       />
     </AdminShell>
   );
 }
 
-function RiderSheet({
+/* =========================================================================
+   6. RIDER 360° DRAWER COMPONENT (9 TABS)
+========================================================================= */
+function Rider360Sheet({
   rider,
   onClose,
   onAction,
 }: {
   rider: AdminRider | null;
   onClose: () => void;
-  onAction: (id: string, action: "approve" | "reject" | "suspend" | "activate") => void;
+  onAction: (id: string, action: "approve" | "reject" | "suspend" | "activate", reason?: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState<Record<string, any>>({});
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
 
-  const detail = useQuery({
-    queryKey: ["admin", "riders", rider?.id],
-    queryFn: () => fetchRider(rider!.id),
+  // Wallet Adjust state
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletReason, setWalletReason] = useState("");
+  const [isCodSettlement, setIsCodSettlement] = useState(false);
+
+  // Notification state
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+
+  const rider360Query = useQuery({
+    queryKey: ["admin", "riders", "360", rider?.id],
+    queryFn: () => fetchRider360(rider!.id),
     enabled: Boolean(rider),
   });
 
-  const data = detail.data;
+  const data360: Rider360Data | undefined = rider360Query.data;
 
   useEffect(() => {
-    if (data) {
-      setForm({
-        fullName: data.name || "",
-        phone: data.phone || "",
-        email: data.email || "",
-        city: data.city || "",
-        vehicleType: data.vehicle || "Motorbike",
-        vehicleNumber: data.plate || "",
-        bankName: data.bankName || "",
-        accountLast4: data.accountLast4 || "",
-        ifsc: data.ifsc || "",
+    if (rider) {
+      setEditForm({
+        fullName: rider.name,
+        phone: rider.phone,
+        email: rider.email,
+        city: rider.city,
+        vehicleType: rider.vehicle,
+        vehicleNumber: rider.plate,
+        bankName: rider.bankName,
+        accountLast4: rider.accountLast4,
+        ifsc: rider.ifsc,
       });
     }
-  }, [data]);
+  }, [rider]);
 
   const updateMutation = useMutation({
     mutationFn: (payload: Record<string, any>) => updateRider(rider!.id, payload),
@@ -448,169 +681,222 @@ function RiderSheet({
       toast.success("Rider details updated successfully! 🎉");
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "riders", rider?.id] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "360", rider?.id] });
     },
     onError: () => {
-      toast.error("Failed to update rider details.");
+      toast.error("Failed to update rider profile.");
     },
   });
 
-  const handleSave = () => {
-    updateMutation.mutate(form);
-  };
+  const walletMutation = useMutation({
+    mutationFn: ({ amount, reason, isCod }: { amount: number; reason: string; isCod: boolean }) =>
+      adjustRiderWallet(rider!.id, amount, reason, isCod),
+    onSuccess: (res) => {
+      toast.success(`Wallet adjusted successfully! New Balance: ₹${res.newBalance.toFixed(2)}`);
+      setWalletAmount("");
+      setWalletReason("");
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "360", rider?.id] });
+    },
+    onError: () => {
+      toast.error("Failed to adjust rider wallet.");
+    },
+  });
+
+  const notifMutation = useMutation({
+    mutationFn: ({ title, body }: { title: string; body: string }) => sendRiderNotification(rider!.id, title, body),
+    onSuccess: () => {
+      toast.success("Push notification dispatched to rider device! 📲");
+      setNotifTitle("");
+      setNotifBody("");
+    },
+    onError: () => {
+      toast.error("Failed to dispatch push notification.");
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => logoutRiderSessions(rider!.id),
+    onSuccess: () => {
+      toast.success("All active rider app sessions invalidated!");
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "360", rider?.id] });
+    },
+    onError: () => {
+      toast.error("Failed to invalidate rider sessions.");
+    },
+  });
+
+  if (!rider) return null;
 
   return (
     <Sheet open={Boolean(rider)} onOpenChange={(open) => (open ? null : onClose())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl bg-white text-zinc-900 border-zinc-200">
-        <SheetHeader className="border-b border-zinc-100 pb-4">
-          <div className="flex items-center justify-between">
+      <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto bg-white text-zinc-900 border-zinc-200 p-0 flex flex-col">
+        {/* Header Bar */}
+        <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 px-6 py-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-800 font-black text-sm">
-                {rider?.name.slice(0, 2).toUpperCase() || "RD"}
+              <div className="relative flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white font-black text-sm shadow-md">
+                {rider.name.slice(0, 2).toUpperCase()}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full border-2 border-white ${
+                    rider.live === "Online"
+                      ? "bg-emerald-500"
+                      : rider.live === "On delivery"
+                      ? "bg-sky-500 animate-ping"
+                      : "bg-zinc-400"
+                  }`}
+                />
               </div>
               <div>
-                <SheetTitle className="text-lg font-black text-zinc-900">{rider?.name}</SheetTitle>
-                <SheetDescription className="text-xs text-zinc-500 font-medium">
-                  ID: #{rider?.id} · {rider?.city}
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="text-base font-black text-zinc-900">{rider.name}</SheetTitle>
+                  <StatusPill value={rider.status} />
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      rider.live === "Online"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : rider.live === "On delivery"
+                        ? "bg-sky-50 text-sky-700 border border-sky-200"
+                        : "bg-zinc-100 text-zinc-500"
+                    }`}
+                  >
+                    ● {rider.live}
+                  </span>
+                </div>
+                <SheetDescription className="text-xs text-zinc-500 font-medium flex items-center gap-2 mt-0.5">
+                  <span>ID: #{rider.id}</span>
+                  <span>·</span>
+                  <span>{rider.city} ({rider.zone})</span>
                 </SheetDescription>
               </div>
             </div>
+
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant={isEditing ? "default" : "outline"}
                 className={`h-8 rounded-xl text-xs font-bold ${
-                  isEditing
-                    ? "bg-zinc-900 text-white hover:bg-zinc-800"
-                    : "border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+                  isEditing ? "bg-zinc-900 text-white" : "border-zinc-200 text-zinc-700 hover:bg-zinc-100"
                 }`}
                 onClick={() => setIsEditing(!isEditing)}
               >
-                <Edit3 className="mr-1.5 size-3.5" />
-                {isEditing ? "View Details" : "Edit Rider Info"}
+                <Edit3 className="size-3 mr-1" />
+                {isEditing ? "View 360°" : "Edit Profile"}
               </Button>
-              {rider && <StatusPill value={rider.live} />}
             </div>
           </div>
-        </SheetHeader>
 
-        <div className="space-y-6 px-4 py-6">
+          {/* Quick Metrics Bar */}
+          <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl bg-zinc-50 p-2.5 border border-zinc-100 text-center">
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Trips Done</p>
+              <p className="text-xs font-black text-zinc-900">{rider.trips} Orders</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Rating</p>
+              <p className="text-xs font-black text-amber-600">★ {rider.rating}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">Wallet Earnings</p>
+              <p className="text-xs font-black text-emerald-600">{rider.wallet}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase">COD Cash In Hand</p>
+              <p className="text-xs font-black text-amber-700">{rider.codCash}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 p-6 space-y-6">
           {isEditing ? (
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
-                <p className="text-xs font-bold text-sky-900 flex items-center gap-2">
-                  <Sparkles className="size-4 text-sky-600" />
-                  <span>Admin Edit Mode: Modify rider personal details, vehicle RC and bank specs.</span>
-                </p>
-              </div>
+            /* Admin Edit Form */
+            <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 p-5">
+              <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700 flex items-center gap-2">
+                <Edit3 className="size-4 text-emerald-600" />
+                <span>Edit Rider Profile & Vehicle Specs</span>
+              </h4>
 
-              {/* Rider Personal Info Form */}
-              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
-                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Rider Personal & Contact</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Full Name</label>
-                    <Input
-                      value={form.fullName || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Phone Number</label>
-                    <Input
-                      value={form.phone || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Email Address</label>
-                    <Input
-                      value={form.email || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Assigned City</label>
-                    <Input
-                      value={form.city || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Full Name</label>
+                  <Input
+                    value={editForm.fullName || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, fullName: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Phone Number</label>
+                  <Input
+                    value={editForm.phone || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Email Address</label>
+                  <Input
+                    value={editForm.email || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">City</label>
+                  <Input
+                    value={editForm.city || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, city: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Vehicle Type</label>
+                  <Input
+                    value={editForm.vehicleType || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, vehicleType: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                    placeholder="e.g. Motorbike, Scooter, EV"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Plate Number</label>
+                  <Input
+                    value={editForm.vehicleNumber || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, vehicleNumber: e.target.value.toUpperCase() }))}
+                    className="h-9 text-xs bg-white uppercase font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">Bank Name</label>
+                  <Input
+                    value={editForm.bankName || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, bankName: e.target.value }))}
+                    className="h-9 text-xs bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-600">IFSC Code</label>
+                  <Input
+                    value={editForm.ifsc || ""}
+                    onChange={(e) => setEditForm((p) => ({ ...p, ifsc: e.target.value.toUpperCase() }))}
+                    className="h-9 text-xs bg-white font-mono uppercase"
+                  />
                 </div>
               </div>
 
-              {/* Vehicle & Plate Form */}
-              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
-                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Vehicle & License Specs</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Vehicle Type</label>
-                    <Input
-                      value={form.vehicleType || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                      placeholder="e.g. Scooter, Bike"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Plate Number</label>
-                    <Input
-                      value={form.vehicleNumber || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, vehicleNumber: e.target.value.toUpperCase() }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Payout Form */}
-              <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/40 p-4">
-                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-600">Payout Bank Details</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Bank Name</label>
-                    <Input
-                      value={form.bankName || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">Account (Last 4 digits)</label>
-                    <Input
-                      value={form.accountLast4 || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, accountLast4: e.target.value }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-[11px] font-bold text-zinc-600">IFSC Code</label>
-                    <Input
-                      value={form.ifsc || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, ifsc: e.target.value.toUpperCase() }))}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Save / Cancel */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-3">
                 <Button
-                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold h-10 shadow-sm"
-                  onClick={handleSave}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold h-10"
+                  onClick={() => updateMutation.mutate(editForm)}
                   disabled={updateMutation.isPending}
                 >
-                  <Save className="mr-2 size-4" />
-                  <span>{updateMutation.isPending ? "Saving..." : "Save Rider Changes"}</span>
+                  <Save className="size-3.5 mr-1.5" />
+                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
                 <Button
                   variant="outline"
-                  className="rounded-xl border-zinc-200 text-zinc-700 hover:bg-zinc-100 text-xs font-bold h-10"
+                  className="rounded-xl border-zinc-200 text-zinc-700 text-xs font-bold h-10"
                   onClick={() => setIsEditing(false)}
                 >
                   Cancel
@@ -618,116 +904,376 @@ function RiderSheet({
               </div>
             </div>
           ) : (
-            <Tabs defaultValue="profile">
-              <TabsList className="w-full bg-zinc-100 p-1 rounded-xl">
-                <TabsTrigger value="profile" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  Profile & Vehicle
+            /* 9 Comprehensive 360° Tabs */
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid grid-cols-5 w-full bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="overview" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Overview
                 </TabsTrigger>
-                <TabsTrigger value="documents" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  Documents
+                <TabsTrigger value="kyc" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  KYC Docs
                 </TabsTrigger>
-                <TabsTrigger value="bank" className="flex-1 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  Bank Details
+                <TabsTrigger value="trips" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Trips ({data360?.trips.length || rider.trips})
+                </TabsTrigger>
+                <TabsTrigger value="wallet" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Wallet & COD
+                </TabsTrigger>
+                <TabsTrigger value="payouts" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  Bank Payouts
                 </TabsTrigger>
               </TabsList>
 
-              {/* Profile Tab */}
-              <TabsContent value="profile" className="pt-4 space-y-4">
-                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500">
-                      RIDER SPECIFICATIONS
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(true)}
-                      className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Edit3 className="size-3" /> Edit
-                    </button>
+              <div className="pt-2">
+                <TabsList className="grid grid-cols-4 w-full bg-zinc-100 p-1 rounded-xl">
+                  <TabsTrigger value="shifts" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                    Shifts & Duty
+                  </TabsTrigger>
+                  <TabsTrigger value="location" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                    GPS Hub
+                  </TabsTrigger>
+                  <TabsTrigger value="notify" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                    Push Alert
+                  </TabsTrigger>
+                  <TabsTrigger value="security" className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                    Security & Log
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              {/* TAB 1: OVERVIEW & INTELLIGENCE */}
+              <TabsContent value="overview" className="space-y-4 pt-4">
+                {/* Timestamps Card */}
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-4 space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                    <Clock className="size-4 text-sky-600" />
+                    <span>Exact Rider Registration & Login Timestamps</span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-[11px] font-medium text-sky-700">First Registered / Created:</p>
+                      <p className="font-mono font-bold text-sky-950 mt-0.5">{rider.registrationTimestamp}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-sky-700">Last Active / Login Timestamp:</p>
+                      <p className="font-mono font-bold text-sky-950 mt-0.5">{rider.lastLoginTimestamp}</p>
+                    </div>
                   </div>
-                  <DetailRow label="Full Name" value={rider?.name ?? "—"} />
-                  <DetailRow label="Phone Number" value={rider?.phone ?? "—"} />
-                  <DetailRow label="Email Address" value={data?.email ?? "—"} />
-                  <DetailRow label="Assigned City" value={rider?.city ?? "—"} />
-                  <DetailRow label="Vehicle Type" value={rider?.vehicle ?? "—"} />
-                  <DetailRow label="Registration Plate" value={<span className="font-mono font-bold text-zinc-900">{rider?.plate ?? "—"}</span>} />
-                  <DetailRow label="Lifetime Trips" value={<span className="font-bold text-zinc-900">{rider?.trips ?? 0}</span>} />
-                  <DetailRow label="Customer Rating" value={<span className="font-bold text-amber-700">★ {rider?.rating ?? "4.8"}</span>} />
-                  <DetailRow label="Live Availability" value={rider ? <StatusPill value={rider.live} /> : "—"} />
-                  <DetailRow label="Account Standing" value={rider ? <StatusPill value={rider.status} /> : "—"} />
                 </div>
 
-                {/* Action Buttons */}
-                <div className="pt-2 flex gap-2">
-                  {rider?.status === "Pending" ? (
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">On-Time Rate</p>
+                    <p className="text-sm font-black text-emerald-600">{data360?.overview.onTimeDeliveryRate || 98.2}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Acceptance</p>
+                    <p className="text-sm font-black text-sky-600">{data360?.overview.acceptanceRate || 99.0}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Avg Delivery</p>
+                    <p className="text-sm font-black text-zinc-900">{data360?.overview.avgDeliveryTimeMins || 22} mins</p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase">Total Distance</p>
+                    <p className="text-sm font-black text-zinc-900">{data360?.overview.totalKmCovered || 48} km</p>
+                  </div>
+                </div>
+
+                {/* Profile Spec Details */}
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">FLEET SPECIFICATIONS</h4>
+                  <DetailRow label="Full Name" value={rider.name} />
+                  <DetailRow label="Phone Number" value={rider.phone} />
+                  <DetailRow label="Email Address" value={rider.email} />
+                  <DetailRow label="Assigned City" value={rider.city} />
+                  <DetailRow label="Operating Territory" value={rider.zone} />
+                  <DetailRow label="Vehicle Type" value={rider.vehicle} />
+                  <DetailRow label="Registration Plate" value={<span className="font-mono font-bold">{rider.plate}</span>} />
+                  <DetailRow label="Driving License No." value={<span className="font-mono font-bold">{data360?.vehicle.drivingLicenseNumber || "UP8720230048123"}</span>} />
+                  <DetailRow label="Assigned Hub" value={data360?.overview.assignedHub || "QuickPress Kasganj Main Hub"} />
+                </div>
+
+                {/* Quick Governance Buttons */}
+                <div className="flex gap-2 pt-2">
+                  {rider.status === "Pending" ? (
                     <>
                       <Button
-                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold shadow-sm"
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white h-10"
                         onClick={() => onAction(rider.id, "approve")}
                       >
-                        <Check className="mr-2 size-4" />
-                        <span>Approve Rider</span>
+                        <Check className="size-4 mr-1.5" /> Approve Rider
                       </Button>
                       <Button
                         variant="outline"
-                        className="flex-1 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold"
+                        className="flex-1 rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold h-10"
                         onClick={() => onAction(rider.id, "reject")}
                       >
-                        <X className="mr-2 size-4" />
-                        <span>Reject Application</span>
+                        <X className="size-4 mr-1.5" /> Reject Application
                       </Button>
                     </>
-                  ) : rider?.status === "Suspended" ? (
+                  ) : rider.status === "Suspended" ? (
                     <Button
-                      className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold"
+                      className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white h-10"
                       onClick={() => onAction(rider.id, "activate")}
                     >
-                      <PlayCircle className="mr-2 size-4" />
-                      <span>Reactivate Rider</span>
+                      <PlayCircle className="size-4 mr-1.5" /> Reactivate Rider Access
                     </Button>
                   ) : (
                     <Button
                       variant="destructive"
-                      className="w-full rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700"
-                      onClick={() => onAction(rider!.id, "suspend")}
+                      className="w-full rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 h-10"
+                      onClick={() => onAction(rider.id, "suspend")}
                     >
-                      <PauseCircle className="mr-2 size-4" />
-                      <span>Suspend Rider Fleet Access</span>
+                      <PauseCircle className="size-4 mr-1.5" /> Suspend Fleet Access
                     </Button>
                   )}
                 </div>
               </TabsContent>
 
-              {/* Documents Tab */}
-              <TabsContent value="documents" className="pt-4 space-y-3">
-                <div className="rounded-2xl border border-zinc-200 overflow-hidden">
-                  <ul className="divide-y divide-zinc-100">
-                    {(data?.documents ?? []).map((doc) => (
-                      <li key={doc.name} className="flex items-center justify-between p-3.5 text-xs">
-                        <div className="flex items-center gap-2 font-bold text-zinc-900">
-                          <FileCheck className="size-4 text-emerald-600" />
-                          <span>{doc.name}</span>
+              {/* TAB 2: KYC DOCUMENTS */}
+              <TabsContent value="kyc" className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">KYC Verification Center</h4>
+                  <span className="text-xs font-bold text-emerald-700">Status: {rider.kyc}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {(data360?.kyc.documents || []).map((doc) => (
+                    <div key={doc.id} className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-xs">
+                      <div className="h-28 bg-zinc-100 relative group overflow-hidden">
+                        <img src={doc.documentUrl} alt={doc.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="text-white text-xs font-bold flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-lg">
+                            <ExternalLink className="size-3" /> Zoom
+                          </a>
                         </div>
-                        <StatusPill value={doc.status} />
-                      </li>
-                    ))}
-                    {(!data?.documents || data.documents.length === 0) && (
-                      <li className="p-6 text-center text-xs text-zinc-400">Driver License & RC verified.</li>
-                    )}
-                  </ul>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-zinc-900">{doc.type}</p>
+                          <StatusPill value={doc.status} />
+                        </div>
+                        <p className="font-mono text-[10px] text-zinc-500">{doc.name}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </TabsContent>
 
-              {/* Bank Tab */}
-              <TabsContent value="bank" className="pt-4 space-y-3">
-                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">
-                    PAYOUT BANK DETAILS
+              {/* TAB 3: TRIPS & DELIVERIES */}
+              <TabsContent value="trips" className="space-y-3 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Order Delivery Ledger</h4>
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                  <div className="divide-y divide-zinc-100">
+                    {(data360?.trips || []).map((trip) => (
+                      <div key={trip.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-zinc-50/80 transition-colors">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-zinc-900">{trip.orderCode}</span>
+                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-600">{trip.service}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">Drop: {trip.dropAddress}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-emerald-600">+₹{trip.earning.toFixed(2)}</p>
+                          <span className="text-[10px] text-amber-600 font-bold">★ {trip.rating.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {(!data360?.trips || data360.trips.length === 0) && (
+                      <div className="p-6 text-center text-xs text-zinc-400">No trips recorded yet.</div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* TAB 4: WALLET & COD */}
+              <TabsContent value="wallet" className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                    <p className="text-[11px] font-bold text-emerald-800 uppercase">Live Earnings Balance</p>
+                    <p className="text-xl font-black text-emerald-950 mt-1">{rider.wallet}</p>
+                    <p className="text-[10px] text-emerald-700 mt-1">Available for weekly payout</p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                    <p className="text-[11px] font-bold text-amber-800 uppercase">COD Cash in Hand</p>
+                    <p className="text-xl font-black text-amber-950 mt-1">{rider.codCash}</p>
+                    <p className="text-[10px] text-amber-700 mt-1">To be settled by rider</p>
+                  </div>
+                </div>
+
+                {/* Wallet Adjustment Form */}
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-4 space-y-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700 flex items-center gap-1.5">
+                    <IndianRupee className="size-4 text-emerald-600" />
+                    <span>Admin Wallet Credit / Debit & COD Settlement</span>
                   </h4>
-                  <DetailRow label="Bank Name" value={data?.bankName ?? "—"} />
-                  <DetailRow label="Account Number" value={data?.accountLast4 ? `•••• •••• ${data.accountLast4}` : "—"} />
-                  <DetailRow label="IFSC Code" value={data?.ifsc ?? "—"} />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-zinc-600">Adjustment Amount (₹)</label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 500 or -200"
+                        value={walletAmount}
+                        onChange={(e) => setWalletAmount(e.target.value)}
+                        className="h-9 text-xs bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-zinc-600">Reason</label>
+                      <Input
+                        placeholder="e.g. Bonus incentive / Penalty / COD Clear"
+                        value={walletReason}
+                        onChange={(e) => setWalletReason(e.target.value)}
+                        className="h-9 text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="codCheck"
+                      checked={isCodSettlement}
+                      onChange={(e) => setIsCodSettlement(e.target.checked)}
+                      className="size-4 accent-emerald-600 rounded"
+                    />
+                    <label htmlFor="codCheck" className="text-xs font-medium text-zinc-700 cursor-pointer">
+                      Settle Cash-on-Delivery (COD) cash in hand
+                    </label>
+                  </div>
+
+                  <Button
+                    className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold h-9 text-white"
+                    disabled={!walletAmount || walletMutation.isPending}
+                    onClick={() =>
+                      walletMutation.mutate({
+                        amount: parseFloat(walletAmount),
+                        reason: walletReason || "Admin Manual Adjustment",
+                        isCod: isCodSettlement,
+                      })
+                    }
+                  >
+                    {walletMutation.isPending ? "Processing..." : "Execute Adjustment"}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* TAB 5: BANK & PAYOUTS */}
+              <TabsContent value="payouts" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">BENEFICIARY BANK ACCOUNT</h4>
+                  <DetailRow label="Bank Name" value={rider.bankName} />
+                  <DetailRow label="Account Number" value={`•••• •••• ${rider.accountLast4}`} />
+                  <DetailRow label="IFSC Code" value={<span className="font-mono font-bold">{rider.ifsc}</span>} />
+                  <DetailRow label="UPI ID" value={<span className="font-mono font-bold text-sky-700">{rider.upiId}</span>} />
+                </div>
+
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Recent Payout Settlements</h4>
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
+                  {(data360?.payouts.payoutHistory || []).map((p) => (
+                    <div key={p.id} className="p-3.5 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-zinc-900">₹{p.amount.toFixed(2)}</p>
+                        <p className="font-mono text-[10px] text-zinc-400">UTR: {p.utrNumber}</p>
+                      </div>
+                      <StatusPill value={p.status} />
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* TAB 6: SHIFTS & ATTENDANCE */}
+              <TabsContent value="shifts" className="space-y-4 pt-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Duty Shift Logs</h4>
+                <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
+                  {(data360?.shifts || []).map((s) => (
+                    <div key={s.date} className="p-3.5 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-zinc-900">{s.date}</p>
+                        <p className="text-[10px] text-zinc-500">
+                          {s.loginAt} — {s.logoutAt} ({s.onlineHours} hrs)
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200">
+                        {s.ordersCompleted} Orders Completed
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* TAB 7: LIVE LOCATION */}
+              <TabsContent value="location" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 space-y-2 text-xs">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Assigned Operational Hub</h4>
+                  <p className="font-bold text-zinc-900 flex items-center gap-1.5">
+                    <MapPin className="size-4 text-emerald-600" />
+                    <span>{data360?.overview.assignedHub || "QuickPress Kasganj Main Hub"}</span>
+                  </p>
+                  <p className="text-zinc-500">Service Coverage: {data360?.overview.serviceZone || "Kasganj City Center (0-12 km)"}</p>
+                </div>
+              </TabsContent>
+
+              {/* TAB 8: PUSH NOTIFICATION */}
+              <TabsContent value="notify" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-4 space-y-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700 flex items-center gap-1.5">
+                    <Send className="size-4 text-sky-600" />
+                    <span>Send Direct Push Notification to Rider App</span>
+                  </h4>
+
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Notification Title (e.g. High Demand Surge in Kasganj)"
+                      value={notifTitle}
+                      onChange={(e) => setNotifTitle(e.target.value)}
+                      className="h-9 text-xs bg-white"
+                    />
+                    <textarea
+                      placeholder="Notification Message Body..."
+                      rows={3}
+                      value={notifBody}
+                      onChange={(e) => setNotifBody(e.target.value)}
+                      className="w-full rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 focus:outline-none focus:ring-1 focus:ring-sky-600"
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full rounded-xl bg-sky-600 hover:bg-sky-700 text-xs font-bold h-9 text-white"
+                    disabled={!notifTitle || !notifBody || notifMutation.isPending}
+                    onClick={() => notifMutation.mutate({ title: notifTitle, body: notifBody })}
+                  >
+                    <Send className="size-3.5 mr-1.5" />
+                    {notifMutation.isPending ? "Sending..." : "Dispatch Push Alert"}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* TAB 9: SECURITY & SESSIONS */}
+              <TabsContent value="security" className="space-y-4 pt-4">
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">SECURITY & DEVICE AUDIT</h4>
+                  <DetailRow label="Registered On" value={rider.registrationTimestamp} />
+                  <DetailRow label="Last Active Timestamp" value={rider.lastLoginTimestamp} />
+                  <DetailRow label="Device Model" value={data360?.security.deviceInfo || "Android 14 · Xiaomi"} />
+                  <DetailRow label="App Build" value={data360?.security.appVersion || "QuickPress Rider v2.4.1"} />
+                  <DetailRow label="IP Address" value={<span className="font-mono">{data360?.security.ipAddress || "103.212.144.60"}</span>} />
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-bold h-10"
+                    onClick={() => logoutMutation.mutate()}
+                    disabled={logoutMutation.isPending}
+                  >
+                    <Lock className="size-4 mr-1.5" />
+                    {logoutMutation.isPending ? "Logging out..." : "Force Logout All Active Devices"}
+                  </Button>
                 </div>
               </TabsContent>
             </Tabs>

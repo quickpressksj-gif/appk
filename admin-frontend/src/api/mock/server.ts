@@ -657,7 +657,33 @@ const routes: Array<[string, string, Handler]> = [
     "/api/admin/riders",
     ({ account }) => {
       account("admin");
-      return getDb().riders;
+      const riders = getDb().riders;
+      return {
+        items: riders,
+        total: riders.length,
+        page: 1,
+        pageSize: 100,
+      };
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/riders/stats",
+    ({ account }) => {
+      account("admin");
+      const riders = getDb().riders;
+      return {
+        totalFleet: riders.length,
+        onlineFleet: riders.filter((r) => r.isOnline).length,
+        onDelivery: 1,
+        availableDispatch: Math.max(0, riders.filter((r) => r.isOnline).length - 1),
+        kycVerified: riders.filter((r) => r.kycStatus === "verified").length,
+        kycPending: 0,
+        suspendedFleet: riders.filter((r) => r.status === "suspended").length,
+        totalTripsDelivered: 42,
+        totalEarningsPaid: 12500,
+        fleetUtilization: 50.0,
+      };
     },
   ],
   [
@@ -1983,6 +2009,185 @@ const routes: Array<[string, string, Handler]> = [
       const rider = getDb().riders.find((item) => item.id === params.id);
       if (!rider) throw new ApiError("not-found", "Rider not found", 404);
       return rider;
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/riders/:id/360",
+    ({ params, account }) => {
+      account("admin");
+      const rider = getDb().riders.find((item) => item.id === params.id) || {
+        id: params.id,
+        name: "Rahul Express Rider",
+        phone: "+91 98719 62596",
+        email: "rahul@quickpress.online",
+        city: "Kasganj",
+        vehicle: "Motorbike",
+        plate: "UP-87-AK-4402",
+        trips: 18,
+        rating: 4.9,
+        isOnline: true,
+        status: "active",
+        kycStatus: "verified",
+        bankName: "HDFC Bank",
+        accountLast4: "9821",
+        ifsc: "HDFC0001824",
+      };
+      return {
+        profile: rider,
+        overview: {
+          firstLoginAt: "2026-08-30T04:50:28Z",
+          lastLoginAt: "2026-08-30T04:50:29Z",
+          registrationTimestamp: "2026-08-30T04:50:28Z",
+          totalTrips: rider.trips || 18,
+          completedDeliveries: rider.trips || 18,
+          cancelledDeliveries: 0,
+          onTimeDeliveryRate: 98.2,
+          acceptanceRate: 99.0,
+          averageRating: rider.rating || 4.9,
+          totalKmCovered: 84,
+          avgDeliveryTimeMins: 22,
+          assignedHub: "QuickPress Kasganj Main Hub",
+          serviceZone: "Kasganj City Center (0-12 km)",
+          batteryLevel: 88,
+        },
+        vehicle: {
+          vehicleType: rider.vehicle || "Motorbike",
+          vehicleModel: "Hero Splendor Plus",
+          vehicleNumber: rider.plate || "UP-87-AK-4402",
+          drivingLicenseNumber: "UP8720230048123",
+          rcNumber: "RC-UP87AK4402",
+          insuranceExpiry: "2027-04-15",
+          pollutionExpiry: "2026-11-20",
+        },
+        kyc: {
+          status: "Verified",
+          verifiedAt: "2026-08-30T04:50:28Z",
+          documents: [
+            {
+              id: "doc_dl",
+              type: "Driving License",
+              name: `DL: ${rider.plate || "UP8720230048123"}`,
+              documentUrl: "https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?w=600&auto=format&fit=crop&q=80",
+              status: "Verified",
+              uploadedAt: "2026-08-30T04:50:28Z",
+            },
+            {
+              id: "doc_rc",
+              type: "Vehicle RC",
+              name: `RC: ${rider.plate || "UP-87-AK-4402"}`,
+              documentUrl: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=600&auto=format&fit=crop&q=80",
+              status: "Verified",
+              uploadedAt: "2026-08-30T04:50:28Z",
+            },
+          ],
+        },
+        trips: [
+          {
+            id: "ord_101",
+            orderCode: "QP1001",
+            service: "Express Laundry",
+            partner: "Kasganj Central Hub",
+            customer: "Amit Sharma",
+            pickupAddress: "Station Road, Kasganj",
+            dropAddress: "Civil Lines, Kasganj",
+            distanceKm: 3.2,
+            earning: 65.0,
+            tip: 20.0,
+            rating: 5.0,
+            status: "delivered",
+            placedAt: "2026-08-30T10:00:00Z",
+            deliveredAt: "2026-08-30T10:45:00Z",
+          },
+        ],
+        wallet: {
+          balance: 1450.0,
+          codCashInHand: 320.0,
+          totalEarnings: 3200.0,
+          incentiveBonus: 350.0,
+          tipsEarned: 140.0,
+          ledger: [
+            {
+              id: "tx_r1",
+              type: "trip_earning",
+              amount: 65.0,
+              balanceBefore: 1385.0,
+              balanceAfter: 1450.0,
+              reason: "Delivery fee credited for Order QP1001",
+              createdAt: "2026-08-30T10:45:00Z",
+            },
+          ],
+        },
+        payouts: {
+          bankName: rider.bankName || "HDFC Bank",
+          accountNumber: `•••• •••• ${rider.accountLast4 || "9821"}`,
+          ifsc: rider.ifsc || "HDFC0001824",
+          upiId: `${(rider.phone || "9871962596").replace(/[^0-9]/g, "").slice(-10)}@paytm`,
+          beneficiaryName: rider.name,
+          payoutHistory: [
+            {
+              id: "PAY-8821",
+              amount: 2500.0,
+              utrNumber: "UTR99281726354",
+              bankRef: "HDFC-NEFT-8821",
+              status: "Processed",
+              processedAt: "2026-08-28T18:30:00Z",
+            },
+          ],
+        },
+        shifts: [
+          {
+            date: "2026-08-31",
+            loginAt: "09:00 AM",
+            logoutAt: "07:30 PM",
+            onlineHours: 10.5,
+            ordersCompleted: 6,
+            status: "Completed",
+          },
+        ],
+        security: {
+          status: "Active",
+          registrationTimestamp: "2026-08-30T04:50:28Z",
+          lastLoginTimestamp: "2026-08-30T04:50:29Z",
+          deviceInfo: "Android 14 · Xiaomi Redmi Note 13 Pro",
+          appVersion: "QuickPress Rider v2.4.1",
+          ipAddress: "103.212.144.60",
+          activeSessions: 1,
+          loginHistory: [
+            {
+              device: "Xiaomi Redmi Note 13 Pro",
+              ip: "103.212.144.60",
+              at: "2026-08-30T04:50:29Z",
+              location: "Kasganj, Uttar Pradesh",
+              action: "OTP Shift Login",
+            },
+          ],
+        },
+      };
+    },
+  ],
+  [
+    "POST",
+    "/api/admin/riders/:id/wallet/adjust",
+    ({ params, body, account }) => {
+      account("admin");
+      return { ok: true, newBalance: 1950.0, newCodCash: 0.0 };
+    },
+  ],
+  [
+    "POST",
+    "/api/admin/riders/:id/notify",
+    ({ params, body, account }) => {
+      account("admin");
+      return { ok: true, sent: true, riderId: params.id };
+    },
+  ],
+  [
+    "POST",
+    "/api/admin/riders/:id/logout-sessions",
+    ({ params, account }) => {
+      account("admin");
+      return { ok: true, invalidated: true, riderId: params.id };
     },
   ],
   [

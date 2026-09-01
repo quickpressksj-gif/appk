@@ -154,6 +154,26 @@ class AdminRiderUpdatePayload(BaseModel):
     isOnline: Optional[bool] = None
 
 
+class AdjustRiderWalletPayload(BaseModel):
+    amount: float
+    reason: str
+    isCodSettlement: Optional[bool] = False
+
+
+class VerifyRiderDocumentPayload(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
+class AddRiderNotePayload(BaseModel):
+    note: str
+
+
+class SendRiderNotificationPayload(BaseModel):
+    title: str
+    body: str
+
+
 class StaffPayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None

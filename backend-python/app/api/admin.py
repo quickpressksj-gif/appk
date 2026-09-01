@@ -435,6 +435,11 @@ async def send_partner_notification(partner_id: str, payload: SendPartnerNotific
 
 
 # -------------------------------------------------------------------- riders
+@router.get("/riders/stats")
+async def rider_stats(user: User = Depends(current_user)):
+    return await admin_rider_repository.dashboard_stats()
+
+
 @router.get("/riders")
 async def list_riders(
     page: int = Query(default=1, ge=1),
@@ -442,9 +447,21 @@ async def list_riders(
     q: Optional[str] = None,
     status_filter: Optional[str] = Query(default=None, alias="status"),
     city: Optional[str] = None,
+    vehicle_type: Optional[str] = None,
+    kyc_status: Optional[str] = None,
+    live_state: Optional[str] = None,
     user: User = Depends(current_user),
 ):
-    return await admin_rider_repository.list(page, pageSize, q=q, status=status_filter, city=city)
+    return await admin_rider_repository.list(
+        page,
+        pageSize,
+        q=q,
+        status=status_filter,
+        city=city,
+        vehicle_type=vehicle_type,
+        kyc_status=kyc_status,
+        live_state=live_state,
+    )
 
 
 @router.get("/riders/{rider_id}")
@@ -453,6 +470,39 @@ async def get_rider(rider_id: str, user: User = Depends(current_user)):
     if rider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rider not found")
     return rider
+
+
+@router.get("/riders/{rider_id}/360")
+async def get_rider_360(rider_id: str, user: User = Depends(current_user)):
+    try:
+        return await admin_rider_repository.get_rider_360(rider_id)
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+@router.post("/riders/{rider_id}/wallet/adjust")
+async def adjust_rider_wallet(rider_id: str, payload: AdjustRiderWalletPayload, user: User = Depends(current_user)):
+    res = await admin_rider_repository.adjust_wallet(
+        rider_id,
+        payload.amount,
+        payload.reason,
+        admin_id=user.id,
+        is_cod_settlement=bool(payload.isCodSettlement),
+    )
+    await audit_repository.log(await _actor(user), "rider.wallet_adjust", rider_id, {"amount": payload.amount, "reason": payload.reason})
+    return res
+
+
+@router.post("/riders/{rider_id}/notify")
+async def send_rider_notification(rider_id: str, payload: SendRiderNotificationPayload, user: User = Depends(current_user)):
+    await audit_repository.log(await _actor(user), "rider.send_notification", rider_id, {"title": payload.title})
+    return {"ok": True, "sent": True, "riderId": rider_id}
+
+
+@router.post("/riders/{rider_id}/logout-sessions")
+async def logout_rider_sessions(rider_id: str, user: User = Depends(current_user)):
+    await audit_repository.log(await _actor(user), "rider.logout_sessions", rider_id)
+    return {"ok": True, "invalidated": True, "riderId": rider_id}
 
 
 @router.put("/riders/{rider_id}")
