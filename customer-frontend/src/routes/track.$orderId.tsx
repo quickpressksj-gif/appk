@@ -12,6 +12,7 @@ import {
   MapPin,
   MessageCircle,
   Navigation,
+  Package,
   Phone,
   Receipt,
   RotateCcw,
