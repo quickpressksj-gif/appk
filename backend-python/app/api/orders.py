@@ -82,7 +82,9 @@ async def place_order(
 
 
 @router.get("/orders", response_model=List[OrderResponse])
-async def list_orders(user: User = Depends(current_user)) -> List[OrderResponse]:
+async def list_orders(user: Optional[User] = Depends(optional_user)) -> List[OrderResponse]:
+    if not user:
+        return []
     return await order_repository.list(user.id)
 
 
@@ -94,9 +96,11 @@ async def order_history(
     date_from: str | None = Query(default=None, alias="from"),
     date_to: str | None = Query(default=None, alias="to"),
     partner_id: str | None = Query(default=None, alias="partnerId"),
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(optional_user),
 ) -> List[OrderResponse]:
     """Completed, cancelled and active orders with search + filters."""
+    if not user:
+        return []
     return await order_repository.history(
         user.id,
         q=q,
@@ -106,9 +110,6 @@ async def order_history(
         partner_id=partner_id,
     )
 
-
-from typing import List, Optional
-from app.core.deps import current_user, optional_user
 
 @router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(order_id: str, user: Optional[User] = Depends(optional_user)) -> OrderResponse:

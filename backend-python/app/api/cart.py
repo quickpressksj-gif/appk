@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.deps import current_user
+from typing import Optional
+from app.core.deps import current_user, optional_user
 from app.db.cart_repositories import cart_repository
 from app.models.cart import (
     CartItemPayload,
@@ -31,23 +32,26 @@ router = APIRouter(tags=["cart"])
 @router.get("/cart", response_model=CartResponse)
 async def get_cart(
     couponDiscount: int = Query(default=0, ge=0),
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(optional_user),
 ) -> CartResponse:
-    return await cart_repository.cart(user.id, couponDiscount)
+    uid = user.id if user else "guest"
+    return await cart_repository.cart(uid, couponDiscount)
 
 
 @router.get("/cart/summary", response_model=CartSummaryResponse)
 async def get_cart_summary(
     couponDiscount: int = Query(default=0, ge=0),
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(optional_user),
 ) -> CartSummaryResponse:
-    return await cart_repository.summary(user.id, couponDiscount)
+    uid = user.id if user else "guest"
+    return await cart_repository.summary(uid, couponDiscount)
 
 
 @router.get("/cart/coupons", response_model=list)
-async def get_cart_coupons(user: User = Depends(current_user)):
+async def get_cart_coupons(user: Optional[User] = Depends(optional_user)):
     """GET /api/cart/coupons — list available promo codes and active referral welcome discounts."""
-    return await cart_repository.coupons(user.id)
+    uid = user.id if user else "guest"
+    return await cart_repository.coupons(uid)
 
 
 @router.post("/cart", response_model=CartResponse)

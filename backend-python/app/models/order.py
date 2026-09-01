@@ -7,7 +7,7 @@ and Live Tracking screens without any UI change.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -178,3 +178,8 @@ class PlaceOrderResponse(BaseModel):
     pickupEstimate: str
     deliveryEstimate: str
     order: OrderResponse
+
+
+OrderRiderParty.model_rebuild()
+OrderResponse.model_rebuild()
+PlaceOrderResponse.model_rebuild()
