@@ -8,5 +8,11 @@ if __name__ == "__main__":
     except (ValueError, TypeError):
         port = 8000
 
-    print(f"Starting QuickPress API on 0.0.0.0:{port}...")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
+    print(f"Starting QuickPress API on 0.0.0.0:{port} with high-throughput engine...")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        timeout_keep_alive=65,
+        access_log=False,
+    )
