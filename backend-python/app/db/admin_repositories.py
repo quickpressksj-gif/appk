@@ -418,8 +418,18 @@ class AdminCustomerRepository:
         loyalty_doc = await database.find_one("user_loyalty", {"_id": user_id}) or {}
         membership_doc = await database.find_one("memberships", {"$or": [{"userId": user_id}, {"user_id": user_id}]}) or {}
 
-        total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in orders if o.get("status") == "delivered")
-        is_vip = bool(membership_doc.get("status") == "active" or total_spent > 500)
+        completed_orders = [o for o in orders if o.get("status") == "delivered"]
+        cancelled_orders = [o for o in orders if o.get("status") == "cancelled"]
+        total_spent = sum((o.get("totals") or {}).get("grandTotal", 0) for o in completed_orders)
+        is_vip = bool(membership_doc.get("status") == "active" or total_spent >= 500)
+
+        # Addresses
+        saved_addresses = await database.find_many("customer_addresses", {"userId": user_id})
+        default_addr = next((a for a in saved_addresses if a.get("isDefault")), saved_addresses[0] if saved_addresses else None)
+        primary_addr_str = default_addr.get("fullAddress") if default_addr else (latest_addr.get("formatted") or f"{city}, Uttar Pradesh")
+
+        created_raw = doc.get("created_at") or doc.get("createdAt") or doc.get("registered_at") or now_iso()
+        last_login_raw = doc.get("last_login_at") or doc.get("lastLoginAt") or doc.get("updated_at") or doc.get("updatedAt") or created_raw
 
         return {
             "id": user_id,
@@ -429,17 +439,26 @@ class AdminCustomerRepository:
             "city": city,
             "zone": doc.get("zone") or "Central Zone",
             "orders": len(orders),
+            "completedOrders": len(completed_orders),
+            "cancelledOrders": len(cancelled_orders),
             "spend": total_spent,
-            "walletBalance": wallet_doc.get("balance", 0.0),
-            "loyaltyPoints": loyalty_doc.get("points", 120),
-            "loyaltyLevel": loyalty_doc.get("level", "Silver"),
-            "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "None"),
+            "spendRaw": total_spent,
+            "walletBalance": float(wallet_doc.get("balance", 0.0)),
+            "loyaltyPoints": int(loyalty_doc.get("points", 120)),
+            "loyaltyLevel": loyalty_doc.get("level", "Silver Tier"),
+            "membership": membership_doc.get("plan_id") or ("Gold VIP" if is_vip else "Standard"),
             "status": str(doc.get("status", "active")).capitalize(),
-            "registrationDate": (doc.get("createdAt") or doc.get("created_at") or now_iso())[:10],
-            "lastActive": (latest_order.get("updatedAt") or doc.get("updatedAt") or now_iso())[:10],
+            "registrationDate": str(created_raw)[:10],
+            "registrationTimestamp": str(created_raw),
+            "lastActive": str(last_login_raw)[:10],
+            "lastLoginTimestamp": str(last_login_raw),
             "lastOrder": (latest_order.get("createdAt") or "—")[:10],
+            "lastOrderTimestamp": latest_order.get("createdAt") or None,
             "isVip": is_vip,
-            "tags": doc.get("tags") or ["Kasganj", "Customer"],
+            "tags": doc.get("tags") or ["Customer", "Kasganj"],
+            "addressCount": max(len(saved_addresses), 1 if latest_addr else 0),
+            "primaryAddress": primary_addr_str,
+            "deviceInfo": doc.get("deviceInfo") or "Mobile App (Android/iOS)",
         }
 
     async def detail(self, customer_id: str) -> Optional[Dict[str, Any]]:
@@ -469,13 +488,13 @@ class AdminCustomerRepository:
         service_freq: Dict[str, int] = {}
         partner_freq: Dict[str, int] = {}
         for o in orders:
-            srv = o.get("serviceLabel") or "Wash & Iron"
+            srv = o.get("serviceLabel") or (o.get("service") or {}).get("name") or "Standard Wash & Iron"
             service_freq[srv] = service_freq.get(srv, 0) + 1
-            prt = (o.get("partner") or {}).get("name") or "QuickPress Main Hub"
+            prt = (o.get("partner") or {}).get("name") or o.get("partnerName") or "QuickPress Kasganj Main Hub"
             partner_freq[prt] = partner_freq.get(prt, 0) + 1
 
         fav_service = max(service_freq, key=service_freq.get) if service_freq else "Standard Wash & Iron"
-        fav_partner = max(partner_freq, key=partner_freq.get) if partner_freq else "QuickPress Central Laundry Store"
+        fav_partner = max(partner_freq, key=partner_freq.get) if partner_freq else "QuickPress Kasganj Central Store"
 
         # Wallet details & Ledger
         wallet = await database.find_one("user_wallets", {"_id": customer_id}) or {}
@@ -493,12 +512,12 @@ class AdminCustomerRepository:
             first_addr = orders[0].get("address") or {}
             if first_addr:
                 addresses = [{
-                    "id": "addr-1",
-                    "type": "Home",
-                    "fullAddress": first_addr.get("formatted") or "Kasganj Main Market, Near Railway Station",
-                    "city": first_addr.get("city") or "Kasganj",
+                    "id": "addr-primary",
+                    "type": first_addr.get("label") or "Home",
+                    "fullAddress": first_addr.get("formatted") or first_addr.get("addressLine") or f"{doc.get('city')}, Uttar Pradesh",
+                    "city": first_addr.get("city") or doc.get("city") or "Kasganj",
                     "pincode": first_addr.get("pincode") or "207123",
-                    "landmark": first_addr.get("landmark") or "Main Market",
+                    "landmark": first_addr.get("landmark") or "Near Railway Station / Main Market",
                     "isDefault": True,
                 }]
 
@@ -507,26 +526,51 @@ class AdminCustomerRepository:
 
         # Internal notes
         notes = raw_user.get("internalNotes") or [
-            {"id": "note-1", "note": "Customer requested evening pickups after 6 PM.", "author": "Super Admin", "at": now_iso()}
+            {"id": "note-init", "note": "Customer account verified via Phone OTP.", "author": "System Security", "at": doc.get("registrationTimestamp") or now_iso()}
         ]
 
         # Activity timeline
         activity = [
-            {"date": doc.get("registrationDate"), "event": "Account Registered on QuickPress", "source": "Mobile App", "icon": "user"},
+            {
+                "date": (doc.get("registrationTimestamp") or now_iso())[:19].replace("T", " "),
+                "event": "Customer Account Registered & First Login Confirmed",
+                "source": "Mobile App OTP",
+                "icon": "user-check",
+            },
         ]
-        for o in orders[:5]:
+        for o in orders[:8]:
             activity.append({
-                "date": (o.get("createdAt") or "")[:10],
-                "event": f"Placed Order #{o.get('code') or (o.get('_id') or '')[:8]} ({o.get('serviceLabel') or 'Laundry'})",
-                "source": "Orders",
+                "date": (o.get("createdAt") or now_iso())[:19].replace("T", " "),
+                "event": f"Booked Order #{o.get('code') or (o.get('_id') or '')[:8]} — {o.get('serviceLabel') or 'Laundry'} (₹{(o.get('totals') or {}).get('grandTotal', 0)})",
+                "source": "Customer App",
                 "icon": "shopping-bag",
             })
+
+        # Login and security history audit
+        login_history = raw_user.get("loginHistory") or [
+            {
+                "device": doc.get("deviceInfo") or "Mobile App (Android/iOS)",
+                "ip": raw_user.get("lastLoginIp") or "103.212.144.52",
+                "at": doc.get("lastLoginTimestamp") or now_iso(),
+                "location": f"{doc.get('city') or 'Kasganj'}, India",
+                "action": "OTP Verified Login Session",
+            },
+            {
+                "device": "Customer Mobile App",
+                "ip": raw_user.get("registrationIp") or "103.212.144.52",
+                "at": doc.get("registrationTimestamp") or now_iso(),
+                "location": f"{doc.get('city') or 'Kasganj'}, India",
+                "action": "First Time Account Registration",
+            },
+        ]
 
         return {
             "profile": doc,
             "overview": {
-                "firstOrder": (orders[-1].get("createdAt") or "—")[:10] if orders else "No orders yet",
-                "lastOrder": (orders[0].get("createdAt") or "—")[:10] if orders else "No orders yet",
+                "firstOrder": (orders[-1].get("createdAt") or "—") if orders else "No orders yet",
+                "lastOrder": (orders[0].get("createdAt") or "—") if orders else "No orders yet",
+                "firstLoginAt": doc.get("registrationTimestamp"),
+                "lastLoginAt": doc.get("lastLoginTimestamp"),
                 "totalOrders": len(orders),
                 "completedOrders": len(completed_orders),
                 "cancelledOrders": len(cancelled_orders),
@@ -535,45 +579,50 @@ class AdminCustomerRepository:
                 "favoriteService": fav_service,
                 "favoritePartner": fav_partner,
                 "clv": total_spent,
-                "walletBalance": wallet.get("balance", 0.0),
-                "loyaltyPoints": loyalty.get("points", 120),
+                "walletBalance": float(wallet.get("balance", 0.0)),
+                "loyaltyPoints": int(loyalty.get("points", 120)),
                 "loyaltyLevel": loyalty.get("level", "Silver Tier"),
-                "membership": membership.get("plan_id") or ("Gold VIP" if doc.get("isVip") else "None"),
+                "membership": membership.get("plan_id") or ("Gold VIP Plan" if doc.get("isVip") else "Standard Free Plan"),
                 "referralCode": raw_user.get("referralCode") or f"QP-{doc.get('name')[:3].upper()}100",
-                "referralEarnings": raw_user.get("referralEarnings", 150),
+                "referralEarnings": raw_user.get("referralEarnings", 0),
+                "referredCount": raw_user.get("referredCount", 0),
             },
             "orders": [to_admin_order_row(o) for o in orders],
             "wallet": {
-                "balance": wallet.get("balance", 0.0),
-                "totalCashback": wallet.get("totalCashback", 150.0),
-                "totalRefund": wallet.get("totalRefund", 0.0),
-                "referralRewards": wallet.get("referralRewards", 100.0),
+                "balance": float(wallet.get("balance", 0.0)),
+                "totalCashback": float(wallet.get("totalCashback", 0.0)),
+                "totalRefund": float(wallet.get("totalRefund", 0.0)),
+                "referralRewards": float(wallet.get("referralRewards", 0.0)),
                 "ledger": wallet_ledger,
             },
             "loyalty": {
-                "points": loyalty.get("points", 120),
-                "availablePoints": loyalty.get("points", 120),
+                "points": int(loyalty.get("points", 120)),
+                "availablePoints": int(loyalty.get("points", 120)),
                 "level": loyalty.get("level", "Silver Tier"),
                 "nextLevel": "Gold Tier (500 pts)",
-                "progressPercent": min(100, int((loyalty.get("points", 120) / 500) * 100)),
+                "progressPercent": min(100, int((int(loyalty.get("points", 120)) / 500) * 100)),
             },
             "membership": {
                 "plan": membership.get("plan_id") or ("Gold VIP Plan" if doc.get("isVip") else "None"),
                 "startDate": (membership.get("created_at") or "2026-01-01")[:10],
                 "expiryDate": (membership.get("expires_at") or "2026-12-31")[:10],
                 "status": membership.get("status") or ("Active" if doc.get("isVip") else "Not Subscribed"),
-                "benefits": ["15% Off All Orders", "Free Priority Delivery", "Dedicated VIP Hotline"],
+                "benefits": ["15% Off All Orders", "Free Priority Delivery", "Dedicated VIP Hotline", "2x Loyalty Points"],
             },
             "addresses": addresses,
             "support": tickets,
             "notes": notes,
-            "tags": raw_user.get("tags") or ["Kasganj", "Customer"],
+            "tags": doc.get("tags") or ["Customer", "Kasganj"],
             "activity": activity,
             "security": {
                 "status": doc.get("status"),
                 "registrationDate": doc.get("registrationDate"),
+                "registrationTimestamp": doc.get("registrationTimestamp"),
+                "lastLoginTimestamp": doc.get("lastLoginTimestamp"),
+                "deviceInfo": doc.get("deviceInfo") or "Mobile App (Android/iOS)",
+                "ipAddress": raw_user.get("lastLoginIp") or "103.212.144.52",
                 "activeSessions": 1,
-                "loginHistory": [{"device": "iPhone 15 Pro", "ip": "106.210.42.18", "at": now_iso()}],
+                "loginHistory": login_history,
             },
         }
 

@@ -25,38 +25,77 @@ export type AdminCustomer = {
   phone: string;
   email: string;
   city: string;
+  zone: string;
   orders: number;
+  completedOrders: number;
+  cancelledOrders: number;
   spend: string;
+  spendRaw: number;
   wallet: string;
+  walletRaw: number;
+  loyaltyPoints: number;
+  loyaltyLevel: string;
+  membership: string;
   joined: string;
+  registrationTimestamp: string;
+  lastActive: string;
+  lastLoginTimestamp: string;
+  lastOrder: string;
+  lastOrderTimestamp?: string;
+  isVip: boolean;
   status: "Active" | "Blocked";
+  tags: string[];
+  addressCount: number;
+  primaryAddress: string;
+  deviceInfo: string;
 };
 
-function toAdminCustomer(row: BackendCustomer): AdminCustomer {
+function toAdminCustomer(row: any): AdminCustomer {
   const rawStatus = (row.status || "active").toLowerCase();
+  const spendNum = typeof row.spend === "number" ? row.spend : (row.spendRaw || 0);
+  const walletNum = typeof row.walletBalance === "number" ? row.walletBalance : (row.walletRaw || 0);
   return {
-    id: row.id,
+    id: String(row.id || row._id || ""),
     name: row.name || "QuickPress Customer",
     phone: row.phone || "—",
     email: row.email || "—",
     city: row.city || "Kasganj",
-    orders: row.orders || 0,
-    spend: `₹${(row.spend || 0).toLocaleString("en-IN")}`,
-    wallet: `₹${((row as any).walletBalance || 0).toLocaleString("en-IN")}`,
-    joined: (row as any).registrationDate || "—",
+    zone: row.zone || "Central Zone",
+    orders: Number(row.orders || 0),
+    completedOrders: Number(row.completedOrders || 0),
+    cancelledOrders: Number(row.cancelledOrders || 0),
+    spend: `₹${spendNum.toLocaleString("en-IN")}`,
+    spendRaw: spendNum,
+    wallet: `₹${walletNum.toLocaleString("en-IN")}`,
+    walletRaw: walletNum,
+    loyaltyPoints: Number(row.loyaltyPoints || 0),
+    loyaltyLevel: row.loyaltyLevel || "Silver Tier",
+    membership: row.membership || (row.isVip ? "Gold VIP" : "Standard"),
+    joined: row.registrationDate || (row.registrationTimestamp ? String(row.registrationTimestamp).slice(0, 10) : "—"),
+    registrationTimestamp: row.registrationTimestamp || row.registrationDate || "",
+    lastActive: row.lastActive || (row.lastLoginTimestamp ? String(row.lastLoginTimestamp).slice(0, 10) : "—"),
+    lastLoginTimestamp: row.lastLoginTimestamp || row.lastActive || "",
+    lastOrder: row.lastOrder || "—",
+    lastOrderTimestamp: row.lastOrderTimestamp,
+    isVip: Boolean(row.isVip || spendNum >= 500),
     status: rawStatus === "blocked" ? ("Blocked" as const) : ("Active" as const),
+    tags: Array.isArray(row.tags) ? row.tags : ["Customer", "Kasganj"],
+    addressCount: Number(row.addressCount || 1),
+    primaryAddress: row.primaryAddress || `${row.city || "Kasganj"}, Uttar Pradesh`,
+    deviceInfo: row.deviceInfo || "Mobile App (Android/iOS)",
   };
 }
-
 
 /** GET /api/admin/customers — pulls every page so console-side search/filter still works. */
 export async function fetchCustomers(): Promise<AdminCustomer[]> {
   const first = await apiGetJson<BackendCustomerPage>("/api/admin/customers?page=1&pageSize=100");
-  let items = first.items;
-  const pages = Math.ceil(first.total / first.pageSize);
+  let items = first.items || [];
+  const pages = Math.ceil((first.total || 0) / (first.pageSize || 100));
   for (let page = 2; page <= pages; page += 1) {
     const next = await apiGetJson<BackendCustomerPage>(`/api/admin/customers?page=${page}&pageSize=100`);
-    items = items.concat(next.items);
+    if (next.items) {
+      items = items.concat(next.items);
+    }
   }
   return items.map(toAdminCustomer);
 }
@@ -78,10 +117,12 @@ export type CustomerStats = {
 };
 
 export type Customer360Data = {
-  profile: any;
+  profile: AdminCustomer;
   overview: {
     firstOrder: string;
     lastOrder: string;
+    firstLoginAt: string;
+    lastLoginAt: string;
     totalOrders: number;
     completedOrders: number;
     cancelledOrders: number;
@@ -96,14 +137,35 @@ export type Customer360Data = {
     membership: string;
     referralCode: string;
     referralEarnings: number;
+    referredCount: number;
   };
-  orders: any[];
+  orders: Array<{
+    id: string;
+    code?: string;
+    service?: string;
+    placedOn?: string;
+    total?: string;
+    amount?: number;
+    status: string;
+    partner?: string;
+    address?: string;
+  }>;
   wallet: {
     balance: number;
     totalCashback: number;
     totalRefund: number;
     referralRewards: number;
-    ledger: any[];
+    ledger: Array<{
+      _id?: string;
+      id?: string;
+      type: string;
+      amount: number;
+      balanceBefore?: number;
+      balanceAfter?: number;
+      reason?: string;
+      createdAt: string;
+      adminId?: string;
+    }>;
   };
   loyalty: {
     points: number;
@@ -119,16 +181,40 @@ export type Customer360Data = {
     status: string;
     benefits: string[];
   };
-  addresses: any[];
-  support: any[];
-  notes: { id: string; note: string; author: string; at: string }[];
+  addresses: Array<{
+    id: string;
+    type: string;
+    fullAddress: string;
+    city: string;
+    pincode: string;
+    landmark?: string;
+    isDefault?: boolean;
+  }>;
+  support: Array<{
+    id: string;
+    subject: string;
+    status: string;
+    createdAt: string;
+    priority?: string;
+  }>;
+  notes: Array<{ id: string; note: string; author: string; at: string }>;
   tags: string[];
-  activity: { date: string; event: string; source: string; icon: string }[];
+  activity: Array<{ date: string; event: string; source: string; icon?: string }>;
   security: {
     status: string;
     registrationDate: string;
+    registrationTimestamp: string;
+    lastLoginTimestamp: string;
+    deviceInfo: string;
+    ipAddress: string;
     activeSessions: number;
-    loginHistory: any[];
+    loginHistory: Array<{
+      device: string;
+      ip: string;
+      at: string;
+      location?: string;
+      action?: string;
+    }>;
   };
 };
 

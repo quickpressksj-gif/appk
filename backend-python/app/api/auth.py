@@ -29,6 +29,14 @@ async def _issue_session(user: User) -> AuthSessionResponse:
     access_token, access_expires = create_access_token(user.id, user.role.value)
     refresh_token, token_id, refresh_expires = create_refresh_token(user.id, user.role.value)
     await refresh_tokens.store(token_id, user.id, refresh_expires)
+    
+    # Track exact login timestamp in database
+    try:
+        now_ts = datetime.now(timezone.utc).isoformat()
+        await database.update("users", {"_id": user.id}, {"last_login_at": now_ts, "updated_at": now_ts})
+    except Exception:
+        pass
+
     return AuthSessionResponse(
         token=access_token,
         refreshToken=refresh_token,
