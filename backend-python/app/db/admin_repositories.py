@@ -2705,6 +2705,9 @@ class AdminWalletRepository:
         return {"accountId": account_id, "previousBalance": prev_bal, "newBalance": new_bal, "adjusted": amount}
 
 
+admin_wallet_repository = AdminWalletRepository()
+
+
 _SEED_REFUNDS = [
     {
         "_id": "ref-001",
