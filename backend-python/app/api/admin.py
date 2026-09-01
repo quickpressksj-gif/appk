@@ -590,9 +590,45 @@ async def analytics(user: User = Depends(current_user)):
 
 
 # --------------------------------------------------------------------- cities
+@router.get("/cities/stats")
+async def city_stats(user: User = Depends(current_user)):
+    return await city_repository.dashboard_stats()
+
+
+@router.get("/cities/intelligence")
+async def city_intelligence(user: User = Depends(current_user)):
+    return await city_repository.get_intelligence()
+
+
 @router.get("/cities")
 async def list_cities(user: User = Depends(current_user)):
     return await city_repository.list()
+
+
+@router.get("/cities/{city_id}/360")
+async def get_city_360(city_id: str, user: User = Depends(current_user)):
+    try:
+        return await city_repository.get_city_360(city_id)
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+@router.patch("/cities/{city_id}/radius")
+async def update_city_radius(city_id: str, payload: dict, user: User = Depends(current_user)):
+    city = await city_repository.update_radius(city_id, payload)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.update_radius", city_id, payload)
+    return city
+
+
+@router.post("/cities/{city_id}/zones")
+async def add_city_zone(city_id: str, payload: dict, user: User = Depends(current_user)):
+    city = await city_repository.add_zone(city_id, payload)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.add_zone", city_id, payload)
+    return city
 
 
 @router.post("/cities", status_code=status.HTTP_201_CREATED)

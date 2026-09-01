@@ -2565,6 +2565,115 @@ const routes: Array<[string, string, Handler]> = [
   ],
   [
     "GET",
+    "/api/admin/cities/stats",
+    ({ account }) => {
+      account("admin");
+      return {
+        totalCities: 5,
+        totalZones: 8,
+        totalGeoRevenue: 366,
+        totalCityCustomers: 19,
+        totalPartnerHubs: 8,
+        totalActiveCaptains: 17,
+        avgDeliveryRadius: 15.0,
+      };
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/cities/intelligence",
+    ({ account }) => {
+      account("admin");
+      const db = getDb();
+      return (db.cities || []).map((c: any) => ({
+        _id: c.id,
+        id: c.id,
+        city: c.city,
+        name: c.city,
+        state: c.state || "Uttar Pradesh",
+        country: "India",
+        tier: "Tier-2",
+        status: c.status || "Live",
+        deliveryRadiusKm: 15.0,
+        pickupRadius: "15 km",
+        baseDeliveryFee: 20.0,
+        perKmFee: 5.0,
+        freeDeliveryAbove: 199.0,
+        minOrderValue: 99.0,
+        surgeMultiplier: 1.0,
+        center: { lat: 27.8083, lng: 78.6473 },
+        pincodes: ["207123", "207124", "207125"],
+        zones: [
+          {
+            zoneId: "zone-ksj-1",
+            name: "Central Kasganj & Main Market",
+            sector: "Sector 1",
+            radiusKm: 5.0,
+            lat: 27.8083,
+            lng: 78.6473,
+            pincodes: ["207123"],
+            status: "Operational",
+            baseFee: 20.0,
+          },
+          {
+            zoneId: "zone-ksj-2",
+            name: "Bilram Gate & Nadrai Hub",
+            sector: "Sector 2",
+            radiusKm: 6.5,
+            lat: 27.8150,
+            lng: 78.6410,
+            pincodes: ["207123", "207124"],
+            status: "Operational",
+            baseFee: 20.0,
+          },
+        ],
+        totalZones: 2,
+        financials: {
+          grossRevenue: c.city === "Kasganj" ? 366 : 0,
+          platformCommission: c.city === "Kasganj" ? 65.88 : 0,
+          partnerEarnings: c.city === "Kasganj" ? 256.2 : 0,
+          riderEarnings: c.city === "Kasganj" ? 43.92 : 0,
+          totalOrders: c.city === "Kasganj" ? 13 : 0,
+          deliveredOrders: c.city === "Kasganj" ? 2 : 0,
+          liveOrders: c.city === "Kasganj" ? 7 : 0,
+          cancelledOrders: 0,
+          aov: 183.0,
+        },
+        totalCustomers: c.city === "Kasganj" ? 19 : 0,
+        totalPartners: c.city === "Kasganj" ? 8 : 0,
+        activePartners: c.city === "Kasganj" ? 7 : 0,
+        totalRiders: c.city === "Kasganj" ? 17 : 0,
+        onlineRiders: c.city === "Kasganj" ? 6 : 0,
+        partnerList: [
+          {
+            id: "prt-1",
+            name: "Kasganj Super Clean Hub",
+            address: "Main Market, Kasganj",
+            phone: "+91 98765 43210",
+            rating: 4.9,
+            status: "active",
+          },
+        ],
+        riderList: [
+          {
+            riderId: "rdr-1",
+            name: "Rahul Express Rider",
+            phone: "+91 98719 62596",
+            vehicle: "Motorbike",
+            plate: "UP-87-AK-4402",
+            rating: 4.9,
+            liveState: "Online",
+            trips: 8,
+            earnings: 59.0,
+          },
+        ],
+        customerList: [],
+        recentOrders: [],
+      }));
+    },
+  ],
+  [
+    "GET",
     "/api/admin/cities/:id/areas",
     ({ params, account }) => {
       account("admin");
@@ -2576,6 +2685,29 @@ const routes: Array<[string, string, Handler]> = [
         city: city.city,
         status: city.status,
       }));
+    },
+  ],
+  [
+    "PATCH",
+    "/api/admin/cities/:id/radius",
+    ({ params, body, account }) => {
+      account("admin");
+      return mutateDb((db) => {
+        const city = db.cities.find((item) => item.id === params.id);
+        if (city) Object.assign(city, body);
+        return city ?? null;
+      });
+    },
+  ],
+  [
+    "POST",
+    "/api/admin/cities/:id/zones",
+    ({ params, body, account }) => {
+      account("admin");
+      return mutateDb((db) => {
+        const city = db.cities.find((item) => item.id === params.id);
+        return city ?? null;
+      });
     },
   ],
   [
