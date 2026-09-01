@@ -2399,6 +2399,21 @@ const routes: Array<[string, string, Handler]> = [
 
   /* --------------------------- admin: coupons/staff/support/etc ------------ */
   [
+    "GET",
+    "/api/admin/coupons/stats",
+    ({ account }) => {
+      account("admin");
+      return {
+        totalCoupons: 4,
+        activeCoupons: 4,
+        totalRedemptions: 86,
+        totalDiscountDisbursed: 3870,
+        referralConversions: 14,
+        referralRevenue: 2450.0,
+      };
+    },
+  ],
+  [
     "POST",
     "/api/admin/coupons",
     ({ body, account }) => {
@@ -2949,6 +2964,69 @@ const routes: Array<[string, string, Handler]> = [
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
         .slice(0, 8)
         .map((order) => toAdminOrderRow(order, statusLabel(order)));
+    },
+  ],
+  [
+    "GET",
+    "/api/admin/wallet/all-wallets",
+    ({ account }) => {
+      account("admin");
+      const db = getDb();
+      const list: any[] = [];
+      for (const p of db.partners) {
+        list.push({
+          id: p.id,
+          name: p.name,
+          role: "partner",
+          phone: p.phone,
+          city: p.city,
+          balance: 344.4,
+          totalEarned: 344.4,
+          totalSpent: 0,
+          codCashInHand: 0,
+          pendingPayout: 0,
+          status: "Active",
+        });
+      }
+      for (const r of db.riders) {
+        list.push({
+          id: r.id,
+          name: r.name,
+          role: "rider",
+          phone: r.phone,
+          city: r.city,
+          balance: 59.04,
+          totalEarned: 59.04,
+          totalSpent: 0,
+          codCashInHand: 120.0,
+          pendingPayout: 0,
+          status: "Active",
+        });
+      }
+      for (const u of db.customers.slice(0, 10)) {
+        list.push({
+          id: u.id,
+          name: u.name,
+          role: "customer",
+          phone: u.phone,
+          city: u.city,
+          balance: 0,
+          totalEarned: 0,
+          totalSpent: 492,
+          codCashInHand: 0,
+          pendingPayout: 0,
+          status: "Active",
+        });
+      }
+      return list;
+    },
+  ],
+  [
+    "POST",
+    "/api/admin/wallet/adjust",
+    ({ body, account }) => {
+      account("admin");
+      return { ok: true, accountId: body.accountId, newBalance: body.amount };
     },
   ],
   [

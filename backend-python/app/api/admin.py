@@ -846,6 +846,26 @@ async def toggle_partner_service_status(
 
 
 # -------------------------------------------------------------------- coupons
+@router.get("/coupons/stats")
+async def coupon_stats(user: User = Depends(current_user)):
+    return await coupon_repository.stats()
+
+
+@router.get("/coupons/referral-settings")
+async def get_coupon_referral_settings(user: User = Depends(current_user)):
+    return await coupon_repository.referral_settings()
+
+
+@router.put("/coupons/referral-settings")
+async def update_coupon_referral_settings(payload: dict, user: User = Depends(current_user)):
+    return await coupon_repository.update_referral_settings(payload)
+
+
+@router.get("/coupons/referral-list")
+async def list_coupon_referrals(user: User = Depends(current_user)):
+    return await coupon_repository.referrals_list()
+
+
 @router.get("/coupons")
 async def list_coupons(user: User = Depends(current_user)):
     return await coupon_repository.list()
@@ -856,10 +876,15 @@ async def create_coupon(payload: CouponPayload, user: User = Depends(current_use
     coupon = await coupon_repository.create(
         {
             "code": payload.code or "NEWCODE",
-            "discount": payload.discount or "10% OFF",
-            "description": payload.description or "",
-            "expiry": payload.expiry or "",
+            "type": getattr(payload, "type", "percentage"),
+            "value": payload.discount or "10% OFF",
+            "discountPct": int(getattr(payload, "discountPct", 10)),
+            "maxDiscount": int(getattr(payload, "maxDiscount", 100)),
             "minOrder": payload.minOrder or 0,
+            "description": payload.description or "",
+            "validTill": payload.expiry or "2026-12-31",
+            "audience": getattr(payload, "audience", "All Users"),
+            "limit": int(getattr(payload, "limit", 100)),
             "status": payload.status or "Active",
         }
     )
@@ -1019,6 +1044,23 @@ async def update_settings(payload: SettingsUpdatePayload, user: User = Depends(c
 
 
 # --------------------------------------------------------------------- wallet
+@router.get("/wallet/all-wallets")
+async def get_all_wallets(user: User = Depends(current_user)):
+    return await admin_wallet_repository.all_wallets()
+
+
+@router.post("/wallet/adjust")
+async def adjust_any_wallet(payload: dict, user: User = Depends(current_user)):
+    account_id = str(payload.get("accountId") or payload.get("id"))
+    role = str(payload.get("role") or "customer").lower()
+    amount = float(payload.get("amount") or 0.0)
+    kind = str(payload.get("type") or payload.get("kind") or "credit").lower()
+    reason = str(payload.get("reason") or "Manual Admin Adjustment")
+    res = await admin_wallet_repository.adjust_wallet(account_id, role, amount, kind, reason, user.id)
+    await audit_repository.log(await _actor(user), "wallet.manual_adjust", account_id, payload)
+    return res
+
+
 @router.get("/wallet")
 async def wallet(user: User = Depends(current_user)):
     return await admin_wallet_repository.wallet()
