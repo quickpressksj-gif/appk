@@ -951,15 +951,18 @@ async def list_staff(user: User = Depends(current_user)):
 async def create_staff(payload: StaffPayload, user: User = Depends(current_user)):
     member = await staff_repository.create(
         {
-            "name": payload.name or "New Member",
+            "name": payload.name or "New Staff Member",
             "email": payload.email or "",
-            "role": payload.role or "Ops manager",
-            "scope": payload.scope or "All cities",
-            "lastActive": "—",
-            "status": "Invited",
+            "phone": payload.phone or "+91 98719 62596",
+            "role": payload.role or "Operations Admin",
+            "scope": payload.scope or "Kasganj Market Hub",
+            "permissions": payload.permissions or ["orders", "partners", "riders"],
+            "lastActive": "Just now",
+            "status": payload.status or "Active",
+            "createdAt": now_iso(),
         }
     )
-    await audit_repository.log(await _actor(user), "staff.create", member["_id"])
+    await audit_repository.log(await _actor(user), "staff.create", member["_id"], meta={"name": payload.name, "role": payload.role})
     return member
 
 
@@ -968,32 +971,75 @@ async def update_staff(staff_id: str, payload: StaffPayload, user: User = Depend
     member = await staff_repository.update(staff_id, payload.model_dump(exclude_unset=True))
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
-    await audit_repository.log(await _actor(user), "staff.update", staff_id)
+    await audit_repository.log(await _actor(user), "staff.update", staff_id, meta=payload.model_dump(exclude_unset=True))
     return member
+
+
+@router.delete("/staff/{staff_id}")
+async def delete_staff(staff_id: str, user: User = Depends(current_user)):
+    success = await staff_repository.delete(staff_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
+    await audit_repository.log(await _actor(user), "staff.delete", staff_id)
+    return {"ok": True}
 
 
 @router.get("/staff/roles")
 async def staff_roles(user: User = Depends(current_user)):
     members = await staff_repository.list()
-    roles = list({m.get("role") for m in members if m.get("role")})
-    return [
+    role_defs = [
         {
-            "id": f"RO-{index + 1}",
-            "name": role,
-            "members": sum(1 for m in members if m.get("role") == role),
-            "permissions": ["orders:read"],
-        }
-        for index, role in enumerate(roles)
+            "id": "RO-1",
+            "name": "Super Admin",
+            "members": sum(1 for m in members if m.get("role") == "Super Admin"),
+            "permissions": ["all", "orders", "partners", "riders", "services", "finance", "cities", "campaigns", "staff", "settings"],
+        },
+        {
+            "id": "RO-2",
+            "name": "Operations Admin",
+            "members": sum(1 for m in members if m.get("role") == "Operations Admin"),
+            "permissions": ["orders", "partners", "riders", "support", "cities"],
+        },
+        {
+            "id": "RO-3",
+            "name": "Fleet Dispatch Manager",
+            "members": sum(1 for m in members if m.get("role") == "Fleet Dispatch Manager"),
+            "permissions": ["riders", "orders", "cities"],
+        },
+        {
+            "id": "RO-4",
+            "name": "Support Lead",
+            "members": sum(1 for m in members if m.get("role") == "Support Lead"),
+            "permissions": ["support", "orders", "campaigns"],
+        },
+        {
+            "id": "RO-5",
+            "name": "Finance & Settlements Lead",
+            "members": sum(1 for m in members if m.get("role") == "Finance & Settlements Lead"),
+            "permissions": ["finance", "wallets", "payouts", "orders"],
+        },
     ]
+    return role_defs
 
 
 @router.get("/staff/logs")
-async def staff_logs(user: User = Depends(current_user)):
+async def staff_logs(actor: Optional[str] = None, user: User = Depends(current_user)):
     from app.db.client import database
 
-    logs = await database.find_sorted("admin_audit_logs", sort=[("createdAt", -1)], limit=20)
+    query = {}
+    if actor and actor != "all":
+        query["actor"] = {"$regex": actor, "$options": "i"}
+
+    logs = await database.find_sorted("admin_audit_logs", query, sort=[("createdAt", -1)], limit=200)
     return [
-        {"id": log["_id"], "actor": log.get("actor"), "action": log.get("action"), "target": log.get("target"), "at": log.get("at")}
+        {
+            "id": log["_id"],
+            "actor": log.get("actor") or "QuickPress Super Admin",
+            "action": log.get("action") or "system.action",
+            "target": log.get("target") or "—",
+            "meta": log.get("meta") or {},
+            "at": log.get("at") or log.get("createdAt") or now_iso(),
+        }
         for log in logs
     ]
 

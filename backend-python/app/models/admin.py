@@ -177,8 +177,10 @@ class SendRiderNotificationPayload(BaseModel):
 class StaffPayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     role: Optional[str] = None
     scope: Optional[str] = None
+    permissions: Optional[List[str]] = None
     status: Optional[str] = None
 
 
