@@ -120,6 +120,7 @@ import { LanguageProvider } from "../lib/i18n";
 import { LanguageSelectionModal } from "../components/common/LanguageSelectionModal";
 import { readSession } from "@/api/core/session-store";
 
+// v1.0.1: QuickPress Captain Production Light Mode
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useLocation();
