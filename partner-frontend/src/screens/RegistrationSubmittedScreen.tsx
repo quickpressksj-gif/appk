@@ -33,7 +33,9 @@ export function RegistrationSubmittedScreen() {
   const { session, signIn, signOut } = usePartnerContext();
   const [checking, setChecking] = useState(false);
   const [isApproved, setIsApproved] = useState(Boolean(session?.isVerified));
-  const [businessName, setBusinessName] = useState(session?.businessName || "Your Partner Store");
+  const [businessName, setBusinessName] = useState(
+    session?.businessName || (session as any)?.name || (session as any)?.account?.name || "Your Partner Store"
+  );
   const [partnerId, setPartnerId] = useState(session?.partnerId || "");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
@@ -52,16 +54,18 @@ export function RegistrationSubmittedScreen() {
             signIn({
               ...session,
               isVerified: true,
+              isOnboarded: true,
               businessName: result.businessName || session.businessName,
             });
           }
-          if (manual) {
-            toast.success("Congratulations! Your partner store has been approved by admin! 🎉");
-          }
+          toast.success("Congratulations! Your partner store is approved! Redirecting to Dashboard... 🎉");
+          setTimeout(() => {
+            navigate({ to: partnerRoutes.dashboard });
+          }, 1000);
         } else {
           setIsApproved(false);
           if (manual) {
-            toast.info("Verification is in progress. The Admin team is currently reviewing your store.");
+            toast.info("Verification is in progress. The Admin team is reviewing your store.");
           }
         }
       } catch (err) {
@@ -72,7 +76,7 @@ export function RegistrationSubmittedScreen() {
         setChecking(false);
       }
     },
-    [session, signIn],
+    [session, signIn, navigate],
   );
 
   useEffect(() => {

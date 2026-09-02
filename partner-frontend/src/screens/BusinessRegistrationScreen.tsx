@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Banknote,
   Bath,
+  Bell,
   Blinds,
   Briefcase,
   Building2,
@@ -442,6 +443,32 @@ export function BusinessRegistrationScreen() {
     setWeeklyOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
 
   const areaOptions = useMemo(() => approvedAreas[form.city] ?? AREAS[form.city] ?? ["City Center", "Main Market"], [approvedAreas, form.city]);
+
+  // Order Notification & Siren Permissions
+  const [notifPermission, setNotifPermission] = useState<string>(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "default";
+  });
+
+  const requestNotificationPermission = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setNotifPermission(perm);
+        if (perm === "granted") {
+          toast.success("Order Notifications & High-Priority Alerts enabled! ✓");
+        } else {
+          toast.error("Notification permission was not granted. Please allow in browser/phone settings.");
+        }
+      } catch {
+        toast.info("Notifications requested.");
+      }
+    } else {
+      toast.success("Push Notification subsystem ready!");
+    }
+  };
 
   // Real Government Verification States
   const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
@@ -1657,7 +1684,7 @@ export function BusinessRegistrationScreen() {
                     <div className="flex items-center gap-2">
                       <Volume2 className="size-4.5 text-amber-600 animate-pulse" />
                       <h4 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                        High-Priority Order Siren & Notifications
+                        High-Priority Order Siren & Permissions
                       </h4>
                     </div>
                     <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-black text-emerald-800">
@@ -1671,8 +1698,18 @@ export function BusinessRegistrationScreen() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                     <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
-                      <span>Display Over Apps</span>
-                      <span className="text-emerald-700 font-bold text-[11px]">Enabled ✓</span>
+                      <span>Order Push Alerts</span>
+                      {notifPermission === "granted" ? (
+                        <span className="text-emerald-700 font-bold text-[11px]">Enabled ✓</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={requestNotificationPermission}
+                          className="rounded-lg bg-amber-400 px-2 py-0.5 text-[10px] font-black text-black hover:bg-amber-300 transition-all cursor-pointer"
+                        >
+                          Enable 🔔
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
                       <span>Battery Saver Exemption</span>
@@ -1680,17 +1717,28 @@ export function BusinessRegistrationScreen() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      testPartnerSoundAndVibration();
-                      toast.success("Playing merchant order siren chime & vibration test!");
-                    }}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3 text-xs font-black text-black hover:bg-amber-300 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
-                  >
-                    <Volume2 className="size-4" />
-                    <span>Test Merchant Order Siren Chime</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={requestNotificationPermission}
+                      className="flex items-center justify-center gap-1.5 rounded-2xl bg-white border border-amber-300 py-2.5 text-xs font-black text-zinc-900 hover:bg-amber-50 shadow-2xs active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <Bell className="size-3.5 text-amber-600" />
+                      <span>{notifPermission === "granted" ? "Alerts Enabled ✓" : "Grant Alert Permission"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        testPartnerSoundAndVibration();
+                        toast.success("Playing merchant order siren chime & vibration test!");
+                      }}
+                      className="flex items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-2.5 text-xs font-black text-black hover:bg-amber-300 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <Volume2 className="size-3.5" />
+                      <span>Test Order Siren Chime</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Legal Merchant SLA Franchise Agreement & Digital Signature Pad */}

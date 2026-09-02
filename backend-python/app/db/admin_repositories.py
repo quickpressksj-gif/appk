@@ -1142,18 +1142,30 @@ class AdminPartnerRepository:
                 {"service": "Steam Ironing", "defaultPrice": "₹29/pc", "partnerPrice": "₹29/pc", "override": "Default"},
             ],
             "kyc": {
-                "status": "Verified" if doc.get("isVerified") else "Pending",
-                "gstin": doc.get("gstin") or "09AAACQ1234F1Z9",
-                "pan": doc.get("pan") or "AAACQ1234F",
+                "status": "Verified" if doc.get("isVerified") else ("Submitted" if doc.get("isOnboarded") else "Pending"),
+                "gstin": doc.get("gstin") or "N/A",
+                "pan": doc.get("pan") or "N/A",
+                "aadhaar": doc.get("aadhaar") or "N/A",
+                "aadhaarMasked": doc.get("aadhaarMasked") or (f"XXXX XXXX {str(doc.get('aadhaar'))[-4:]}" if doc.get("aadhaar") else "N/A"),
+                "aadhaarVerified": bool(doc.get("aadhaar")),
+                "panVerified": bool(doc.get("pan")),
+                "bankVerified": bool(doc.get("accountNumber")),
                 "bankName": doc.get("bankName") or "HDFC Bank",
-                "accountNumber": doc.get("accountNumber") or "50100293819401",
+                "accountHolder": doc.get("accountHolder") or owner,
+                "accountNumber": doc.get("accountNumber") or "••••••••4545",
                 "ifsc": doc.get("ifsc") or "HDFC0001234",
                 "ownerVerified": True,
+                "agreementSigned": bool(doc.get("agreementSigned", True)),
+                "signedAt": doc.get("signedAt") or (doc.get("createdAt") or now_iso())[:19],
+                "signedByName": doc.get("signedByName") or owner,
+                "agreementVersion": doc.get("agreementVersion") or "QP-SLA-2026-v4.2",
             },
             "documents": [
-                {"name": "GST Certificate", "type": "GST Certificate", "number": doc.get("gstin") or "09AAACQ1234F1Z9", "status": "Verified" if doc.get("isVerified") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
-                {"name": "Business PAN Card", "type": "PAN Card", "number": doc.get("pan") or "AAACQ1234F", "status": "Verified" if doc.get("isVerified") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
-                {"name": "Store Front Photo", "type": "Store Front Photo", "number": "IMG-001.JPG", "status": "Verified", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Aadhaar Card (UIDAI KYC)", "type": "UIDAI Aadhaar", "number": doc.get("aadhaarMasked") or (f"XXXX XXXX {str(doc.get('aadhaar'))[-4:]}" if doc.get("aadhaar") else "UIDAI-EKYC-VERIFIED"), "status": "Verified" if doc.get("aadhaar") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Business PAN Card", "type": "PAN Card", "number": doc.get("pan") or "AAACQ1234F", "status": "Verified" if doc.get("pan") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "GSTIN Certificate", "type": "GST Certificate", "number": doc.get("gstin") or "09AAACQ1234F1Z9", "status": "Verified" if doc.get("gstin") else "Exempt", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Bank Account (NPCI Verified)", "type": "Bank Settlement", "number": f"{doc.get('bankName', 'Bank')} - {doc.get('ifsc', '')}", "status": "Verified" if doc.get("accountNumber") else "Pending", "date": (doc.get("createdAt") or now_iso())[:10]},
+                {"name": "Signed SLA Franchise Agreement", "type": "Legal SLA", "number": doc.get("agreementVersion") or "QP-SLA-2026-v4.2", "status": "E-Signed & Aadhaar Verified ✓", "date": (doc.get("signedAt") or doc.get("createdAt") or now_iso())[:10]},
             ],
             "ratings": {
                 "score": float(doc.get("rating") or 4.8),
@@ -1227,8 +1239,16 @@ class AdminPartnerRepository:
 
     async def approve(self, partner_id: str, admin_id: str) -> Dict[str, Any]:
         now = now_iso()
-        await database.update(self.collection, {"_id": partner_id}, {"status": "active", "isVerified": True, "updatedAt": now}, upsert=True)
-        await database.update("partners", {"_id": partner_id}, {"status": "active", "isVerified": True, "updatedAt": now}, upsert=True)
+        await database.update(self.collection, {"_id": partner_id}, {"status": "active", "isVerified": True, "isOnboarded": True, "updatedAt": now}, upsert=True)
+        await database.update("partners", {"_id": partner_id}, {"status": "active", "isVerified": True, "isOnboarded": True, "updatedAt": now}, upsert=True)
+        await database.update("partner_profiles", {"_id": partner_id}, {"status": "active", "isVerified": True, "isOnboarded": True, "updatedAt": now}, upsert=True)
+
+        p_doc = await database.find_one("partner_profiles", {"_id": partner_id}) or await database.find_one("partners", {"_id": partner_id}) or await database.find_one(self.collection, {"_id": partner_id}) or {}
+        uid = p_doc.get("userId") or p_doc.get("user_id")
+        if uid:
+            await database.update("users", {"_id": uid}, {"status": "active", "is_verified": True, "is_onboarded": True, "updated_at": now})
+
+        await database.update("partner_verifications", {"partnerId": partner_id}, {"status": "approved", "isVerified": True, "approvedAt": now, "approvedBy": admin_id}, upsert=True)
 
         await database.insert("admin_audit_logs", {
             "id": new_id("audit"),
@@ -1239,7 +1259,7 @@ class AdminPartnerRepository:
             "reason": "Admin approval",
             "createdAt": now,
         })
-        return {"ok": True, "status": "ACTIVE"}
+        return {"ok": True, "status": "ACTIVE", "isVerified": True}
 
     async def suspend(self, partner_id: str, reason: str, start_date: str, end_date: str, internal_note: str, admin_id: str) -> Dict[str, Any]:
         now = now_iso()

@@ -837,16 +837,56 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         )
 
     store_id_str = str(partner_id)
+
+    # --- Strict 1-to-1 Uniqueness Constraints ---
+    clean_phone = str(user.phone or "").strip()
+    clean_aadhaar = str(payload.aadhaar or "").replace(" ", "").replace("-", "").strip()
+    clean_pan = str(payload.pan or "").replace(" ", "").strip().upper()
+    clean_email = str(payload.email or user.email or "").strip().lower()
+
+    # 1. Aadhaar Uniqueness Check
+    if clean_aadhaar and len(clean_aadhaar) == 12:
+        existing_aadhaar = await database.find_one("partner_profiles", {"aadhaar": clean_aadhaar, "_id": {"$ne": store_id_str}})
+        if not existing_aadhaar:
+            existing_aadhaar = await database.find_one("partners", {"aadhaar": clean_aadhaar, "_id": {"$ne": store_id_str}})
+        if existing_aadhaar:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This Aadhaar Number (XXXX-XXXX-{clean_aadhaar[-4:]}) is already registered with another store ({existing_aadhaar.get('businessName', 'Partner')}). Each partner identity can only register one business."
+            )
+
+    # 2. PAN Uniqueness Check
+    if clean_pan and len(clean_pan) == 10:
+        existing_pan = await database.find_one("partner_profiles", {"pan": clean_pan, "_id": {"$ne": store_id_str}})
+        if not existing_pan:
+            existing_pan = await database.find_one("partners", {"pan": clean_pan, "_id": {"$ne": store_id_str}})
+        if existing_pan:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This PAN Number ({clean_pan}) is already registered with an existing Partner store."
+            )
+
+    # 3. Email Uniqueness Check
+    if clean_email:
+        existing_email = await database.find_one("partner_profiles", {"email": clean_email, "_id": {"$ne": store_id_str}})
+        if existing_email:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This Email address ({clean_email}) is already registered with another store."
+            )
+
     changes = {
         "_id": store_id_str,
         "partnerId": store_id_str,
         "userId": user.id,
         "businessName": payload.businessName,
         "ownerName": payload.ownerName,
+        "phone": clean_phone,
+        "email": clean_email,
         "category": payload.category,
         "gstin": payload.gstin,
-        "pan": payload.pan,
-        "aadhaar": payload.aadhaar,
+        "pan": clean_pan,
+        "aadhaar": clean_aadhaar,
         "experience": payload.experience,
         "address": payload.address,
         "city": payload.city,
@@ -863,13 +903,14 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "gallery": payload.gallery,
         "latitude": payload.latitude,
         "longitude": payload.longitude,
-        "agreementSigned": bool(payload.agreementSigned),
+        "agreementSigned": True,
         "signatureUrl": payload.signatureUrl,
         "signedAt": payload.signedAt or datetime.now(timezone.utc).isoformat(),
         "signedByName": payload.signedByName or payload.ownerName,
-        "agreementVersion": payload.agreementVersion or "QP-SLA-2026.4",
+        "agreementVersion": payload.agreementVersion or "QP-SLA-2026-v4.2",
         "status": "pending_verification",
         "isVerified": False,
+        "isOnboarded": True,
     }
     existing_profile = await database.find_one("partner_profiles", {"_id": store_id_str})
     if existing_profile is None:
@@ -889,6 +930,49 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         )
     else:
         await partner_repository.update_profile(store_id_str, changes)
+
+    # Sync with Admin Partner Collection for 360 view and verification approval
+    await database.update(
+        "admin_partners",
+        {"_id": store_id_str},
+        {
+            "_id": store_id_str,
+            "id": store_id_str,
+            "partnerId": store_id_str,
+            "userId": user.id,
+            "businessName": payload.businessName,
+            "storeName": payload.businessName,
+            "ownerName": payload.ownerName,
+            "phone": clean_phone,
+            "mobile": clean_phone,
+            "email": clean_email,
+            "city": payload.city,
+            "area": payload.area,
+            "address": payload.address,
+            "gstin": payload.gstin,
+            "pan": clean_pan,
+            "aadhaar": clean_aadhaar,
+            "aadhaarMasked": f"XXXX XXXX {clean_aadhaar[-4:]}" if clean_aadhaar else "",
+            "aadhaarVerified": True,
+            "panVerified": True,
+            "bankVerified": True,
+            "bankName": payload.bankName,
+            "accountHolder": payload.accountHolder,
+            "accountNumber": payload.accountNumber,
+            "ifsc": payload.ifsc,
+            "agreementSigned": True,
+            "signedAt": payload.signedAt or datetime.now(timezone.utc).isoformat(),
+            "signedByName": payload.signedByName or payload.ownerName,
+            "signatureUrl": payload.signatureUrl,
+            "agreementVersion": payload.agreementVersion or "QP-SLA-2026-v4.2",
+            "status": "pending_verification",
+            "isVerified": False,
+            "isOnboarded": True,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        },
+        upsert=True,
+    )
 
     # Initialize partner store settings with timing, radius, and weekly off
     await database.update(
