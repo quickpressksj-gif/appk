@@ -19,7 +19,7 @@ import {
   formatOrderDate,
   formatOrderTime,
   timeOfStatus,
-} from "../mock/mappers";
+} from "@/shared/utils/order-mappers";
 import { apiGetJson, apiPostJson } from "../core/transport";
 
 export const ORDER_API_ENDPOINTS = {
@@ -260,7 +260,7 @@ import type { OrderLifecycleStatus } from "@/shared/types";
 
 
 import { readScopedCache, readStaleScopedCache, writeScopedCache } from "./api/cache";
-import { formatOrderDate as fmtDate, formatOrderTime as fmtTime } from "../mock/mappers";
+import { formatOrderDate as fmtDate, formatOrderTime as fmtTime } from "@/shared/utils/order-mappers";
 
 export const ORDER_TRACKING_ENDPOINTS = {
   orders: "/api/orders",

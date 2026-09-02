@@ -46,7 +46,8 @@ import {
   type ApiInspectorEntry,
   type DevRole,
 } from "@backend/dev/dev-api";
-import { subscribeDb } from "@backend/mock/db";
+
+const subscribeDb = (_fn: () => void) => () => {};
 
 
 const STATUS_FILTERS = [

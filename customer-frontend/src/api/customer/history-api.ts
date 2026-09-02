@@ -13,7 +13,7 @@
 
 import type { Order, OrderLifecycleStatus, ServiceEntity } from "@/shared/types";
 
-import { formatOrderDate, formatOrderTime } from "../mock/mappers";
+import { formatOrderDate, formatOrderTime } from "@/shared/utils/order-mappers";
 import { apiGetJson, apiPostJson } from "../core/transport";
 import { CACHE_KEYS, readCache, readStaleCache, writeCache } from "./api/cache";
 import { hydrateCart } from "./cart-store";

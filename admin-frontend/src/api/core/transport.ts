@@ -37,18 +37,7 @@ export function transportMode(): TransportMode {
   return "http";
 }
 
-/**
- * Development fixtures are loaded lazily so no mock code is reachable from a
- * production bundle. `transportMode()` already refuses to return "mock" in
- * production, so this import can never execute there.
- */
-async function loadMockRouter() {
-  if (!import.meta.env.DEV) {
-    throw new ApiError("unconfigured", "Mock transport is not available in this build");
-  }
-  const mod = await import("../mock/server");
-  return mod.handleMockRequest;
-}
+
 
 function withQuery(path: string, params?: QueryParams): string {
   const entries = Object.entries(params ?? {}).filter(
@@ -136,16 +125,7 @@ export async function apiRequest<T>(
   const startedAt = Date.now();
   const fullPath = withQuery(path, options.params);
   try {
-    const runOnce = () =>
-      mode === "http"
-        ? httpRequest<T>(method, path, options)
-        : loadMockRouter().then((handleMockRequest) =>
-            handleMockRequest<T>(method, fullPath, {
-              body: options.body,
-              token: options.anonymous ? null : readToken(),
-              signal: options.signal ?? null,
-            }),
-          );
+    const runOnce = () => httpRequest<T>(method, path, options);
 
     let result: T;
     try {
