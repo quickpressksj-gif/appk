@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -121,11 +122,12 @@ import { readSession } from "@/api/core/session-store";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useLocation();
 
   // 🛡️ Global Strict Authentication & Onboarding Guard
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const pathname = window.location.pathname;
+    const pathname = location.pathname;
     const publicPaths = ["/", "/auth", "/otp"];
     const isPublic = publicPaths.some(
       (p) => pathname === p || pathname.startsWith("/auth") || pathname.startsWith("/otp")
@@ -134,7 +136,9 @@ function RootComponent() {
 
     const sess = readSession("rider") || readSession();
     if (!sess || !sess.token) {
-      window.location.replace("/auth");
+      if (pathname !== "/auth") {
+        window.location.replace("/auth");
+      }
       return;
     }
 
@@ -159,7 +163,7 @@ function RootComponent() {
       window.location.replace("/registration-submitted");
       return;
     }
-  }, []);
+  }, [location.pathname]);
 
   return (
     <QueryClientProvider client={queryClient}>

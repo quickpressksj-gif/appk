@@ -1,21 +1,25 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
+  Award,
   Bike,
   CheckCircle2,
   IndianRupee,
   Loader2,
+  Lock,
+  MapPin,
   Phone,
   ShieldCheck,
   Sparkles,
   Timer,
+  TrendingUp,
+  X,
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
-
 import { riderAssets } from "../assets/rider-assets";
 import { useRiderContext } from "../context/RiderContext";
 import { validateMobile } from "../lib/rider-validation";
@@ -25,18 +29,21 @@ import { loginWithGoogle, rememberRiderLogin, requestOtp } from "@/api/rider/rid
 const HIGHLIGHTS = [
   {
     icon: IndianRupee,
-    title: "Daily Payouts",
-    desc: "Instant bank transfers per delivery",
+    title: "Daily Direct Payouts",
+    desc: "Instant UPI & bank transfers per trip",
+    badge: "100% Instant",
   },
   {
     icon: Timer,
     title: "Flexible Shifts",
-    desc: "Log in & earn whenever you want",
+    desc: "Work on your time, part-time or full-time",
+    badge: "Own Schedule",
   },
   {
     icon: ShieldCheck,
-    title: "100% Insured",
-    desc: "Accidental & trip cover included",
+    title: "₹5,00,000 Insurance",
+    desc: "Free accidental & health coverage on road",
+    badge: "Free Cover",
   },
 ];
 
@@ -133,7 +140,7 @@ export function RiderAuthScreen() {
       }
     } catch (cause) {
       toast.error(
-        cause instanceof Error ? cause.message : "Google sign-in could not be completed.",
+        cause instanceof Error ? cause.message : "Google sign-in could not be completed."
       );
     } finally {
       setGoogleBusy(false);
@@ -148,179 +155,248 @@ export function RiderAuthScreen() {
   };
 
   return (
-    <main className="relative min-h-screen bg-slate-50/50 text-slate-900">
-      {/* Background soft ambient glow */}
-      <div className="pointer-events-none absolute -top-24 left-1/2 size-96 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+    <main className="relative min-h-screen bg-slate-950 text-white selection:bg-emerald-500 selection:text-black">
+      <Toaster position="top-center" richColors />
 
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-4 pb-8 pt-6 lg:max-w-4xl lg:justify-center lg:py-12">
+      {/* Radiant ambient glow orbs */}
+      <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 size-96 rounded-full bg-teal-500/10 blur-[140px]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-5 pb-8 pt-6 lg:max-w-5xl lg:justify-center lg:py-12">
         {/* Top App Bar Branding */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black leading-none tracking-[-0.04em]">
-                <span className="text-zinc-950 font-black">Quick</span>
-                <span className="text-emerald-600 font-black">Press</span>
-              </h1>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
-                CAPTAIN
-              </span>
+        <header className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-black shadow-lg shadow-emerald-500/25">
+              <Bike className="size-5.5 stroke-[2.5]" />
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">
-              Captain · Pickup · Delivery
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700 border border-emerald-200">
-            <Sparkles className="size-3 text-emerald-600" />
-            Join Fleet
-          </span>
-        </div>
-
-        <div className="my-auto pt-6 lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
-          {/* Left Hero Card */}
-          <div className="space-y-4">
-            <section className="relative overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-xl border border-slate-800">
-              <div className="pointer-events-none absolute -right-6 -top-6 size-36 rounded-full bg-emerald-500/20 blur-2xl" />
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <Zap className="size-3.5 fill-current" />
-                <p className="text-[10px] font-black uppercase tracking-wider">
-                  Captain Portal
-                </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black tracking-tight text-white">
+                  Quick<span className="text-emerald-400">Press</span>
+                </h1>
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30">
+                  CAPTAIN
+                </span>
               </div>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                Deliver Orders, Earn Daily &amp; Grow as a Captain
-              </h1>
-              <p className="mt-1 text-xs text-slate-300">
-                Join Kasganj &amp; Uttar Pradesh&apos;s leading on-demand laundry delivery Captain network.
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                On-Demand Delivery Fleet
               </p>
-              <img
-                src={riderAssets.courier}
-                alt="QuickPress Delivery Captain"
-                className="mx-auto mt-3 h-32 w-auto object-contain drop-shadow-md sm:h-40"
-                loading="lazy"
-              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-300">
+            <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Kasganj Hub Active</span>
+          </div>
+        </header>
+
+        {/* Main Content Layout */}
+        <div className="my-auto py-8 lg:grid lg:grid-cols-12 lg:items-center lg:gap-12">
+          {/* Left Column: Hero & Benefits */}
+          <div className="space-y-5 lg:col-span-7">
+            {/* Hero Card */}
+            <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-emerald-950/40 p-6 backdrop-blur-xl shadow-2xl">
+              <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-emerald-500/20 blur-3xl" />
+
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Zap className="size-4 fill-emerald-400" />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  Captain Partner Portal
+                </span>
+              </div>
+
+              <h2 className="mt-2 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+                Deliver Laundry, Earn Daily &amp; Grow with{" "}
+                <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
+                  QuickPress
+                </span>
+              </h2>
+
+              <p className="mt-2 text-xs font-medium leading-relaxed text-slate-300 sm:text-sm">
+                Join Kasganj &amp; Uttar Pradesh’s highest-rated delivery network. Earn up to{" "}
+                <span className="font-bold text-emerald-400">₹25,000+/month</span> with zero joining fee.
+              </p>
+
+              {/* Earnings Ticker Strip */}
+              <div className="mt-5 flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="size-4 text-emerald-400" />
+                  <span className="font-bold text-slate-200">Average Payout / Order:</span>
+                </div>
+                <span className="font-black text-emerald-300 text-sm">₹45 - ₹120 + 100% Tips</span>
+              </div>
+
+              <div className="mt-4 flex justify-center">
+                <img
+                  src={riderAssets.courier}
+                  alt="QuickPress Delivery Captain"
+                  className="h-32 w-auto object-contain drop-shadow-2xl sm:h-40"
+                  loading="lazy"
+                />
+              </div>
             </section>
 
-            {/* Value Highlights */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* 3 Highlight Cards */}
+            <div className="grid grid-cols-3 gap-2.5">
               {HIGHLIGHTS.map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm text-center"
+                  className="group relative rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 backdrop-blur-md transition-all duration-200 hover:border-emerald-500/40 hover:bg-slate-900/90"
                 >
-                  <span className="mx-auto flex size-8 items-center justify-center rounded-xl bg-slate-100 text-slate-800 mb-1.5">
-                    <item.icon className="size-4" strokeWidth={2.2} />
-                  </span>
-                  <p className="text-[11px] font-black text-slate-900">{item.title}</p>
-                  <p className="text-[9px] font-medium text-slate-500 line-clamp-1">{item.desc}</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 transition-transform group-hover:scale-110">
+                      <item.icon className="size-4 stroke-[2.3]" />
+                    </span>
+                    <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-black text-emerald-400 border border-emerald-500/20">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs font-black text-white">{item.title}</p>
+                  <p className="mt-0.5 text-[9px] font-medium text-slate-400 line-clamp-1">{item.desc}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Right Login Box */}
-          <div className="mt-5 lg:mt-0">
-            <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-lg">
-              <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <Phone className="size-3.5" />
-                </span>
-                <h2 className="text-base font-black tracking-tight text-slate-900">
-                  Captain Mobile Login
-                </h2>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">
-                Enter your 10-digit mobile number to log in or create a new delivery Captain account.
-              </p>
-
-              {/* Mobile Phone Input Box */}
-              <div className="mt-4">
-                <label
-                  htmlFor="rider-phone"
-                  className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5"
-                >
-                  Captain Mobile Number
-                </label>
-                <div
-                  className={`flex items-center gap-2.5 rounded-2xl border bg-slate-50 px-3.5 py-3 transition-all duration-200 focus-within:border-slate-900 focus-within:bg-white focus-within:ring-2 focus-within:ring-slate-900/10 ${
-                    error ? "border-rose-400 bg-rose-50/50" : "border-slate-200"
-                  }`}
-                >
-                  <span className="flex items-center gap-1 text-sm font-extrabold text-slate-800">
-                    🇮🇳 +91
+          {/* Right Column: Phone Login Card */}
+          <div className="mt-6 lg:col-span-5 lg:mt-0">
+            <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/95 to-slate-950/95 p-6 backdrop-blur-2xl shadow-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <Phone className="size-4.5" />
                   </span>
-                  <span className="h-5 w-px bg-slate-300" />
-                  <input
-                    id="rider-phone"
-                    type="tel"
-                    inputMode="numeric"
-                    autoComplete="tel"
-                    maxLength={11}
-                    placeholder="98765 43210"
-                    value={formatDisplayValue(value)}
-                    aria-invalid={Boolean(error)}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
-                      setValue(cleaned);
-                      setError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        void handleContinue();
-                      }
-                    }}
-                    className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
-                  />
+                  <div>
+                    <h3 className="text-base font-black tracking-tight text-white">
+                      Captain Mobile Login
+                    </h3>
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      OTP Authentication · Login or Register
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                  Step 1 of 2
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label
+                    htmlFor="rider-phone"
+                    className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5"
+                  >
+                    Mobile Number
+                  </label>
+                  <div
+                    className={`flex items-center gap-3 rounded-2xl border bg-slate-950/80 px-4 py-3.5 transition-all duration-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 ${
+                      error ? "border-rose-500 bg-rose-950/20" : "border-white/10"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-black text-emerald-400">
+                      🇮🇳 +91
+                    </span>
+                    <span className="h-5 w-px bg-white/15" />
+                    <input
+                      id="rider-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={11}
+                      placeholder="98765 43210"
+                      value={formatDisplayValue(value)}
+                      aria-invalid={Boolean(error)}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setValue(cleaned);
+                        setError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          void handleContinue();
+                        }
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-white outline-none placeholder:text-slate-500 placeholder:font-normal"
+                    />
+                    {value ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValue("");
+                          setError(null);
+                        }}
+                        className="rounded-full p-1 text-slate-400 hover:text-white"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {error ? (
+                    <p role="alert" className="mt-1.5 text-xs font-bold text-rose-400">
+                      {error}
+                    </p>
+                  ) : null}
                 </div>
 
-                {error ? (
-                  <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">
-                    {error}
-                  </p>
-                ) : null}
+                {/* Instant Verification Hint */}
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-[11px] text-emerald-300">
+                  <Sparkles className="size-3.5 shrink-0 text-emerald-400" />
+                  <span>Enter active mobile number. Dev OTP: <strong>123456</strong></span>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="button"
+                  disabled={busy || value.replace(/\D/g, "").length < 10}
+                  onClick={() => void handleContinue()}
+                  className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 py-3.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:shadow-emerald-500/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? (
+                    <Loader2 className="size-4.5 animate-spin text-slate-950" />
+                  ) : (
+                    <>
+                      <span>Get 6-Digit OTP</span>
+                      <ArrowRight className="size-4.5 stroke-[2.5] transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </button>
+
+                {/* Separator */}
+                <div className="flex items-center gap-3 my-2">
+                  <span className="h-px flex-1 bg-white/10" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    or
+                  </span>
+                  <span className="h-px flex-1 bg-white/10" />
+                </div>
+
+                {/* Google Sign In */}
+                <button
+                  type="button"
+                  disabled={googleBusy}
+                  onClick={handleGoogle}
+                  className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white/5 py-3 text-xs font-black text-white shadow-sm transition-all duration-200 hover:bg-white/10 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {googleBusy ? <Loader2 className="size-4 animate-spin" /> : <GoogleGlyph />}
+                  <span>Continue with Google</span>
+                </button>
               </div>
 
-              {/* Submit CTA */}
-              <button
-                type="button"
-                disabled={busy || value.replace(/\D/g, "").length < 10}
-                onClick={() => void handleContinue()}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-3.5 text-xs font-black tracking-tight text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-                Send OTP
-                {busy ? null : <ArrowRight className="size-4" strokeWidth={2.5} />}
-              </button>
-
-              {/* Social Login Separator */}
-              <div className="my-3.5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-slate-100" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  or
-                </span>
-                <span className="h-px flex-1 bg-slate-100" />
-              </div>
-
-              {/* Google Sign In */}
-              <button
-                type="button"
-                disabled={googleBusy}
-                onClick={handleGoogle}
-                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-3 text-xs font-black tracking-tight text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60"
-              >
-                {googleBusy ? <Loader2 className="size-4 animate-spin" /> : <GoogleGlyph />}
-                Continue with Google
-              </button>
-
-              <div className="mt-4 rounded-xl bg-slate-50 p-2.5 text-center border border-slate-100">
-                <p className="text-[10px] font-semibold text-slate-500">
-                  New Captain? Enter mobile number to start simple 2-minute registration.
-                </p>
+              {/* Security Trust Footnote */}
+              <div className="mt-5 flex items-center justify-center gap-2 border-t border-white/10 pt-4 text-[10px] font-semibold text-slate-400">
+                <Lock className="size-3 text-emerald-400" />
+                <span>256-Bit Encrypted · UIDAI &amp; NPCI Compliant</span>
               </div>
             </section>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="border-t border-white/10 pt-4 text-center text-[10px] font-semibold text-slate-500">
+          QuickPress Delivery Fleet &copy; 2026 · Kasganj Operations Hub · Support: 1800-QUICKPRESS
+        </footer>
       </div>
-      <Toaster />
     </main>
   );
 }

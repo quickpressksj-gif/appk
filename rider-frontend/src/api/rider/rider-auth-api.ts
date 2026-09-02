@@ -294,7 +294,7 @@ export async function fetchOnboardingStatus(phone?: string, riderId?: string) {
 }
 
 /** Check if Admin has approved the rider in backend/MongoDB. */
-export async function checkRiderVerificationStatus(riderId: string): Promise<boolean> {
+export async function checkRiderVerificationStatus(riderId?: string, phone?: string): Promise<boolean> {
   try {
     const res = await apiGetJson<{
       id: string;
@@ -302,11 +302,19 @@ export async function checkRiderVerificationStatus(riderId: string): Promise<boo
       status?: string;
       kycStatus?: string;
     }>(`/api/rider/profile`);
-    return Boolean(res.isVerified && (res.status === "active" || res.kycStatus === "verified"));
+    if (Boolean(res.isVerified && (res.status === "active" || res.kycStatus === "verified"))) {
+      return true;
+    }
   } catch {
-    const onboarding = await fetchOnboardingStatus(undefined, riderId).catch(() => null);
-    return Boolean(onboarding?.isVerified && onboarding?.status === "active");
+    /* ignore and try onboarding status */
   }
+
+  const onboarding = await fetchOnboardingStatus(phone, riderId).catch(() => null);
+  return Boolean(
+    onboarding?.isVerified ||
+      onboarding?.status === "active" ||
+      onboarding?.status === "approved"
+  );
 }
 
 export async function getMe(): Promise<{

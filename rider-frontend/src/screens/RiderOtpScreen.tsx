@@ -1,5 +1,15 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Loader2, MessageSquareLock, RotateCcw, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Edit2,
+  Loader2,
+  Lock,
+  MessageSquareLock,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -50,24 +60,31 @@ export function RiderOtpScreen() {
 
       // Fast check real onboarding status to avoid any intermediate flash
       const statusRes = await fetchOnboardingStatus(targetPhone).catch(() => null);
-      const isActuallyOnboarded = Boolean(session.isOnboarded || statusRes?.isOnboarded || statusRes?.status === "active" || statusRes?.status === "pending");
-      const isActuallyVerified = Boolean(session.isVerified || (statusRes?.isVerified && statusRes?.status === "active"));
+      const isActuallyOnboarded = Boolean(
+        session.isOnboarded ||
+          statusRes?.isOnboarded ||
+          statusRes?.status === "active" ||
+          statusRes?.status === "pending"
+      );
+      const isActuallyVerified = Boolean(
+        session.isVerified || (statusRes?.isVerified && statusRes?.status === "active")
+      );
 
       if (isActuallyVerified) {
-        toast.success(`Welcome back, ${session.fullName || "Captain"}!`);
+        toast.success(`Welcome back, Captain ${session.fullName || ""}! 🚀`);
         navigate({ to: riderRoutes.dashboard });
       } else if (isActuallyOnboarded) {
-        toast.success("Mobile number verified!");
+        toast.success("Mobile number verified! Checking approval status...");
         navigate({ to: riderRoutes.registrationSubmitted });
       } else {
-        toast.success("Mobile number verified! Please complete registration.");
+        toast.success("Mobile verified! Complete your 2-minute registration.");
         navigate({ to: riderRoutes.registration });
       }
     } catch (cause) {
       setDigits("");
       inputRef.current?.focus();
       toast.error(
-        cause instanceof Error ? cause.message : "That OTP is incorrect. Please try again.",
+        cause instanceof Error ? cause.message : "That OTP is incorrect. Please try again."
       );
     } finally {
       setBusy(false);
@@ -87,48 +104,74 @@ export function RiderOtpScreen() {
       restart();
       setDigits("");
       inputRef.current?.focus();
-      toast.success("OTP sent again to your mobile number");
+      toast.success("New OTP sent to your mobile number");
     } catch (cause) {
       toast.error(
-        cause instanceof Error ? cause.message : "Could not resend OTP. Please try again.",
+        cause instanceof Error ? cause.message : "Could not resend OTP. Please try again."
       );
     }
   };
 
   return (
-    <main className="relative min-h-screen bg-slate-50/50 text-slate-900">
-      <div className="pointer-events-none absolute -top-24 left-1/2 size-96 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+    <main className="relative min-h-screen bg-slate-950 text-white selection:bg-emerald-500 selection:text-black">
+      <Toaster position="top-center" richColors />
 
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-4 pb-8 pt-6">
+      {/* Radiant ambient glow orbs */}
+      <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-teal-500/10 blur-[140px]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-5 pb-8 pt-6">
         {/* Header */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between border-b border-white/10 pb-4">
           <button
             type="button"
             onClick={() => navigate({ to: riderRoutes.auth })}
-            className="flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.95]"
+            className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-sm transition-all hover:bg-white/10 active:scale-[0.95]"
           >
-            <ArrowLeft className="size-4.5" />
+            <ArrowLeft className="size-5" />
           </button>
-          <span className="text-xs font-black text-slate-900">Verification</span>
-          <div className="size-9" />
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-300">
+            <ShieldCheck className="size-3.5 text-emerald-400" />
+            <span>Step 2 of 2 · Verification</span>
+          </div>
+          <div className="size-10" />
         </header>
 
         {/* OTP Input Card */}
         <div className="my-auto py-6">
-          <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-lg">
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 shadow-sm">
-              <MessageSquareLock className="size-6" strokeWidth={2.2} />
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/95 to-slate-950/95 p-6 backdrop-blur-2xl shadow-2xl">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/25">
+              <MessageSquareLock className="size-7 stroke-[2.2]" />
             </span>
-            <h1 className="mt-3.5 text-xl font-black tracking-tight text-slate-900">
+
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-white">
               Enter 6-Digit OTP
             </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              We have sent a verification code to{" "}
-              <span className="font-bold text-slate-900">{displayPhone()}</span>
-            </p>
+
+            <div className="mt-1 flex items-center justify-between">
+              <p className="text-xs font-medium text-slate-400">
+                Code sent to <span className="font-bold text-white">{displayPhone()}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate({ to: riderRoutes.auth })}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300"
+              >
+                <Edit2 className="size-3" />
+                Change
+              </button>
+            </div>
+
+            {/* Test Helper Tip */}
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-[11px] text-emerald-300">
+              <Sparkles className="size-3.5 shrink-0 text-emerald-400" />
+              <span>
+                Dev / Testing Mode: Enter <strong>123456</strong> for instant login
+              </span>
+            </div>
 
             {/* OTP Digits Grid */}
-            <div className="mt-5">
+            <div className="mt-6">
               <div className="relative">
                 <input
                   ref={inputRef}
@@ -148,12 +191,12 @@ export function RiderOtpScreen() {
                     return (
                       <div
                         key={i}
-                        className={`flex h-13 sm:h-14 items-center justify-center rounded-xl border text-xl font-black tracking-tight shadow-sm transition-all duration-200 ${
+                        className={`flex h-14 sm:h-15 items-center justify-center rounded-2xl border text-2xl font-black tracking-tight shadow-sm transition-all duration-200 ${
                           isCurrent
-                            ? "border-slate-900 bg-slate-50 ring-2 ring-slate-900/15"
+                            ? "border-emerald-400 bg-emerald-500/10 ring-2 ring-emerald-400/30 text-emerald-300 scale-105"
                             : isFilled
-                              ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 font-black"
-                              : "border-slate-200 bg-slate-50/50 text-slate-900"
+                              ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-300"
+                              : "border-white/10 bg-slate-950/80 text-white"
                         }`}
                       >
                         {digits[i] ?? ""}
@@ -168,42 +211,49 @@ export function RiderOtpScreen() {
                 type="button"
                 disabled={busy || digits.length !== 6}
                 onClick={() => void handleVerify()}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-3.5 text-xs font-black tracking-tight text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 py-3.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:shadow-emerald-500/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-                Verify &amp; Proceed
+                {busy ? (
+                  <Loader2 className="size-5 animate-spin text-slate-950" />
+                ) : (
+                  <>
+                    <CheckCircle2 className="size-5 stroke-[2.5]" />
+                    <span>Verify &amp; Continue</span>
+                  </>
+                )}
               </button>
 
               {/* Resend Action */}
-              <div className="mt-4 flex items-center justify-between pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: riderRoutes.auth })}
-                  className="text-[11px] font-bold text-slate-500 hover:text-slate-900"
-                >
-                  Change mobile number
-                </button>
+              <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
+                <span className="text-[11px] font-medium text-slate-400">
+                  Didn&apos;t receive code?
+                </span>
 
                 <button
                   type="button"
                   disabled={!canResend}
                   onClick={() => void handleResend()}
-                  className="flex items-center gap-1 text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 text-xs font-black text-emerald-400 hover:text-emerald-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
-                  <RotateCcw className="size-3" />
-                  {canResend ? "Resend OTP" : `Resend in ${remaining}s`}
+                  <RotateCcw className="size-3.5" />
+                  {canResend ? "Resend OTP Now" : `Resend in ${remaining}s`}
                 </button>
               </div>
+            </div>
+
+            {/* Security Note */}
+            <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-white/10 pt-4 text-[10px] font-semibold text-slate-400">
+              <Lock className="size-3 text-emerald-400" />
+              <span>Verified via UIDAI / Telecom Gateway</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="text-center text-[10px] text-slate-400">
-          Need help? Contact QuickPress Rider Support: 1800-QUICKPRESS
+        <footer className="border-t border-white/10 pt-4 text-center text-[10px] font-semibold text-slate-500">
+          QuickPress Rider Support Helpline: 1800-QUICKPRESS
         </footer>
       </div>
-      <Toaster />
     </main>
   );
 }
