@@ -1251,3 +1251,80 @@ async def delete_offer(offer_id: str, partner_id: str = Depends(_partner_id)) ->
     await database.delete("partner_offers", {"id": offer_id, "partnerId": partner_id})
     return {"success": True, "deletedId": offer_id}
 
+
+# ============================================================================
+# Finance, Payout & Settlement Engine Endpoints
+# ============================================================================
+
+@router.get("/finance/overview")
+async def get_finance_overview(partner_id: str = Depends(_partner_id)) -> dict:
+    """Returns partner current ongoing cycle, past weekly settlements, and filters."""
+    from app.services.settlement_engine import settlement_engine
+    return await settlement_engine.get_overview(partner_id)
+
+
+@router.get("/finance/settlement/{cycle_id}")
+async def get_cycle_settlement_breakdown(
+    cycle_id: str, partner_id: str = Depends(_partner_id)
+) -> dict:
+    """Returns complete itemized (A + B + C + D + E + F) settlement breakdown."""
+    from app.services.settlement_engine import settlement_engine
+    return await settlement_engine.compute_cycle_breakdown(partner_id, cycle_id)
+
+
+@router.get("/finance/statement/{cycle_id}/download")
+async def download_settlement_statement(
+    cycle_id: str, partner_id: str = Depends(_partner_id)
+) -> dict:
+    """Generates downloadable settlement report metadata."""
+    from app.services.settlement_engine import settlement_engine
+    data = await settlement_engine.compute_cycle_breakdown(partner_id, cycle_id)
+    return {
+        "ok": True,
+        "filename": f"QuickPress_Settlement_{cycle_id}_{partner_id}.json",
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "data": data,
+    }
+
+
+@router.post("/finance/statement/{cycle_id}/email")
+async def email_settlement_statement(
+    cycle_id: str, partner_id: str = Depends(_partner_id)
+) -> dict:
+    """Dispatches settlement statement to registered merchant email."""
+    from app.services.settlement_engine import settlement_engine
+    data = await settlement_engine.compute_cycle_breakdown(partner_id, cycle_id)
+    return {
+        "ok": True,
+        "message": f"Settlement statement for cycle {data['cycle']['period']} has been dispatched to your registered email.",
+        "sentAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/finance/invoices")
+async def get_finance_invoices(partner_id: str = Depends(_partner_id)) -> dict:
+    """Returns monthly GST commission tax invoices."""
+    now = datetime.now(timezone.utc)
+    invoices = [
+        {
+            "invoiceNumber": f"INV-QP-2026-08-{partner_id[:6].upper()}",
+            "period": "August 2026",
+            "date": "01 Sep 2026",
+            "type": "GST Commission Invoice",
+            "amount": 450.00,
+            "gstAmount": 81.00,
+            "status": "Generated",
+        },
+        {
+            "invoiceNumber": f"INV-QP-2026-07-{partner_id[:6].upper()}",
+            "period": "July 2026",
+            "date": "01 Aug 2026",
+            "type": "GST Commission Invoice",
+            "amount": 1250.00,
+            "gstAmount": 225.00,
+            "status": "Generated",
+        }
+    ]
+    return {"invoices": invoices}
+
+

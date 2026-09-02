@@ -45,9 +45,10 @@ export const partnerRoutes = {
  * Mobile Zomato-style 5 primary operational bottom navigation tabs.
  */
 export const partnerTabs = [
-  { id: "dashboard", label: "Home", icon: LayoutDashboard, to: partnerRoutes.dashboard },
+  { id: "dashboard", label: "Hub", icon: LayoutDashboard, to: partnerRoutes.dashboard },
   { id: "orders", label: "Orders", icon: ListOrdered, to: partnerRoutes.orders },
-  { id: "earnings", label: "Payouts", icon: BarChart3, to: partnerRoutes.earnings },
+  { id: "services", label: "Services", icon: Sparkles, to: partnerRoutes.services },
+  { id: "earnings", label: "Finance", icon: Wallet, to: partnerRoutes.earnings },
   { id: "profile", label: "More", icon: UserRound, to: partnerRoutes.profile },
 ] as const;
 
