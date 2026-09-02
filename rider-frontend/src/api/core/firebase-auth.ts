@@ -129,11 +129,15 @@ function mapFirebaseError(error: unknown): ApiError {
 
 /** Step 1 of phone login — sends the SMS OTP through Firebase. */
 export async function sendFirebaseOtp(phoneE164: string): Promise<void> {
+  const digits = phoneE164.replace(/\D/g, "");
+  const normalized = phoneE164.startsWith("+")
+    ? phoneE164
+    : `+91${digits.slice(-10)}`;
   const auth = await firebaseAuth();
   try {
     const { signInWithPhoneNumber } = await import("firebase/auth");
     const verifier = await ensureRecaptcha(auth);
-    pendingConfirmation = await signInWithPhoneNumber(auth, phoneE164, verifier);
+    pendingConfirmation = await signInWithPhoneNumber(auth, normalized, verifier);
   } catch (error) {
     resetRecaptcha();
     throw mapFirebaseError(error);

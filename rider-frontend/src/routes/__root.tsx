@@ -5,6 +5,7 @@ import {
   createRootRouteWithContext,
   useRouter,
   useLocation,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -124,10 +125,10 @@ import { readSession } from "@/api/core/session-store";
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // 🛡️ Global Strict Authentication & Onboarding Guard
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const pathname = location.pathname;
     const publicPaths = ["/", "/auth", "/otp"];
     const isPublic = publicPaths.some(
@@ -138,21 +139,21 @@ function RootComponent() {
     const sess = readSession("rider") || readSession();
     if (!sess || !sess.token) {
       if (pathname !== "/auth") {
-        window.location.replace("/auth");
+        void navigate({ to: "/auth" });
       }
       return;
     }
 
     if (sess.status === "suspended" || (sess as any).isSuspended) {
       if (pathname !== "/suspended") {
-        window.location.replace("/suspended");
+        void navigate({ to: "/suspended" });
       }
       return;
     }
 
     const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
     if (isOnboarded === false && pathname !== "/registration") {
-      window.location.replace("/registration");
+      void navigate({ to: "/registration" });
       return;
     }
 
@@ -161,10 +162,10 @@ function RootComponent() {
       sess.status === "active" ||
       sess.account?.status === "active";
     if (!isVerified && pathname !== "/registration" && pathname !== "/registration-submitted") {
-      window.location.replace("/registration-submitted");
+      void navigate({ to: "/registration-submitted" });
       return;
     }
-  }, [location.pathname]);
+  }, [location.pathname, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -80,6 +80,7 @@ export function RiderProvider({ children }: { children: ReactNode }) {
   // Hydrate the online/offline flag from the backend so a refresh reflects truth.
   useEffect(() => {
     let active = true;
+    if (!session?.token) return;
     void fetchRiderDashboard()
       .then((dashboard) => {
         if (active) setOnline(dashboard.isOnline);

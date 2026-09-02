@@ -69,7 +69,8 @@ export async function sendPhoneOtp(
   );
   try {
     if (isFirebaseConfigured()) {
-      await sendFirebaseOtp(phone);
+      const e164 = phone.startsWith("+") ? phone : `+91${phone.replace(/\D/g, "").slice(-10)}`;
+      await sendFirebaseOtp(e164);
     }
   } catch {
     // Graceful fallback to backend Twilio SMS delivery
