@@ -21,7 +21,7 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
@@ -71,6 +71,10 @@ export function RiderDashboardScreen() {
   const [pendingOrders, setPendingOrders] = useState<RiderOrder[]>([]);
   const [actionBusy, setActionBusy] = useState(false);
 
+  // ⚡ Optimistic sets to prevent 5s polling from re-showing accepted/declined offers
+  const acceptedOrderIds = useRef<Set<string>>(new Set());
+  const declinedOrderIds = useRef<Set<string>>(new Set());
+
   // 📍 Real-time GPS Location Ping & Tracking
   const locationState = useRiderLocation(isOnline);
 
@@ -82,7 +86,12 @@ export function RiderDashboardScreen() {
       ]);
       setData(next);
       const assigned = ordersList.filter(
-        (o) => o.status === "assigned" || (o.stage as any) === "pickup_assigned"
+        (o) =>
+          (o.status === "assigned" || (o.stage as any) === "pickup_assigned") &&
+          !acceptedOrderIds.current.has(o.id) &&
+          !acceptedOrderIds.current.has(o.code) &&
+          !declinedOrderIds.current.has(o.id) &&
+          !declinedOrderIds.current.has(o.code)
       );
       setPendingOrders(assigned);
       if (assigned.length === 0) {
@@ -129,10 +138,15 @@ export function RiderDashboardScreen() {
   const handleAcceptOffer = async (order: RiderOrder) => {
     setActionBusy(true);
     stopOrderAlertRing(); // 🛑 Stop siren immediately!
+    acceptedOrderIds.current.add(order.id);
+    if (order.code) acceptedOrderIds.current.add(order.code);
+
+    // ⚡ Instantaneous optimistic dismissal (0ms delay)
     setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
+    toast.success(`Trip Offer #${order.code || order.id} Accepted! 🚀`);
+
     try {
       await acceptRiderOrder(order.code || order.id);
-      toast.success(`Trip Offer #${order.code || order.id} Accepted! 🚀`);
       await loadData();
       navigate({
         to: riderRoutes.orderDetails,
@@ -150,10 +164,14 @@ export function RiderDashboardScreen() {
   const handleRejectOffer = async (order: RiderOrder) => {
     setActionBusy(true);
     stopOrderAlertRing(); // 🛑 Stop siren immediately!
+    declinedOrderIds.current.add(order.id);
+    if (order.code) declinedOrderIds.current.add(order.code);
+
     setPendingOrders((prev) => prev.filter((o) => o.id !== order.id && o.code !== order.code));
+    toast.info(`Offer #${order.code || order.id} declined`);
+
     try {
       await rejectRiderOrder(order.code || order.id);
-      toast.info(`Offer #${order.code || order.id} declined`);
       await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to decline offer");

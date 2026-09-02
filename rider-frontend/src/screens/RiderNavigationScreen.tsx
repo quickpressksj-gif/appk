@@ -1,12 +1,15 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  CheckCircle2,
   Clock3,
   Compass,
   Crosshair,
   Layers,
   Navigation2,
+  PackageCheck,
   PhoneCall,
+  Store,
   Volume2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -15,12 +18,17 @@ import { toast } from "sonner";
 import { Toaster } from "@/shared/ui/sonner";
 
 import { RiderMapCanvas } from "../components/RiderMapCanvas";
-import { RiderPrimaryButton } from "../components/RiderPrimitives";
+import { RiderBottomSheet, RiderPrimaryButton } from "../components/RiderPrimitives";
 import { RiderMapSkeleton } from "../components/RiderSkeletons";
 import { useRiderResource } from "../hooks/use-rider-resource";
 import { riderRoutes } from "../navigation/rider-routes";
 import { pushRiderLocation } from "@/api/rider/rider-dashboard-api";
-import { fetchRiderOrder } from "@/api/rider/rider-orders-api";
+import {
+  confirmDelivery,
+  confirmDropAtPartner,
+  confirmPickup,
+  fetchRiderOrder,
+} from "@/api/rider/rider-orders-api";
 import {
   computeRoute,
   decodePolyline,
@@ -29,18 +37,6 @@ import {
   type LatLng,
   type RouteResult,
 } from "@/api/core/maps-api";
-
-const FLOW = [
-  "Accept order",
-  "Navigate to customer",
-  "Pickup completed",
-  "Navigate to partner",
-  "Laundry delivered to partner",
-  "Ready for delivery",
-  "Navigate to customer",
-  "OTP verification",
-  "Delivery completed",
-];
 
 const DEFAULT_KASGANJ_CENTER: LatLng = { latitude: 27.8118, longitude: 78.6477 };
 
@@ -61,16 +57,41 @@ function calculateRoadDistanceKm(p1: LatLng, p2: LatLng): number {
 export function RiderNavigationScreen() {
   const navigate = useNavigate();
   const { orderId } = useParams({ from: "/navigate/$orderId" });
-  const { data, isLoading } = useRiderResource(
+  const { data, isLoading, setData } = useRiderResource(
     () => fetchRiderOrder(orderId),
     [orderId],
     `rider_order_${orderId}`
   );
-  const [step, setStep] = useState(1);
+
+  const [phase, setPhase] = useState<"to_customer_pickup" | "to_partner_store" | "to_customer_delivery">(
+    "to_customer_pickup"
+  );
+  const [sheet, setSheet] = useState<null | "pickup" | "delivery">(null);
+  const [otp, setOtp] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   const [riderPoint, setRiderPoint] = useState<LatLng>(DEFAULT_KASGANJ_CENTER);
   const [dropPoint, setDropPoint] = useState<LatLng>({ latitude: 27.8118, longitude: 78.6477 });
   const [pickupPoint, setPickupPoint] = useState<LatLng>({ latitude: 27.8165, longitude: 78.6530 });
   const [route, setRoute] = useState<RouteResult | null>(null);
+
+  // Sync phase from loaded order data
+  useEffect(() => {
+    if (!data) return;
+    const isDelivery =
+      data.taskType === "delivery" ||
+      data.status === "ready-for-delivery" ||
+      data.status === "delivered" ||
+      (data as any).canonicalStatus === "out_for_delivery";
+
+    if (isDelivery) {
+      setPhase("to_customer_delivery");
+    } else if (data.status === "picked" || (data as any).canonicalStatus === "picked_up") {
+      setPhase("to_partner_store");
+    } else {
+      setPhase("to_customer_pickup");
+    }
+  }, [data]);
 
   // Initialize coordinates from order data or geocode address
   useEffect(() => {
@@ -137,12 +158,20 @@ export function RiderNavigationScreen() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [orderId]);
 
-  // Recompute the route whenever the rider moves meaningfully.
+  // Active target destination based on current trip phase
+  const targetDestination = useMemo(() => {
+    if (phase === "to_customer_pickup") {
+      return pickupPoint;
+    }
+    // to_partner_store or to_customer_delivery
+    return dropPoint;
+  }, [phase, pickupPoint, dropPoint]);
+
+  // Recompute the route whenever the rider moves or phase changes
   useEffect(() => {
-    const destination = step >= 4 ? dropPoint : (pickupPoint ?? dropPoint);
-    if (!riderPoint || !destination) return;
+    if (!riderPoint || !targetDestination) return;
     let active = true;
-    void computeRoute(riderPoint, destination)
+    void computeRoute(riderPoint, targetDestination)
       .then((result) => {
         if (active) setRoute(result);
       })
@@ -150,9 +179,8 @@ export function RiderNavigationScreen() {
     return () => {
       active = false;
     };
-  }, [riderPoint, pickupPoint, dropPoint, step]);
+  }, [riderPoint, targetDestination]);
 
-  const targetDestination = step >= 4 ? dropPoint : (pickupPoint ?? dropPoint);
   const calculatedDistance = useMemo(() => {
     if (route?.distanceKm) return route.distanceKm;
     if (data?.distanceKm && data.distanceKm > 0) return data.distanceKm;
@@ -162,7 +190,7 @@ export function RiderNavigationScreen() {
   const calculatedEta = useMemo(() => {
     if (route?.etaMinutes) return route.etaMinutes;
     if (data?.etaMinutes && data.etaMinutes > 0) return data.etaMinutes;
-    return Math.max(6, Math.round(calculatedDistance * 4.5));
+    return Math.max(5, Math.round(calculatedDistance * 4));
   }, [route?.etaMinutes, data?.etaMinutes, calculatedDistance]);
 
   const routePath = useMemo(
@@ -173,9 +201,66 @@ export function RiderNavigationScreen() {
   const etaMinutes = calculatedEta;
   const distanceKm = calculatedDistance;
 
+  // Handle OTP verification right inside the navigation screen
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 4) {
+      toast.error("Enter the 4-digit OTP");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (sheet === "pickup") {
+        await confirmPickup(orderId, otp);
+        setData((prev) => (prev ? { ...prev, status: "picked" as const } : prev));
+        toast.success("Customer Pickup Verified! Now routing to partner store.");
+        setPhase("to_partner_store");
+      } else {
+        await confirmDelivery(orderId, otp);
+        setData((prev) => (prev ? { ...prev, status: "delivered" as const } : prev));
+        toast.success("Delivery Completed Successfully! 🎉");
+        navigate({ to: riderRoutes.dashboard });
+      }
+      setSheet(null);
+      setOtp("");
+    } catch (err: any) {
+      toast.error(err?.message || "OTP verification failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDropAtStore = async () => {
+    setSubmitting(true);
+    try {
+      await confirmDropAtPartner(orderId);
+      setData((prev) => (prev ? { ...prev, status: "at-partner" as const } : prev));
+      toast.success("Laundry handed over to partner store!");
+      navigate({ to: riderRoutes.dashboard });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to confirm drop at store.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const phaseTitle =
+    phase === "to_customer_pickup"
+      ? "Heading to Customer Pickup"
+      : phase === "to_partner_store"
+        ? "Heading to Partner Store"
+        : "Heading to Customer Doorstep";
+
+  const phaseAddress =
+    phase === "to_customer_pickup"
+      ? data?.pickupAddress || "Customer Address"
+      : phase === "to_partner_store"
+        ? data?.deliveryAddress || "Partner Store"
+        : data?.deliveryAddress || "Customer Doorstep";
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-background">
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col">
+        {/* Fullscreen Map Canvas */}
         <div className="absolute inset-0">
           {isLoading ? (
             <RiderMapSkeleton className="h-full rounded-none" />
@@ -191,7 +276,7 @@ export function RiderNavigationScreen() {
           )}
         </div>
 
-
+        {/* Top Floating Guidance Bar */}
         <header className="relative z-20 px-4 pt-4">
           <div className="glass-panel flex items-center gap-2 rounded-3xl px-3 py-2.5 shadow-soft">
             <button
@@ -204,16 +289,16 @@ export function RiderNavigationScreen() {
             </button>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-black tracking-tight text-foreground">
-                {data ? FLOW[Math.min(step, FLOW.length - 1)] : "Loading route"}
+                {phaseTitle}
               </p>
               <p className="truncate text-[0.68rem] font-medium text-muted-foreground">
-                {route?.steps?.[0]?.instruction ?? (data ? data.deliveryAddress : "Fetching live route")}
+                {route?.steps?.[0]?.instruction ?? phaseAddress}
               </p>
             </div>
             <button
               type="button"
               aria-label="Voice guidance"
-              onClick={() => toast("Voice guidance on")}
+              onClick={() => toast("Voice guidance active")}
               className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground active:scale-[0.94]"
             >
               <Volume2 className="size-5" />
@@ -221,6 +306,7 @@ export function RiderNavigationScreen() {
           </div>
         </header>
 
+        {/* Bottom Navigation & Action Controls */}
         <div className="relative z-20 mt-auto flex flex-col gap-3 px-4 pb-5">
           <div className="flex justify-end gap-2">
             {[Layers, Compass, Crosshair].map((Icon, i) => (
@@ -228,7 +314,7 @@ export function RiderNavigationScreen() {
                 key={i}
                 type="button"
                 aria-label="Map control"
-                onClick={() => toast("Map control")}
+                onClick={() => toast("Map recentered")}
                 className="glass-panel flex size-11 items-center justify-center rounded-2xl text-foreground shadow-soft active:scale-[0.94]"
               >
                 <Icon className="size-5" />
@@ -251,7 +337,7 @@ export function RiderNavigationScreen() {
                 </p>
               </div>
               <a
-                href={`tel:${(data?.customerPhone ?? "").replace(/\s/g, "")}`}
+                href={`tel:${((phase === "to_partner_store" ? data?.partnerPhone : data?.customerPhone) ?? "").replace(/\s/g, "")}`}
                 aria-label="Call"
                 className="flex size-11 items-center justify-center rounded-2xl bg-secondary/10 text-brand-green active:scale-[0.94]"
               >
@@ -259,55 +345,84 @@ export function RiderNavigationScreen() {
               </a>
             </div>
 
-            <div className="mt-4 flex items-center gap-1">
-              {FLOW.map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-                    i <= step ? "bg-primary" : "bg-muted"
-                  }`}
-                />
-              ))}
-            </div>
-            <p className="mt-2 text-[0.66rem] font-bold uppercase tracking-widest text-muted-foreground">
-              Step {Math.min(step + 1, FLOW.length)} of {FLOW.length}
-            </p>
-
             <div className="mt-4 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  const destination = step >= 4 ? dropPoint : (pickupPoint ?? dropPoint);
-                  if (!destination) {
-                    toast.error("Destination coordinates not available yet");
+                  if (!targetDestination) {
+                    toast.error("Destination coordinates not available");
                     return;
                   }
-                  const url = `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
+                  const url = `https://www.google.com/maps/dir/?api=1&destination=${targetDestination.latitude},${targetDestination.longitude}&travelmode=driving`;
                   window.open(url, "_blank");
                 }}
                 className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3.5 text-xs font-black text-white shadow-md hover:bg-blue-700 active:scale-[0.97] transition-all cursor-pointer"
               >
                 <Compass className="size-4 animate-spin" />
-                <span>Open in Google Maps</span>
+                <span>Google Maps</span>
               </button>
 
-              <div className="flex-1">
-                <RiderPrimaryButton
-                  onClick={() => {
-                    if (step >= FLOW.length - 1) {
-                      toast.success("Delivery completed");
-                      navigate({ to: riderRoutes.dashboard });
-                      return;
-                    }
-                    setStep(step + 1);
-                  }}
-                >
-                  {step >= FLOW.length - 1 ? "Finish Trip" : `Next: ${FLOW[step + 1]}`}
-                </RiderPrimaryButton>
+              <div className="flex-[1.4]">
+                {phase === "to_customer_pickup" ? (
+                  <RiderPrimaryButton onClick={() => setSheet("pickup")}>
+                    <PackageCheck className="size-4" />
+                    Enter Pickup OTP 🧺
+                  </RiderPrimaryButton>
+                ) : phase === "to_partner_store" ? (
+                  <RiderPrimaryButton onClick={() => void handleDropAtStore()}>
+                    <Store className="size-4" />
+                    Drop at Store 🏪
+                  </RiderPrimaryButton>
+                ) : (
+                  <RiderPrimaryButton onClick={() => setSheet("delivery")}>
+                    <CheckCircle2 className="size-4" />
+                    Enter Delivery OTP ✓
+                  </RiderPrimaryButton>
+                )}
               </div>
             </div>
           </section>
         </div>
+
+        {/* In-Navigation OTP Bottom Sheet */}
+        <RiderBottomSheet
+          open={sheet !== null}
+          onClose={() => setSheet(null)}
+          title={sheet === "pickup" ? "Customer Pickup OTP" : "Customer Delivery OTP"}
+        >
+          <p className="text-xs font-medium text-muted-foreground">
+            {sheet === "pickup"
+              ? "Ask the customer for their 4-digit pickup code to collect laundry."
+              : "Ask the customer for their 4-digit delivery code upon handing over clean garments."}
+          </p>
+          <div className="relative mt-4">
+            <input
+              aria-label="Verification OTP"
+              inputMode="numeric"
+              maxLength={4}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              className="absolute inset-0 z-10 size-full cursor-pointer bg-transparent text-transparent caret-transparent outline-none"
+            />
+            <div className="flex gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`flex h-14 flex-1 items-center justify-center rounded-2xl border bg-card text-lg font-black text-foreground shadow-soft transition-all duration-300 ${
+                    otp.length === i ? "border-primary ring-2 ring-primary/20" : "border-border"
+                  }`}
+                >
+                  {otp[i] ?? ""}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4">
+            <RiderPrimaryButton onClick={() => void handleVerifyOtp()}>
+              {submitting ? "Verifying..." : "Verify OTP & Continue"}
+            </RiderPrimaryButton>
+          </div>
+        </RiderBottomSheet>
       </div>
       <Toaster />
     </main>

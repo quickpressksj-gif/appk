@@ -126,6 +126,30 @@ export function RiderOrderCard({
             Accept · ₹{order.estimatedEarning ?? 45}
           </button>
         </div>
+      ) : !isNew && order.status !== "delivered" && order.status !== "cancelled" ? (
+        <div className="mt-3 flex gap-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => navigate({ to: riderRoutes.navigate, params: { orderId: order.id } })}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-50 border border-blue-200 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 active:scale-[0.97] transition-all"
+          >
+            <Navigation className="size-3.5" />
+            <span>Navigate</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate({ to: riderRoutes.orderDetails, params: { orderId: order.id } })}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-black text-white shadow-xs hover:bg-emerald-700 active:scale-[0.97] transition-all"
+          >
+            <span>
+              {order.status === "accepted" || order.status === "arriving"
+                ? "Enter Pickup OTP 🧺"
+                : order.status === "picked"
+                ? "Drop at Store 🏪"
+                : "Enter Delivery OTP ✓"}
+            </span>
+          </button>
+        </div>
       ) : null}
     </article>
   );

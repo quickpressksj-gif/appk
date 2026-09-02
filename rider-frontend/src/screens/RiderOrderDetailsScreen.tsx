@@ -27,17 +27,19 @@ import { STATUS_LABEL, STATUS_TONE } from "../components/RiderOrderCard";
 import { useRiderResource } from "../hooks/use-rider-resource";
 import { riderRoutes } from "../navigation/rider-routes";
 import {
+  acceptRiderOrder,
   confirmDelivery,
   confirmDropAtPartner,
   confirmPickup,
   fetchRiderOrder,
+  rejectRiderOrder,
   startDelivery,
 } from "@/api/rider/rider-orders-api";
 
 export function RiderOrderDetailsScreen() {
   const navigate = useNavigate();
   const { orderId } = useParams({ from: "/orders/$orderId" });
-  const { data, isLoading } = useRiderResource(
+  const { data, isLoading, setData } = useRiderResource(
     () => fetchRiderOrder(orderId),
     [orderId],
     `rider_order_${orderId}`
@@ -45,6 +47,26 @@ export function RiderOrderDetailsScreen() {
   const [sheet, setSheet] = useState<null | "pickup" | "dispatch" | "delivery">(null);
   const [otp, setOtp] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const handleAccept = async () => {
+    setData((prev) => (prev ? { ...prev, status: "accepted" as const } : prev));
+    try {
+      await acceptRiderOrder(orderId);
+      toast.success("Delivery task accepted! Proceed to pickup.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to accept order.");
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await rejectRiderOrder(orderId);
+      toast.info("Task declined.");
+      navigate({ to: riderRoutes.orders });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to decline order.");
+    }
+  };
 
   const handleConfirm = async () => {
     if (otp.length !== 4) {
@@ -55,12 +77,15 @@ export function RiderOrderDetailsScreen() {
     try {
       if (sheet === "pickup") {
         await confirmPickup(orderId, otp);
+        setData((prev) => (prev ? { ...prev, status: "picked" as const } : prev));
         toast.success("Pickup completed! Head to partner store.");
       } else if (sheet === "dispatch") {
         await startDelivery(orderId, otp);
+        setData((prev) => (prev ? { ...prev, status: "ready-for-delivery" as const } : prev));
         toast.success("Handover confirmed! Order is out for delivery.");
       } else {
         await confirmDelivery(orderId, otp);
+        setData((prev) => (prev ? { ...prev, status: "delivered" as const } : prev));
         toast.success("Delivery completed successfully! 🎉");
       }
       setOtp("");
@@ -76,6 +101,7 @@ export function RiderOrderDetailsScreen() {
     setSubmitting(true);
     try {
       await confirmDropAtPartner(orderId);
+      setData((prev) => (prev ? { ...prev, status: "at-partner" as const } : prev));
       toast.success("Order dropped at partner store.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to update order status.");
@@ -191,34 +217,80 @@ export function RiderOrderDetailsScreen() {
 
             {/* Dynamic Stage Actions */}
             <div className="mt-5 space-y-2">
-              {data.canonicalStatus === "rider_assigned" ||
-              data.canonicalStatus === "rider_accepted" ||
-              data.canonicalStatus === "pickup_otp_pending" ||
-              data.status === "assigned" ||
-              data.status === "accepted" ? (
-                <RiderPrimaryButton onClick={() => setSheet("pickup")}>
-                  <PackageCheck className="size-4" />
-                  Enter Customer Pickup OTP →
-                </RiderPrimaryButton>
-              ) : data.canonicalStatus === "picked_up" || data.status === "picked" ? (
-                <RiderPrimaryButton onClick={() => void handleDropAtPartner()}>
-                  <Store className="size-4" />
-                  Mark Dropped at Partner Store →
-                </RiderPrimaryButton>
-              ) : data.canonicalStatus === "ready" ||
-                data.canonicalStatus === "dispatch_otp_pending" ||
-                data.canonicalStatus === "completed" ? (
-                <RiderPrimaryButton onClick={() => setSheet("dispatch")}>
-                  <PackageCheck className="size-4" />
-                  Enter Store Dispatch OTP (Handover) →
-                </RiderPrimaryButton>
-              ) : data.canonicalStatus === "out_for_delivery" ||
-                data.canonicalStatus === "delivery_otp_pending" ||
-                data.status === "ready-for-delivery" ? (
-                <RiderPrimaryButton onClick={() => setSheet("delivery")}>
-                  <CheckCircle2 className="size-4" />
-                  Enter Customer Delivery OTP (Final) ✓
-                </RiderPrimaryButton>
+              {data.status === "assigned" || data.canonicalStatus === "rider_assigned" ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReject()}
+                    className="flex-1 rounded-2xl border border-border bg-card py-3.5 text-xs font-bold text-muted-foreground hover:bg-muted active:scale-[0.97]"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleAccept()}
+                    className="flex-[1.8] rounded-2xl bg-slate-900 py-3.5 text-xs font-black text-white shadow-md hover:bg-black active:scale-[0.97]"
+                  >
+                    Accept Task · ₹{data.estimatedEarning || 45}
+                  </button>
+                </div>
+              ) : data.status === "accepted" ||
+                data.status === "arriving" ||
+                data.canonicalStatus === "rider_accepted" ||
+                data.canonicalStatus === "pickup_otp_pending" ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: riderRoutes.navigate, params: { orderId } })}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 text-sm font-black text-white shadow-md hover:bg-blue-700 active:scale-[0.97]"
+                  >
+                    <Navigation className="size-4" />
+                    Navigate to Customer Pickup 🧭
+                  </button>
+                  <RiderPrimaryButton onClick={() => setSheet("pickup")}>
+                    <PackageCheck className="size-4" />
+                    Enter Customer Pickup OTP 🧺
+                  </RiderPrimaryButton>
+                </div>
+              ) : data.status === "picked" || data.canonicalStatus === "picked_up" ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: riderRoutes.navigate, params: { orderId } })}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 text-sm font-black text-white shadow-md hover:bg-blue-700 active:scale-[0.97]"
+                  >
+                    <Store className="size-4" />
+                    Navigate to Partner Store 🏪
+                  </button>
+                  <RiderPrimaryButton onClick={() => void handleDropAtPartner()}>
+                    <PackageCheck className="size-4" />
+                    Mark Dropped at Partner Store →
+                  </RiderPrimaryButton>
+                </div>
+              ) : data.status === "ready-for-delivery" ||
+                data.canonicalStatus === "out_for_delivery" ||
+                data.canonicalStatus === "delivery_otp_pending" ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: riderRoutes.navigate, params: { orderId } })}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 text-sm font-black text-white shadow-md hover:bg-blue-700 active:scale-[0.97]"
+                  >
+                    <Navigation className="size-4" />
+                    Navigate to Customer Doorstep 🧭
+                  </button>
+                  <RiderPrimaryButton onClick={() => setSheet("delivery")}>
+                    <CheckCircle2 className="size-4" />
+                    Enter Customer Delivery OTP (Final) ✓
+                  </RiderPrimaryButton>
+                </div>
+              ) : data.status === "delivered" || data.canonicalStatus === "delivered" ? (
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center">
+                  <p className="text-sm font-black text-emerald-800">Trip Completed Successfully 🎉</p>
+                  <p className="mt-0.5 text-xs text-emerald-600 font-semibold">
+                    ₹{data.estimatedEarning || 45} credited to your earnings wallet
+                  </p>
+                </div>
               ) : null}
             </div>
           </div>
