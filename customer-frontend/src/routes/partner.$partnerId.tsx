@@ -159,7 +159,9 @@ function PartnerDetailScreen() {
   const search = Route.useSearch();
   const highlightService = search.highlightService;
   const cart = useCart();
-  const [data, setData] = useState<PartnerDetailData | null>(null);
+  const [data, setData] = useState<PartnerDetailData | null>(() => {
+    return readStaleScopedCache<PartnerDetailData>("partner-detail", partnerId);
+  });
   const [favorite, setFavorite] = useState(false);
   const [shared, setShared] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});

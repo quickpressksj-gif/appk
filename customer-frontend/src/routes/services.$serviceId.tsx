@@ -55,6 +55,11 @@ function resolveCategoryServiceImage(title?: string | null, img?: string | null)
   return washFoldImg;
 }
 
+import {
+  readScopedCache,
+  readStaleScopedCache,
+} from "@/api/customer/api/cache";
+
 export const Route = createFileRoute("/services/$serviceId")({
   head: () => ({
     meta: [
@@ -79,7 +84,9 @@ function ServiceListingScreen() {
   const navigate = useNavigate();
   const { serviceId } = Route.useParams();
   const activeLocation = readSavedLocation();
-  const [data, setData] = useState<ServiceListingData | null>(null);
+  const [data, setData] = useState<ServiceListingData | null>(() => {
+    return readStaleScopedCache<ServiceListingData>("partner-list", `${serviceId}:initial`);
+  });
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -103,7 +110,7 @@ function ServiceListingScreen() {
   const load = useCallback(
     (signal?: AbortSignal) => {
       setError(null);
-      if (firstLoad.current) setData(null);
+      if (!data && firstLoad.current) setData(null);
       else setRefreshing(true);
 
       // GET /api/services/{id} + GET /api/partners?<filters>

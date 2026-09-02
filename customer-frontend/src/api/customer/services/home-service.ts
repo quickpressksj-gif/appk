@@ -11,7 +11,6 @@
  * settles independently so one failing endpoint never blanks the screen.
  */
 
-import { clearCache } from "../api/cache";
 import { ApiError } from "../api/http-client";
 import type {
   Banner,
@@ -68,20 +67,33 @@ export type HomeSections = {
   notifications: SectionState<number>;
 };
 
+import { CACHE_KEYS, clearCache, readStaleCache } from "../api/cache";
+
 export const IDLE_SECTION: SectionState<never> = { data: null, loading: true, error: null };
 
 export function initialSections(): HomeSections {
+  const cachedProfile = readStaleCache<Profile>(CACHE_KEYS.profile);
+  const cachedLocation = readStaleCache<SavedLocation>(CACHE_KEYS.location);
+  const cachedBanners = readStaleCache<Banner[]>(CACHE_KEYS.banners);
+  const cachedCategories = readStaleCache<Category[]>(CACHE_KEYS.categories);
+  const cachedPartners = readStaleCache<Partner[]>(CACHE_KEYS.partners);
+  const cachedPopular = readStaleCache<PopularService[]>(CACHE_KEYS.popular);
+  const cachedRecommendations = readStaleCache<Recommendation[]>(CACHE_KEYS.recommendations);
+  const cachedOffers = readStaleCache<Offer[]>(CACHE_KEYS.offers);
+  const cachedRecentOrders = readStaleCache<RecentOrder[]>(CACHE_KEYS.recentOrders);
+  const cachedNotifications = readStaleCache<number>(CACHE_KEYS.unreadNotifications);
+
   return {
-    profile: { data: null, loading: true, error: null },
-    location: { data: null, loading: true, error: null },
-    banners: { data: null, loading: true, error: null },
-    categories: { data: null, loading: true, error: null },
-    partners: { data: null, loading: true, error: null },
-    popular: { data: null, loading: true, error: null },
-    recommendations: { data: null, loading: true, error: null },
-    offers: { data: null, loading: true, error: null },
-    recentOrders: { data: null, loading: true, error: null },
-    notifications: { data: null, loading: true, error: null },
+    profile: { data: cachedProfile, loading: !cachedProfile, error: null },
+    location: { data: cachedLocation, loading: !cachedLocation, error: null },
+    banners: { data: cachedBanners, loading: !cachedBanners, error: null },
+    categories: { data: cachedCategories, loading: !cachedCategories, error: null },
+    partners: { data: cachedPartners, loading: !cachedPartners, error: null },
+    popular: { data: cachedPopular, loading: !cachedPopular, error: null },
+    recommendations: { data: cachedRecommendations, loading: !cachedRecommendations, error: null },
+    offers: { data: cachedOffers, loading: !cachedOffers, error: null },
+    recentOrders: { data: cachedRecentOrders, loading: !cachedRecentOrders, error: null },
+    notifications: { data: cachedNotifications, loading: false, error: null },
   };
 }
 

@@ -37,7 +37,12 @@ export type UseHomeData = {
 
 export function useHomeData(): UseHomeData {
   const [sections, setSections] = useState<HomeSections>(() => initialSections());
-  const [initialLoading, setInitialLoading] = useState(true);
+  const hasCachedData = Boolean(
+    sections.categories?.data?.length ||
+    sections.banners?.data?.length ||
+    sections.partners?.data?.length
+  );
+  const [initialLoading, setInitialLoading] = useState(() => !hasCachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [online, setOnline] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
