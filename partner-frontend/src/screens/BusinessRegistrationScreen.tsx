@@ -89,6 +89,10 @@ import {
   verifyPartnerIfsc,
   verifyPartnerPan,
 } from "@/api/partner/partner-auth-api";
+import {
+  fetchMasterCatalogServices,
+  type MasterCatalogItem,
+} from "@/api/partner/partner-services-api";
 import type { BusinessCategory } from "@/shared/types/partner";
 
 /* ----------------------------- static data ----------------------------- */
@@ -120,17 +124,40 @@ const EXPERIENCE_OPTIONS = [
   "More than 10 years",
 ] as const;
 
-const SERVICES = [
-  { id: "Wash & Fold", icon: Shirt, price: 79, unit: "kg", defaultHours: 24, desc: "Everyday clothes washed, dried & neatly folded." },
-  { id: "Wash & Iron", icon: Wind, price: 99, unit: "kg", defaultHours: 24, desc: "Wash with professional steam ironing finish." },
-  { id: "Steam Ironing", icon: Sparkles, price: 19, unit: "pc", defaultHours: 12, desc: "Crisp wrinkle-free finish on hangers." },
-  { id: "Dry Cleaning", icon: Bath, price: 149, unit: "pc", defaultHours: 48, desc: "Eco solvent dry clean for suits and silks." },
-  { id: "Saree Care", icon: Shirt, price: 249, unit: "pc", defaultHours: 48, desc: "Delicate silk wash, stain removal & roll polish." },
-  { id: "Shoe Cleaning", icon: Footprints, price: 249, unit: "pair", defaultHours: 48, desc: "Deep sonic foam cleaning & deodorizing." },
-  { id: "Blanket Wash", icon: Bath, price: 349, unit: "pc", defaultHours: 48, desc: "Bulky winter comforters sanitized & fluff-dried." },
-  { id: "Curtain Cleaning", icon: Blinds, price: 199, unit: "panel", defaultHours: 36, desc: "Dust-free steam extraction for home drapes." },
-  { id: "Express Laundry", icon: Sparkles, price: 129, unit: "kg", defaultHours: 12, desc: "Superfast priority turnaround within 12 hours." },
-] as const;
+const SERVICES: MasterCatalogItem[] = [
+  { id: "Wash & Fold", name: "Wash & Fold", price: 79, unit: "kg", defaultHours: 24, desc: "Everyday clothes washed, dried & neatly folded." },
+  { id: "Wash & Iron", name: "Wash & Iron", price: 99, unit: "kg", defaultHours: 24, desc: "Wash with professional steam ironing finish." },
+  { id: "Steam Ironing", name: "Steam Ironing", price: 19, unit: "pc", defaultHours: 12, desc: "Crisp wrinkle-free finish on hangers." },
+  { id: "Dry Cleaning", name: "Dry Cleaning", price: 149, unit: "pc", defaultHours: 48, desc: "Eco solvent dry clean for suits and silks." },
+  { id: "Saree Care", name: "Saree Care", price: 249, unit: "pc", defaultHours: 48, desc: "Delicate silk wash, stain removal & roll polish." },
+  { id: "Shoe Cleaning", name: "Shoe Cleaning", price: 249, unit: "pair", defaultHours: 48, desc: "Deep sonic foam cleaning & deodorizing." },
+  { id: "Blanket Wash", name: "Blanket Wash", price: 349, unit: "pc", defaultHours: 48, desc: "Bulky winter comforters sanitized & fluff-dried." },
+  { id: "Curtain Cleaning", name: "Curtain Cleaning", price: 199, unit: "panel", defaultHours: 36, desc: "Dust-free steam extraction for home drapes." },
+  { id: "Express Laundry", name: "Express Laundry", price: 129, unit: "kg", defaultHours: 12, desc: "Superfast priority turnaround within 12 hours." },
+];
+
+const SERVICE_ICON_MAP: Record<string, any> = {
+  "wash & fold": Shirt,
+  "wash & iron": Wind,
+  "steam ironing": Sparkles,
+  "dry cleaning": Bath,
+  "saree care": Shirt,
+  "shoe cleaning": Footprints,
+  "blanket wash": Bath,
+  "curtain cleaning": Blinds,
+  "express laundry": Sparkles,
+  "laundry": Shirt,
+  "iron": Wind,
+  "sparkles": Sparkles,
+  "shirt": Shirt,
+  "bath": Bath,
+  "footprints": Footprints,
+};
+
+function resolveServiceIcon(s: MasterCatalogItem) {
+  const key = (s.icon || s.name || s.id).toLowerCase();
+  return SERVICE_ICON_MAP[key] || Shirt;
+}
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -241,6 +268,7 @@ export function BusinessRegistrationScreen() {
     }
   }, [session, phone]);
 
+  const [catalogServices, setCatalogServices] = useState<MasterCatalogItem[]>(SERVICES);
   const [services, setServices] = useState<string[]>(["Wash & Fold", "Steam Ironing", "Wash & Iron", "Dry Cleaning"]);
   const [servicePrices, setServicePrices] = useState<Record<string, number>>({
     "Wash & Fold": 79,
@@ -264,6 +292,33 @@ export function BusinessRegistrationScreen() {
     "Curtain Cleaning": 36,
     "Express Laundry": 12,
   });
+
+  // Fetch real-time Master Service Catalog from Admin Panel / Backend
+  useEffect(() => {
+    let alive = true;
+    fetchMasterCatalogServices().then((items) => {
+      if (alive && items.length > 0) {
+        setCatalogServices(items);
+        setServicePrices((prev) => {
+          const next = { ...prev };
+          for (const it of items) {
+            if (next[it.id] === undefined) next[it.id] = it.price;
+          }
+          return next;
+        });
+        setServiceTurnarounds((prev) => {
+          const next = { ...prev };
+          for (const it of items) {
+            if (next[it.id] === undefined) next[it.id] = it.defaultHours;
+          }
+          return next;
+        });
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [agreementData, setAgreementData] = useState<AgreementSignatureData | null>(null);
 
@@ -639,12 +694,12 @@ export function BusinessRegistrationScreen() {
         BUSINESS_TYPES.find((t) => t.id === form.businessType)?.category ?? "laundry";
 
       const customServices = services.map((name) => {
-        const found = SERVICES.find((s) => s.id === name);
+        const found = catalogServices.find((s) => s.id === name || s.name === name);
         return {
           name,
           price: servicePrices[name] ?? found?.price ?? 79,
           unit: found?.unit ?? "item",
-          turnaroundHours: serviceTurnarounds[name] ?? 24,
+          turnaroundHours: serviceTurnarounds[name] ?? found?.defaultHours ?? 24,
           enabled: true,
         };
       });
@@ -1090,10 +1145,10 @@ export function BusinessRegistrationScreen() {
                   Enable the services your store fulfills and set your own custom prices (₹) that customers will see:
                 </p>
                 <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                  {SERVICES.map((s) => {
+                  {catalogServices.map((s) => {
                     const isSelected = services.includes(s.id);
                     const currentPrice = servicePrices[s.id] ?? s.price;
-                    const Icon = s.icon;
+                    const Icon = resolveServiceIcon(s);
 
                     return (
                       <div

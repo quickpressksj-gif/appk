@@ -78,3 +78,43 @@ export async function updateServicePrice(serviceId: string, price: number) {
   await apiRequest("PUT", `/api/partner/services/${encodeURIComponent(serviceId)}`, { body: { price } });
   return { ok: true as const, serviceId, price };
 }
+
+export type MasterCatalogItem = {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  desc: string;
+  defaultHours: number;
+  icon?: string;
+  image?: string;
+};
+
+export async function fetchMasterCatalogServices(): Promise<MasterCatalogItem[]> {
+  try {
+    const data = await apiGetJson<any[]>("/api/public/services");
+    if (Array.isArray(data) && data.length > 0) {
+      return data.map((s) => {
+        let turnaroundHours = 24;
+        const rawTurnaround = String(s.turnaround || s.sla || s.processingTime || "");
+        if (rawTurnaround.includes("12")) turnaroundHours = 12;
+        else if (rawTurnaround.includes("48")) turnaroundHours = 48;
+        else if (rawTurnaround.includes("36")) turnaroundHours = 36;
+
+        return {
+          id: s.name || s.title || s.id,
+          name: s.name || s.title || s.id,
+          price: Number(s.price ?? s.basePrice ?? s.finalPrice ?? 79),
+          unit: s.unit || (s.name?.toLowerCase().includes("kg") ? "kg" : "pc"),
+          desc: s.description || s.tagline || "Professional laundry & care finish.",
+          defaultHours: turnaroundHours,
+          icon: s.icon || "sparkles",
+          image: s.image || s.imageUrl,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn("Could not fetch master catalog services from API, using defaults:", err);
+  }
+  return [];
+}

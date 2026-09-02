@@ -7,7 +7,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -151,6 +151,8 @@ export const STANDARD_CATALOG: CatalogTemplate[] = [
   },
 ];
 
+import { fetchMasterCatalogServices } from "@/api/partner/partner-services-api";
+
 export function QuickAddCatalogModal({
   open,
   onClose,
@@ -162,6 +164,47 @@ export function QuickAddCatalogModal({
   const { services, addService } = usePartnerServices();
   const [search, setSearch] = useState("");
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [catalogList, setCatalogList] = useState<CatalogTemplate[]>(STANDARD_CATALOG);
+
+  useEffect(() => {
+    let alive = true;
+    fetchMasterCatalogServices().then((items) => {
+      if (alive && items.length > 0) {
+        const dynamicTemplates: CatalogTemplate[] = items.map((it) => {
+          let category: ServiceCategoryId = "wash";
+          const lower = it.name.toLowerCase();
+          if (lower.includes("iron")) category = "iron";
+          else if (lower.includes("dry")) category = "dry-clean";
+          else if (lower.includes("shoe")) category = "shoe-care";
+          else if (lower.includes("curtain") || lower.includes("blanket")) category = "home-care";
+          else if (lower.includes("express")) category = "wash";
+          else if (lower.includes("saree") || lower.includes("silk")) category = "premium";
+
+          return {
+            id: `admin-${it.id}`,
+            name: it.name,
+            category,
+            categoryName: it.name,
+            iconEmoji: "🧺",
+            price: it.price,
+            unit: (it.unit as any) || "piece",
+            estimatedHours: it.defaultHours || 24,
+            description: it.desc || "Professional platform service standard.",
+            minOrderValue: it.price,
+          };
+        });
+
+        // Merge keeping standard fallbacks for any missing items
+        const map = new Map<string, CatalogTemplate>();
+        for (const t of STANDARD_CATALOG) map.set(t.name.toLowerCase(), t);
+        for (const t of dynamicTemplates) map.set(t.name.toLowerCase(), t);
+        setCatalogList(Array.from(map.values()));
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const existingNames = useMemo(
     () => new Set(services.map((s) => s.name.trim().toLowerCase())),
@@ -170,14 +213,14 @@ export function QuickAddCatalogModal({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return STANDARD_CATALOG;
-    return STANDARD_CATALOG.filter(
+    if (!q) return catalogList;
+    return catalogList.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.categoryName.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q),
     );
-  }, [search]);
+  }, [search, catalogList]);
 
   if (!open) return null;
 
