@@ -1318,27 +1318,27 @@ export function BusinessRegistrationScreen() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/50">
-                                <span className="text-[11px] font-bold text-zinc-600">Turnaround:</span>
-                                <div className="flex items-center gap-1.5">
-                                  {[4, 6, 12, 24, 36, 48].map((hrs) => {
-                                    const curHrs = serviceTurnarounds[s.id] ?? s.defaultHours;
-                                    const isHrsSelected = curHrs === hrs;
-                                    return (
-                                      <button
-                                        key={hrs}
-                                        type="button"
-                                        onClick={() => updateServiceTurnaround(s.id, hrs)}
-                                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                                          isHrsSelected
-                                            ? "bg-amber-400 text-black shadow-xs font-black"
-                                            : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-                                        }`}
-                                      >
-                                        {hrs}h
-                                      </button>
-                                    );
-                                  })}
+                              <div className="flex items-center justify-between gap-3 pt-1 border-t border-amber-200/50">
+                                <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
+                                  <Clock className="size-3.5 text-amber-500" />
+                                  <span>Turnaround Time:</span>
+                                </label>
+                                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={168}
+                                    value={serviceTurnarounds[s.id] ?? s.defaultHours ?? 24}
+                                    onChange={(e) =>
+                                      updateServiceTurnaround(
+                                        s.id,
+                                        Math.max(1, Number(e.target.value) || 1),
+                                      )
+                                    }
+                                    placeholder="24"
+                                    className="w-14 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
+                                  />
+                                  <span className="text-[11px] font-bold text-zinc-500">Hours (घंटे)</span>
                                 </div>
                               </div>
                             </div>
