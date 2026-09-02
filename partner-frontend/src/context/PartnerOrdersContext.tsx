@@ -198,8 +198,27 @@ function getCachedOrders(): ManagedOrder[] {
   return [];
 }
 
+const CACHED_ORDERS_KEY = "quickpress:partner:cached_orders";
+
+function readCachedOrders(): ManagedOrder[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CACHED_ORDERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedOrders(list: ManagedOrder[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CACHED_ORDERS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
 export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<ManagedOrder[]>([]);
+  const [orders, setOrders] = useState<ManagedOrder[]>(() => readCachedOrders());
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -238,6 +257,7 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
         const remote = await fetchPartnerOrders();
         const mapped = remote.map(toManagedOrder);
         setOrders(mapped);
+        writeCachedOrders(mapped);
 
         // Check for real new unacknowledged orders only if on operational route
         if (isOperationalRoute()) {

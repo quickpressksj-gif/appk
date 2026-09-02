@@ -724,12 +724,13 @@ class AdminPartnerRepository:
     collection = "partner_profiles"
 
     async def _get_raw_partners(self) -> List[Dict[str, Any]]:
+        catalog_partners = await database.find_many("catalog_partners")
         primary = await database.find_many("partner_profiles")
         fallback = await database.find_many("partners")
         users = await database.find_many("users", {"role": "partner"})
 
         by_id: Dict[str, Dict[str, Any]] = {}
-        for p in primary + fallback + users:
+        for p in catalog_partners + primary + fallback + users:
             pid = str(p.get("_id") or p.get("id") or p.get("partnerId") or p.get("userId") or "")
             if pid and pid not in by_id:
                 by_id[pid] = p
@@ -875,7 +876,13 @@ class AdminPartnerRepository:
         }
 
     async def get_partner_360(self, partner_id: str) -> Dict[str, Any]:
-        doc = await database.find_one(self.collection, {"_id": partner_id}) or await database.find_one("partners", {"_id": partner_id}) or {}
+        doc = (
+            await database.find_one(self.collection, {"_id": partner_id})
+            or await database.find_one("catalog_partners", {"_id": partner_id})
+            or await database.find_one("partners", {"_id": partner_id})
+            or await database.find_one("users", {"_id": partner_id, "role": "partner"})
+            or {}
+        )
         pid = str(doc.get("_id") or doc.get("id") or partner_id)
 
         all_orders = await database.find_many("customer_orders")

@@ -166,21 +166,40 @@ type ServicesContextValue = {
 
 const ServicesContext = createContext<ServicesContextValue | null>(null);
 
+const CACHED_SERVICES_KEY = "quickpress:partner:cached_services";
+
+function readCachedServices(): ManagedService[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CACHED_SERVICES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedServices(list: ManagedService[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CACHED_SERVICES_KEY, JSON.stringify(list));
+  } catch {}
+}
+
 export function PartnerServicesProvider({ children }: { children: ReactNode }) {
-  const [services, setServices] = useState<ManagedService[]>([]);
-  // No offers API exists yet, so production must not display fabricated
-  // offers: start empty and keep created offers in-session only (the UI says so).
+  const [services, setServices] = useState<ManagedService[]>(() => readCachedServices());
   const [offers, setOffers] = useState<ServiceOffer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => readCachedServices().length === 0);
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setIsLoading(true);
+    if (readCachedServices().length === 0) setIsLoading(true);
     setError(null);
     try {
       const items = await fetchPartnerServices();
-      setServices(items.map(toManagedService));
+      const mapped = items.map(toManagedService);
+      setServices(mapped);
+      writeCachedServices(mapped);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load services");
     } finally {
