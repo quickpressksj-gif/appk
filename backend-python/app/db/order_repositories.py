@@ -338,14 +338,23 @@ class OrderRepository:
         pickup_otp_record = create_otp_record()
         delivery_otp_record = create_otp_record()
 
-        customer_name = (payload.customerName or user.display_name or "").strip() or "QuickPress Customer"
+        customer_name = (payload.customerName or user.display_name or "").strip() or (payload.customerPhone or user.phone or "")
         customer_phone = (payload.customerPhone or user.phone or "").strip()
 
         if payload.customerName or payload.customerPhone:
             user_updates = {}
             if payload.customerName and payload.customerName.strip():
-                user_updates["name"] = payload.customerName.strip()
-                user_updates["displayName"] = payload.customerName.strip()
+                clean_cname = payload.customerName.strip()
+                user_updates["name"] = clean_cname
+                user_updates["display_name"] = clean_cname
+                user_updates["displayName"] = clean_cname
+                try:
+                    await database.collection("customers").update_one(
+                        {"user_id": user.id},
+                        {"$set": {"name": clean_cname, "displayName": clean_cname}}
+                    )
+                except Exception:
+                    pass
             if payload.customerPhone and payload.customerPhone.strip():
                 user_updates["phone"] = payload.customerPhone.strip()
             if user_updates:

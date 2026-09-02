@@ -35,6 +35,7 @@ import {
 } from "@/api/customer/cart-api";
 import { fetchWallet } from "@/api/customer/wallet-api";
 import { fetchProfile } from "@/api/customer/services/profile-service";
+import { updateProfile } from "@/api/customer/profile-api";
 import type { CartLine } from "@/api/customer/cart-store";
 import {
   createRazorpayOrder,
@@ -106,18 +107,6 @@ export function CheckoutPage() {
           setAddresses(addrList);
           setPickupAddressId(addrList[0].id);
           setDeliveryAddressId(addrList[0].id);
-        } else {
-          // Fallback mock address if new account has none
-          const defaultAddr: Address = {
-            id: "addr-default",
-            label: "Home",
-            line: "Flat 402, Sunshine Heights, Main Road",
-            city: "Indore, MP 452001",
-            phone: "9876543210",
-          };
-          setAddresses([defaultAddr]);
-          setPickupAddressId(defaultAddr.id);
-          setDeliveryAddressId(defaultAddr.id);
         }
 
         // Populate wallet
@@ -129,9 +118,16 @@ export function CheckoutPage() {
         const prof = (profileData && typeof profileData === "object" && "data" in profileData
           ? (profileData as { data: { name?: string; phone?: string } }).data
           : profileData) as { name?: string; phone?: string } | null;
-        if (prof?.name) setCustomerName(prof.name);
-        if (prof?.phone) setCustomerPhone(prof.phone);
-        else if (addrList[0]?.phone) setCustomerPhone(addrList[0].phone);
+        if (prof?.name && prof.name !== "Customer" && prof.name !== "Guest User") {
+          setCustomerName(prof.name);
+        } else {
+          setCustomerName("");
+        }
+        if (prof?.phone) {
+          setCustomerPhone(prof.phone);
+        } else if (addrList[0]?.phone) {
+          setCustomerPhone(addrList[0].phone);
+        }
       } catch (err) {
         console.warn("Checkout initialization error:", err);
       } finally {
@@ -271,6 +267,9 @@ export function CheckoutPage() {
 
       toast.success("Order Placed Successfully! 🎉");
       cart.clear();
+
+      // Persist customer name and phone into profile
+      void updateProfile({ name: customerName.trim(), phone: cleanPhone }).catch(() => {});
 
       void navigate({
         to: "/order-success/$orderId",
