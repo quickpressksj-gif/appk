@@ -216,6 +216,36 @@ function composeProfile(input: {
 export async function fetchProfileData(
   options: { forceRefresh?: boolean } = {},
 ): Promise<ProfileData> {
+  const token = readToken();
+  if (!token) {
+    return {
+      user: {
+        name: "",
+        initials: "QP",
+        avatarUrl: null,
+        verified: false,
+        phone: "",
+        email: "",
+        city: "Kasganj, Uttar Pradesh",
+        memberSince: "August 2026",
+        unreadNotifications: 0,
+      },
+      stats: {
+        totalOrders: 0,
+        rewardPoints: 0,
+        walletBalance: 0,
+        savedAddresses: 0,
+      },
+      wallet: {
+        balance: 0,
+        cashbackEarned: 0,
+        transactions: [],
+      },
+      membership: EMPTY_MEMBERSHIP,
+      appVersion: "1.0.0",
+    };
+  }
+
   if (!options.forceRefresh) {
     const cached = readCache<ProfileData>(CACHE_KEYS.profileScreen);
     if (cached) return cached;

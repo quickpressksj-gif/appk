@@ -261,6 +261,7 @@ function ProfileScreen() {
   const load = useCallback(async (forceRefresh = false) => {
     setLoadError(null);
     try {
+      const next = await fetchProfileData({ forceRefresh });
       setData(next);
       const cleanName = next.user.name && next.user.name !== "Customer" && next.user.name !== "Guest User" ? next.user.name : "";
       setForm({ name: cleanName, email: next.user.email, city: next.user.city });
