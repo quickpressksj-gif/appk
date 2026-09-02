@@ -48,7 +48,7 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
       return [
         {
           id: "accept",
-          label: "Accept",
+          label: "Accept Order",
           icon: CheckCircle2,
           intent: "primary",
           nextStage: "accepted",
@@ -57,17 +57,15 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
         { id: "reject", label: "Reject", icon: X, intent: "danger", nextStage: "cancelled" },
       ];
     case "accepted":
-      // Laundry is still with customer/rider. Processing cannot start until laundry reaches store.
-      return [];
     case "pickup_pending":
       return [
         {
           id: "start_washing",
-          label: "Start Processing",
+          label: isDryClean ? "Start Dry Cleaning" : "Start Washing & Processing",
           icon: PackageCheck,
           intent: "primary",
           nextStage: "washing",
-          timelineLabel: "Received & processing",
+          timelineLabel: "Received & washing started",
         },
       ];
     case "washing":
@@ -76,7 +74,7 @@ export function getOrderActions(stage: OrderStage, isDryClean = false): OrderAct
       return [
         {
           id: "mark_ready",
-          label: "Ready for Delivery",
+          label: "Mark Ready for Delivery",
           icon: BadgeCheck,
           intent: "primary",
           nextStage: "ready",

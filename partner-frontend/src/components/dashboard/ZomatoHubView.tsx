@@ -476,13 +476,35 @@ export function ZomatoHubView() {
                                 Accept ✓
                               </button>
                             </>
+                          ) : order.stage === "accepted" || order.stage === "pickup_pending" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(order, "start_washing")}
+                              className="rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs active:scale-95 flex items-center gap-1.5"
+                            >
+                              <span>Start Cleaning 🧺</span>
+                              <ArrowRight className="size-3" />
+                            </button>
+                          ) : order.stage === "washing" || order.stage === "dry_cleaning" || order.stage === "ironing" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(order, "mark_ready")}
+                              className="rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs active:scale-95 flex items-center gap-1.5"
+                            >
+                              <span>Mark Ready ✨</span>
+                              <ArrowRight className="size-3" />
+                            </button>
+                          ) : order.stage === "ready" ? (
+                            <span className="rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-[10px] font-black text-emerald-700 flex items-center gap-1">
+                              <span>🛵 Ready for Pickup</span>
+                            </span>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setSelectedManageOrder(order)}
                               className="rounded-full bg-zinc-950 px-3.5 py-1.5 text-xs font-black text-white active:scale-95 shadow-xs flex items-center gap-1"
                             >
-                              <span>Update Stage</span>
+                              <span>Details</span>
                               <ArrowRight className="size-3" />
                             </button>
                           )}

@@ -54,28 +54,22 @@ export function IncomingOrderModal({
   if (!order) return null;
 
   const handleAccept = async () => {
-    setIsProcessing(true);
     stopOrderAlarm();
+    onDismiss();
     try {
       await onAccept(order.id);
-      onDismiss();
     } catch {
       // Handled in caller
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const handleReject = async () => {
-    setIsProcessing(true);
     stopOrderAlarm();
+    onDismiss();
     try {
       await onReject(order.id, selectedReason);
-      onDismiss();
     } catch {
       // Handled in caller
-    } finally {
-      setIsProcessing(false);
     }
   };
 

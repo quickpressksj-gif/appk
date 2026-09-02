@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import type { PartnerOrder, PartnerOrderStatus } from "@/shared/types/partner";
@@ -226,6 +226,12 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
   const [incomingOrder, setIncomingOrder] = useState<ManagedOrder | null>(null);
   const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => new Set());
 
+  // Optimistic tracking sets so background polling never reverts an active partner transition
+  const acceptedOrderIds = useRef<Set<string>>(new Set());
+  const processingOrderIds = useRef<Set<string>>(new Set());
+  const readyOrderIds = useRef<Set<string>>(new Set());
+  const cancelledOrderIds = useRef<Set<string>>(new Set());
+
   const isOperationalRoute = useCallback(() => {
     if (typeof window === "undefined") return false;
     const path = window.location.pathname;
@@ -256,13 +262,36 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       try {
         const remote = await fetchPartnerOrders();
         const mapped = remote.map(toManagedOrder);
-        setOrders(mapped);
-        writeCachedOrders(mapped);
+
+        // Reconcile with optimistic states so background polling NEVER reverts an action
+        const reconciled = mapped.map((o) => {
+          if (cancelledOrderIds.current.has(o.id)) {
+            return { ...o, stage: "cancelled" as OrderStage };
+          }
+          if (readyOrderIds.current.has(o.id)) {
+            return { ...o, stage: "ready" as OrderStage };
+          }
+          if (processingOrderIds.current.has(o.id)) {
+            return { ...o, stage: "washing" as OrderStage };
+          }
+          if (acceptedOrderIds.current.has(o.id) && o.stage === "new") {
+            return { ...o, stage: "accepted" as OrderStage };
+          }
+          return o;
+        });
+
+        setOrders(reconciled);
+        writeCachedOrders(reconciled);
 
         // Check for real new unacknowledged orders only if on operational route
         if (isOperationalRoute()) {
-          const unacknowledgedNew = mapped.find(
-            (o) => o.stage === "new" && !seenOrderIds.has(o.id) && o.amount > 0
+          const unacknowledgedNew = reconciled.find(
+            (o) =>
+              o.stage === "new" &&
+              !seenOrderIds.has(o.id) &&
+              !acceptedOrderIds.current.has(o.id) &&
+              !cancelledOrderIds.current.has(o.id) &&
+              o.amount > 0
           );
 
           if (unacknowledgedNew && !incomingOrder) {
@@ -321,8 +350,25 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     async (orderId: string) => {
       stopOrderAlarm();
       setIncomingOrder(null);
-      await acceptPartnerOrder(orderId);
-      await load({ refreshing: true });
+      acceptedOrderIds.current.add(orderId);
+
+      // ⚡ INSTANTANEOUS OPTIMISTIC ACTION (0ms lag):
+      // Advances stage immediately in local state so "Accept" disappears instantly
+      // and the next step button appears right away!
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, stage: "accepted" as OrderStage }
+            : o
+        )
+      );
+
+      try {
+        await acceptPartnerOrder(orderId);
+      } catch (err) {
+        console.error("[PartnerOrdersContext] accept error:", err);
+      }
+      void load({ refreshing: true });
     },
     [load],
   );
@@ -331,24 +377,70 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     async (orderId: string, reason: string) => {
       stopOrderAlarm();
       setIncomingOrder(null);
-      await rejectPartnerOrder(orderId, reason);
-      await load({ refreshing: true });
+      cancelledOrderIds.current.add(orderId);
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, stage: "cancelled" as OrderStage }
+            : o
+        )
+      );
+
+      try {
+        await rejectPartnerOrder(orderId, reason);
+      } catch (err) {
+        console.error("[PartnerOrdersContext] reject error:", err);
+      }
+      void load({ refreshing: true });
     },
     [load],
   );
 
   const startProcessing = useCallback(
     async (orderId: string) => {
-      await startProcessingOrder(orderId);
-      await load({ refreshing: true });
+      processingOrderIds.current.add(orderId);
+
+      // ⚡ INSTANTANEOUS OPTIMISTIC ACTION (0ms lag):
+      // Immediately advances to "washing" so the next step button ("Mark Ready for Delivery") appears!
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, stage: "washing" as OrderStage }
+            : o
+        )
+      );
+
+      try {
+        await startProcessingOrder(orderId);
+      } catch (err) {
+        console.error("[PartnerOrdersContext] startProcessing error:", err);
+      }
+      void load({ refreshing: true });
     },
     [load],
   );
 
   const completeOrder = useCallback(
     async (orderId: string) => {
-      await completePartnerOrder(orderId);
-      await load({ refreshing: true });
+      readyOrderIds.current.add(orderId);
+
+      // ⚡ INSTANTANEOUS OPTIMISTIC ACTION (0ms lag):
+      // Immediately advances to "ready"
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, stage: "ready" as OrderStage }
+            : o
+        )
+      );
+
+      try {
+        await completePartnerOrder(orderId);
+      } catch (err) {
+        console.error("[PartnerOrdersContext] completeOrder error:", err);
+      }
+      void load({ refreshing: true });
     },
     [load],
   );
