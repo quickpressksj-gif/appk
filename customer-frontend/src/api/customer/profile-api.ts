@@ -126,8 +126,8 @@ function composeProfile(input: {
 }): ProfileData {
   const account = input.account || ({} as ProfileAccount);
   const wallet = input.wallet;
-  const name = account.name || "Customer";
-  const initials = account.avatarInitials || (name.length >= 2 ? name.slice(0, 2).toUpperCase() : "QP");
+  const name = (account.name && account.name !== "Customer" && account.name !== "Guest User") ? account.name : (account.phone || "");
+  const initials = account.avatarInitials || (name && name.length >= 2 ? name.slice(0, 2).toUpperCase() : "QP");
   const phone = account.phone ? (account.phone.startsWith("+") ? account.phone : `+91 ${account.phone}`) : "";
   const orders = Array.isArray(input.orders) ? input.orders : [];
   const addresses = Array.isArray(input.addresses) ? input.addresses : [];

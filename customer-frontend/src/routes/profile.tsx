@@ -261,9 +261,9 @@ function ProfileScreen() {
   const load = useCallback(async (forceRefresh = false) => {
     setLoadError(null);
     try {
-      const next = await fetchProfileData({ forceRefresh });
       setData(next);
-      setForm({ name: next.user.name, email: next.user.email, city: next.user.city });
+      const cleanName = next.user.name && next.user.name !== "Customer" && next.user.name !== "Guest User" ? next.user.name : "";
+      setForm({ name: cleanName, email: next.user.email, city: next.user.city });
     } catch {
       setLoadError(
         isOnline()
@@ -522,7 +522,9 @@ function ProfileScreen() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-lg font-bold leading-tight tracking-tight text-foreground">
-                      {data.user.name}
+                      {data.user.name && data.user.name !== "Customer" && data.user.name !== "Guest User"
+                        ? data.user.name
+                        : (data.user.phone || "QuickPress User")}
                     </p>
                     {data.user.verified ? (
                       <BadgeCheck className="size-[1.05rem] shrink-0 text-brand-green" />

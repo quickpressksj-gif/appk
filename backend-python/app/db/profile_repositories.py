@@ -51,12 +51,12 @@ def _member_since(value: Any) -> str:
 
 
 def to_profile(user: User, unread: int = 0) -> ProfileResponse:
-    name = user.display_name or "Customer"
+    name = user.display_name or user.phone or ""
     return ProfileResponse(
         id=user.id,
         name=name,
-        initials=initials_for(name),
-        avatarInitials=initials_for(name),
+        initials=initials_for(name) if name else "QP",
+        avatarInitials=initials_for(name) if name else "QP",
         avatarUrl=user.photo_url,
         photoUrl=user.photo_url,
         phone=user.phone or "",
