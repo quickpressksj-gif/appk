@@ -32,11 +32,20 @@ class ContactFormPayload(BaseModel):
 
 @router.get("/legal/{doc_slug}")
 async def get_public_legal_doc(doc_slug: str) -> Dict[str, Any]:
-    doc = await cms_repo.get_legal_doc(doc_slug)
+    alias_map = {
+        "terms-and-conditions": "terms",
+        "terms-of-service": "terms",
+        "terms": "terms",
+        "privacy": "privacy-policy",
+        "privacy-policy": "privacy-policy",
+        "refund-cancellation": "refund-policy",
+        "refund-policy": "refund-policy",
+        "refund": "refund-policy",
+    }
+    target_slug = alias_map.get(doc_slug.lower(), doc_slug)
+    doc = await cms_repo.get_legal_doc(target_slug)
     if not doc:
-        # Fallback if slug without suffix
-        if not doc_slug.endswith("-policy") and doc_slug in ("privacy", "refund"):
-            doc = await cms_repo.get_legal_doc(f"{doc_slug}-policy")
+        doc = await cms_repo.get_legal_doc(doc_slug)
     if not doc:
         raise HTTPException(status_code=404, detail="Legal document not found or unpublished.")
     return {
