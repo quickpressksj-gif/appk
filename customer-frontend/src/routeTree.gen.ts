@@ -15,7 +15,6 @@ import { Route as AddressesRouteImport } from './routes/addresses'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ContactRouteImport } from './routes/contact'
-import { Route as DevRouteImport } from './routes/dev'
 import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HistoryRouteImport } from './routes/history'
@@ -68,11 +67,6 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevRoute = DevRouteImport.update({
-  id: '/dev',
-  path: '/dev',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FaqsRoute = FaqsRouteImport.update({
@@ -198,7 +192,6 @@ export interface FileRoutesByFullPath {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/dev': typeof DevRoute
   '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
@@ -230,7 +223,6 @@ export interface FileRoutesByTo {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/dev': typeof DevRoute
   '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
@@ -263,7 +255,6 @@ export interface FileRoutesById {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/dev': typeof DevRoute
   '/faqs': typeof FaqsRoute
   '/help': typeof HelpRoute
   '/history': typeof HistoryRoute
@@ -297,7 +288,6 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
-    | '/dev'
     | '/faqs'
     | '/help'
     | '/history'
@@ -329,7 +319,6 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
-    | '/dev'
     | '/faqs'
     | '/help'
     | '/history'
@@ -361,7 +350,6 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
-    | '/dev'
     | '/faqs'
     | '/help'
     | '/history'
@@ -394,7 +382,6 @@ export interface RootRouteChildren {
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
   ContactRoute: typeof ContactRoute
-  DevRoute: typeof DevRoute
   FaqsRoute: typeof FaqsRoute
   HelpRoute: typeof HelpRoute
   HistoryRoute: typeof HistoryRoute
@@ -462,13 +449,6 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dev': {
-      id: '/dev'
-      path: '/dev'
-      fullPath: '/dev'
-      preLoaderRoute: typeof DevRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faqs': {
@@ -642,7 +622,6 @@ const rootRouteChildren: RootRouteChildren = {
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
   ContactRoute: ContactRoute,
-  DevRoute: DevRoute,
   FaqsRoute: FaqsRoute,
   HelpRoute: HelpRoute,
   HistoryRoute: HistoryRoute,
