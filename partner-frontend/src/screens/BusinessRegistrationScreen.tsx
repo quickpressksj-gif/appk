@@ -28,6 +28,7 @@ import {
   Navigation,
   Phone,
   ReceiptText,
+  Search,
   Send,
   ShieldCheck,
   Shirt,
@@ -124,39 +125,73 @@ const EXPERIENCE_OPTIONS = [
   "More than 10 years",
 ] as const;
 
-const SERVICES: MasterCatalogItem[] = [
-  { id: "Wash & Fold", name: "Wash & Fold", price: 79, unit: "kg", defaultHours: 24, desc: "Everyday clothes washed, dried & neatly folded." },
-  { id: "Wash & Iron", name: "Wash & Iron", price: 99, unit: "kg", defaultHours: 24, desc: "Wash with professional steam ironing finish." },
-  { id: "Steam Ironing", name: "Steam Ironing", price: 19, unit: "pc", defaultHours: 12, desc: "Crisp wrinkle-free finish on hangers." },
-  { id: "Dry Cleaning", name: "Dry Cleaning", price: 149, unit: "pc", defaultHours: 48, desc: "Eco solvent dry clean for suits and silks." },
-  { id: "Saree Care", name: "Saree Care", price: 249, unit: "pc", defaultHours: 48, desc: "Delicate silk wash, stain removal & roll polish." },
-  { id: "Shoe Cleaning", name: "Shoe Cleaning", price: 249, unit: "pair", defaultHours: 48, desc: "Deep sonic foam cleaning & deodorizing." },
-  { id: "Blanket Wash", name: "Blanket Wash", price: 349, unit: "pc", defaultHours: 48, desc: "Bulky winter comforters sanitized & fluff-dried." },
-  { id: "Curtain Cleaning", name: "Curtain Cleaning", price: 199, unit: "panel", defaultHours: 36, desc: "Dust-free steam extraction for home drapes." },
-  { id: "Express Laundry", name: "Express Laundry", price: 129, unit: "kg", defaultHours: 12, desc: "Superfast priority turnaround within 12 hours." },
+const SERVICES: (MasterCatalogItem & { category?: string })[] = [
+  // ⚡ 1. Steam Ironing (Pressing by Piece)
+  { id: "Shirt Steam Iron", name: "Shirt Steam Iron", price: 15, unit: "pc", defaultHours: 12, category: "iron", desc: "Crisp wrinkle-free hanger finish for formal and casual shirts." },
+  { id: "T-Shirt Steam Iron", name: "T-Shirt Steam Iron", price: 12, unit: "pc", defaultHours: 12, category: "iron", desc: "Gentle temperature-controlled steam press for cotton and polo tees." },
+  { id: "Trouser / Jeans Steam Iron", name: "Trouser / Jeans Steam Iron", price: 15, unit: "pc", defaultHours: 12, category: "iron", desc: "Sharp razor creases and flat line press for pants and denim." },
+  { id: "Kurta / Pyjama Steam Iron", name: "Kurta / Pyjama Steam Iron", price: 25, unit: "pc", defaultHours: 12, category: "iron", desc: "Traditional ethnic wear wrinkle-free steam pressing." },
+  { id: "Saree Steam Press", name: "Saree Steam Press", price: 59, unit: "pc", defaultHours: 12, category: "iron", desc: "Delicate temperature steam finish with roller packaging." },
+  { id: "Blazer / Coat Steam Iron", name: "Blazer / Coat Steam Iron", price: 69, unit: "pc", defaultHours: 12, category: "iron", desc: "Form-retaining 3D vertical steam pressing for coats." },
+  { id: "Bedsheet Steam Iron", name: "Bedsheet Steam Iron", price: 29, unit: "pc", defaultHours: 12, category: "iron", desc: "Large flat linen steam press and crisp hotel-fold." },
+
+  // 👔 2. Dry Cleaning (Special Care by Piece)
+  { id: "Shirt Dry Clean", name: "Shirt Dry Clean", price: 79, unit: "pc", defaultHours: 36, category: "dry-clean", desc: "Eco-friendly solvent stain removal and crisp collar finish." },
+  { id: "Trouser / Jeans Dry Clean", name: "Trouser / Jeans Dry Clean", price: 79, unit: "pc", defaultHours: 36, category: "dry-clean", desc: "Deep solvent cleaning, spot treatment and sharp creasing." },
+  { id: "2-Piece Suit Dry Clean", name: "2-Piece Suit Dry Clean", price: 249, unit: "set", defaultHours: 48, category: "dry-clean", desc: "Blazer + Trouser tailored luxury solvent care and hanger pack." },
+  { id: "3-Piece Suit Dry Clean", name: "3-Piece Suit Dry Clean", price: 349, unit: "set", defaultHours: 48, category: "dry-clean", desc: "Jacket + Waistcoat + Trouser complete executive dry clean." },
+  { id: "Blazer / Coat Dry Clean", name: "Blazer / Coat Dry Clean", price: 149, unit: "pc", defaultHours: 48, category: "dry-clean", desc: "Solvent stain removal and shape preservation for suits." },
+  { id: "Winter Jacket / Bomber Dry Clean", name: "Winter Jacket / Bomber Dry Clean", price: 199, unit: "pc", defaultHours: 48, category: "dry-clean", desc: "Padded and down jacket deep soil and grime extraction." },
+  { id: "Woolen Sweater / Cardigan Dry Clean", name: "Woolen Sweater / Cardigan Dry Clean", price: 119, unit: "pc", defaultHours: 36, category: "dry-clean", desc: "Anti-shrink pure wool cleaning and de-pilling treatment." },
+  { id: "Sherwani / Indo-Western Dry Clean", name: "Sherwani / Indo-Western Dry Clean", price: 399, unit: "pc", defaultHours: 48, category: "dry-clean", desc: "Heavy bridal and wedding wear solvent spa with bead care." },
+
+  // 🧺 3. Wash & Fold / Laundry
+  { id: "Wash & Fold (Per Kg)", name: "Wash & Fold (Per Kg)", price: 79, unit: "kg", defaultHours: 24, category: "wash", desc: "Daily wear clothes washed, dried & neatly folded." },
+  { id: "Wash & Steam Iron (Per Kg)", name: "Wash & Steam Iron (Per Kg)", price: 99, unit: "kg", defaultHours: 24, category: "wash", desc: "Wash with fabric conditioner & professional steam ironing." },
+  { id: "Bed Sheet Wash & Fold", name: "Bed Sheet Wash & Fold", price: 59, unit: "pc", defaultHours: 24, category: "wash", desc: "Hygienic warm water sanitization and neat folding." },
+  { id: "Towel & Bath Linen Wash", name: "Towel & Bath Linen Wash", price: 29, unit: "pc", defaultHours: 24, category: "wash", desc: "Deep disinfectant wash and extra fluff drying." },
+
+  // ✨ 4. Premium Saree & Silk Care
+  { id: "Silk Saree Dry Clean & Roll Polish", name: "Silk Saree Dry Clean & Roll Polish", price: 249, unit: "pc", defaultHours: 48, category: "premium", desc: "Delicate pure silk wash, stain removal and roll polish finish." },
+  { id: "Heavy Zari / Bridal Lehenga Spa", name: "Heavy Zari / Bridal Lehenga Spa", price: 499, unit: "pc", defaultHours: 72, category: "premium", desc: "Delicate stone and zari embroidery protection with hand finishing." },
+  { id: "Designer Gown / Anarkali Dry Clean", name: "Designer Gown / Anarkali Dry Clean", price: 299, unit: "pc", defaultHours: 48, category: "premium", desc: "Multi-layer delicate fabric solvent extraction." },
+
+  // 👟 5. Footwear & Bag Spa
+  { id: "Sneakers & Sports Shoes Deep Clean", name: "Sneakers & Sports Shoes Deep Clean", price: 249, unit: "pair", defaultHours: 48, category: "shoe-care", desc: "Deep sonic foam scrubbing, deodorizing and sole whitening." },
+  { id: "Leather Shoes Cleaning & Polish", name: "Leather Shoes Cleaning & Polish", price: 299, unit: "pair", defaultHours: 48, category: "shoe-care", desc: "Wax buffing, leather cream nourishment and mirror shine." },
+  { id: "Backpack & Handbag Cleaning", name: "Backpack & Handbag Cleaning", price: 199, unit: "pc", defaultHours: 48, category: "shoe-care", desc: "Deep soil extraction, zipper conditioning and fabric sanitization." },
+
+  // 🪟 6. Home Care, Blankets & Curtains
+  { id: "Single Blanket / Quilt Wash", name: "Single Blanket / Quilt Wash", price: 249, unit: "pc", defaultHours: 48, category: "home-care", desc: "Winter comforter sanitized, washed & sun fluff-dried." },
+  { id: "Double Blanket / Heavy Rajai Wash", name: "Double Blanket / Heavy Rajai Wash", price: 349, unit: "pc", defaultHours: 48, category: "home-care", desc: "Heavy double winter quilt deep allergen extraction." },
+  { id: "Curtain Cleaning (Per Panel)", name: "Curtain Cleaning (Per Panel)", price: 199, unit: "panel", defaultHours: 36, category: "home-care", desc: "Dust-free steam extraction and anti-shrink washing." },
+  { id: "Carpet / Rug Deep Shampoo", name: "Carpet / Rug Deep Shampoo", price: 449, unit: "carpet", defaultHours: 48, category: "home-care", desc: "Industrial fibre deep shampoo wash and stain extraction." },
+
+  // 🚀 7. Express Priority Turnaround
+  { id: "Express Laundry (6 Hours)", name: "Express Laundry (6 Hours)", price: 129, unit: "kg", defaultHours: 6, category: "express", desc: "Priority wash, tumble dry and pack within 6 hours." },
+  { id: "Express Steam Ironing (4 Hours)", name: "Express Steam Ironing (4 Hours)", price: 25, unit: "pc", defaultHours: 4, category: "express", desc: "Superfast urgent wardrobe pressing within 4 hours." },
 ];
 
-const SERVICE_ICON_MAP: Record<string, any> = {
-  "wash & fold": Shirt,
-  "wash & iron": Wind,
-  "steam ironing": Sparkles,
-  "dry cleaning": Bath,
-  "saree care": Shirt,
-  "shoe cleaning": Footprints,
-  "blanket wash": Bath,
-  "curtain cleaning": Blinds,
-  "express laundry": Sparkles,
-  "laundry": Shirt,
-  "iron": Wind,
-  "sparkles": Sparkles,
-  "shirt": Shirt,
-  "bath": Bath,
-  "footprints": Footprints,
-};
+const SERVICE_CATEGORY_TABS = [
+  { id: "all", label: "All Items" },
+  { id: "iron", label: "⚡ Steam Iron" },
+  { id: "dry-clean", label: "👔 Dry Clean" },
+  { id: "wash", label: "🧺 Wash & Fold" },
+  { id: "premium", label: "✨ Saree & Silk" },
+  { id: "shoe-care", label: "👟 Shoes & Bags" },
+  { id: "home-care", label: "🪟 Blankets & Home" },
+  { id: "express", label: "🚀 Express" },
+] as const;
 
 function resolveServiceIcon(s: MasterCatalogItem) {
-  const key = (s.icon || s.name || s.id).toLowerCase();
-  return SERVICE_ICON_MAP[key] || Shirt;
+  const name = (s.name || s.id).toLowerCase();
+  if (name.includes("iron") || name.includes("press")) return Wind;
+  if (name.includes("dry") || name.includes("suit") || name.includes("coat") || name.includes("blazer")) return Bath;
+  if (name.includes("saree") || name.includes("silk") || name.includes("lehenga") || name.includes("gown")) return Sparkles;
+  if (name.includes("shoe") || name.includes("sneaker") || name.includes("bag")) return Footprints;
+  if (name.includes("curtain") || name.includes("carpet") || name.includes("blanket") || name.includes("rajai") || name.includes("quilt")) return Blinds;
+  if (name.includes("express")) return Sparkles;
+  return Shirt;
 }
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -268,8 +303,18 @@ export function BusinessRegistrationScreen() {
     }
   }, [session, phone]);
 
-  const [catalogServices, setCatalogServices] = useState<MasterCatalogItem[]>(SERVICES);
-  const [services, setServices] = useState<string[]>(["Wash & Fold", "Steam Ironing", "Wash & Iron", "Dry Cleaning"]);
+  const [catalogServices, setCatalogServices] = useState<(MasterCatalogItem & { category?: string })[]>(SERVICES);
+  const [serviceCategoryTab, setServiceCategoryTab] = useState<string>("all");
+  const [serviceSearchQuery, setServiceSearchQuery] = useState<string>("");
+  const [services, setServices] = useState<string[]>([
+    "Shirt Steam Iron",
+    "T-Shirt Steam Iron",
+    "Trouser / Jeans Steam Iron",
+    "Shirt Dry Clean",
+    "Trouser / Jeans Dry Clean",
+    "Wash & Fold (Per Kg)",
+    "Wash & Steam Iron (Per Kg)",
+  ]);
   const [servicePrices, setServicePrices] = useState<Record<string, number>>({
     "Wash & Fold": 79,
     "Wash & Iron": 99,
@@ -1141,103 +1186,166 @@ export function BusinessRegistrationScreen() {
 
             {step === 2 ? (
               <SectionCard title="Store Service Rate Card & Custom Pricing">
-                <p className="text-xs text-zinc-500 font-medium -mt-2 mb-4">
-                  Enable the services your store fulfills and set your own custom prices (₹) that customers will see:
+                <p className="text-xs text-zinc-500 font-medium -mt-2 mb-3">
+                  Select the specific garment services your store provides and configure custom prices (₹):
                 </p>
-                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                  {catalogServices.map((s) => {
-                    const isSelected = services.includes(s.id);
-                    const currentPrice = servicePrices[s.id] ?? s.price;
-                    const Icon = resolveServiceIcon(s);
 
+                {/* Search Bar & Selected Items Counter */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+                    <input
+                      type="text"
+                      value={serviceSearchQuery}
+                      onChange={(e) => setServiceSearchQuery(e.target.value)}
+                      placeholder="Search items (e.g. T-Shirt Iron, Shirt Dry Clean, Blanket...)"
+                      className="w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 py-2.5 text-xs font-bold text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/50 shadow-2xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <span className="rounded-xl bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-900 border border-amber-300 shadow-2xs">
+                      {services.length} Selected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Category Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-none">
+                  {SERVICE_CATEGORY_TABS.map((tab) => {
+                    const isActive = serviceCategoryTab === tab.id;
                     return (
-                      <div
-                        key={s.id}
-                        className={`rounded-2xl border p-4 transition-all ${
-                          isSelected
-                            ? "border-amber-400 bg-amber-50/50 shadow-sm ring-1 ring-amber-300"
-                            : "border-zinc-200 bg-white opacity-70 hover:opacity-100"
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setServiceCategoryTab(tab.id)}
+                        className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-black transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-zinc-900 text-white shadow-xs"
+                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 border border-zinc-200/60"
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                                isSelected ? "bg-amber-400 text-black shadow-sm" : "bg-zinc-100 text-zinc-600"
-                              }`}
-                            >
-                              <Icon className="size-5" />
-                            </span>
-                            <div>
-                              <h4 className="text-sm font-black text-zinc-900">{s.id}</h4>
-                              <span className="text-[11px] font-bold text-zinc-500 uppercase">
-                                Unit: Per {s.unit}
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleService(s.id)}
-                            className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-all cursor-pointer ${
-                              isSelected
-                                ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
-                                : "border-zinc-300 bg-white"
-                            }`}
-                          >
-                            {isSelected && <Check className="size-3.5 stroke-[3]" />}
-                          </button>
-                        </div>
-
-                        {/* Editable Custom Price & Turnaround Input */}
-                        {isSelected && (
-                          <div className="mt-3.5 pt-3 border-t border-amber-200/80 space-y-3 animate-fade-in">
-                            <div className="flex items-center justify-between gap-3">
-                              <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
-                                <span>Custom Rate:</span>
-                              </label>
-                              <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
-                                <span className="text-xs font-black text-emerald-800">₹</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={9999}
-                                  value={currentPrice}
-                                  onChange={(e) => updateServicePrice(s.id, Number(e.target.value))}
-                                  className="w-16 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
-                                />
-                                <span className="text-[11px] font-bold text-zinc-500">/ {s.unit}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/50">
-                              <span className="text-[11px] font-bold text-zinc-600">Turnaround Time:</span>
-                              <div className="flex items-center gap-1.5">
-                                {[12, 24, 36, 48].map((hrs) => {
-                                  const curHrs = serviceTurnarounds[s.id] ?? s.defaultHours;
-                                  const isHrsSelected = curHrs === hrs;
-                                  return (
-                                    <button
-                                      key={hrs}
-                                      type="button"
-                                      onClick={() => updateServiceTurnaround(s.id, hrs)}
-                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                                        isHrsSelected
-                                          ? "bg-amber-400 text-black shadow-xs font-black"
-                                          : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-                                      }`}
-                                    >
-                                      {hrs}h
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                        {tab.label}
+                      </button>
                     );
                   })}
+                </div>
+
+                {/* Grid of Itemized Services */}
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                  {catalogServices
+                    .filter((s) => {
+                      if (serviceCategoryTab !== "all") {
+                        const cat = (s as any).category;
+                        const lower = (s.name || s.id).toLowerCase();
+                        if (serviceCategoryTab === "iron" && !(cat === "iron" || lower.includes("iron") || lower.includes("press"))) return false;
+                        if (serviceCategoryTab === "dry-clean" && !(cat === "dry-clean" || lower.includes("dry") || lower.includes("suit") || lower.includes("blazer") || lower.includes("jacket") || lower.includes("woolen") || lower.includes("sherwani"))) return false;
+                        if (serviceCategoryTab === "wash" && !(cat === "wash" || lower.includes("wash") || lower.includes("fold") || lower.includes("towel"))) return false;
+                        if (serviceCategoryTab === "premium" && !(cat === "premium" || lower.includes("saree") || lower.includes("silk") || lower.includes("lehenga") || lower.includes("gown"))) return false;
+                        if (serviceCategoryTab === "shoe-care" && !(cat === "shoe-care" || lower.includes("shoe") || lower.includes("sneaker") || lower.includes("bag"))) return false;
+                        if (serviceCategoryTab === "home-care" && !(cat === "home-care" || lower.includes("blanket") || lower.includes("curtain") || lower.includes("carpet") || lower.includes("rajai") || lower.includes("quilt"))) return false;
+                        if (serviceCategoryTab === "express" && !(cat === "express" || lower.includes("express"))) return false;
+                      }
+                      if (serviceSearchQuery.trim()) {
+                        const q = serviceSearchQuery.trim().toLowerCase();
+                        const lower = (s.name || s.id).toLowerCase();
+                        const desc = (s.desc || "").toLowerCase();
+                        if (!lower.includes(q) && !desc.includes(q)) return false;
+                      }
+                      return true;
+                    })
+                    .map((s) => {
+                      const isSelected = services.includes(s.id);
+                      const currentPrice = servicePrices[s.id] ?? s.price;
+                      const Icon = resolveServiceIcon(s);
+
+                      return (
+                        <div
+                          key={s.id}
+                          className={`rounded-2xl border p-4 transition-all ${
+                            isSelected
+                              ? "border-amber-400 bg-amber-50/50 shadow-sm ring-1 ring-amber-300"
+                              : "border-zinc-200 bg-white opacity-70 hover:opacity-100"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                                  isSelected ? "bg-amber-400 text-black shadow-sm" : "bg-zinc-100 text-zinc-600"
+                                }`}
+                              >
+                                <Icon className="size-5" />
+                              </span>
+                              <div>
+                                <h4 className="text-sm font-black text-zinc-900">{s.id}</h4>
+                                <span className="text-[11px] font-bold text-zinc-500 uppercase">
+                                  Unit: Per {s.unit}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleService(s.id)}
+                              className={`flex size-6 shrink-0 items-center justify-center rounded-full border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                                  : "border-zinc-300 bg-white"
+                              }`}
+                            >
+                              {isSelected && <Check className="size-3.5 stroke-[3]" />}
+                            </button>
+                          </div>
+
+                          {/* Editable Custom Price & Turnaround Input */}
+                          {isSelected && (
+                            <div className="mt-3.5 pt-3 border-t border-amber-200/80 space-y-3 animate-fade-in">
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="text-xs font-black text-zinc-800 flex items-center gap-1">
+                                  <span>Custom Rate:</span>
+                                </label>
+                                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
+                                  <span className="text-xs font-black text-emerald-800">₹</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={9999}
+                                    value={currentPrice}
+                                    onChange={(e) => updateServicePrice(s.id, Number(e.target.value))}
+                                    className="w-16 bg-transparent text-sm font-black text-zinc-900 outline-none text-right"
+                                  />
+                                  <span className="text-[11px] font-bold text-zinc-500">/ {s.unit}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/50">
+                                <span className="text-[11px] font-bold text-zinc-600">Turnaround:</span>
+                                <div className="flex items-center gap-1.5">
+                                  {[4, 6, 12, 24, 36, 48].map((hrs) => {
+                                    const curHrs = serviceTurnarounds[s.id] ?? s.defaultHours;
+                                    const isHrsSelected = curHrs === hrs;
+                                    return (
+                                      <button
+                                        key={hrs}
+                                        type="button"
+                                        onClick={() => updateServiceTurnaround(s.id, hrs)}
+                                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                          isHrsSelected
+                                            ? "bg-amber-400 text-black shadow-xs font-black"
+                                            : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                                        }`}
+                                      >
+                                        {hrs}h
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
                 {errors["services"] ? (
                   <p className="text-xs font-bold text-red-600 mt-2">{errors["services"]}</p>
