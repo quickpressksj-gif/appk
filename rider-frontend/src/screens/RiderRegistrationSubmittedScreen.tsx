@@ -140,7 +140,7 @@ export function RiderRegistrationSubmittedScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-950 text-white selection:bg-emerald-500 selection:text-black">
+    <main className="relative min-h-screen overflow-x-hidden bg-slate-50/80 text-slate-900 selection:bg-emerald-500 selection:text-white">
       <Toaster position="top-center" richColors />
 
       {/* Ambient background glow */}
@@ -151,57 +151,57 @@ export function RiderRegistrationSubmittedScreen() {
         {/* Top Header */}
         <div>
           <div className="text-center">
-            <span className="mx-auto flex size-20 items-center justify-center rounded-3xl bg-amber-500/15 text-amber-400 shadow-xl border border-amber-500/30 ring-8 ring-amber-500/10">
+            <span className="mx-auto flex size-20 items-center justify-center rounded-3xl bg-amber-50 text-amber-600 shadow-sm border border-amber-200 ring-8 ring-amber-400/10">
               <BadgeCheck className="size-11 stroke-[2.2]" />
             </span>
-            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-black text-amber-300">
-              <span className="size-2 rounded-full bg-amber-400 animate-ping" />
-              <span>Pending Operations Review</span>
+            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-800 shadow-xs">
+              <span className="size-2 rounded-full bg-amber-500 animate-ping" />
+              <span>Operations Verification Active</span>
             </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
               Application Under Review
             </h1>
-            <p className="mt-2 text-xs font-medium leading-relaxed text-slate-400 max-w-sm mx-auto">
-              Thank you for applying as a QuickPress Captain! Your profile, vehicle specs, and verified documents are being activated.
+            <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500 max-w-sm mx-auto">
+              Thank you for applying as a QuickPress Captain! Your profile, vehicle specs, and documents are being activated by our Operations team.
             </p>
           </div>
 
           {/* Generated Application ID Card */}
-          <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-5 backdrop-blur-xl shadow-2xl">
+          <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Application Reference ID
                 </p>
-                <p className="mt-0.5 font-mono text-xl font-black tracking-wider text-white">
+                <p className="mt-0.5 font-mono text-xl font-black tracking-wider text-slate-900">
                   {applicationId}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={copyApplicationId}
-                className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-white/10 active:scale-95 transition-all"
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
               >
                 <Copy className="size-3.5" />
                 <span>Copy ID</span>
               </button>
             </div>
 
-            <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-[11px] font-medium text-slate-400">
-              <span>Estimated Approval Time</span>
-              <span className="font-bold text-amber-400">Within 2 to 4 Hours</span>
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-500">
+              <span>Estimated Activation Time</span>
+              <span className="font-bold text-amber-700">Within 2 to 4 Hours</span>
             </div>
           </div>
 
           {/* Verification Pipeline Stepper */}
-          <section className="mt-5 rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-6 backdrop-blur-xl shadow-2xl">
+          <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Verification Pipeline
               </p>
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Auto-Refreshing Live
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Sync
               </span>
             </div>
 
@@ -213,37 +213,37 @@ export function RiderRegistrationSubmittedScreen() {
                 return (
                   <li key={item.title} className="flex gap-4 items-start">
                     <span
-                      className={`flex size-10 shrink-0 items-center justify-center rounded-2xl transition-all shadow-sm ${
+                      className={`flex size-10 shrink-0 items-center justify-center rounded-2xl transition-all shadow-xs ${
                         isDone
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-emerald-500/10"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : isInProgress
-                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 ring-2 ring-amber-500/20"
-                            : "bg-white/5 text-slate-500 border border-white/5"
+                            ? "bg-amber-50 text-amber-700 border border-amber-300 ring-2 ring-amber-400/20"
+                            : "bg-slate-50 text-slate-400 border border-slate-200"
                       }`}
                     >
                       {isDone ? (
                         <CheckCircle2 className="size-5 stroke-[2.5]" />
                       ) : isInProgress ? (
-                        <Loader2 className="size-5 animate-spin" />
+                        <Loader2 className="size-5 animate-spin text-amber-600" />
                       ) : (
                         <Icon className="size-5" />
                       )}
                     </span>
                     <div className="min-w-0 flex-1 pt-0.5">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-black text-white">{item.title}</p>
+                        <p className="text-xs font-black text-slate-900">{item.title}</p>
                         {isDone && (
-                          <span className="text-[10px] font-bold text-emerald-400">
+                          <span className="text-[10px] font-bold text-emerald-700">
                             Verified ✓
                           </span>
                         )}
                         {isInProgress && (
-                          <span className="text-[10px] font-bold text-amber-400">
+                          <span className="text-[10px] font-bold text-amber-700">
                             In Review ⏳
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[11px] text-slate-400 leading-snug">
+                      <p className="mt-0.5 text-[11px] text-slate-500 leading-snug">
                         {item.body}
                       </p>
                     </div>
@@ -259,22 +259,22 @@ export function RiderRegistrationSubmittedScreen() {
               type="button"
               onClick={() => void checkStatus(false)}
               disabled={checking}
-              className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white/10 py-3.5 text-xs font-black text-white shadow-lg transition-all active:scale-[0.98] hover:bg-white/15 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-slate-900 py-3.5 text-xs font-black text-white shadow-md transition-all active:scale-[0.98] hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`size-4 ${checking ? "animate-spin" : ""}`} />
-              <span>{checking ? "Checking Live Status..." : "Check Status Now"}</span>
+              <span>{checking ? "Checking Live Status..." : "Refresh Approval Status"}</span>
             </button>
           </div>
         </div>
 
         {/* Bottom Help & Support Section */}
-        <div className="mt-8 border-t border-white/10 pt-5 text-center">
+        <div className="mt-8 border-t border-slate-200/80 pt-5 text-center">
           <button
             type="button"
             onClick={() => setShowHelpModal(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-black text-white shadow-sm transition-all hover:bg-white/10 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black text-slate-800 shadow-xs transition-all hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
           >
-            <HelpCircle className="size-4 text-emerald-400" />
+            <HelpCircle className="size-4 text-emerald-600" />
             <span>Need Help with Application? Contact Support</span>
           </button>
           <p className="mt-2 text-[10px] font-semibold text-slate-500">
@@ -285,31 +285,31 @@ export function RiderRegistrationSubmittedScreen() {
 
       {/* Help & Support Bottom Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/15 bg-slate-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             {/* Close Button */}
             <button
               type="button"
               onClick={() => setShowHelpModal(false)}
-              className="absolute top-4 right-4 flex size-8 items-center justify-center rounded-full bg-white/10 text-slate-400 hover:text-white hover:bg-white/20"
+              className="absolute top-4 right-4 flex size-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 cursor-pointer"
             >
               <X className="size-4" />
             </button>
 
             <div className="flex items-center gap-3">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <Headphones className="size-6" />
               </span>
               <div>
-                <h3 className="text-base font-black text-white">Captain Help Desk</h3>
-                <p className="text-xs text-slate-400 font-medium">
-                  Application ID: <span className="font-mono font-bold text-white">{applicationId}</span>
+                <h3 className="text-base font-black text-slate-900">Captain Help Desk</h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Application ID: <span className="font-mono font-bold text-slate-900">{applicationId}</span>
                 </p>
               </div>
             </div>
 
-            <p className="mt-3 text-xs text-slate-300 leading-relaxed">
-              Have questions about your onboarding or need expedited approval? Our Captain Support team is available 24/7.
+            <p className="mt-3 text-xs text-slate-600 leading-relaxed">
+              Have questions about your verification or need expedited approval? Our Captain Support team is available 24/7.
             </p>
 
             <div className="mt-5 space-y-3">
@@ -317,13 +317,13 @@ export function RiderRegistrationSubmittedScreen() {
               <button
                 type="button"
                 onClick={openWhatsAppSupport}
-                className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3.5 text-xs font-black text-slate-950 shadow-lg hover:brightness-110 transition-all active:scale-[0.98]"
+                className="flex w-full items-center justify-between rounded-2xl bg-emerald-600 px-4 py-3.5 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition-all active:scale-[0.98] cursor-pointer"
               >
                 <span className="flex items-center gap-2.5">
                   <MessageCircle className="size-4" />
                   Chat on WhatsApp Support
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-700/80 px-2 py-0.5 rounded-full">
                   Fastest
                 </span>
               </button>
@@ -331,13 +331,13 @@ export function RiderRegistrationSubmittedScreen() {
               {/* Call Support Helpline */}
               <a
                 href="tel:18005550199"
-                className="flex w-full items-center justify-between rounded-2xl border border-white/15 bg-white/5 px-4 py-3.5 text-xs font-black text-white shadow-sm hover:bg-white/10 transition-all"
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-xs font-black text-slate-800 shadow-xs hover:bg-slate-100 transition-all"
               >
                 <span className="flex items-center gap-2.5">
-                  <Phone className="size-4 text-emerald-400" />
+                  <Phone className="size-4 text-slate-700" />
                   Call Operations Helpline
                 </span>
-                <span className="text-[11px] font-bold text-slate-300 font-mono">
+                <span className="text-[11px] font-bold text-slate-600 font-mono">
                   1800-555-0199
                 </span>
               </a>
@@ -346,7 +346,7 @@ export function RiderRegistrationSubmittedScreen() {
             <button
               type="button"
               onClick={() => setShowHelpModal(false)}
-              className="mt-4 w-full py-2 text-center text-xs font-bold text-slate-400 hover:text-white"
+              className="mt-4 w-full py-2 text-center text-xs font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
             >
               Close
             </button>
