@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, Search, ShieldCheck, Sparkles, Store } from "lucide-react";
+import { Bell, Globe, Search, ShieldCheck, Sparkles, Store } from "lucide-react";
 
 import { partnerRoutes } from "../../navigation/partner-routes";
+import { useLanguage, SUPPORTED_LANGUAGES } from "../../lib/i18n";
 
 export function PartnerDesktopTopBar({
   title,
@@ -22,6 +23,9 @@ export function PartnerDesktopTopBar({
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
 }) {
+  const { language, openLanguageModal } = useLanguage();
+  const currentLang = SUPPORTED_LANGUAGES.find((l) => l.code === language);
+
   return (
     <header className="sticky top-0 z-20 hidden h-20 items-center justify-between border-b border-border/80 bg-background/85 px-8 backdrop-blur-md md:flex">
       {/* Title & Subtitle or Search */}
@@ -48,6 +52,20 @@ export function PartnerDesktopTopBar({
             />
           </div>
         ) : null}
+
+        {/* Language Switcher Button */}
+        <button
+          type="button"
+          onClick={openLanguageModal}
+          title="Change App Language"
+          className="flex items-center gap-2 rounded-2xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground transition-all hover:bg-muted active:scale-95 cursor-pointer shadow-2xs"
+        >
+          <Globe className="size-4 text-amber-500" />
+          <span className="font-extrabold">{currentLang?.nativeName || "हिन्दी / EN"}</span>
+          <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
+            {language}
+          </span>
+        </button>
 
         {/* Store Live Status Pill */}
         <button

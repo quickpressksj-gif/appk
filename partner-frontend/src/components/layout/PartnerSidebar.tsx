@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   Bell,
+  Globe,
   HelpCircle,
   LayoutDashboard,
   ListOrdered,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { partnerRoutes, partnerSidebarLinks } from "../../navigation/partner-routes";
+import { useLanguage } from "../../lib/i18n";
 
 export function PartnerSidebar({
   shopName,
@@ -30,6 +32,7 @@ export function PartnerSidebar({
   onLogout?: () => void;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { language, openLanguageModal } = useLanguage();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-border/80 bg-card/95 backdrop-blur-md transition-all duration-300 md:flex lg:w-72">
@@ -151,6 +154,21 @@ export function PartnerSidebar({
 
       {/* Footer / Account */}
       <div className="border-t border-border/70 p-4 space-y-2">
+        {/* Language Selection Button */}
+        <button
+          type="button"
+          onClick={openLanguageModal}
+          className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-muted/40 p-2.5 transition-colors hover:bg-muted active:scale-[0.98] cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-amber-500" />
+            <span className="text-xs font-bold text-foreground">Language / भाषा</span>
+          </div>
+          <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
+            {language}
+          </span>
+        </button>
+
         <Link
           to={partnerRoutes.profile}
           className="flex items-center gap-3 rounded-2xl p-2 transition-colors hover:bg-muted"

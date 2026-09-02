@@ -2,18 +2,38 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { partnerTabs, type PartnerTabId } from "../navigation/partner-routes";
+import { useLanguage } from "../lib/i18n";
 
 /**
  * Partner bottom navigation — exactly matches the customer app's glass dock pill nav.
  */
 export function PartnerBottomNav({ active }: { active: PartnerTabId }) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [pressed, setPressed] = useState<string | null>(null);
 
   const bump = (id: string) => {
     setPressed(id);
     window.setTimeout(() => setPressed((p) => (p === id ? null : p)), 320);
+  };
+
+  const getTabLabel = (id: string, fallback: string) => {
+    switch (id) {
+      case "dashboard":
+        return t("nav.dashboard") || fallback;
+      case "orders":
+        return t("nav.orders") || fallback;
+      case "services":
+        return t("nav.services") || fallback;
+      case "earnings":
+        return t("nav.earnings") || fallback;
+      case "shop":
+      case "profile":
+        return t("nav.profile") || fallback;
+      default:
+        return fallback;
+    }
   };
 
   return (
@@ -56,7 +76,7 @@ export function PartnerBottomNav({ active }: { active: PartnerTabId }) {
                     isActive ? "font-black" : "font-semibold"
                   }`}
                 >
-                  {tab.label}
+                  {getTabLabel(tab.id, tab.label)}
                 </span>
               </button>
             );
