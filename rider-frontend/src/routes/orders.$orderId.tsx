@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RiderProvider } from "../context/RiderContext";
 import { RiderOrderDetailsScreen } from "../screens/RiderOrderDetailsScreen";
 
+import { requireRiderAuth } from "../lib/auth-guard";
+
 export const Route = createFileRoute("/orders/$orderId")({
+  beforeLoad: requireRiderAuth,
   head: () => ({
     meta: [
       { title: "Order Details · QuickPress Rider" },

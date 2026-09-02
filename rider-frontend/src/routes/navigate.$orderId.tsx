@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RiderProvider } from "../context/RiderContext";
 import { RiderNavigationScreen } from "../screens/RiderNavigationScreen";
 
+import { requireRiderAuth } from "../lib/auth-guard";
+
 export const Route = createFileRoute("/navigate/$orderId")({
+  beforeLoad: requireRiderAuth,
   head: () => ({
     meta: [
       { title: "Navigation · QuickPress Rider" },

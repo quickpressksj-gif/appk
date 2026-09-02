@@ -40,24 +40,27 @@ export type RiderOnboardingForm = {
   dlFront: string;
   dlBack: string;
   dlVerified: boolean;
-  // Step 8 — Vehicle Details
+  // Step 7 — Vehicle Details
   vehicleType: string;
   vehicleBrand: string;
   vehicleModel: string;
   fuelType: string;
   regYear: string;
-  // Step 9 — RC Verification
+  chassisNumber: string;
+  engineNumber: string;
+  vehiclePhoto: string;
+  // Step 8 — RC Verification
   rcNumber: string;
   rcFront: string;
   rcBack: string;
   rcVerified: boolean;
-  // Step 10 — Insurance
+  // Step 9 — Insurance
   insuranceNumber: string;
   insuranceProvider: string;
   insuranceValidTill: string;
   insuranceDoc: string;
   insuranceVerified: boolean;
-  // Step 11 — Bank / Payout
+  // Step 10 — Bank / Payout
   accountHolder: string;
   bankName: string;
   accountNumber: string;
@@ -66,6 +69,9 @@ export type RiderOnboardingForm = {
   branch: string;
   upiId: string;
   bankVerified: boolean;
+  // Step 11 — Agreement
+  signatureUrl: string;
+  signedAt: string;
   // Step 12 — Working Preferences & Declaration
   preferredCity: string;
   preferredArea: string;
@@ -76,7 +82,7 @@ export type RiderOnboardingForm = {
 
 export const emptyRiderForm: RiderOnboardingForm = {
   mobile: "",
-  mobileVerified: false,
+  mobileVerified: true,
   fullName: "",
   email: "",
   dob: "",
@@ -107,6 +113,9 @@ export const emptyRiderForm: RiderOnboardingForm = {
   vehicleModel: "Splendor Plus",
   fuelType: "Petrol",
   regYear: "2022",
+  chassisNumber: "",
+  engineNumber: "",
+  vehiclePhoto: "",
   rcNumber: "",
   rcFront: "",
   rcBack: "",
@@ -124,6 +133,8 @@ export const emptyRiderForm: RiderOnboardingForm = {
   branch: "",
   upiId: "",
   bankVerified: false,
+  signatureUrl: "",
+  signedAt: "",
   preferredCity: "",
   preferredArea: "",
   employmentType: "Full Time",
@@ -132,18 +143,18 @@ export const emptyRiderForm: RiderOnboardingForm = {
 };
 
 export const ONBOARDING_STEPS = [
-  { id: 1, key: "mobile", title: "Mobile Verification", caption: "Phone & OTP" },
-  { id: 2, key: "personal", title: "Basic Profile", caption: "Personal details" },
-  { id: 3, key: "address", title: "Address", caption: "Current location" },
-  { id: 4, key: "aadhaar", title: "Aadhaar Verification", caption: "12-digit Aadhaar & document" },
-  { id: 5, key: "pan", title: "PAN Verification", caption: "10-digit PAN card" },
-  { id: 6, key: "selfie", title: "Live Selfie + Liveness", caption: "Face verification" },
-  { id: 7, key: "driving", title: "Driving Licence", caption: "DL number & photo" },
-  { id: 8, key: "vehicle", title: "Vehicle Details", caption: "Type, model & fuel" },
-  { id: 9, key: "rc", title: "RC Verification", caption: "Vehicle registration" },
-  { id: 10, key: "insurance", title: "Insurance", caption: "Vehicle policy" },
-  { id: 11, key: "bank", title: "Bank & Payouts", caption: "Account & IFSC" },
-  { id: 12, key: "review", title: "Final Review", caption: "Summary & submit" },
+  { id: 1, key: "personal", title: "Basic Profile", caption: "Personal details" },
+  { id: 2, key: "address", title: "Address", caption: "Current location" },
+  { id: 3, key: "aadhaar", title: "Aadhaar Verification", caption: "12-digit Aadhaar & document" },
+  { id: 4, key: "pan", title: "PAN Verification", caption: "10-digit PAN card" },
+  { id: 5, key: "selfie", title: "Live Selfie + Liveness", caption: "Face verification" },
+  { id: 6, key: "driving", title: "Driving Licence", caption: "DL number & photo" },
+  { id: 7, key: "vehicle", title: "Vehicle Details", caption: "Type, chassis, engine & photo" },
+  { id: 8, key: "rc", title: "RC Verification", caption: "Vehicle registration" },
+  { id: 9, key: "insurance", title: "Insurance", caption: "Vehicle policy" },
+  { id: 10, key: "bank", title: "Bank & Payouts", caption: "Account & IFSC" },
+  { id: 11, key: "agreement", title: "Captain Agreement", caption: "Legal terms & signature" },
+  { id: 12, key: "review", title: "Review & Permissions", caption: "Background alerts & submit" },
 ] as const;
 
 export const GENDERS = ["Male", "Female", "Other"] as const;

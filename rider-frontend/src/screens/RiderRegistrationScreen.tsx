@@ -60,6 +60,7 @@ import { RapidoCameraSelfie } from "../components/onboarding/RapidoCameraSelfie"
 import { VerificationStatusCard } from "../components/onboarding/VerificationStatusCard";
 import { GovtScannerOverlay } from "../components/onboarding/GovtScannerOverlay";
 import { AadhaarKycModal, type AadhaarExtractedData } from "../components/onboarding/AadhaarKycModal";
+import { CaptainAgreementSignaturePad } from "../components/onboarding/CaptainAgreementSignaturePad";
 import {
   ChoiceChips,
   OnboardingStepper,
@@ -144,37 +145,59 @@ const INSURANCE_PROVIDERS = [
   "Other",
 ];
 
+function compressImage(file: File, maxWidth = 1024, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve((e.target?.result as string) || "");
+      img.src = (e.target?.result as string) || "";
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 export function RiderRegistrationScreen() {
   const navigate = useNavigate();
   const { session } = useRiderContext();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RiderOnboardingForm>(() => {
-    const s = readSession("rider");
-    const rawName = (s?.account?.name ?? "").trim();
+    const s = readSession("rider") || readSession();
+    const rawName = (s?.account?.name ?? s?.name ?? "").trim();
     const isPhoneNumber =
       !rawName ||
       rawName.startsWith("+") ||
       /^\d+$/.test(rawName.replace(/[\s+-]/g, ""));
-    const phone = s?.account?.phone?.replace("+91", "").trim() ?? "";
+    const phone = (s?.account?.phone || s?.phone || "").replace("+91", "").trim();
 
     return {
       ...emptyRiderForm,
       mobile: phone,
-      mobileVerified: Boolean(phone),
+      mobileVerified: true,
       fullName: isPhoneNumber ? "" : rawName,
-      email: s?.account?.email ?? "",
+      email: s?.account?.email ?? s?.email ?? "",
     };
   });
 
   const [errors, setErrors] = useState<Errors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedCities, setAllowedCities] = useState<AllowedCity[]>(DEFAULT_ALLOWED_CITIES);
-
-  // OTP state for Step 1
-  const [otpCode, setOtpCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
 
   // Verification loading & errors per document
   const [verifyingDoc, setVerifyingDoc] = useState<string | null>(null);
@@ -203,13 +226,20 @@ export function RiderRegistrationScreen() {
           setAllowedCities(citiesRes);
         }
 
-        const s = readSession("rider");
-        const phone = s?.account?.phone;
+        const s = readSession("rider") || readSession();
+        const phone = s?.account?.phone || s?.phone;
         if (phone) {
-          const statusRes = await fetchOnboardingStatus(phone).catch(() => null);
+          const cleanPhone = phone.replace("+91", "").trim();
+          setField("mobile", cleanPhone);
+          setField("mobileVerified", true);
+          const statusRes = await fetchOnboardingStatus(cleanPhone).catch(() => null);
           if (statusRes && statusRes.status === "active") {
             navigate({ to: riderRoutes.dashboard });
           }
+        }
+        const name = s?.account?.name || s?.name;
+        if (name && !form.fullName) {
+          setField("fullName", name);
         }
       } catch {
         /* ignore */
@@ -229,42 +259,7 @@ export function RiderRegistrationScreen() {
     }
   };
 
-  // --- Step 1: Mobile & OTP Handler ---
-  const handleSendOtp = async () => {
-    const err = validateMobile(form.mobile);
-    if (err) {
-      setErrors({ mobile: err });
-      return;
-    }
-    setOtpLoading(true);
-    try {
-      await requestOtp(form.mobile);
-      setOtpSent(true);
-      toast.success("OTP sent to +91 " + form.mobile);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send OTP");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
 
-  const handleVerifyOtp = async () => {
-    if (otpCode.length < 6) {
-      toast.error("Please enter the 6-digit OTP");
-      return;
-    }
-    setOtpLoading(true);
-    try {
-      await verifyOtp(form.mobile, otpCode);
-      setField("mobileVerified", true);
-      toast.success("Mobile verified successfully!");
-      setStep(2);
-    } catch (err: any) {
-      toast.error(err.message || "Invalid OTP code");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
 
   // Aadhaar OTP & KYC Modal State
   const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
@@ -576,21 +571,18 @@ export function RiderRegistrationScreen() {
   };
 
   const handleFileUpload = async (file: File, docType: string, targetField: keyof RiderOnboardingForm) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setField(targetField, dataUrl);
-      try {
-        const uploadRes = await uploadRiderDocument(dataUrl, docType);
-        if (uploadRes?.url) {
-          setField(targetField, uploadRes.url);
-        }
-        toast.success(`${docType.replace("_", " ").toUpperCase()} uploaded successfully!`);
-      } catch {
-        // Fallback keep base64 dataUrl
+    const compressedDataUrl = await compressImage(file);
+    if (!compressedDataUrl) return;
+    setField(targetField, compressedDataUrl);
+    try {
+      const uploadRes = await uploadRiderDocument(compressedDataUrl, docType);
+      if (uploadRes?.url) {
+        setField(targetField, uploadRes.url);
       }
-    };
-    reader.readAsDataURL(file);
+      toast.success(`${docType.replace("_", " ").toUpperCase()} uploaded successfully!`);
+    } catch {
+      // Keep compressed base64 dataUrl (~100KB fallback)
+    }
   };
 
   // --- Step Validation ---
@@ -598,12 +590,7 @@ export function RiderRegistrationScreen() {
     let stepErrors: Record<string, string> = {};
 
     switch (step) {
-      case 1:
-        if (!form.mobileVerified) {
-          stepErrors.mobile = "Please verify your mobile number with OTP to continue";
-        }
-        break;
-      case 2:
+      case 1: // Basic Profile
         stepErrors = compact({
           fullName: validateName(form.fullName),
           email: validateEmail(form.email),
@@ -611,7 +598,7 @@ export function RiderRegistrationScreen() {
           emergencyContact: validateMobile(form.emergencyContact),
         });
         break;
-      case 3:
+      case 2: // Address
         stepErrors = compact({
           address: required(form.address, "Current address"),
           city: required(form.city, "City"),
@@ -619,7 +606,7 @@ export function RiderRegistrationScreen() {
           pincode: validatePincode(form.pincode),
         });
         break;
-      case 4:
+      case 3: // Aadhaar
         stepErrors = compact({
           aadhaar: validateAadhaar(form.aadhaar),
         });
@@ -627,7 +614,7 @@ export function RiderRegistrationScreen() {
           stepErrors.aadhaarFront = "Please upload Aadhaar front photo";
         }
         break;
-      case 5:
+      case 4: // PAN
         stepErrors = compact({
           pan: validatePan(form.pan),
         });
@@ -635,12 +622,12 @@ export function RiderRegistrationScreen() {
           stepErrors.panCard = "Please upload PAN card photo";
         }
         break;
-      case 6:
+      case 5: // Live Selfie
         if (!form.selfieUrl) {
           stepErrors.selfieUrl = "Please take a live face selfie to verify your identity";
         }
         break;
-      case 7:
+      case 6: // Driving Licence
         stepErrors = compact({
           license: validateLicense(form.license),
           dlExpiry: required(form.dlExpiry, "DL Expiry Date"),
@@ -649,13 +636,18 @@ export function RiderRegistrationScreen() {
           stepErrors.dlFront = "Please upload Driving Licence front photo";
         }
         break;
-      case 8:
+      case 7: // Vehicle Details
         stepErrors = compact({
           vehicleBrand: required(form.vehicleBrand, "Vehicle Brand"),
           vehicleModel: required(form.vehicleModel, "Vehicle Model"),
+          chassisNumber: required(form.chassisNumber, "Chassis Number"),
+          engineNumber: required(form.engineNumber, "Engine Number"),
         });
+        if (!form.vehiclePhoto) {
+          stepErrors.vehiclePhoto = "Please upload a photo of your bike/vehicle";
+        }
         break;
-      case 9:
+      case 8: // RC Verification
         stepErrors = compact({
           rcNumber: validateVehicleNumber(form.rcNumber),
         });
@@ -663,13 +655,13 @@ export function RiderRegistrationScreen() {
           stepErrors.rcFront = "Please upload RC document photo";
         }
         break;
-      case 10:
+      case 9: // Insurance
         stepErrors = compact({
           insuranceNumber: required(form.insuranceNumber, "Insurance Policy Number"),
           insuranceValidTill: required(form.insuranceValidTill, "Policy Expiry Date"),
         });
         break;
-      case 11:
+      case 10: // Bank & Payouts
         stepErrors = compact({
           accountHolder: required(form.accountHolder, "Account Holder Name"),
           ifsc: validateIfsc(form.ifsc),
@@ -679,9 +671,14 @@ export function RiderRegistrationScreen() {
           stepErrors.confirmAccountNumber = "Account numbers do not match";
         }
         break;
-      case 12:
+      case 11: // Captain Agreement
+        if (!form.signatureUrl) {
+          stepErrors.signatureUrl = "Please sign the Captain Agreement to continue";
+        }
+        break;
+      case 12: // Review & Submit
         if (!form.termsAccepted) {
-          stepErrors.termsAccepted = "You must agree to the Terms & Partner Agreement to submit";
+          stepErrors.termsAccepted = "You must agree to the Terms & Safety Guidelines to submit";
         }
         break;
     }
@@ -753,81 +750,31 @@ export function RiderRegistrationScreen() {
         <OnboardingStepper steps={ONBOARDING_STEPS} current={step} />
 
         <div className="mt-4 px-5">
-          {/* STEP 1: MOBILE VERIFICATION */}
+          {/* STEP 1: BASIC PROFILE */}
           {step === 1 && (
-            <StepShell
-              stepKey="mobile"
-              title="Mobile Verification"
-              caption="Enter your active WhatsApp / Mobile number for OTP verification"
-            >
-              <div className="space-y-4">
-                <TextField
-                  id="mobile"
-                  label="Mobile Number"
-                  icon={Phone}
-                  value={form.mobile}
-                  onChange={(v) => setField("mobile", v.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="9876543210"
-                  type="tel"
-                  maxLength={10}
-                  error={errors.mobile}
-                />
-
-                {form.mobileVerified ? (
-                  <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 p-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="size-5" />
-                    <span>Mobile number verified with OTP ✓</span>
-                  </div>
-                ) : otpSent ? (
-                  <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-                    <p className="text-xs font-bold text-foreground">Enter 6-Digit OTP sent to +91 {form.mobile}</p>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="• • • • • •"
-                      className="w-full rounded-xl border border-border bg-background py-3 text-center text-xl font-black tracking-widest text-foreground outline-none focus:border-amber-400"
-                    />
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleVerifyOtp}
-                        disabled={otpLoading || otpCode.length < 6}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-400 py-3 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
-                      >
-                        {otpLoading ? <Loader2 className="size-4 animate-spin" /> : "Verify OTP"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        disabled={otpLoading}
-                        className="rounded-xl border border-border px-3 py-3 text-xs font-bold text-foreground hover:bg-muted"
-                      >
-                        Resend
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={otpLoading || form.mobile.length < 10}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3.5 text-xs font-bold text-black hover:bg-amber-300 disabled:opacity-50"
-                  >
-                    {otpLoading ? <Loader2 className="size-4 animate-spin" /> : "Get OTP on Mobile"}
-                  </button>
-                )}
-              </div>
-            </StepShell>
-          )}
-
-          {/* STEP 2: BASIC PROFILE */}
-          {step === 2 && (
             <StepShell stepKey="personal" title="Personal Details" caption="Tell us about yourself as per your official ID">
               <div className="space-y-4">
+                {/* Verified Mobile Number Pill */}
+                <div className="flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-50/50 p-3.5 dark:bg-emerald-950/20">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      <Phone className="size-4.5" />
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Registered Mobile Number
+                      </p>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        +91 {form.mobile || "Logged In Mobile"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2 className="size-3.5" />
+                    Verified ✓
+                  </span>
+                </div>
+
                 <TextField
                   id="fullName"
                   label="Full Name (as on Aadhaar)"
@@ -883,8 +830,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 3: ADDRESS */}
-          {step === 3 && (
+          {/* STEP 2: ADDRESS */}
+          {step === 2 && (
             <StepShell stepKey="address" title="Current Address" caption="Where do you reside during delivery hours?">
               <div className="space-y-4">
                 <TextField
@@ -954,8 +901,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 4: AADHAAR VERIFICATION WITH OTP & MODAL */}
-          {step === 4 && (
+          {/* STEP 3: AADHAAR VERIFICATION WITH OTP & MODAL */}
+          {step === 3 && (
             <StepShell stepKey="aadhaar" title="Aadhaar Card Verification" caption="UIDAI Government identity verification & auto-fetch">
               <div className="space-y-4">
                 <VerificationStatusCard
@@ -1067,8 +1014,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 5: PAN CARD VERIFICATION WITH SCANNER */}
-          {step === 5 && (
+          {/* STEP 4: PAN CARD VERIFICATION WITH SCANNER */}
+          {step === 4 && (
             <StepShell stepKey="pan" title="PAN Card Verification" caption="Required for TDS compliance and bank settlements">
               <div className="space-y-4">
                 <VerificationStatusCard
@@ -1121,8 +1068,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 6: LIVE 3D SELFIE & BIOMETRIC SCAN */}
-          {step === 6 && (
+          {/* STEP 5: LIVE 3D SELFIE & BIOMETRIC SCAN */}
+          {step === 5 && (
             <StepShell stepKey="selfie" title="Live Biometric Face Verification" caption="3D Face scanning and ID record matching">
               <div className="space-y-4">
                 <RapidoCameraSelfie
@@ -1139,8 +1086,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 7: DRIVING LICENCE WITH PARIVAHAN SARATHI */}
-          {step === 7 && (
+          {/* STEP 6: DRIVING LICENCE WITH PARIVAHAN SARATHI */}
+          {step === 6 && (
             <StepShell stepKey="driving" title="Driving Licence (DL)" caption="Mandatory government licence for motorcycle / scooter">
               <div className="space-y-4">
                 <VerificationStatusCard
@@ -1213,8 +1160,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 8: VEHICLE DETAILS */}
-          {step === 8 && (
+          {/* STEP 7: VEHICLE DETAILS */}
+          {step === 7 && (
             <StepShell stepKey="vehicle" title="Vehicle Details" caption="Which vehicle will you use for order deliveries?">
               <div className="space-y-4">
                 <VehiclePicker
@@ -1262,6 +1209,28 @@ export function RiderRegistrationScreen() {
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <TextField
+                    id="chassisNumber"
+                    label="Chassis Number (VIN)"
+                    icon={Lock}
+                    value={form.chassisNumber}
+                    onChange={(v) => setField("chassisNumber", v.toUpperCase().slice(0, 17))}
+                    placeholder="e.g. MBBL12345ABC67890"
+                    error={errors.chassisNumber}
+                  />
+
+                  <TextField
+                    id="engineNumber"
+                    label="Engine Number"
+                    icon={Zap}
+                    value={form.engineNumber}
+                    onChange={(v) => setField("engineNumber", v.toUpperCase().slice(0, 15))}
+                    placeholder="e.g. HA10ENG89012"
+                    error={errors.engineNumber}
+                  />
+                </div>
+
                 <div>
                   <label className="text-[0.72rem] font-bold text-foreground">Fuel Type</label>
                   <ChoiceChips
@@ -1271,12 +1240,22 @@ export function RiderRegistrationScreen() {
                     className="mt-1.5"
                   />
                 </div>
+
+                <UploadTile
+                  id="upload-bike-photo"
+                  label="Bike / Vehicle Photo"
+                  hint="Clear photo of vehicle with number plate visible"
+                  value={form.vehiclePhoto}
+                  onUpload={(file) => handleFileUpload(file, "vehicle_photo", "vehiclePhoto")}
+                  onClear={() => setField("vehiclePhoto", "")}
+                  error={errors.vehiclePhoto}
+                />
               </div>
             </StepShell>
           )}
 
-          {/* STEP 9: RC VERIFICATION WITH PARIVAHAN VAHAN */}
-          {step === 9 && (
+          {/* STEP 8: RC VERIFICATION WITH PARIVAHAN VAHAN */}
+          {step === 8 && (
             <StepShell stepKey="rc" title="RC (Registration Certificate)" caption="Vehicle ownership & registration verification">
               <div className="space-y-4">
                 <VerificationStatusCard
@@ -1338,8 +1317,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 10: INSURANCE */}
-          {step === 10 && (
+          {/* STEP 9: INSURANCE */}
+          {step === 9 && (
             <StepShell stepKey="insurance" title="Vehicle Insurance" caption="Valid insurance protects you and customers on the road">
               <div className="space-y-4">
                 <TextField
@@ -1389,8 +1368,8 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
-          {/* STEP 11: BANK / PAYOUT DETAILS WITH IFSC & PENNY DROP */}
-          {step === 11 && (
+          {/* STEP 10: BANK / PAYOUT DETAILS WITH IFSC & PENNY DROP */}
+          {step === 10 && (
             <StepShell stepKey="bank" title="Bank Account for Daily Payouts" caption="Direct settlement of delivery fees & customer tips">
               <div className="space-y-4">
                 <TextField
@@ -1475,13 +1454,40 @@ export function RiderRegistrationScreen() {
             </StepShell>
           )}
 
+          {/* STEP 11: CAPTAIN AGREEMENT & DIGITAL SIGNATURE */}
+          {step === 11 && (
+            <StepShell
+              stepKey="agreement"
+              title="Captain Service Agreement"
+              caption="Review terms and provide your digital signature to proceed"
+            >
+              <CaptainAgreementSignaturePad
+                captainName={form.fullName}
+                mobile={form.mobile}
+                aadhaar={form.aadhaar}
+                city={form.city}
+                vehicleNumber={form.rcNumber}
+                initialSignature={form.signatureUrl}
+                onSignatureConfirmed={(data) => {
+                  setField("signatureUrl", data.signatureUrl);
+                  setField("signedAt", data.signedAt);
+                  setField("termsAccepted", true);
+                  setStep(12);
+                }}
+              />
+              {errors.signatureUrl && (
+                <p className="mt-2 text-center text-xs font-bold text-rose-500">{errors.signatureUrl}</p>
+              )}
+            </StepShell>
+          )}
+
           {/* STEP 12: FINAL REVIEW */}
           {step === 12 && (
             <StepShell stepKey="review" title="Review & Submit Application" caption="Double check your information before admin verification">
               <div className="space-y-4">
                 <ReviewGroup
                   title="Profile & Contact"
-                  stepId={2}
+                  stepId={1}
                   onEdit={(s) => setStep(s)}
                   items={[
                     { label: "Full Name", value: form.fullName },
@@ -1492,26 +1498,62 @@ export function RiderRegistrationScreen() {
                 />
 
                 <ReviewGroup
+                  title="Address Details"
+                  stepId={2}
+                  onEdit={(s) => setStep(s)}
+                  items={[
+                    { label: "Address", value: `${form.address}, ${form.street || ""}`.trim() },
+                    { label: "Landmark", value: form.landmark || "N/A" },
+                    { label: "PIN Code", value: form.pincode },
+                  ]}
+                />
+
+                <ReviewGroup
                   title="Identity & Documents"
-                  stepId={4}
+                  stepId={3}
                   onEdit={(s) => setStep(s)}
                   items={[
                     { label: "Aadhaar", value: `XXXX XXXX ${form.aadhaar.slice(-4)} (UIDAI Verified ✓)` },
                     { label: "PAN Card", value: `${form.pan} (NSDL Verified ✓)` },
                     { label: "Selfie", value: form.selfieUrl ? "3D Biometric Verified ✓" : "Pending" },
-                    { label: "Driving Licence", value: `${form.license} (Parivahan Verified ✓)` },
+                    { label: "Driving Licence", value: `${form.license} (Parivahan Sarathi Verified ✓)` },
                   ]}
                 />
 
                 <ReviewGroup
-                  title="Vehicle & Bank"
-                  stepId={8}
+                  title="Vehicle Details"
+                  stepId={7}
                   onEdit={(s) => setStep(s)}
                   items={[
                     { label: "Vehicle", value: `${form.vehicleBrand} ${form.vehicleModel} (${form.fuelType})` },
+                    { label: "Chassis Number", value: form.chassisNumber || "N/A" },
+                    { label: "Engine Number", value: form.engineNumber || "N/A" },
+                    { label: "Bike Photo", value: form.vehiclePhoto ? "Uploaded & Verified ✓" : "Pending" },
                     { label: "RC Number", value: `${form.rcNumber} (Vahan Verified ✓)` },
-                    { label: "Bank Account", value: `•••• ${form.accountNumber.slice(-4)} (${form.bankName})` },
+                    { label: "Insurance", value: `${form.insuranceNumber} (${form.insuranceProvider})` },
+                  ]}
+                />
+
+                <ReviewGroup
+                  title="Bank Account & Payouts"
+                  stepId={10}
+                  onEdit={(s) => setStep(s)}
+                  items={[
+                    { label: "Account Holder", value: form.accountHolder },
+                    { label: "Bank Account", value: `•••• ${form.accountNumber.slice(-4)} (${form.bankName || "Bank"})` },
                     { label: "IFSC Code", value: form.ifsc },
+                    { label: "UPI ID", value: form.upiId || "N/A" },
+                  ]}
+                />
+
+                <ReviewGroup
+                  title="Captain Agreement & Signature"
+                  stepId={11}
+                  onEdit={(s) => setStep(s)}
+                  items={[
+                    { label: "Status", value: form.signatureUrl ? "Digitally Signed & Aadhaar Linked ✓" : "Pending Signature" },
+                    { label: "Signed At", value: form.signedAt ? new Date(form.signedAt).toLocaleDateString() : "Pending" },
+                    { label: "Contract", value: "QuickPress Captain Partner Agreement (v2.4)" },
                   ]}
                 />
 

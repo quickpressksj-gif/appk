@@ -595,6 +595,9 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         "fuelType": payload.get("fuelType", "Petrol"),
         "regYear": payload.get("regYear", ""),
         "vehicleNumber": payload.get("vehicleNumber", ""),
+        "chassisNumber": payload.get("chassisNumber", ""),
+        "engineNumber": payload.get("engineNumber", ""),
+        "vehiclePhoto": payload.get("vehiclePhoto") or payload.get("bikePhoto", ""),
         # RC
         "rcNumber": payload.get("rcNumber") or payload.get("vehicleNumber", ""),
         "rcFront": payload.get("rcFront", ""),
@@ -619,6 +622,10 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         "preferredArea": payload.get("preferredArea", ""),
         "shift": payload.get("shift", "Morning"),
         "employmentType": payload.get("employmentType", "Full Time"),
+        # Legal Agreement & Consent
+        "agreementSignature": payload.get("signatureUrl") or payload.get("agreementSignature", ""),
+        "agreementSignedAt": payload.get("signedAt") or payload.get("agreementSignedAt", datetime.now(timezone.utc).isoformat()),
+        "termsAccepted": bool(payload.get("termsAccepted", True)),
         # Status
         "status": "pending",
         "isVerified": False,
@@ -742,6 +749,9 @@ async def submit_registration(body: dict) -> dict:
         "fuelType": payload.get("fuelType", "Petrol"),
         "regYear": payload.get("regYear", ""),
         "vehicleNumber": payload.get("vehicleNumber", ""),
+        "chassisNumber": payload.get("chassisNumber", ""),
+        "engineNumber": payload.get("engineNumber", ""),
+        "vehiclePhoto": payload.get("vehiclePhoto") or payload.get("bikePhoto", ""),
         # RC
         "rcNumber": payload.get("rcNumber") or payload.get("vehicleNumber", ""),
         "rcFront": payload.get("rcFront", ""),
@@ -766,6 +776,10 @@ async def submit_registration(body: dict) -> dict:
         "preferredArea": payload.get("preferredArea", ""),
         "shift": payload.get("shift", "Morning"),
         "employmentType": payload.get("employmentType", "Full Time"),
+        # Legal Agreement & Consent
+        "agreementSignature": payload.get("signatureUrl") or payload.get("agreementSignature", ""),
+        "agreementSignedAt": payload.get("signedAt") or payload.get("agreementSignedAt", datetime.now(timezone.utc).isoformat()),
+        "termsAccepted": bool(payload.get("termsAccepted", True)),
         # Status
         "status": "pending",
         "isVerified": False,

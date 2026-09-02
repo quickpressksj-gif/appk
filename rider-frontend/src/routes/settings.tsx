@@ -3,8 +3,11 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { RiderProvider } from "../context/RiderContext";
 import { RiderSettingsProvider } from "../context/RiderSettingsContext";
 
+import { requireRiderAuth } from "../lib/auth-guard";
+
 /** Settings layout — provides rider session + settings store to every child route. */
 export const Route = createFileRoute("/settings")({
+  beforeLoad: requireRiderAuth,
   head: () => ({
     meta: [
       { title: "Settings · QuickPress Rider" },

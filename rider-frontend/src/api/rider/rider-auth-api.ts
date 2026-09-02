@@ -67,14 +67,33 @@ export async function logout(): Promise<void> {
 import { readSession, writeSession } from "../core/session-store";
 
 export async function submitRiderRegistration(payload: unknown): Promise<RiderSession> {
-  const res = await apiPostJson<{
-    ok: true;
+  let res: {
+    ok: boolean;
     riderId: string;
     phone: string;
     fullName: string;
     isVerified: boolean;
     isOnboarded: boolean;
-  }>("/api/rider/onboarding", { payload });
+  };
+  try {
+    res = await apiPostJson<{
+      ok: true;
+      riderId: string;
+      phone: string;
+      fullName: string;
+      isVerified: boolean;
+      isOnboarded: boolean;
+    }>("/api/rider/onboarding", { payload }, { timeoutMs: 60_000 });
+  } catch (err: any) {
+    res = await apiPostJson<{
+      ok: true;
+      riderId: string;
+      phone: string;
+      fullName: string;
+      isVerified: boolean;
+      isOnboarded: boolean;
+    }>("/api/rider/auth/registration", { payload }, { timeoutMs: 60_000, anonymous: true });
+  }
 
   const currentSession = readSession(ROLE);
   if (currentSession && currentSession.account) {

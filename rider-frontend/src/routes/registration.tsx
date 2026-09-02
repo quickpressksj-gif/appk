@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RiderProvider } from "../context/RiderContext";
 import { RiderRegistrationScreen } from "../screens/RiderRegistrationScreen";
 
+import { requireRiderSession } from "../lib/auth-guard";
+
 export const Route = createFileRoute("/registration")({
+  beforeLoad: requireRiderSession,
   head: () => ({
     meta: [
       { title: "Rider Registration · QuickPress Rider" },

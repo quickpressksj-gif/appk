@@ -117,9 +117,49 @@ function RootShell({ children }: { children: ReactNode }) {
 import { RiderProvider } from "../context/RiderContext";
 import { LanguageProvider } from "../lib/i18n";
 import { LanguageSelectionModal } from "../components/common/LanguageSelectionModal";
+import { readSession } from "@/api/core/session-store";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // 🛡️ Global Strict Authentication & Onboarding Guard
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pathname = window.location.pathname;
+    const publicPaths = ["/", "/auth", "/otp"];
+    const isPublic = publicPaths.some(
+      (p) => pathname === p || pathname.startsWith("/auth") || pathname.startsWith("/otp")
+    );
+    if (isPublic) return;
+
+    const sess = readSession("rider") || readSession();
+    if (!sess || !sess.token) {
+      window.location.replace("/auth");
+      return;
+    }
+
+    if (sess.status === "suspended" || (sess as any).isSuspended) {
+      if (pathname !== "/suspended") {
+        window.location.replace("/suspended");
+      }
+      return;
+    }
+
+    const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
+    if (isOnboarded === false && pathname !== "/registration") {
+      window.location.replace("/registration");
+      return;
+    }
+
+    const isVerified =
+      (sess.isVerified ?? sess.account?.isVerified) ||
+      sess.status === "active" ||
+      sess.account?.status === "active";
+    if (!isVerified && pathname !== "/registration" && pathname !== "/registration-submitted") {
+      window.location.replace("/registration-submitted");
+      return;
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
