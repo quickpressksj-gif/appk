@@ -149,28 +149,80 @@ async def get_public_service_detail(slug: str) -> Dict[str, Any]:
 
 @router.get("/cities")
 async def get_public_cities() -> List[Dict[str, Any]]:
-    """Return active published operating cities."""
-    cities_docs = await database.find_many("admin_cities", {"status": "active"})
+    """Return active published operating cities approved in the Admin Panel."""
+    cities_docs = await database.find_many("admin_cities")
     if not cities_docs:
-        cities_docs = await database.find_many("cities", {"status": "active"})
-    if not cities_docs:
-        # Verified baseline
-        cities_docs = [{"_id": "kasganj", "name": "Kasganj", "state": "Uttar Pradesh", "status": "active", "hubsCount": 3}]
+        cities_docs = await database.find_many("cities")
     
-    return [
-        {
-            "id": c.get("_id"),
-            "slug": c.get("slug") or c.get("_id", "").lower(),
-            "name": c.get("name"),
+    # Filter ONLY approved / active / live / pilot cities
+    active_cities = [
+        c for c in (cities_docs or [])
+        if str(c.get("status", "Live")).strip().lower() in ["live", "active", "pilot", "approved"]
+    ]
+    
+    if not active_cities:
+        active_cities = [
+            {
+                "_id": "kasganj",
+                "city": "Kasganj",
+                "name": "Kasganj",
+                "state": "Uttar Pradesh",
+                "status": "Live",
+                "areas": ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
+                "pickupRadius": "5 km",
+                "deliveryRadiusKm": 8,
+            }
+        ]
+
+    # Fetch any granular sub-zones from admin_areas collection
+    admin_areas = await database.find_many("admin_areas")
+
+    results = []
+    for c in active_cities:
+        c_name = c.get("city") or c.get("name") or "Kasganj"
+        cid = str(c.get("_id") or c.get("id") or c_name.lower())
+        
+        # Extract zone / locality names configured by Admin
+        localities = []
+        if isinstance(c.get("zones"), list) and c.get("zones"):
+            for z in c["zones"]:
+                if isinstance(z, dict):
+                    name = z.get("name") or z.get("sector")
+                    if name and name not in localities:
+                        localities.append(name)
+                elif isinstance(z, str) and z not in localities:
+                    localities.append(z)
+        elif isinstance(c.get("areas"), list) and c.get("areas"):
+            for a in c["areas"]:
+                if isinstance(a, str) and a not in localities:
+                    localities.append(a)
+
+        # Match from admin_areas collection
+        for a in (admin_areas or []):
+            if (a.get("cityId") == cid or str(a.get("city", "")).lower() == c_name.lower()) and str(a.get("status", "Live")).lower() in ["live", "active"]:
+                area_name = a.get("area") or a.get("name")
+                if area_name and area_name not in localities:
+                    localities.append(area_name)
+
+        if not localities:
+            localities = ["City Center", "Main Market", "Railway Road", "Awas Vikas", "Central Hub"]
+
+        results.append({
+            "id": cid,
+            "slug": c.get("slug") or cid.lower(),
+            "name": c_name,
+            "city": c_name,
             "state": c.get("state") or "Uttar Pradesh",
-            "status": "active",
-            "tagline": f"Doorstep laundry & dry cleaning across {c.get('name')}",
+            "status": "Live",
+            "areas": localities,
+            "pickupRadius": c.get("pickupRadius") or "5 km",
+            "deliveryRadiusKm": c.get("deliveryRadiusKm") or 8,
+            "tagline": f"Doorstep laundry & dry cleaning across {c_name}",
             "availableServices": [
                 "Wash & Fold", "Dry Cleaning", "Steam Iron", "Shoe Care", "Express 24H"
             ]
-        }
-        for c in cities_docs
-    ]
+        })
+    return results
 
 
 @router.get("/cities/{slug}")

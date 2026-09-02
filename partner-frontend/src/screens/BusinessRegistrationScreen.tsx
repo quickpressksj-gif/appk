@@ -92,7 +92,9 @@ import {
 } from "@/api/partner/partner-auth-api";
 import {
   fetchMasterCatalogServices,
+  fetchApprovedOperatingCities,
   type MasterCatalogItem,
+  type ApprovedCityItem,
 } from "@/api/partner/partner-services-api";
 import type { BusinessCategory } from "@/shared/types/partner";
 
@@ -251,8 +253,8 @@ export function BusinessRegistrationScreen() {
     openingTime: "08:00",
     closingTime: "21:00",
     emergencyClosing: "",
-    city: "Bengaluru",
-    area: "Indiranagar",
+    city: "Kasganj",
+    area: "City Center",
     pickupRadius: 5,
     deliveryRadius: 8,
     accountHolder: "",
@@ -365,6 +367,43 @@ export function BusinessRegistrationScreen() {
     };
   }, []);
 
+  // Dynamic Approved Operating Cities & Zones from Admin Panel
+  const [approvedCities, setApprovedCities] = useState<string[]>(["Kasganj"]);
+  const [approvedAreas, setApprovedAreas] = useState<Record<string, string[]>>({
+    Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
+  });
+
+  useEffect(() => {
+    let alive = true;
+    fetchApprovedOperatingCities().then((cities) => {
+      if (alive && Array.isArray(cities) && cities.length > 0) {
+        const cityNames = cities.map((c) => c.name || c.city || c.id);
+        const map: Record<string, string[]> = {};
+        for (const c of cities) {
+          const name = c.name || c.city || c.id;
+          map[name] = Array.isArray(c.areas) && c.areas.length > 0 ? c.areas : ["City Center", "Main Market"];
+        }
+        setApprovedCities(cityNames);
+        setApprovedAreas(map);
+
+        setForm((prev) => {
+          if (!cityNames.includes(prev.city)) {
+            const firstCity = cityNames[0];
+            return {
+              ...prev,
+              city: firstCity,
+              area: map[firstCity]?.[0] || "",
+            };
+          }
+          return prev;
+        });
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const [agreementData, setAgreementData] = useState<AgreementSignatureData | null>(null);
 
   const [weeklyOff, setWeeklyOff] = useState<string[]>(["Sun"]);
@@ -402,7 +441,7 @@ export function BusinessRegistrationScreen() {
   const toggleDay = (day: string) =>
     setWeeklyOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
 
-  const areaOptions = useMemo(() => AREAS[form.city] ?? [], [form.city]);
+  const areaOptions = useMemo(() => approvedAreas[form.city] ?? AREAS[form.city] ?? ["City Center", "Main Market"], [approvedAreas, form.city]);
 
   // Real Government Verification States
   const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
@@ -1400,11 +1439,11 @@ export function BusinessRegistrationScreen() {
                     id="city"
                     label="Operating City *"
                     icon={Building2}
-                    options={CITIES}
+                    options={approvedCities}
                     value={form.city}
                     onChange={(val) => {
                       set("city", val);
-                      set("area", AREAS[val]?.[0] ?? "");
+                      set("area", approvedAreas[val]?.[0] ?? "");
                     }}
                     error={errors["city"]}
                   />
