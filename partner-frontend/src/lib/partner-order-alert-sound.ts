@@ -10,15 +10,21 @@ let audioCtx: AudioContext | null = null;
 let sirenInterval: ReturnType<typeof setInterval> | null = null;
 let isAudioActive = false;
 
-function getAudioContext(): AudioContext {
-  if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    audioCtx = new AudioContextClass();
+function getAudioContext(): AudioContext | null {
+  try {
+    if (typeof window === "undefined") return null;
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return null;
+      audioCtx = new AudioContextClass();
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
+    return audioCtx;
+  } catch {
+    return null;
   }
-  if (audioCtx.state === "suspended") {
-    void audioCtx.resume();
-  }
-  return audioCtx;
 }
 
 /**
@@ -27,6 +33,7 @@ function getAudioContext(): AudioContext {
 export function playPartnerOrderChime(): void {
   try {
     const ctx = getAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
     const notes = [
@@ -54,16 +61,18 @@ export function playPartnerOrderChime(): void {
       osc.stop(now + start + duration);
     });
 
-    // Hardware vibration if supported (Zomato double pulse)
+    // Hardware vibration if supported & user has interacted with page
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try {
-        navigator.vibrate([300, 100, 300, 100, 500]);
+        if (!navigator.userActivation || navigator.userActivation.hasBeenActive) {
+          navigator.vibrate([300, 100, 300, 100, 500]);
+        }
       } catch {
         // Ignore haptic errors
       }
     }
-  } catch (err) {
-    console.warn("[PartnerAudioEngine] Error playing order chime:", err);
+  } catch {
+    // Ignore audio autoplay restrictions gracefully
   }
 }
 

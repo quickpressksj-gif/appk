@@ -27,6 +27,8 @@ export function PartnerLayout({
   onSearchChange?: (q: string) => void;
   hideBottomNav?: boolean;
 }) {
+  const navigate = useNavigate();
+  const { session, hydrating, signOut } = usePartnerContext();
   const [shopName, setShopName] = useState<string>(() => session?.businessName || (session as any)?.name || "QuickPress Partner");
   const [isOnline, setIsOnline] = useState<boolean>(true);
 
