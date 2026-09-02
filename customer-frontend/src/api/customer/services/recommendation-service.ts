@@ -49,9 +49,15 @@ export function fetchPopularServices(
   });
 }
 
+import { readToken } from "@/api/core/session-store";
+
 export function fetchRecentOrders(
   options: { forceRefresh?: boolean | undefined; signal?: AbortSignal | undefined } = {},
 ) {
+  const token = readToken();
+  if (!token) {
+    return Promise.resolve([] as RecentOrder[]);
+  }
   return resolveResource<RecentOrder[]>({
     forceRefresh: options.forceRefresh,
     request: () => apiGet<RecentOrder[]>(API_ENDPOINTS.recentOrders, { signal: options.signal }),

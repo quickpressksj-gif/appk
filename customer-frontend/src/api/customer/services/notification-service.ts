@@ -17,9 +17,15 @@ export type NotificationPreview = {
   read: boolean;
 };
 
+import { readToken } from "@/api/core/session-store";
+
 export function fetchUnreadNotificationCount(
   options: { forceRefresh?: boolean | undefined; signal?: AbortSignal | undefined } = {},
 ) {
+  const token = readToken();
+  if (!token) {
+    return Promise.resolve(0);
+  }
   return resolveResource<number>({
     forceRefresh: options.forceRefresh,
     request: async () => {

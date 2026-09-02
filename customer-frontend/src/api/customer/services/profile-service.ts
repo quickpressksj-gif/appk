@@ -28,7 +28,20 @@ export function initialsFor(name: string): string {
   return (first + last).toUpperCase() || "QP";
 }
 
+import { readToken } from "@/api/core/session-store";
+
 export function fetchProfile(options: { forceRefresh?: boolean | undefined; signal?: AbortSignal | undefined } = {}) {
+  const token = readToken();
+  if (!token) {
+    return Promise.resolve({
+      id: "guest",
+      name: "Guest User",
+      phone: "",
+      email: "",
+      initials: "GU",
+      avatarUrl: "",
+    } as Profile);
+  }
   return resolveResource<Profile>({
     forceRefresh: options.forceRefresh,
     request: async () => {

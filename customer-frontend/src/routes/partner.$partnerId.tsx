@@ -42,6 +42,7 @@ import {
   type PartnerDetailData,
   type PartnerService,
 } from "@/api/customer/partner-api";
+import { readStaleScopedCache } from "@/api/customer/api/cache";
 
 import store1 from "@/shared/assets/store-1.jpg";
 import store2 from "@/shared/assets/store-2.jpg";
