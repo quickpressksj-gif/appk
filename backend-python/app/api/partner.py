@@ -335,12 +335,25 @@ async def get_profile(partner_id: str = Depends(_partner_id)) -> PartnerProfileR
 async def update_profile(
     payload: PartnerProfileUpdate, partner_id: str = Depends(_partner_id)
 ) -> PartnerProfileResponse:
-    try:
-        doc = await partner_repository.update_profile(partner_id, payload.model_dump())
-    except PartnerAccessError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    except PartnerNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+    from app.services.approval_engine import approval_engine
+    dump = payload.model_dump(exclude_unset=True)
+    sensitive_keys = {"businessName", "ownerName", "pan", "phone", "email"}
+    has_sensitive = any(k in dump and dump[k] is not None for k in sensitive_keys)
+
+    if has_sensitive:
+        await approval_engine.submit_change_request(
+            partner_id=partner_id,
+            request_type="profile_update",
+            payload=dump,
+            reason="Partner updated Store Profile details",
+        )
+
+    # Non-sensitive fields (city, area, etc.) can update directly
+    non_sensitive = {k: v for k, v in dump.items() if k not in sensitive_keys}
+    if non_sensitive:
+        doc = await partner_repository.update_profile(partner_id, non_sensitive)
+    else:
+        doc = await partner_repository.profile(partner_id)
     return PartnerProfileResponse(**{k: v for k, v in doc.items() if k in PartnerProfileResponse.model_fields})
 
 
@@ -638,7 +651,20 @@ async def list_services(partner_id: str = Depends(_partner_id)) -> List[PartnerS
 async def create_service(
     payload: PartnerServiceCreate, partner_id: str = Depends(_verified_partner_id)
 ) -> PartnerServiceResponse:
-    doc = await partner_service_repository.create(partner_id, payload.model_dump())
+    from app.services.approval_engine import approval_engine
+    dump = payload.model_dump()
+    dump["enabled"] = False
+    dump["isActive"] = False
+    dump["pendingApproval"] = True
+    doc = await partner_service_repository.create(partner_id, dump)
+    
+    await approval_engine.submit_change_request(
+        partner_id=partner_id,
+        request_type="service_create",
+        payload=dump,
+        target_id=str(doc.get("id") or doc.get("_id")),
+        reason=f"Partner added new service: {dump.get('name')}",
+    )
     return _service_response(doc)
 
 
@@ -660,12 +686,20 @@ async def get_service(
 async def update_service(
     service_id: str, payload: PartnerServiceUpdate, partner_id: str = Depends(_partner_id)
 ) -> PartnerServiceResponse:
+    from app.services.approval_engine import approval_engine
+    dump = payload.model_dump(exclude_unset=True)
+    if any(k in dump for k in ("price", "name", "unit", "turnaroundHours", "category")):
+        await approval_engine.submit_change_request(
+            partner_id=partner_id,
+            request_type="service_update",
+            payload=dump,
+            target_id=service_id,
+            reason=f"Partner requested price/rate change for service {service_id}",
+        )
     try:
-        doc = await partner_service_repository.update(partner_id, service_id, payload.model_dump())
-    except PartnerAccessError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    except PartnerNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+        doc = await partner_service_repository.by_id(partner_id, service_id)
+    except Exception:
+        doc = {"id": service_id, "partnerId": partner_id, **dump}
     return _service_response(doc)
 
 
@@ -1143,22 +1177,35 @@ async def get_bank_details(partner_id: str = Depends(_partner_id)) -> dict:
 @router.patch("/bank")
 @router.put("/bank")
 async def update_bank_details(payload: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    from app.services.approval_engine import approval_engine
     updates = {
         "bankName": str(payload.get("bankName", "")).strip(),
         "accountNumber": str(payload.get("accountNumber", "")).strip(),
         "ifscCode": str(payload.get("ifscCode", "")).upper().strip(),
         "accountHolderName": str(payload.get("accountHolderName", "")).strip(),
         "upiId": str(payload.get("upiId", "")).strip(),
-        "isVerified": True,
-        "updatedAt": _now(),
     }
-    await database.update(
-        "partner_bank_accounts",
-        {"partnerId": partner_id},
-        {"$set": updates},
-        upsert=True,
+    req = await approval_engine.submit_change_request(
+        partner_id=partner_id,
+        request_type="bank_update",
+        payload=updates,
+        reason="Partner updated bank and payout account details",
     )
-    return updates
+    return {
+        "ok": True,
+        "pendingApproval": True,
+        "message": "Bank & Payout details submitted for Admin Verification and Approval.",
+        "requestId": req["requestId"],
+        "updates": updates,
+    }
+
+
+@router.get("/approval-requests")
+async def list_my_approval_requests(partner_id: str = Depends(_partner_id)) -> dict:
+    """Returns partner's pending, approved, and rejected change requests."""
+    from app.services.approval_engine import approval_engine
+    requests = await approval_engine.list_partner_requests(partner_id)
+    return {"ok": True, "count": len(requests), "requests": requests}
 
 
 @router.get("/reports/gst")

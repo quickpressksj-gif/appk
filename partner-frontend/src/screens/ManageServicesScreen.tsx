@@ -12,6 +12,7 @@ import {
   QrCode,
   RotateCcw,
   Search,
+  ShieldCheck,
   Shirt,
   Sparkles,
   Tag,
@@ -250,6 +251,14 @@ export function ManageServicesScreen() {
           </div>
         </header>
 
+        {/* Admin Verification Notice */}
+        <div className="mx-4 mt-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900 flex items-start gap-2.5">
+          <ShieldCheck className="size-4 shrink-0 text-amber-700 mt-0.5" />
+          <p className="leading-relaxed">
+            <strong>Admin Approval Required:</strong> Adding new custom services or modifying pricing requires QuickPress Admin verification before going live in customer catalog.
+          </p>
+        </div>
+
         {/* Mobile Services Card List */}
         <div className="space-y-3 p-4">
           {isLoading ? (
@@ -291,6 +300,11 @@ export function ManageServicesScreen() {
                           {icon}
                         </span>
                         <h3 className="truncate text-sm font-black text-zinc-900">{svc.name}</h3>
+                        {(svc as any).pendingApproval && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800 shrink-0">
+                            ⏳ Under Review
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-1.5 flex items-center gap-2">

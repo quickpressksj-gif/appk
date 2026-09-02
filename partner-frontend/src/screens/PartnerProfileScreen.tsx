@@ -80,6 +80,8 @@ import {
   fetchOffersList,
   createOffer,
   deleteOffer,
+  fetchPartnerApprovalRequests,
+  type PartnerApprovalRequest,
   type PartnerOperationsConfig,
   type PartnerStaffMember,
   type PartnerBankAccount,
@@ -98,8 +100,24 @@ function normalizeDisplayPhone(p?: string): string {
 
 export function PartnerProfileScreen() {
   const navigate = useNavigate();
-  const { signOut } = usePartnerContext();
+  const { session, signOut } = usePartnerContext();
   const { data: profile, reload: reloadProfile } = usePartnerResource(fetchPartnerProfile);
+
+  const [activeSubTab, setActiveSubTab] = useState<"profile" | "activity">("profile");
+
+  // Modals state
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showTimingsModal, setShowTimingsModal] = useState(false);
+  const [showRadiusModal, setShowRadiusModal] = useState(false);
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [showGstModal, setShowGstModal] = useState(false);
+  const [showOffersModal, setShowOffersModal] = useState(false);
+  const [showQrStandeeModal, setShowQrStandeeModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showApprovalsModal, setShowApprovalsModal] = useState(false);
+  const [approvalRequests, setApprovalRequests] = useState<PartnerApprovalRequest[]>([]);
+  const [loadingApprovals, setLoadingApprovals] = useState(false);
 
   // Live Operations Config
   const [opsConfig, setOpsConfig] = useState<PartnerOperationsConfig>({
@@ -112,16 +130,6 @@ export function PartnerProfileScreen() {
     weeklyOff: "None",
     slotCapacity: 25,
   });
-
-  // Modals
-  const [showTimingsModal, setShowTimingsModal] = useState(false);
-  const [showRadiusModal, setShowRadiusModal] = useState(false);
-  const [showStaffModal, setShowStaffModal] = useState(false);
-  const [showBankModal, setShowBankModal] = useState(false);
-  const [showGstModal, setShowGstModal] = useState(false);
-  const [showOffersModal, setShowOffersModal] = useState(false);
-  const [showQrStandeeModal, setShowQrStandeeModal] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Sub-data states
   const [staffList, setStaffList] = useState<PartnerStaffMember[]>([]);
@@ -229,6 +237,19 @@ export function PartnerProfileScreen() {
     } catch {}
   };
 
+  const handleOpenApprovals = async () => {
+    setShowApprovalsModal(true);
+    setLoadingApprovals(true);
+    try {
+      const reqs = await fetchPartnerApprovalRequests();
+      setApprovalRequests(reqs);
+    } catch {
+      toast.error("Failed to fetch approval requests");
+    } finally {
+      setLoadingApprovals(false);
+    }
+  };
+
   const handleSaveBank = async () => {
     if (!bankData.accountNumber || !bankData.ifscCode) {
       toast.error("Account Number and IFSC Code are required");
@@ -237,7 +258,8 @@ export function PartnerProfileScreen() {
     try {
       await updateBankDetails(bankData);
       setShowBankModal(false);
-      toast.success("Bank & Payout details saved to database successfully!");
+      toast.success("Bank & Payout details submitted for Admin Verification! Changes will reflect upon approval.");
+      handleOpenApprovals();
     } catch {
       toast.error("Failed to save bank details");
     }
@@ -593,6 +615,29 @@ export function PartnerProfileScreen() {
                 </p>
               </button>
             </div>
+
+            {/* Verification & Approvals Tracking Card */}
+            <div className="mt-2.5">
+              <button
+                type="button"
+                onClick={handleOpenApprovals}
+                className="w-full flex items-center justify-between rounded-2xl border border-blue-200/80 bg-blue-50/70 p-3.5 shadow-xs transition-transform active:scale-98"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+                    <ShieldCheck className="size-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-black text-blue-950">Verification & Approvals</p>
+                    <p className="text-[10px] font-semibold text-blue-700">Track Store Name, PAN, Bank & Service changes</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs font-black text-blue-600">
+                  <span>View</span>
+                  <ChevronRight className="size-4" />
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* 5. Section: Catalog, Reviews & Analytics */}
@@ -931,9 +976,17 @@ export function PartnerProfileScreen() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-zinc-900">Bank Account & UPI</h3>
-                  <p className="text-[11px] text-zinc-500">For direct weekly payout settlements</p>
+                  <p className="text-[11px] text-zinc-500">For direct 7-day weekly payout settlements</p>
                 </div>
                 <button type="button" onClick={() => setShowBankModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              {/* Admin Verification Notice */}
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900 flex items-start gap-2.5">
+                <ShieldAlert className="size-4 shrink-0 text-amber-700 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Admin Verification Required:</strong> New bank account details must be verified by QuickPress Admin before payout transfers are redirected.
+                </p>
               </div>
 
               <div className="space-y-2.5 text-xs">
@@ -994,7 +1047,80 @@ export function PartnerProfileScreen() {
                 onClick={handleSaveBank}
                 className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
               >
-                Save Bank Details
+                Submit for Admin Verification
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL 4B: Verification & Admin Approval Requests Status       */}
+        {/* ------------------------------------------------------------- */}
+        {showApprovalsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div onClick={() => setShowApprovalsModal(false)} className="absolute inset-0 bg-zinc-950/60 backdrop-blur-xs" />
+            <div className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900">Verification & Approvals</h3>
+                  <p className="text-[11px] text-zinc-500">Track sensitive store change requests</p>
+                </div>
+                <button type="button" onClick={() => setShowApprovalsModal(false)} className="rounded-full bg-zinc-100 p-1.5 text-zinc-500">✕</button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+                {loadingApprovals ? (
+                  <div className="py-8 text-center text-zinc-500 font-bold">Loading verification requests...</div>
+                ) : approvalRequests.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-200 p-6 text-center text-zinc-500">
+                    <ShieldCheck className="mx-auto size-8 text-emerald-600 mb-1" />
+                    <p className="font-bold">No Pending Verification Requests</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">All your profile, banking, and service data is verified and active.</p>
+                  </div>
+                ) : (
+                  approvalRequests.map((req) => (
+                    <div key={req.requestId} className="rounded-2xl border border-zinc-200/80 p-3.5 space-y-2 bg-zinc-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-zinc-900 text-xs uppercase tracking-wide">
+                          {req.requestType.replace("_", " ")}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                          req.status === "approved"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : req.status === "rejected"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {req.status === "approved" ? "✅ Approved" : req.status === "rejected" ? "❌ Rejected" : "⏳ Under Admin Review"}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-zinc-500">
+                        ID: <span className="font-mono font-bold text-zinc-700">{req.requestId}</span> • {new Date(req.submittedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+
+                      {req.rejectionReason && (
+                        <div className="rounded-xl bg-rose-50 border border-rose-200 p-2 text-[11px] text-rose-800 font-medium">
+                          <strong>Admin Reason:</strong> {req.rejectionReason}
+                        </div>
+                      )}
+
+                      {req.status === "approved" && req.reviewedBy && (
+                        <p className="text-[10px] text-emerald-700 font-bold">
+                          Verified by {req.reviewedBy} on {new Date(req.reviewedAt || "").toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowApprovalsModal(false)}
+                className="w-full rounded-2xl bg-zinc-950 py-3 text-xs font-black text-white active:scale-95"
+              >
+                Close
               </button>
             </div>
           </div>

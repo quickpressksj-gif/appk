@@ -160,3 +160,22 @@ export async function createOffer(payload: {
 export async function deleteOffer(offerId: string): Promise<void> {
   await apiDeleteJson(`/api/partner/offers/${offerId}`);
 }
+
+// 6. Approval & Verification Requests
+export type PartnerApprovalRequest = {
+  requestId: string;
+  requestType: "profile_update" | "bank_update" | "pan_update" | "service_create" | "service_update";
+  businessName: string;
+  status: "pending" | "approved" | "rejected";
+  requestedChanges: Record<string, any>;
+  reason?: string;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  rejectionReason?: string | null;
+};
+
+export async function fetchPartnerApprovalRequests(): Promise<PartnerApprovalRequest[]> {
+  const res = await apiGetJson<{ ok: boolean; requests: PartnerApprovalRequest[] }>("/api/partner/approval-requests");
+  return res?.requests || [];
+}

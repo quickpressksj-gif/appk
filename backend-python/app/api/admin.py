@@ -1572,4 +1572,52 @@ async def global_search(
     return {"ok": True, "query": q, "total": total_hits, "results": results}
 
 
+# ============================================================================
+# Partner Change Requests & Approvals Workflow (Store Name, PAN, Bank, Services)
+# ============================================================================
+
+@router.get("/partner-approvals")
+async def list_partner_approvals(
+    status: str = Query("all"),
+    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+) -> dict:
+    """Lists all partner change requests awaiting or completed admin verification."""
+    from app.services.approval_engine import approval_engine
+    requests = await approval_engine.list_admin_requests(status_filter=status)
+    return {"ok": True, "count": len(requests), "requests": requests}
+
+
+@router.post("/partner-approvals/{request_id}/approve")
+async def approve_partner_change_request(
+    request_id: str,
+    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+) -> dict:
+    """Approves a partner change request and merges updates into live databases."""
+    from app.services.approval_engine import approval_engine
+    admin_name = getattr(user, "name", None) or getattr(user, "email", "Admin")
+    try:
+        updated = await approval_engine.approve_request(request_id, admin_name=admin_name)
+        return {"ok": True, "message": "Partner change request approved successfully.", "request": updated}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/partner-approvals/{request_id}/reject")
+async def reject_partner_change_request(
+    request_id: str,
+    body: Optional[dict] = None,
+    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+) -> dict:
+    """Rejects a partner change request with feedback reason."""
+    from app.services.approval_engine import approval_engine
+    admin_name = getattr(user, "name", None) or getattr(user, "email", "Admin")
+    reason = str((body or {}).get("reason") or "Verification failed / Invalid details.")
+    try:
+        updated = await approval_engine.reject_request(request_id, admin_name=admin_name, reason=reason)
+        return {"ok": True, "message": "Partner change request rejected.", "request": updated}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+
 
