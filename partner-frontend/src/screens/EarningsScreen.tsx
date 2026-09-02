@@ -1,19 +1,15 @@
 import { useNavigate, Link } from "@tanstack/react-router";
 import {
-  ArrowDownToLine,
-  BadgeIndianRupee,
   Bell,
-  Building,
   Calendar,
   CheckCircle2,
   ChevronDown,
   Clock3,
-  DollarSign,
   Download,
   FileText,
   HelpCircle,
   Menu,
-  PackageCheck,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   Wallet,
@@ -27,7 +23,7 @@ import { PartnerLayout } from "../components/layout/PartnerLayout";
 import { PartnerCardsSkeleton } from "../components/PartnerSkeletons";
 import { usePartnerResource } from "../hooks/use-partner-resource";
 import { partnerRoutes } from "../navigation/partner-routes";
-import { fetchPartnerProfile, requestPartnerWithdraw } from "@/api/partner/partner-profile-api";
+import { fetchPartnerProfile } from "@/api/partner/partner-profile-api";
 import {
   type FinanceOverviewResponse,
   type TaxInvoice,
@@ -48,10 +44,6 @@ export function EarningsScreen() {
   const [activeSubTab, setActiveSubTab] = useState<"payouts" | "invoices">("payouts");
   const [selectedPastRange, setSelectedPastRange] = useState<string>("");
   const [selectedCycleForModal, setSelectedCycleForModal] = useState<string | null>(null);
-
-  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -100,30 +92,6 @@ export function EarningsScreen() {
     }
   };
 
-  const handleWithdraw = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error("Please enter a valid withdrawal amount");
-      return;
-    }
-    if (amount < 100) {
-      toast.error("Minimum withdrawal amount is ₹100");
-      return;
-    }
-    setIsWithdrawing(true);
-    try {
-      await requestPartnerWithdraw(amount);
-      toast.success(`Withdrawal of ₹${amount} initiated to registered bank account!`);
-      setWithdrawModalOpen(false);
-      setWithdrawAmount("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to initiate payout");
-    } finally {
-      setIsWithdrawing(false);
-    }
-  };
-
   const currentCycle = financeData?.currentCycle;
   const pastCycles = financeData?.pastCycles || [];
 
@@ -131,7 +99,7 @@ export function EarningsScreen() {
     <PartnerLayout
       activeTab="earnings"
       title="Payouts & Finance"
-      subtitle="Track settlements, payout cycles and download GST invoices"
+      subtitle="Track 7-day automatic settlements and download GST invoices"
     >
       {/* ========================================================================= */}
       {/* MOBILE VIEW (< md) Matching Exact Reference Screenshots                    */}
@@ -201,7 +169,7 @@ export function EarningsScreen() {
         {loading ? (
           <div className="flex h-96 flex-col items-center justify-center gap-3">
             <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-xs font-bold text-zinc-500">Loading payout accounts...</p>
+            <p className="text-xs font-bold text-zinc-500">Loading settlement cycles...</p>
           </div>
         ) : activeSubTab === "invoices" ? (
           /* ========================================================================= */
@@ -243,7 +211,7 @@ export function EarningsScreen() {
           /* ========================================================================= */
           <div className="space-y-4 p-4">
             
-            {/* Current Ongoing Cycle Card */}
+            {/* Current Ongoing 7-Day Cycle Card */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -255,7 +223,7 @@ export function EarningsScreen() {
                 <div className="text-right">
                   <p className="text-[11px] font-bold text-zinc-500">Payout date</p>
                   <p className="mt-0.5 text-xs font-black text-zinc-900">
-                    {currentCycle?.payoutDate || "-"}
+                    {currentCycle?.payoutDate || "Auto 7-Day Cycle"}
                   </p>
                 </div>
               </div>
@@ -269,9 +237,10 @@ export function EarningsScreen() {
                   <span>View details</span>
                   <span>→</span>
                 </button>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
-                  {currentCycle?.status || "PROCESSING"}
-                </span>
+                <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
+                  <ShieldCheck className="size-3" />
+                  <span>7-Day Auto Settlement</span>
+                </div>
               </div>
             </div>
 
@@ -406,7 +375,7 @@ export function EarningsScreen() {
               <div>
                 <h1 className="text-2xl font-black text-foreground">Partner Finance & Settlements</h1>
                 <p className="text-xs text-muted-foreground">
-                  Track itemized settlement breakdowns, commission deductions, TDS 194-O, and bank payouts.
+                  7-Day automated settlement cycles with itemized $(A+B+C+D+E+F)$ breakdown and bank IMPS transfers.
                 </p>
               </div>
 
@@ -419,23 +388,20 @@ export function EarningsScreen() {
                   <FileText className="size-4" />
                   <span>Current Cycle Statement</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setWithdrawModalOpen(true)}
-                  className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 active:scale-95"
-                >
-                  <ArrowDownToLine className="size-4" />
-                  <span>Request Withdrawal</span>
-                </button>
               </div>
             </div>
 
             {/* Desktop Overview Grid */}
             <div className="grid grid-cols-3 gap-6">
               <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Current Week Accrued Payout
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Current 7-Day Cycle Accrued
+                  </p>
+                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-black text-emerald-600">
+                    Auto-Settling
+                  </span>
+                </div>
                 <p className="mt-2 text-3xl font-black text-foreground">
                   ₹{currentCycle?.estPayout ? currentCycle.estPayout.toFixed(2) : "0.00"}
                 </p>
@@ -499,53 +465,6 @@ export function EarningsScreen() {
           cycleId={selectedCycleForModal}
           onClose={() => setSelectedCycleForModal(null)}
         />
-      )}
-
-      {/* Manual Instant Withdrawal Modal */}
-      {withdrawModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl text-foreground">
-            <h3 className="text-base font-black">Request Instant Bank Withdrawal</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Transfer eligible earnings directly to your verified bank account via IMPS (0 fees).
-            </p>
-
-            <form onSubmit={handleWithdraw} className="mt-4 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-muted-foreground">Amount (₹)</label>
-                <div className="relative mt-1">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-zinc-500">₹</span>
-                  <input
-                    type="number"
-                    min="100"
-                    step="1"
-                    placeholder="500"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    className="h-11 w-full rounded-2xl border border-border bg-background pl-8 pr-4 text-sm font-black text-foreground focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setWithdrawModalOpen(false)}
-                  className="h-11 flex-1 rounded-2xl border border-border bg-background text-xs font-bold text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isWithdrawing}
-                  className="h-11 flex-1 rounded-2xl bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {isWithdrawing ? "Processing..." : "Transfer Now"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       <Toaster />

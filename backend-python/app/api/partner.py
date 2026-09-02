@@ -740,15 +740,10 @@ async def wallet_transactions(
 
 @router.post("/wallet/withdraw", response_model=PartnerWalletResponse)
 async def withdraw(payload: WithdrawPayload, partner_id: str = Depends(_partner_id)) -> PartnerWalletResponse:
-    try:
-        doc = await partner_wallet_repository.withdraw(partner_id, payload.amount)
-    except PartnerAccessError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    except PartnerNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
-    except InvalidTransitionError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
-    return PartnerWalletResponse(**{k: v for k, v in doc.items() if k in PartnerWalletResponse.model_fields})
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Manual payout requests are disabled. Payouts are automatically calculated and settled to your registered bank account every 7 days on the weekly settlement cycle.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -806,15 +801,10 @@ async def update_store_status(
 async def partner_withdraw(
     payload: WithdrawPayload, partner_id: str = Depends(_partner_id)
 ) -> PartnerWalletResponse:
-    try:
-        doc = await partner_wallet_repository.withdraw(partner_id, payload.amount)
-    except PartnerAccessError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    except PartnerNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
-    except InvalidTransitionError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
-    return PartnerWalletResponse(**{k: v for k, v in doc.items() if k in PartnerWalletResponse.model_fields})
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Manual payout requests are disabled. Payouts are automatically calculated and settled to your registered bank account every 7 days on the weekly settlement cycle.",
+    )
 
 
 @router.post("/onboarding", response_model=OnboardingResponse)
