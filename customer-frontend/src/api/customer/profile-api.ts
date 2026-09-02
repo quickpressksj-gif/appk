@@ -21,7 +21,7 @@ import type {
   WalletEntity,
 } from "@/shared/types";
 
-import { clearSession } from "../core/session-store";
+import { clearSession, readToken } from "../core/session-store";
 import { apiGetJson, apiPostJson, apiRequest } from "../core/transport";
 import { CACHE_KEYS, readCache, readStaleCache, writeCache } from "./api/cache";
 
@@ -112,6 +112,33 @@ const EMPTY_MEMBERSHIP: Membership = {
   daysLeft: 0,
   totalDays: 0,
   savedThisYear: 0,
+};
+
+const DEFAULT_GUEST_PROFILE: ProfileData = {
+  user: {
+    name: "",
+    initials: "QP",
+    avatarUrl: null,
+    verified: false,
+    phone: "",
+    email: "",
+    city: "Kasganj, Uttar Pradesh",
+    memberSince: "August 2026",
+    unreadNotifications: 0,
+  },
+  stats: {
+    totalOrders: 0,
+    rewardPoints: 0,
+    walletBalance: 0,
+    savedAddresses: 0,
+  },
+  wallet: {
+    balance: 0,
+    cashbackEarned: 0,
+    transactions: [],
+  },
+  membership: EMPTY_MEMBERSHIP,
+  appVersion: "1.0.0",
 };
 
 function composeProfile(input: {
@@ -218,32 +245,7 @@ export async function fetchProfileData(
 ): Promise<ProfileData> {
   const token = readToken();
   if (!token) {
-    return {
-      user: {
-        name: "",
-        initials: "QP",
-        avatarUrl: null,
-        verified: false,
-        phone: "",
-        email: "",
-        city: "Kasganj, Uttar Pradesh",
-        memberSince: "August 2026",
-        unreadNotifications: 0,
-      },
-      stats: {
-        totalOrders: 0,
-        rewardPoints: 0,
-        walletBalance: 0,
-        savedAddresses: 0,
-      },
-      wallet: {
-        balance: 0,
-        cashbackEarned: 0,
-        transactions: [],
-      },
-      membership: EMPTY_MEMBERSHIP,
-      appVersion: "1.0.0",
-    };
+    return DEFAULT_GUEST_PROFILE;
   }
 
   if (!options.forceRefresh) {
@@ -254,7 +256,7 @@ export async function fetchProfileData(
   try {
     const [account, wallet, transactions, addresses, orders, membership, meta, unread] =
       await Promise.all([
-        apiGetJson<ProfileAccount>(PROFILE_API_ENDPOINTS.profile),
+        optional<ProfileAccount | null>(apiGetJson<ProfileAccount>(PROFILE_API_ENDPOINTS.profile), null),
         optional(apiGetJson<WalletEntity>(PROFILE_API_ENDPOINTS.wallet), null),
         optional(apiGetJson<TransactionEntity[]>(PROFILE_API_ENDPOINTS.transactions), []),
         optional(apiGetJson<AddressEntity[]>(PROFILE_API_ENDPOINTS.addresses), []),
@@ -266,6 +268,11 @@ export async function fetchProfileData(
         ),
         optional(apiGetJson<{ count: number }>(PROFILE_API_ENDPOINTS.unreadCount), { count: 0 }),
       ]);
+
+    if (!account) {
+      clearSession();
+      return DEFAULT_GUEST_PROFILE;
+    }
 
     const data = composeProfile({
       account,
@@ -279,10 +286,10 @@ export async function fetchProfileData(
     });
     writeCache(CACHE_KEYS.profileScreen, data);
     return data;
-  } catch (error) {
+  } catch {
     const stale = readStaleCache<ProfileData>(CACHE_KEYS.profileScreen);
     if (stale) return stale;
-    throw error;
+    return DEFAULT_GUEST_PROFILE;
   }
 }
 
