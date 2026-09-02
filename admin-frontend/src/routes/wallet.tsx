@@ -204,7 +204,7 @@ export function WalletPage() {
             kpi={{
               id: "gmv-tot",
               label: "Nationwide GMV",
-              value: "₹492.00",
+              value: (kpisQuery.data ?? []).find((k) => k.id === "revenue")?.value || "₹0.00",
               hint: "18% Platform commission",
               positive: true,
             }}
@@ -213,7 +213,7 @@ export function WalletPage() {
             kpi={{
               id: "comm-earned",
               label: "Platform Revenue",
-              value: "₹88.56",
+              value: (kpisQuery.data ?? []).find((k) => k.id === "commission")?.value || "₹0.00",
               hint: "Realized commission",
               positive: true,
             }}
@@ -222,8 +222,8 @@ export function WalletPage() {
             kpi={{
               id: "partner-escrow",
               label: "Partner Escrow (70%)",
-              value: "₹344.40",
-              hint: "8 Partner Hub stores",
+              value: (kpisQuery.data ?? []).find((k) => k.id === "partner_payouts")?.value || "₹0.00",
+              hint: `${allWallets.filter((w) => w.role === "partner").length} Partner Stores`,
               positive: true,
             }}
           />
@@ -231,8 +231,8 @@ export function WalletPage() {
             kpi={{
               id: "rider-escrow",
               label: "Fleet Earnings (12%)",
-              value: "₹59.04",
-              hint: "4 Active captains",
+              value: (kpisQuery.data ?? []).find((k) => k.id === "rider_earnings")?.value || "₹0.00",
+              hint: `${allWallets.filter((w) => w.role === "rider").length} Active Captains`,
               positive: true,
             }}
           />
@@ -240,7 +240,7 @@ export function WalletPage() {
             kpi={{
               id: "tot-refunds",
               label: "Refunds Processed",
-              value: refundStats?.totalRefundedAmount || "₹176.00",
+              value: refundStats?.totalRefundedAmount || "₹0.00",
               hint: `${allRefunds.length} Refund orders`,
               positive: true,
             }}
@@ -249,7 +249,7 @@ export function WalletPage() {
             kpi={{
               id: "pending-claims",
               label: "Pending Claims",
-              value: `${refundStats?.pendingClaimsCount || 1} Claims`,
+              value: `${refundStats?.pendingClaimsCount || 0} Claims`,
               hint: "Awaiting staff action",
               positive: (refundStats?.pendingClaimsCount || 0) === 0,
             }}

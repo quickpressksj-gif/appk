@@ -134,8 +134,8 @@ export function AnalyticsPage() {
             kpi={{
               id: "gmv",
               label: "Nationwide GMV",
-              value: "₹492.00",
-              hint: "+24.5% vs last month",
+              value: `₹${(data?.revenue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+              hint: `${data?.monthlyGrowthRate || "+0.0%"} vs last month`,
               positive: true,
             }}
           />
@@ -143,7 +143,7 @@ export function AnalyticsPage() {
             kpi={{
               id: "aov",
               label: "Average Order Value",
-              value: "₹164.00",
+              value: `₹${(data?.aov || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
               hint: "Per delivered cart",
               positive: true,
             }}
@@ -152,8 +152,8 @@ export function AnalyticsPage() {
             kpi={{
               id: "orders",
               label: "Booked Orders",
-              value: "13 Orders",
-              hint: "3 Delivered · 10 In Transit",
+              value: `${data?.totalOrders || 0} Orders`,
+              hint: `${data?.deliveredOrders || 0} Delivered · ${data?.inProgressOrders || 0} In Transit`,
               positive: true,
             }}
           />
@@ -161,7 +161,7 @@ export function AnalyticsPage() {
             kpi={{
               id: "fulfillment",
               label: "Fulfillment Rate",
-              value: "98.2%",
+              value: `${data?.fulfillmentRate || 100}%`,
               hint: "Zero escalated disputes",
               positive: true,
             }}
@@ -170,7 +170,7 @@ export function AnalyticsPage() {
             kpi={{
               id: "partners",
               label: "Partner Store Hubs",
-              value: "8 Hubs",
+              value: `${data?.partners || 0} Hubs`,
               hint: "Processing network",
               positive: true,
             }}
@@ -179,8 +179,8 @@ export function AnalyticsPage() {
             kpi={{
               id: "fleet",
               label: "Delivery Captains",
-              value: "4 Captains",
-              hint: "65 Registered Users",
+              value: `${data?.riders || 0} Captains`,
+              hint: `${data?.customers || 0} Registered Users`,
               positive: true,
             }}
           />

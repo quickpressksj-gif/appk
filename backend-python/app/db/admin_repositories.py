@@ -2526,7 +2526,8 @@ class AdminWalletRepository:
         revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered)
         commission = round(revenue * 0.18, 2)
         partner_payouts = round(revenue * 0.70, 2)
-        rider_earnings = round(revenue * 0.12, 2)
+        riders = await database.find_many("rider_profiles")
+        cod_cash = round(sum(float((r.get("wallet") or {}).get("codCashInHand", 0.0) if isinstance(r.get("wallet"), dict) else (r.get("codCashInHand", 0.0) or 0.0)) for r in (riders or [])), 2)
 
         return [
             {"id": "revenue", "label": "Platform GMV (Delivered)", "value": revenue, "positive": True, "hint": "Gross order volume"},
@@ -2534,7 +2535,7 @@ class AdminWalletRepository:
             {"id": "partner_payouts", "label": "Partner Store Escrow (70%)", "value": partner_payouts, "positive": True, "hint": "Payable to stores"},
             {"id": "rider_earnings", "label": "Fleet Delivery Share (12%)", "value": rider_earnings, "positive": True, "hint": "Payable to captains"},
             {"id": "pending_withdrawals", "label": "Pending Withdrawals", "value": 0, "positive": False, "hint": "Awaiting approval"},
-            {"id": "cod_cash", "label": "Fleet COD Cash in Hand", "value": 120, "positive": True, "hint": "Pending settlement"},
+            {"id": "cod_cash", "label": "Fleet COD Cash in Hand", "value": cod_cash, "positive": True, "hint": "Pending settlement"},
         ]
 
     async def revenue_split(self) -> List[Dict[str, Any]]:
@@ -2550,8 +2551,8 @@ class AdminWalletRepository:
             entry["rider"] += round(gross * 0.12, 2)
 
         if not by_month:
-            by_month["2026-08"] = {"value": 492, "secondary": 88.56, "partner": 344.4, "rider": 59.04}
-            by_month["2026-09"] = {"value": 492, "secondary": 88.56, "partner": 344.4, "rider": 59.04}
+            current_month = now_iso()[:7]
+            by_month[current_month] = {"value": 0.0, "secondary": 0.0, "partner": 0.0, "rider": 0.0}
 
         return [{"label": m, **v} for m, v in sorted(by_month.items())]
 
@@ -4405,8 +4406,8 @@ class AnalyticsRepository:
         cancelled = [o for o in (orders or []) if o.get("status") == "cancelled"]
         in_progress = [o for o in (orders or []) if o.get("status") not in ("delivered", "cancelled")]
         revenue = sum((o.get("totals") or {}).get("grandTotal", 0) for o in delivered)
-        aov = round(revenue / len(delivered), 2) if delivered else 164.0
-        fulfillment_rate = round((len(delivered) / len(orders) * 100), 1) if orders else 98.2
+        aov = round(revenue / len(delivered), 2) if delivered else 0.0
+        fulfillment_rate = round((len(delivered) / len(orders) * 100), 1) if orders else 100.0
 
         # Reshape cities performance
         city_rows = []
@@ -4425,11 +4426,11 @@ class AnalyticsRepository:
                 "orders": len(c_orders),
                 "gmv": f"₹{c_gmv:,.2f}",
                 "rawGmv": c_gmv,
-                "aov": f"₹{(round(c_gmv / len(c_delivered), 2) if c_delivered else 164.0):,.2f}",
+                "aov": f"₹{(round(c_gmv / len(c_delivered), 2) if c_delivered else 0.0):,.2f}",
                 "partners": c_partners,
                 "riders": c_riders,
                 "customers": len(users),
-                "growth": "+24.5%",
+                "growth": "+0.0%",
                 "status": c.get("status", "Live"),
             })
 
@@ -4445,8 +4446,8 @@ class AnalyticsRepository:
             "partners": len(partners),
             "riders": len(riders),
             "customers": len(users),
-            "monthlyGrowthRate": "+32.8%",
-            "topService": "Premium Wash & Fold",
+            "monthlyGrowthRate": "+0.0%",
+            "topService": "Wash & Fold",
         }
 
 
