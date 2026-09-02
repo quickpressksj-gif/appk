@@ -31,19 +31,10 @@ export type RequestOptions = {
   anonymous?: boolean | undefined;
 };
 
-export type TransportMode = "mock" | "http";
+export type TransportMode = "http" | "mock";
 
 export function transportMode(): TransportMode {
-  if (isApiConfigured()) return "http";
-  // Production must never silently fall back to fixtures: a production build
-  // without VITE_API_BASE_URL is a configuration error, not a demo mode.
-  if (appEnvironment() === "production") {
-    throw new ApiError(
-      "unconfigured",
-      "VITE_API_BASE_URL is not configured for this production build",
-    );
-  }
-  return "mock";
+  return "http";
 }
 
 /**
