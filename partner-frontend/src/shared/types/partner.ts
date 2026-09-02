@@ -8,6 +8,8 @@ export type PartnerSession = {
   phone: string;
   email?: string | null;
   businessName: string;
+  ownerName?: string;
+  city?: string;
   isVerified: boolean;
   isOnboarded: boolean;
 };

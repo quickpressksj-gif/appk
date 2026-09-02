@@ -25,9 +25,16 @@ function toPartnerSession(session: AuthSession): PartnerSession {
     phone: session.account.phone ?? "",
     email: session.account.email,
     businessName: session.account.name ?? "",
+    ownerName: (session.account as any)?.ownerName ?? session.account.name ?? "",
+    city: (session.account as any)?.city ?? "",
     isVerified: session.account.isVerified,
     isOnboarded: session.account.isOnboarded,
   };
+}
+
+export function getStoredPartnerSession(): PartnerSession | null {
+  const session = readSession(ROLE);
+  return session ? toPartnerSession(session) : null;
 }
 
 function toE164(phone: string): string {

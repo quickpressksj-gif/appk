@@ -34,8 +34,42 @@ function toPartnerNotification(item: RawNotification): PartnerNotification {
   };
 }
 
+let memoryProfileCache: PartnerProfile | null = null;
+let inFlightProfilePromise: Promise<PartnerProfile> | null = null;
+
+export function getCachedPartnerProfile(): PartnerProfile | null {
+  if (memoryProfileCache) return memoryProfileCache;
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("qp.partner.profile_cache");
+    if (raw) {
+      memoryProfileCache = JSON.parse(raw);
+      return memoryProfileCache;
+    }
+  } catch {}
+  return null;
+}
+
+export function setCachedPartnerProfile(profile: PartnerProfile) {
+  memoryProfileCache = profile;
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem("qp.partner.profile_cache", JSON.stringify(profile));
+    } catch {}
+  }
+}
+
 export async function fetchPartnerProfile(): Promise<PartnerProfile> {
-  return apiGetJson<PartnerProfile>("/api/partner/profile");
+  if (inFlightProfilePromise) return inFlightProfilePromise;
+  inFlightProfilePromise = apiGetJson<PartnerProfile>("/api/partner/profile")
+    .then((res) => {
+      setCachedPartnerProfile(res);
+      return res;
+    })
+    .finally(() => {
+      inFlightProfilePromise = null;
+    });
+  return inFlightProfilePromise;
 }
 
 export async function fetchBusinessSettings(): Promise<BusinessSettings> {

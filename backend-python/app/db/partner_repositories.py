@@ -69,6 +69,9 @@ class InvalidTransitionError(Exception):
     pass
 
 
+_PARTNER_ID_CACHE: Dict[str, str] = {}
+
+
 class PartnerRepository:
     """Profile + business settings."""
 
@@ -79,6 +82,9 @@ class PartnerRepository:
         if role_value != "partner":
             raise PartnerAccessError("This account is not a partner account")
         user_id = str(getattr(user, "id", "") or "")
+        if user_id and user_id in _PARTNER_ID_CACHE:
+            return _PARTNER_ID_CACHE[user_id]
+
         phone = str(getattr(user, "phone", "") or "")
         raw_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
 
@@ -132,33 +138,38 @@ class PartnerRepository:
         if not store_id:
             store_id = f"PRT-{random.randint(100000, 999999)}"
 
-        # Cache/link the resolved store_id
-        await self.link_account(user_id, str(store_id))
+        store_id_str = str(store_id)
+        if user_id:
+            _PARTNER_ID_CACHE[user_id] = store_id_str
 
-        # Ensure profile exists in PROFILES
-        if await database.find_one(PROFILES, {"_id": str(store_id)}) is None:
-            await self.profile(str(store_id))
+        # Cache/link the resolved store_id in background
+        await self.link_account(user_id, store_id_str)
 
-        return str(store_id)
+        return store_id_str
 
     async def link_account(self, user_id: str, store_id: str) -> None:
         """Attach a signed-in partner account to a real partner store."""
+        if user_id:
+            _PARTNER_ID_CACHE[user_id] = str(store_id)
         await database.update(
             "partners", {"user_id": user_id}, {"partner_id": store_id}, upsert=True
         )
 
     async def profile(self, partner_id: str) -> Dict[str, Any]:
-        doc = await database.find_one(PROFILES, {"_id": partner_id})
+        doc = await database.find_one(PROFILES, {"_id": partner_id}) or await database.find_one(PROFILES, {"partnerId": partner_id})
         if doc is None:
+            # Check admin_partners for any real onboarded details
+            admin_doc = await database.find_one("admin_partners", {"_id": partner_id}) or await database.find_one("admin_partners", {"partnerId": partner_id}) or {}
             doc = {
                 "_id": partner_id,
                 "partnerId": partner_id,
-                "businessName": "QuickPress Partner Store",
-                "ownerName": "Partner",
-                "phone": "",
-                "email": "",
-                "city": "Bengaluru",
-                "rating": 5.0,
+                "businessName": admin_doc.get("businessName") or admin_doc.get("storeName") or "QuickPress Partner Store",
+                "ownerName": admin_doc.get("ownerName") or "Partner",
+                "phone": admin_doc.get("phone") or "",
+                "email": admin_doc.get("email") or "",
+                "city": admin_doc.get("city") or "Kasganj",
+                "area": admin_doc.get("area") or "Main Market",
+                "rating": float(admin_doc.get("rating") or 5.0),
                 "totalOrders": 0,
                 "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
                 "onTimeRate": 98.5,

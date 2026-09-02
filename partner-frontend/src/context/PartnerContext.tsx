@@ -10,6 +10,7 @@ import {
 
 import type { PartnerSession } from "@/shared/types/partner";
 import {
+  getStoredPartnerSession,
   logout as logoutPartner,
   restorePartnerSession,
   startPartnerAutoRefresh,
@@ -40,9 +41,9 @@ function getStoredPhone(): string {
 const PartnerContext = createContext<PartnerContextValue | null>(null);
 
 export function PartnerProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<PartnerSession | null>(null);
-  const [phone, setPhoneState] = useState(getStoredPhone);
-  const [hydrating, setHydrating] = useState(true);
+  const [session, setSession] = useState<PartnerSession | null>(getStoredPartnerSession);
+  const [phone, setPhoneState] = useState(() => getStoredPartnerSession()?.phone || getStoredPhone());
+  const [hydrating, setHydrating] = useState(() => !getStoredPartnerSession());
 
   const setPhone = useCallback((newPhone: string) => {
     setPhoneState(newPhone);

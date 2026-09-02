@@ -40,9 +40,10 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { partnerRoutes } from "../../navigation/partner-routes";
-import { fetchDashboardSummary, setStoreOpen } from "../../api/partner/partner-dashboard-api";
+import { fetchDashboardSummary, getCachedDashboardSummary, setStoreOpen } from "../../api/partner/partner-dashboard-api";
 import { fetchEarnings } from "../../api/partner/partner-earnings-api";
-import { fetchPartnerProfile } from "../../api/partner/partner-profile-api";
+import { fetchPartnerProfile, getCachedPartnerProfile } from "../../api/partner/partner-profile-api";
+import { usePartnerContext } from "../../context/PartnerContext";
 import { usePartnerOrders } from "../../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../../hooks/use-order-action-handler";
 import { useLanguage } from "../../lib/i18n";
@@ -56,22 +57,12 @@ function getStageTimelineIndex(stage: string): number {
       return 0;
     case "accepted":
       return 1;
-    case "pickup_pending":
-    case "pickup_driver_assigned":
-    case "picked_up":
-    case "picked":
-    case "at_partner":
-      return 2;
-    case "washing":
-    case "dry_cleaning":
     case "processing":
-    case "ironing":
-      return 3;
+      return 2;
     case "ready":
-    case "delivery_assigned":
+      return 3;
     case "out_for_delivery":
       return 4;
-    case "completed":
     case "delivered":
       return 5;
     default:
@@ -79,9 +70,8 @@ function getStageTimelineIndex(stage: string): number {
   }
 }
 
-const FEED_PILLS = [
-  { id: "feed", label: "My Feed" },
-  { id: "sales", label: "Sales" },
+const PERFORMANCE_METRIC_TABS = [
+  { id: "sales", label: "Sales & Orders" },
   { id: "funnel", label: "Funnel" },
   { id: "quality", label: "Service quality" },
   { id: "operations", label: "Operations" },
@@ -89,19 +79,38 @@ const FEED_PILLS = [
 
 export function ZomatoHubView() {
   const navigate = useNavigate();
+  const { session } = usePartnerContext();
+  const cachedProfile = useMemo(getCachedPartnerProfile, []);
+  const cachedSummary = useMemo(getCachedDashboardSummary, []);
+
   const { orders, counts, refresh: refreshOrders } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
   const { openLanguageModal, language, t } = useLanguage();
 
   const [activeFilterTab, setActiveFilterTab] = useState<PartnerOrderFilterTab>("all");
-  const [shopName, setShopName] = useState("QuickPress Laundry Store");
-  const [locationName, setLocationName] = useState("Bengaluru");
-  const [isOnline, setIsOnline] = useState(true);
-  const [todayEarnings, setTodayEarnings] = useState(0);
-  const [todayOrdersCount, setTodayOrdersCount] = useState(0);
+  const [shopName, setShopName] = useState(() =>
+    session?.businessName || cachedProfile?.businessName || cachedProfile?.ownerName || "QuickPress Laundry Store"
+  );
+  const [locationName, setLocationName] = useState(() =>
+    cachedProfile?.city || session?.city || "Kasganj"
+  );
+  const [isOnline, setIsOnline] = useState(() => cachedSummary?.isStoreOpen ?? true);
+  const [todayEarnings, setTodayEarnings] = useState(() => cachedSummary?.todayEarnings ?? 0);
+  const [todayOrdersCount, setTodayOrdersCount] = useState(() =>
+    cachedSummary ? (cachedSummary.newOrders + cachedSummary.inProcess + cachedSummary.readyForDelivery + cachedSummary.completedToday) : 0
+  );
   const [earningsData, setEarningsData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !session && !cachedProfile && !cachedSummary);
   const [selectedManageOrder, setSelectedManageOrder] = useState<ManagedOrder | null>(null);
+
+  useEffect(() => {
+    if (session?.businessName) {
+      setShopName(session.businessName);
+    }
+    if (session?.city) {
+      setLocationName(session.city);
+    }
+  }, [session?.businessName, session?.city]);
 
   useEffect(() => {
     let alive = true;
@@ -112,8 +121,8 @@ export function ZomatoHubView() {
     ]).then(([profile, summary, earnings]) => {
       if (!alive) return;
       if (profile) {
-        setShopName(profile.businessName || profile.ownerName || "QuickPress Laundry Store");
-        setLocationName(profile.city ? `${profile.city}` : "Kasganj");
+        setShopName(profile.businessName || profile.ownerName || session?.businessName || "QuickPress Laundry Store");
+        setLocationName(profile.city ? `${profile.city}` : (session?.city || "Kasganj"));
       }
       if (summary) {
         setIsOnline(summary.isStoreOpen);
@@ -130,7 +139,7 @@ export function ZomatoHubView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [session?.businessName, session?.city]);
 
   const handleToggleStore = async () => {
     try {

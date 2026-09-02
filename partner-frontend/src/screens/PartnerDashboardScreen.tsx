@@ -35,9 +35,9 @@ import { PullToRefresh } from "../components/dashboard/PullToRefresh";
 import { partnerRoutes } from "../navigation/partner-routes";
 import { fetchPartnerProfile } from "@/api/partner/partner-profile-api";
 import { fetchDashboardSummary, setStoreOpen } from "@/api/partner/partner-dashboard-api";
-import { fetchEarnings } from "@/api/partner/partner-earnings-api";
 import { usePartnerOrders } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
+import { usePartnerContext } from "../context/PartnerContext";
 
 const STATUS_TO_LIVE: Record<string, LiveOrder["status"]> = {
   new: "pending",
@@ -84,17 +84,30 @@ function getCachedDashboard(): {
 
 export function PartnerDashboardScreen() {
   const navigate = useNavigate();
+  const { session } = usePartnerContext();
   const { orders, isLoading: ordersLoading, refresh: refreshOrders } = usePartnerOrders();
   const { handleAction, sheetNode, overlay } = useOrderActionHandler();
 
   const cached = useMemo(getCachedDashboard, []);
 
-  const [shop, setShop] = useState<DashboardShop | null>(cached.shop);
+  const [shop, setShop] = useState<DashboardShop | null>(() => {
+    if (cached.shop) return cached.shop;
+    if (session?.businessName) {
+      return {
+        shopName: session.businessName,
+        partnerName: session.ownerName || "Partner",
+        logoInitials: (session.businessName || "QP").slice(0, 2).toUpperCase(),
+        isVerified: session.isVerified,
+        notifications: 0,
+      };
+    }
+    return null;
+  });
   const [summary, setSummary] = useState<DashboardSummaryCard | null>(cached.summary);
   const [quickStats, setQuickStats] = useState<QuickStat[]>(cached.quickStats);
   const [earnings, setEarnings] = useState<EarningsSummary | null>(cached.earnings);
   const [isOnline, setIsOnline] = useState(cached.isOnline);
-  const [isLoading, setIsLoading] = useState(() => !cached.shop && !cached.summary);
+  const [isLoading, setIsLoading] = useState(() => !cached.shop && !cached.summary && !session);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
