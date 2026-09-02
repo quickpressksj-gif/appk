@@ -1579,7 +1579,7 @@ async def global_search(
 @router.get("/partner-approvals")
 async def list_partner_approvals(
     status: str = Query("all"),
-    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+    user: User = Depends(require_roles(Role.admin, Role.super_admin)),
 ) -> dict:
     """Lists all partner change requests awaiting or completed admin verification."""
     from app.services.approval_engine import approval_engine
@@ -1590,7 +1590,7 @@ async def list_partner_approvals(
 @router.post("/partner-approvals/{request_id}/approve")
 async def approve_partner_change_request(
     request_id: str,
-    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+    user: User = Depends(require_roles(Role.admin, Role.super_admin)),
 ) -> dict:
     """Approves a partner change request and merges updates into live databases."""
     from app.services.approval_engine import approval_engine
@@ -1606,7 +1606,7 @@ async def approve_partner_change_request(
 async def reject_partner_change_request(
     request_id: str,
     body: Optional[dict] = None,
-    user: User = Depends(require_roles(Role.admin, Role.superadmin)),
+    user: User = Depends(require_roles(Role.admin, Role.super_admin)),
 ) -> dict:
     """Rejects a partner change request with feedback reason."""
     from app.services.approval_engine import approval_engine
