@@ -184,12 +184,18 @@ export function RiderRegistrationScreen() {
       !rawName ||
       rawName.startsWith("+") ||
       /^\d+$/.test(rawName.replace(/[\s+-]/g, ""));
-    const phone = (s?.account?.phone || s?.phone || "").replace("+91", "").trim();
+    const pendingPhone =
+      typeof window !== "undefined"
+        ? window.sessionStorage?.getItem("qp.rider.pendingPhone") ||
+          window.localStorage?.getItem("qp.rider.pendingPhone") ||
+          ""
+        : "";
+    const phone = (s?.account?.phone || s?.phone || pendingPhone || "").replace("+91", "").trim();
 
     return {
       ...emptyRiderForm,
       mobile: phone,
-      mobileVerified: true,
+      mobileVerified: Boolean(phone),
       fullName: isPhoneNumber ? "" : rawName,
       email: s?.account?.email ?? s?.email ?? "",
     };
@@ -718,7 +724,7 @@ export function RiderRegistrationScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pt-safe">
+    <div className="min-h-screen bg-white text-slate-950 pt-safe selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
       <RiderTopBar
         title="Captain Onboarding"
@@ -1682,13 +1688,13 @@ export function RiderRegistrationScreen() {
         </div>
 
         {/* Floating Bottom Navigation Bar */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 pt-3 pb-safe backdrop-blur-md">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-safe backdrop-blur-md">
           <div className="mx-auto flex max-w-md items-center gap-3">
             {step > 1 && (
               <button
                 type="button"
                 onClick={handleBack}
-                className="rounded-2xl border border-border bg-card px-5 py-3.5 text-xs font-bold text-foreground transition-colors hover:bg-muted active:scale-95"
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-xs font-black text-slate-800 transition-colors hover:bg-slate-50 active:scale-95 cursor-pointer"
               >
                 Back
               </button>
@@ -1698,7 +1704,7 @@ export function RiderRegistrationScreen() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-transform active:scale-[0.98] hover:bg-emerald-700"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-sm font-black text-slate-950 shadow-md shadow-amber-400/25 transition-all active:scale-[0.98] hover:bg-amber-300 cursor-pointer"
               >
                 <span>Continue</span>
                 <Check className="size-4 stroke-[3]" />
@@ -1708,17 +1714,17 @@ export function RiderRegistrationScreen() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || !form.termsAccepted}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-[0.98] disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-sm font-black text-slate-950 shadow-md shadow-amber-400/30 transition-all active:scale-[0.98] hover:bg-amber-300 disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-4 animate-spin text-slate-950" />
                     <span>Saving to Supabase...</span>
                   </>
                 ) : (
                   <>
                     <span>Submit &amp; Request Admin Approval</span>
-                    <Sparkles className="size-4 fill-white" />
+                    <Sparkles className="size-4 text-slate-950" />
                   </>
                 )}
               </button>

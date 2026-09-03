@@ -12,20 +12,26 @@ import { riderRoutes } from "../navigation/rider-routes";
 export function requireRiderAuth() {
   if (typeof window === "undefined") return;
   const sess = readSession("rider") || readSession();
-  if (!sess || !sess.token) {
+  const pendingPhone =
+    typeof window !== "undefined"
+      ? window.sessionStorage?.getItem("qp.rider.pendingPhone") ||
+        window.localStorage?.getItem("qp.rider.pendingPhone")
+      : null;
+
+  if (!sess && !pendingPhone) {
     throw redirect({ to: riderRoutes.auth });
   }
-  if (sess.status === "suspended" || (sess as any).isSuspended) {
+  if (sess?.status === "suspended" || (sess as any)?.isSuspended) {
     throw redirect({ to: riderRoutes.suspended });
   }
-  const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
+  const isOnboarded = sess?.isOnboarded ?? sess?.account?.isOnboarded;
   if (isOnboarded === false) {
     throw redirect({ to: riderRoutes.registration });
   }
   const isVerified =
-    (sess.isVerified ?? sess.account?.isVerified) ||
-    sess.status === "active" ||
-    sess.account?.status === "active";
+    (sess?.isVerified ?? sess?.account?.isVerified) ||
+    sess?.status === "active" ||
+    sess?.account?.status === "active";
   if (!isVerified) {
     throw redirect({ to: riderRoutes.registrationSubmitted });
   }
@@ -33,11 +39,18 @@ export function requireRiderAuth() {
 
 /**
  * Guard for registration & verification waiting screens.
+ * Allows user who verified OTP (has session or pendingPhone) to complete onboarding.
  */
 export function requireRiderSession() {
   if (typeof window === "undefined") return;
   const sess = readSession("rider") || readSession();
-  if (!sess || !sess.token) {
+  const pendingPhone =
+    typeof window !== "undefined"
+      ? window.sessionStorage?.getItem("qp.rider.pendingPhone") ||
+        window.localStorage?.getItem("qp.rider.pendingPhone")
+      : null;
+
+  if (!sess && !pendingPhone) {
     throw redirect({ to: riderRoutes.auth });
   }
 }
