@@ -38,6 +38,8 @@ node_modules/
 # ==================================================
 .output/
 .wrangler/
+.legacy_backup/
+*.legacy_backup/
 dist/
 build/
 .cache/
