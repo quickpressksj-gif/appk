@@ -3,24 +3,20 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
-  Building2,
   CheckCircle2,
   Clock,
-  CreditCard,
   IndianRupee,
   RefreshCw,
   ShieldCheck,
   Sparkles,
-  Wallet as WalletIcon,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { RiderLayout } from "../components/layout/RiderLayout";
 import {
   fetchRiderWallet,
   fetchRiderTransactions,
-  withdrawRiderEarnings,
 } from "../api/rider/rider-wallet-api";
-import { fetchRiderBank, type RiderBankAccount } from "../api/rider/rider-profile-api";
 import type { RiderTransaction } from "@/shared/types/rider";
 
 export function RiderWalletScreen() {
@@ -28,28 +24,24 @@ export function RiderWalletScreen() {
   const [pendingSettlement, setPendingSettlement] = useState(0);
   const [lifetimeEarnings, setLifetimeEarnings] = useState(0);
   const [transactions, setTransactions] = useState<RiderTransaction[]>([]);
-  const [bank, setBank] = useState<RiderBankAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
 
   // Load real wallet data from backend
   const loadWalletData = useCallback(async (showToast = false) => {
     try {
       if (showToast) setRefreshing(true);
-      const [walletRes, txnsRes, bankRes] = await Promise.all([
+      const [walletRes, txnsRes] = await Promise.all([
         fetchRiderWallet().catch(() => ({ availableBalance: 0, pendingSettlement: 0, lifetimeEarnings: 0 })),
         fetchRiderTransactions().catch(() => []),
-        fetchRiderBank().catch(() => null),
       ]);
 
       setBalance(walletRes.availableBalance || 0);
       setPendingSettlement(walletRes.pendingSettlement || 0);
       setLifetimeEarnings(walletRes.lifetimeEarnings || 0);
       setTransactions(txnsRes || []);
-      if (bankRes) setBank(bankRes);
 
-      if (showToast) toast.success("Wallet data refreshed from server");
+      if (showToast) toast.success("Wallet ledger refreshed from server");
     } catch {
       if (showToast) toast.error("Could not refresh wallet");
     } finally {
@@ -64,35 +56,15 @@ export function RiderWalletScreen() {
     return () => clearInterval(interval);
   }, [loadWalletData]);
 
-  const handleWithdraw = async () => {
-    if (balance <= 0) {
-      toast.error("Insufficient balance for withdrawal.");
-      return;
-    }
-    setWithdrawing(true);
-    try {
-      await withdrawRiderEarnings(balance);
-      toast.success(
-        `Withdrawal of ₹${balance.toLocaleString("en-IN")} submitted! Funds will settle to your bank account.`
-      );
-      setBalance(0);
-      void loadWalletData();
-    } catch (err: any) {
-      toast.error(err?.message || "Withdrawal request failed");
-    } finally {
-      setWithdrawing(false);
-    }
-  };
-
   return (
     <RiderLayout
       activeTab="wallet"
       title="Earnings & Payouts"
-      subtitle="Live Wallet Ledger, Weekly Transfers & Bank Rail"
+      subtitle="Live Wallet Ledger · Auto Payout Every 2 Days"
     >
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6 select-none">
         {/* ========================================================================= */}
-        {/* 1. MAIN WALLET BALANCE HERO CARD (White & Dark Green)                      */}
+        {/* 1. MAIN WALLET BALANCE HERO CARD (White & Dark Green Theme)                */}
         {/* ========================================================================= */}
         <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-800 bg-white p-6 shadow-sm">
           <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-emerald-500/10 blur-2xl" />
@@ -100,9 +72,9 @@ export function RiderWalletScreen() {
           <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-black uppercase tracking-wider text-emerald-800">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
                   Available Wallet Balance
-                </p>
+                </span>
                 <button
                   type="button"
                   onClick={() => void loadWalletData(true)}
@@ -118,23 +90,23 @@ export function RiderWalletScreen() {
                 <IndianRupee className="size-8 sm:size-10 text-emerald-800" strokeWidth={2.6} />
                 {balance.toLocaleString("en-IN")}
               </p>
-              <p className="mt-1 text-xs font-semibold text-emerald-800">
-                ✓ Auto-settles every Monday directly to your bank account
-              </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleWithdraw}
-              disabled={withdrawing || balance <= 0}
-              className="flex items-center gap-2 rounded-2xl bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white font-black text-xs px-6 py-3.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
-            >
-              <WalletIcon className="size-4" />
-              <span>{withdrawing ? "Processing..." : "Instant Bank Payout"}</span>
-            </button>
+            {/* AUTO PAYMENT 2 DAYS BADGE (Replaces Instant Withdraw) */}
+            <div className="rounded-2xl border-2 border-emerald-800 bg-emerald-50 px-5 py-3.5 space-y-1 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="flex size-2.5 rounded-full bg-emerald-600 animate-ping" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                  AUTO PAYOUT: EVERY 2 DAYS
+                </span>
+              </div>
+              <p className="text-[11px] font-semibold text-emerald-800">
+                Transferred automatically every 48 hours
+              </p>
+            </div>
           </div>
 
-          {/* Quick Metrics */}
+          {/* Metrics: Pending Settlement & Lifetime Earnings */}
           <div className="mt-5 grid grid-cols-2 gap-3 pt-4 border-t border-emerald-100 text-xs">
             <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
               <span className="text-[10px] font-bold uppercase text-emerald-800">Pending Settlement</span>
@@ -152,43 +124,26 @@ export function RiderWalletScreen() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 2. LINKED BANK ACCOUNT (Real Backend Data)                                 */}
+        {/* 2. AUTO PAYOUT CYCLE POLICY BANNER (White & Dark Green)                    */}
         {/* ========================================================================= */}
-        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
-                <Building2 className="size-5" />
-              </div>
-              <div>
-                <h3 className="text-xs font-black text-slate-900">
-                  {bank?.bankName || "State Bank of India"}
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500">
-                  Account: {bank?.accountNumber || "••••••••4821"}
-                </p>
-              </div>
+        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm space-y-2">
+          <div className="flex items-center gap-2.5 text-emerald-950">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
+              <Clock className="size-5" />
             </div>
-            <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
-              <ShieldCheck className="size-3 text-emerald-800" />
-              {bank?.isVerified !== false ? "Verified for Direct Transfer" : "Pending Verification"}
-            </span>
+            <div>
+              <h3 className="text-xs font-black text-slate-900">
+                Automated 2-Day Payout Rail
+              </h3>
+              <p className="text-[11px] font-medium text-slate-500">
+                100% Direct &amp; Seamless Transfer
+              </p>
+            </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-            <div>
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Account Holder</p>
-              <p className="font-bold text-slate-900">{bank?.accountHolder || "Delivery Captain"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase text-emerald-800">IFSC Code</p>
-              <p className="font-bold text-slate-900">{bank?.ifsc || "SBIN0001234"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Settlement Frequency</p>
-              <p className="font-bold text-emerald-800">Weekly (Auto-credit)</p>
-            </div>
-          </div>
+          <p className="text-xs text-slate-700 leading-relaxed pt-1">
+            All your delivery trip payouts, incentives, and cash collections are automatically balanced and credited directly every <strong>2 days</strong>. You do not need to submit manual withdrawal requests.
+          </p>
         </div>
 
         {/* ========================================================================= */}
