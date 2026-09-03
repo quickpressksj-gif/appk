@@ -58,7 +58,7 @@ export function useRiderLocation(isOnline: boolean): RiderLocationState {
         }),
       });
 
-      // Push real GPS ping to MongoDB
+      // Push real GPS ping to Supabase
       try {
         await pushRiderLocation(latitude, longitude);
       } catch {

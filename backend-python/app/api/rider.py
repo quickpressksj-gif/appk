@@ -1,9 +1,9 @@
-"""Rider API — Sprint 5.2 (Rider MongoDB integration).
+"""Rider API — Sprint 5.2 (Rider Supabase PostgreSQL integration).
 
 Mirrors every "/api/rider/..." handler in backend/src/mock/server.ts so the
-rider frontend (backend/src/rider/*.ts) works unchanged against FastAPI +
-MongoDB. Reads fall back to the seeded demo rider so the preview is never
-blank before a real rider account exists.
+rider frontend works unchanged against FastAPI + Supabase PostgreSQL. Reads fall
+back to the seeded demo rider so the preview is never blank before a real rider
+account exists.
 """
 
 from __future__ import annotations

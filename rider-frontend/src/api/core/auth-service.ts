@@ -5,7 +5,7 @@
  *   Screen → auth-api (@backend/<app>/…) → auth-service → Firebase + FastAPI
  *
  * Flow: Firebase issues the identity (phone OTP / Google / Apple), the FastAPI
- * backend verifies the Firebase ID token, upserts the MongoDB user document
+ * backend verifies the Firebase ID token, upserts the Supabase PostgreSQL user document
  * and returns the QuickPress JWT pair that every later request uses.
  *
  * When Firebase or the API base URL is not configured for the current

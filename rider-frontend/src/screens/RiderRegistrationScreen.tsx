@@ -708,7 +708,7 @@ export function RiderRegistrationScreen() {
     setIsSubmitting(true);
     try {
       await submitRiderRegistration(form);
-      toast.success("Application submitted successfully to real database!");
+      toast.success("Application submitted successfully to Supabase database!");
       navigate({ to: riderRoutes.registrationSubmitted });
     } catch (err: any) {
       toast.error(err.message || "Failed to submit registration. Please try again.");
@@ -1713,7 +1713,7 @@ export function RiderRegistrationScreen() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span>Saving to Database...</span>
+                    <span>Saving to Supabase...</span>
                   </>
                 ) : (
                   <>
