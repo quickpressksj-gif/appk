@@ -35,6 +35,11 @@ export function RiderLayout({
     }
   }, [hydrating, session, navigate]);
 
+  // Initialize Google Translate globally
+  useEffect(() => {
+    import("../../lib/google-translate").then((m) => m.initGoogleTranslateScript());
+  }, []);
+
   const handleToggleDuty = () => {
     // Play Web Audio chime
     try {
@@ -100,6 +105,9 @@ export function RiderLayout({
 
         {/* Mobile Floating Glass Dock Navigation */}
         {!hideBottomNav ? <RiderBottomNav active={activeTab} /> : null}
+
+        {/* Google Translate Hidden Engine Container */}
+        <div id="google_translate_element" className="hidden" aria-hidden="true" />
       </div>
     </div>
   );
