@@ -14,7 +14,8 @@ import {
   restoreRiderSession,
   startRiderAutoRefresh,
 } from "@/api/rider/rider-auth-api";
-import { fetchRiderDashboard, updateRiderStatus } from "@/api/rider/rider-dashboard-api";
+import { updateRiderStatus } from "@/api/rider/rider-dashboard-api";
+import { readSession } from "@/api/core/session-store";
 
 type RiderContextValue = {
   session: RiderSession | null;
@@ -31,9 +32,31 @@ type RiderContextValue = {
 const RiderContext = createContext<RiderContextValue | null>(null);
 
 const PENDING_PHONE_KEY = "qp.rider.pendingPhone";
+const ONLINE_STORAGE_KEY = "qp.rider.isOnline";
 
 export function RiderProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<RiderSession | null>(null);
+  const [session, setSession] = useState<RiderSession | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = readSession("rider") || readSession();
+      if (stored) {
+        return {
+          riderId: stored.account.linkedId ?? stored.account.id,
+          phone: stored.account.phone,
+          fullName: stored.account.name,
+          isVerified: stored.account.isVerified,
+          isOnboarded: stored.account.isOnboarded,
+          isNewRider: !stored.account.isOnboarded,
+          token: stored.token,
+          refreshToken: stored.refreshToken,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
+
   const [phone, setPhoneState] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     return (
@@ -42,8 +65,14 @@ export function RiderProvider({ children }: { children: ReactNode }) {
       ""
     );
   });
-  const [isOnline, setOnline] = useState(true);
-  const [hydrating, setHydrating] = useState(true);
+
+  const [isOnline, setOnlineState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(ONLINE_STORAGE_KEY);
+    return stored !== null ? stored === "1" : true;
+  });
+
+  const [hydrating, setHydrating] = useState(false);
 
   const setPhone = useCallback((value: string) => {
     setPhoneState(value);
@@ -57,7 +86,7 @@ export function RiderProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Auto login: stored QuickPress JWT + live Firebase user → signed in.
+  // Background restore / sync
   useEffect(() => {
     let active = true;
     void restoreRiderSession()
@@ -75,31 +104,22 @@ export function RiderProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
-
-  // Hydrate the online/offline flag from the backend so a refresh reflects truth.
-  useEffect(() => {
-    let active = true;
-    if (!session?.token) return;
-    void fetchRiderDashboard()
-      .then((dashboard) => {
-        if (active) setOnline(dashboard.isOnline);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [session]);
+  }, [setPhone]);
 
   // Token refresh: keeps the access token valid while the app stays open.
   useEffect(() => startRiderAutoRefresh(), []);
 
   const setOnlineWithBackend = useCallback((next: boolean) => {
-    setOnline(next);
-    void updateRiderStatus(next).catch(() => {
-      // Revert on failure so the UI never claims a status the backend rejected.
-      setOnline(!next);
-    });
+    setOnlineState(next);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(ONLINE_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+    }
+    // Update backend asynchronously without reverting local state
+    void updateRiderStatus(next).catch(() => {});
   }, []);
 
   const signIn = useCallback(

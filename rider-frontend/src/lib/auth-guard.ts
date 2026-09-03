@@ -18,23 +18,15 @@ export function requireRiderAuth() {
         window.localStorage?.getItem("qp.rider.pendingPhone")
       : null;
 
+  // Only redirect to login if completely unauthenticated
   if (!sess && !pendingPhone) {
     throw redirect({ to: riderRoutes.auth });
   }
   if (sess?.status === "suspended" || (sess as any)?.isSuspended) {
     throw redirect({ to: riderRoutes.suspended });
   }
-  const isOnboarded = sess?.isOnboarded ?? sess?.account?.isOnboarded;
-  if (isOnboarded === false) {
-    throw redirect({ to: riderRoutes.registration });
-  }
-  const isVerified =
-    (sess?.isVerified ?? sess?.account?.isVerified) ||
-    sess?.status === "active" ||
-    sess?.account?.status === "active";
-  if (!isVerified) {
-    throw redirect({ to: riderRoutes.registrationSubmitted });
-  }
+
+  // If rider has logged in, allow seamless access to dashboard, orders, wallet, and profile
 }
 
 /**

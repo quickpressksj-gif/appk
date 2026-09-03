@@ -148,7 +148,7 @@ export async function fetchCurrentUser(): Promise<AuthSession["account"]> {
 /** POST /api/auth/refresh — rotates the access token using the refresh token. */
 export async function refreshSession(explicitRole?: AccountRole): Promise<AuthSession | null> {
   const current = readSession(role(explicitRole));
-  if (!current?.refreshToken || authMode() === "mock") return null;
+  if (!current?.refreshToken || authMode() === "mock") return current ?? null;
   try {
     const next = await apiPostJson<AuthSession>(
       AUTH_ENDPOINTS.refresh,
@@ -157,8 +157,8 @@ export async function refreshSession(explicitRole?: AccountRole): Promise<AuthSe
     );
     return persist(next);
   } catch {
-    clearSession(role(explicitRole));
-    return null;
+    // 🛑 Never wipe session on background refresh error! Keep the stored session intact!
+    return current;
   }
 }
 

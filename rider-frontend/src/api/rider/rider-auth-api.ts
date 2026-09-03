@@ -25,6 +25,8 @@ function toRiderSession(session: AuthSession): RiderSession {
     isVerified: session.account.isVerified,
     isOnboarded: session.account.isOnboarded,
     isNewRider: !session.account.isOnboarded,
+    token: session.token,
+    refreshToken: session.refreshToken,
   };
 }
 
@@ -95,28 +97,7 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
     }>("/api/rider/auth/registration", { payload }, { timeoutMs: 60_000, anonymous: true });
   }
 
-  // ⚡ Directly sync to Supabase PostgreSQL store
-  try {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const cleanPhone = (res?.phone || (payload as any)?.mobile || "").replace("+91", "").trim();
-    await (supabase as any)
-      .from("rider_profiles")
-      .upsert(
-        {
-          id: res?.riderId || `rider_${Date.now()}`,
-          rider_id: res?.riderId,
-          phone: cleanPhone,
-          full_name: res?.fullName || (payload as any)?.fullName || "Delivery Partner",
-          status: "pending",
-          is_verified: false,
-          payload: payload,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "phone" }
-      );
-  } catch {
-    /* ignore direct Supabase error if table schema differs; backend sync handles it */
-  }
+
 
   const currentSession = readSession(ROLE);
   if (currentSession && currentSession.account) {
@@ -343,23 +324,7 @@ export async function checkRiderVerificationStatus(riderId?: string, phone?: str
     return true;
   }
 
-  // ⚡ Direct Supabase status query
-  try {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const cleanPhone = (phone || "").replace("+91", "").trim();
-    if (cleanPhone) {
-      const { data } = await (supabase as any)
-        .from("rider_profiles")
-        .select("status, is_verified")
-        .or(`phone.eq.${cleanPhone},phone.eq.+91${cleanPhone}`)
-        .maybeSingle();
-      if (data && (data.is_verified || data.status === "active" || data.status === "approved")) {
-        return true;
-      }
-    }
-  } catch {
-    /* ignore Supabase fallback error */
-  }
+
 
   return false;
 }

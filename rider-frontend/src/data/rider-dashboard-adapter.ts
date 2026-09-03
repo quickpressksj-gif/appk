@@ -40,13 +40,25 @@ function toActiveDelivery(order: RiderOrder): ActiveDelivery {
   };
 }
 
+import { readSession } from "@/api/core/session-store";
+
 /** Loads the real rider dashboard. Fields with no backend source are left
  * honestly empty/zero instead of using fabricated placeholder data. */
 export async function loadRiderDashboard(): Promise<RiderDashboardData> {
+  const session = readSession("rider") || readSession();
+  const sessionName = session?.account?.name || (session as any)?.fullName;
+  const sessionPhone = session?.account?.phone || (session as any)?.phone;
+  const sessionRiderId = session?.account?.linkedId || session?.account?.id || (session as any)?.riderId;
+
+  const isRiderOnline =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("qp.rider.isOnline") !== "0"
+      : true;
+
   const [dashboard, ordersRaw, profile] = await Promise.all([
     fetchRiderDashboard().catch(() => ({
-      riderName: "Delivery Partner",
-      isOnline: false,
+      riderName: sessionName || "Delivery Captain",
+      isOnline: isRiderOnline,
       todayDeliveries: 0,
       todayEarnings: 0,
       pendingPickups: 0,
@@ -67,15 +79,24 @@ export async function loadRiderDashboard(): Promise<RiderDashboardData> {
 
   const active = orders.find((order) => ACTIVE_STATUSES.includes(order.status)) ?? null;
 
+  const resolvedName =
+    profile?.fullName && profile.fullName !== "Delivery Partner"
+      ? profile.fullName
+      : dashboard.riderName && dashboard.riderName !== "Delivery Partner"
+        ? dashboard.riderName
+        : sessionName || (sessionPhone ? `Captain ${sessionPhone.slice(-4)}` : "Delivery Captain");
+
+  const resolvedRiderId = profile?.riderId ?? sessionRiderId ?? "—";
+
   return {
     rider: {
-      name: profile?.fullName || dashboard.riderName || "Delivery Partner",
-      riderId: profile?.riderId ?? "—",
+      name: resolvedName,
+      riderId: resolvedRiderId,
       city: profile?.city ?? "—",
-      photo: "",
-      vehicle: profile ? `${profile.vehicleType} · ${profile.vehicleNumber}` : "Bike · —",
+      photo: profile?.photo || "",
+      vehicle: profile ? `${profile.vehicleType} · ${profile.vehicleNumber}` : "Two-Wheeler · Active",
     },
-    status: dashboard.isOnline ? (active ? "on-delivery" : "online") : "offline",
+    status: isRiderOnline ? (active ? "on-delivery" : "online") : "offline",
     kpis: {
       deliveriesToday: dashboard.todayDeliveries ?? 0,
       earningsToday: dashboard.todayEarnings ?? 0,

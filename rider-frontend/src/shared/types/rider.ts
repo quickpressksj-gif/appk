@@ -8,6 +8,8 @@ export type RiderSession = {
   isVerified: boolean;
   isOnboarded: boolean;
   isNewRider: boolean;
+  token?: string;
+  refreshToken?: string;
 };
 
 export type VehicleType = "bike" | "scooter" | "ev-scooter" | "cycle" | "mini-truck";

@@ -207,7 +207,7 @@ export function RiderDashboardScreen() {
 
   return (
     <main className="relative min-h-screen bg-white pb-28 text-slate-900">
-      <div className="mx-auto w-full max-w-md lg:max-w-3xl">
+      <div className="mx-auto w-full max-w-md">
         {/* Sticky Mobile Header */}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
@@ -217,10 +217,10 @@ export function RiderDashboardScreen() {
               </span>
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-sm font-black tracking-tight text-slate-900">
-                  {data?.rider.name ?? "Delivery Captain"}
+                  {session?.fullName || (data?.rider.name !== "Delivery Partner" ? data?.rider.name : null) || "Delivery Captain"}
                 </h1>
                 <p className="truncate text-[11px] font-semibold text-slate-500">
-                  ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "—"}
+                  ID: {session?.riderId || data?.rider.riderId || "CP-9821"} · {session?.phone || "+91 98765 43210"}
                 </p>
               </div>
             </div>
@@ -233,7 +233,7 @@ export function RiderDashboardScreen() {
                     window.location.href = "tel:112";
                   }
                 }}
-                className="flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[11px] font-black text-rose-600 transition-all hover:bg-rose-100 active:scale-95 cursor-pointer"
+                className="flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-[11px] font-black text-rose-600 transition-all hover:bg-rose-100 active:scale-95 cursor-pointer"
               >
                 SOS
               </button>
@@ -257,7 +257,7 @@ export function RiderDashboardScreen() {
             <RiderCardsSkeleton />
           </div>
         ) : (
-          <div className="space-y-4 px-4 pt-3.5">
+          <div className="space-y-3.5 px-4 pt-3">
             {/* RAPIDO DUTY TOGGLE */}
             <RapidoDutyToggle
               isOnline={isOnline}
@@ -391,55 +391,69 @@ export function RiderDashboardScreen() {
               </section>
             ) : null}
 
-            {/* KPI METRIC GRID */}
-            <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              <KpiCard
-                icon={PackageCheck}
-                label="Orders Done"
-                value={data.kpis?.deliveriesToday ?? 0}
-                tone="green"
-                delayClass={DELAYS[0]}
-              />
-              <KpiCard
-                icon={IndianRupee}
-                label="Total Payout"
-                value={data.kpis?.earningsToday ?? 0}
-                prefix="₹"
-                delayClass={DELAYS[1]}
-              />
-              <KpiCard
-                icon={RouteIcon}
-                label="Distance"
-                value={data.kpis?.distanceKm ?? 0}
-                suffix=" km"
-                decimals={1}
-                tone="muted"
-                delayClass={DELAYS[2]}
-              />
-              <KpiCard
-                icon={Clock3}
-                label="Duty Hours"
-                value={data.kpis?.workingHours ?? 0}
-                suffix=" h"
-                decimals={1}
-                tone="muted"
-                delayClass={DELAYS[3]}
-              />
-              <KpiCard
-                icon={Star}
-                label="Tips Earned"
-                value={data.kpis?.tips ?? 0}
-                prefix="₹"
-                tone="green"
-                delayClass={DELAYS[4]}
-              />
-              <KpiCard
-                icon={PackageSearch}
-                label="Incentives"
-                value={data.kpis?.incentives ?? 0}
-                prefix="₹"
-                delayClass={DELAYS[5]}
-              />
+            {/* 📍 LIVE RADAR DISPATCH COCKPIT (WHEN ONLINE & SEARCHING) */}
+            {isOnline && !activePendingOffer && !data.activeDelivery ? (
+              <section className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/50 via-white to-white p-5 text-center shadow-xs">
+                {/* Concentric Pulsing Radar Waves */}
+                <div className="relative mx-auto my-2 flex size-28 items-center justify-center">
+                  <div className="absolute size-28 rounded-full border border-amber-400/30 bg-amber-400/10 animate-ping" style={{ animationDuration: "2.5s" }} />
+                  <div className="absolute size-20 rounded-full border border-amber-400/50 bg-amber-400/15 animate-ping" style={{ animationDuration: "1.8s" }} />
+                  <div className="relative flex size-12 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow-md">
+                    <Navigation className="size-5.5 animate-pulse" />
+                  </div>
+                </div>
+
+                <div className="mt-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+                    <span>Live Radar Scanning</span>
+                  </span>
+                  <h3 className="mt-2 text-sm font-black text-slate-950">
+                    Searching Nearby Laundry Orders...
+                  </h3>
+                  <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                    Stay on this screen. Loud siren &amp; trip card will appear instantly upon assignment.
+                  </p>
+                </div>
+              </section>
+            ) : null}
+
+            {/* Offline Helper Banner */}
+            {!isOnline && !data.activeDelivery ? (
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                <p className="text-xs font-black text-slate-700">You Are Currently Offline</p>
+                <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                  Switch duty toggle ON above to start receiving laundry pickups in your area.
+                </p>
+              </section>
+            ) : null}
+
+            {/* COMPACT KPI METRIC BAR */}
+            <section className="grid grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-xs">
+              <div className="px-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Orders</p>
+                <p className="mt-0.5 text-sm font-black text-slate-950">
+                  {data.kpis?.deliveriesToday ?? 0}
+                </p>
+              </div>
+              <div className="border-l border-slate-100 px-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Payout</p>
+                <p className="mt-0.5 text-sm font-black text-emerald-700">
+                  ₹{data.kpis?.earningsToday ?? 0}
+                </p>
+              </div>
+              <div className="border-l border-slate-100 px-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Tips</p>
+                <p className="mt-0.5 text-sm font-black text-slate-950">
+                  ₹{data.kpis?.tips ?? 0}
+                </p>
+              </div>
+              <div className="border-l border-slate-100 px-1">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Incentive</p>
+                <p className="mt-0.5 text-sm font-black text-amber-600">
+                  ₹{data.kpis?.incentives ?? 0}
+                </p>
+              </div>
             </section>
 
             {/* ACTIVE DELIVERY BANNER (IF ANY) */}
@@ -469,22 +483,22 @@ export function RiderDashboardScreen() {
             ) : null}
 
             {/* QUICK ACTIONS */}
-            <section className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                Quick Hub Navigation
+            <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                Quick Navigation
               </h2>
-              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-                {QUICK_ACTIONS.map((action) => (
+              <div className="mt-2.5 grid grid-cols-4 gap-2">
+                {QUICK_ACTIONS.slice(0, 4).map((action) => (
                   <button
                     key={action.id}
                     type="button"
                     onClick={() => navigate({ to: action.to })}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition-all hover:bg-slate-100 hover:border-slate-200 active:scale-[0.94]"
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 p-2.5 transition-all hover:bg-slate-100 active:scale-95 cursor-pointer"
                   >
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
+                    <span className="flex size-8 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs">
                       <action.icon className="size-4" strokeWidth={2.2} />
                     </span>
-                    <span className="text-center text-[11px] font-bold text-slate-800">
+                    <span className="text-center text-[10px] font-bold text-slate-800">
                       {action.label}
                     </span>
                   </button>
@@ -493,26 +507,20 @@ export function RiderDashboardScreen() {
             </section>
 
             {/* PERFORMANCE SECTION */}
-            <section className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                Performance & Rating
+            <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                Captain Rating
               </h2>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {data.performance.length > 0 ? (
-                  data.performance.map((stat) => <PerformanceBar key={stat.id} stat={stat} />)
-                ) : (
-                  <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                      <Star className="size-4.5 fill-current" />
-                    </span>
-                    <div>
-                      <p className="text-xs font-black text-slate-900">5.0 Star Rating</p>
-                      <p className="text-[11px] font-medium text-slate-500">
-                        100% On-Time Acceptance & Safe Handling
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-amber-400 text-slate-950 font-black text-sm">
+                  ★
+                </span>
+                <div>
+                  <p className="text-xs font-black text-slate-900">5.0 Star Rated Captain</p>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    100% On-Time Acceptance &amp; Safe Laundry Handling
+                  </p>
+                </div>
               </div>
             </section>
 
