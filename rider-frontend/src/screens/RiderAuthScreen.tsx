@@ -163,45 +163,32 @@ export function RiderAuthScreen() {
       <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-yellow-300/10 blur-[130px]" />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4.5 pb-6 pt-safe">
-        {/* Rapido Style Brand Top Bar */}
+        {/* Official QuickPress Captain Logo Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-3 pt-2">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-10.5 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30">
-              <Bike className="size-5.5 stroke-[2.8]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-xl font-black tracking-tight text-slate-950">
-                  Quick<span className="text-amber-500">Press</span>
-                </h1>
-                <span className="rounded-full bg-amber-400 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-950 shadow-2xs">
-                  CAPTAIN
-                </span>
-              </div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Official Captain App
-              </p>
-            </div>
+          <div className="flex items-center">
+            <img
+              src={riderAssets.captainLogo}
+              alt="QuickPress Captain"
+              className="h-10 w-auto object-contain"
+            />
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-800 shadow-2xs">
-            <span className="size-2 rounded-full bg-amber-400 animate-ping" />
+          <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-800 shadow-2xs">
+            <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
             <span>Kasganj Hub</span>
           </div>
         </header>
 
         {/* Main Content Area */}
         <div className="my-auto py-3 space-y-3.5">
-          {/* Rapido Style Hero Card: Energetic Yellow Gradient */}
-          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 p-5 text-slate-950 shadow-lg shadow-amber-400/20">
-            <div className="pointer-events-none absolute -right-6 -top-6 size-36 rounded-full bg-white/20 blur-xl" />
-
+          {/* White Hero Banner with Black Text */}
+          <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 text-slate-950 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-black/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950">
-                <Zap className="size-3.5 fill-current" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-700">
+                <Zap className="size-3.5 fill-amber-400 text-amber-500" />
                 <span>Captain Partner Fleet</span>
               </div>
-              <span className="rounded-full bg-black px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-400">
+              <span className="rounded-full bg-amber-400 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-950 shadow-2xs">
                 Earn ₹25k+/Mo
               </span>
             </div>
@@ -211,7 +198,7 @@ export function RiderAuthScreen() {
                 <h2 className="text-2xl font-black leading-tight tracking-tight text-slate-950">
                   Deliver Laundry, Earn Daily
                 </h2>
-                <p className="mt-1 text-[11px] font-bold leading-snug text-slate-900/80">
+                <p className="mt-1 text-[11px] font-medium leading-snug text-slate-600">
                   Daily direct UPI payouts, flexible hours &amp; Kasganj fleet protection.
                 </p>
               </div>
@@ -219,43 +206,43 @@ export function RiderAuthScreen() {
               <img
                 src={riderAssets.courier}
                 alt="QuickPress Delivery Captain"
-                className="h-20 w-auto object-contain drop-shadow-md shrink-0"
+                className="h-20 w-auto object-contain drop-shadow-sm shrink-0"
                 loading="eager"
               />
             </div>
 
             {/* Earnings Ticker Strip */}
-            <div className="mt-3.5 flex items-center justify-between rounded-2xl border border-black/10 bg-black/10 px-3 py-2 text-[11px] backdrop-blur-md">
+            <div className="mt-3.5 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px]">
               <div className="flex items-center gap-1.5">
-                <TrendingUp className="size-3.5 text-slate-950" />
-                <span className="font-bold text-slate-950">Per Order Payout:</span>
+                <TrendingUp className="size-3.5 text-slate-800" />
+                <span className="font-bold text-slate-700">Per Order Payout:</span>
               </div>
               <span className="font-black text-slate-950 text-xs">₹45 - ₹120 + 100% Tips</span>
             </div>
           </section>
 
-          {/* 3 Highlight Chips */}
+          {/* 3 Highlight Chips: White Background for Icons */}
           <div className="grid grid-cols-3 gap-2">
             {HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xs text-center transition-all hover:border-amber-300"
+                className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xs text-center transition-all hover:border-slate-300"
               >
-                <div className="mx-auto flex size-7.5 items-center justify-center rounded-xl bg-amber-400/20 text-amber-900 mb-1.5 border border-amber-300/40">
-                  <item.icon className="size-3.5 stroke-[2.5]" />
+                <div className="mx-auto flex size-8 items-center justify-center rounded-xl bg-white text-slate-950 mb-1.5 border border-slate-200 shadow-2xs">
+                  <item.icon className="size-4 stroke-[2.2] text-slate-800" />
                 </div>
                 <p className="text-[10px] font-black text-slate-900 truncate">{item.title}</p>
-                <p className="text-[8px] font-black text-amber-700 mt-0.5">{item.badge}</p>
+                <p className="text-[8px] font-black text-emerald-700 mt-0.5">{item.badge}</p>
               </div>
             ))}
           </div>
 
-          {/* Mobile Login Card */}
-          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-md">
+          {/* Mobile Login Card: White Background for Icon */}
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="flex size-8.5 items-center justify-center rounded-xl bg-amber-400/20 text-slate-950 border border-amber-300/50">
-                  <Phone className="size-4 stroke-[2.5]" />
+                <span className="flex size-8.5 items-center justify-center rounded-xl bg-white text-slate-950 border border-slate-200 shadow-2xs">
+                  <Phone className="size-4 stroke-[2.2] text-slate-800" />
                 </span>
                 <div>
                   <h3 className="text-sm font-black tracking-tight text-slate-950">

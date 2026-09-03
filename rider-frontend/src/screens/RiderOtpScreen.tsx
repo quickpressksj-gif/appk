@@ -129,18 +129,21 @@ export function RiderOtpScreen() {
           >
             <ArrowLeft className="size-5" />
           </button>
-          <div className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-black text-slate-950 shadow-2xs">
-            <ShieldCheck className="size-3.5 text-amber-600" />
-            <span>Step 2 of 2 · Verification</span>
+          <img
+            src={riderAssets.captainLogo}
+            alt="QuickPress Captain"
+            className="h-8.5 w-auto object-contain"
+          />
+          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-800 shadow-2xs">
+            <span>Step 2/2</span>
           </div>
-          <div className="size-10" />
         </header>
 
         {/* OTP Input Card */}
         <div className="my-auto py-5">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-md">
-            <span className="flex size-13 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30">
-              <MessageSquareLock className="size-6.5 stroke-[2.5]" />
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <span className="flex size-13 items-center justify-center rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-xs">
+              <MessageSquareLock className="size-6.5 stroke-[2.2] text-slate-800" />
             </span>
 
             <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-950">
