@@ -18,7 +18,10 @@ export function CaptainHomeHeader({
     .join("") || "CP";
 
   return (
-    <div className="w-full bg-white border-b border-emerald-100 px-4 py-3.5 sm:px-6 select-none shadow-2xs">
+    <div
+      className="w-full bg-white/95 backdrop-blur-md border-b border-emerald-100 px-4 pb-3.5 sm:px-6 select-none shadow-2xs sticky top-0 z-30"
+      style={{ paddingTop: "max(calc(env(safe-area-inset-top, 0px) + 10px), 36px)" }}
+    >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
         {/* Left: Avatar & Rider Name */}
         <Link

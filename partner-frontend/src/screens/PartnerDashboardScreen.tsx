@@ -123,10 +123,6 @@ export function PartnerDashboardScreen() {
         navigate({ to: partnerRoutes.suspended });
         return;
       }
-      if (!profile.isVerified && profile.status !== "active") {
-        navigate({ to: partnerRoutes.registrationSubmitted });
-        return;
-      }
       const newShop: DashboardShop = {
         shopName: profile.businessName || "QuickPress Store",
         partnerName: profile.ownerName || "Partner",

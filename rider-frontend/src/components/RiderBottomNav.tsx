@@ -37,7 +37,8 @@ export function RiderBottomNav({ active }: { active: RiderTabId }) {
   return (
     <nav
       aria-label="Captain Navigation"
-      className="fixed inset-x-0 bottom-0 z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 pt-1 lg:hidden"
+      style={{ paddingBottom: "max(calc(env(safe-area-inset-bottom, 0px) + 8px), 16px)" }}
     >
       <div className="mx-auto w-full max-w-md px-4">
         <div className="flex items-stretch gap-1 rounded-full border border-slate-200/80 bg-white/90 p-1.5 shadow-[0_16px_40px_-18px_rgba(0,0,0,0.25)] backdrop-blur-2xl">

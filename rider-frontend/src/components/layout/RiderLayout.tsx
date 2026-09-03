@@ -100,8 +100,33 @@ export function RiderLayout({
           onSearchChange={onSearchChange}
         />
 
+        {/* Mobile Top Bar (for non-dashboard tabs: Orders, Finance, More) */}
+        {activeTab !== "dashboard" ? (
+          <div
+            className="w-full bg-white/95 backdrop-blur-md border-b border-emerald-100 px-4 pb-3 sm:px-6 md:hidden sticky top-0 z-30 select-none shadow-2xs"
+            style={{ paddingTop: "max(calc(env(safe-area-inset-top, 0px) + 10px), 36px)" }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h1 className="text-lg font-black tracking-tight text-emerald-950">{title}</h1>
+                {subtitle ? <p className="text-[11px] font-semibold text-slate-500">{subtitle}</p> : null}
+              </div>
+              <div
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
+                  isOnline
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-slate-100 text-slate-600 border border-slate-200"
+                }`}
+              >
+                <span className={`size-1.5 rounded-full ${isOnline ? "bg-emerald-600 animate-ping" : "bg-slate-400"}`} />
+                <span>{isOnline ? "ONLINE" : "OFFLINE"}</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Page Children Container */}
-        <main className="flex-1 pb-24 lg:pb-8">{children}</main>
+        <main className="flex-1 pb-28 lg:pb-8">{children}</main>
 
         {/* Mobile Floating Glass Dock Navigation */}
         {!hideBottomNav ? <RiderBottomNav active={activeTab} /> : null}
