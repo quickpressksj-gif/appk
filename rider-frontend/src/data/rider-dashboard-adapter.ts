@@ -71,7 +71,7 @@ export async function loadRiderDashboard(): Promise<RiderDashboardData> {
     rider: {
       name: profile?.fullName || dashboard.riderName || "Delivery Partner",
       riderId: profile?.riderId ?? "—",
-      city: profile?.city ?? "Kasganj",
+      city: profile?.city ?? "—",
       photo: "",
       vehicle: profile ? `${profile.vehicleType} · ${profile.vehicleNumber}` : "Bike · —",
     },
