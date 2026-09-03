@@ -155,65 +155,63 @@ export function RiderAuthScreen() {
   };
 
   return (
-    <main className="relative min-h-screen bg-slate-50/80 text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <main className="relative min-h-screen bg-white text-slate-950 selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
 
-      {/* Subtle ambient light glow */}
-      <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[130px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 size-96 rounded-full bg-teal-500/10 blur-[140px]" />
+      {/* Rapido style warm ambient background glow */}
+      <div className="pointer-events-none absolute -top-28 left-1/2 size-96 -translate-x-1/2 rounded-full bg-amber-400/15 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-yellow-300/10 blur-[130px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
-        {/* Android Top App Bar Branding */}
-        <header className="flex items-center justify-between border-b border-slate-200/80 pb-3 pt-1">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4.5 pb-6 pt-safe">
+        {/* Rapido Style Brand Top Bar */}
+        <header className="flex items-center justify-between border-b border-slate-100 pb-3 pt-2">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9.5 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
-              <Bike className="size-5 stroke-[2.5]" />
+            <div className="flex size-10.5 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30">
+              <Bike className="size-5.5 stroke-[2.8]" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-lg font-black tracking-tight text-slate-950">
-                  Quick<span className="text-emerald-600">Press</span>
+                <h1 className="text-xl font-black tracking-tight text-slate-950">
+                  Quick<span className="text-amber-500">Press</span>
                 </h1>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                <span className="rounded-full bg-amber-400 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-950 shadow-2xs">
                   CAPTAIN
                 </span>
               </div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
-                On-Demand Delivery Fleet
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Official Captain App
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800 shadow-2xs">
-            <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
+          <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-800 shadow-2xs">
+            <span className="size-2 rounded-full bg-amber-400 animate-ping" />
             <span>Kasganj Hub</span>
           </div>
         </header>
 
-        {/* Main Content Area: Phone Optimized */}
-        <div className="my-auto py-4 space-y-4">
-          {/* Hero Card */}
-          <section className="relative overflow-hidden rounded-3xl border border-emerald-600/20 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-4.5 text-white shadow-lg">
-            <div className="pointer-events-none absolute -right-6 -top-6 size-36 rounded-full bg-white/15 blur-xl" />
+        {/* Main Content Area */}
+        <div className="my-auto py-3 space-y-3.5">
+          {/* Rapido Style Hero Card: Energetic Yellow Gradient */}
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 p-5 text-slate-950 shadow-lg shadow-amber-400/20">
+            <div className="pointer-events-none absolute -right-6 -top-6 size-36 rounded-full bg-white/20 blur-xl" />
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-emerald-200">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-black/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950">
                 <Zap className="size-3.5 fill-current" />
-                <span className="text-[10px] font-black uppercase tracking-wider">
-                  Partner Fleet
-                </span>
+                <span>Captain Partner Fleet</span>
               </div>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
-                Earn Up to ₹25k/Mo
+              <span className="rounded-full bg-black px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-400">
+                Earn ₹25k+/Mo
               </span>
             </div>
 
-            <div className="mt-2.5 flex items-center justify-between gap-3">
+            <div className="mt-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-black leading-tight tracking-tight text-white">
+                <h2 className="text-2xl font-black leading-tight tracking-tight text-slate-950">
                   Deliver Laundry, Earn Daily
                 </h2>
-                <p className="mt-1 text-[11px] font-medium leading-snug text-emerald-100">
+                <p className="mt-1 text-[11px] font-bold leading-snug text-slate-900/80">
                   Daily direct UPI payouts, flexible hours &amp; Kasganj fleet protection.
                 </p>
               </div>
@@ -227,48 +225,48 @@ export function RiderAuthScreen() {
             </div>
 
             {/* Earnings Ticker Strip */}
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-white/25 bg-white/15 px-3 py-2 text-[11px] backdrop-blur-md">
+            <div className="mt-3.5 flex items-center justify-between rounded-2xl border border-black/10 bg-black/10 px-3 py-2 text-[11px] backdrop-blur-md">
               <div className="flex items-center gap-1.5">
-                <TrendingUp className="size-3.5 text-emerald-200" />
-                <span className="font-semibold text-white">Per Order:</span>
+                <TrendingUp className="size-3.5 text-slate-950" />
+                <span className="font-bold text-slate-950">Per Order Payout:</span>
               </div>
-              <span className="font-black text-emerald-100 text-xs">₹45 - ₹120 + 100% Tips</span>
+              <span className="font-black text-slate-950 text-xs">₹45 - ₹120 + 100% Tips</span>
             </div>
           </section>
 
-          {/* 3 Mobile Highlight Chips */}
+          {/* 3 Highlight Chips */}
           <div className="grid grid-cols-3 gap-2">
             {HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xs text-center"
+                className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xs text-center transition-all hover:border-amber-300"
               >
-                <div className="mx-auto flex size-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 mb-1.5 border border-emerald-100">
-                  <item.icon className="size-3.5 stroke-[2.3]" />
+                <div className="mx-auto flex size-7.5 items-center justify-center rounded-xl bg-amber-400/20 text-amber-900 mb-1.5 border border-amber-300/40">
+                  <item.icon className="size-3.5 stroke-[2.5]" />
                 </div>
                 <p className="text-[10px] font-black text-slate-900 truncate">{item.title}</p>
-                <p className="text-[8px] font-bold text-emerald-700 mt-0.5">{item.badge}</p>
+                <p className="text-[8px] font-black text-amber-700 mt-0.5">{item.badge}</p>
               </div>
             ))}
           </div>
 
           {/* Mobile Login Card */}
-          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-lg">
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-md">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <Phone className="size-4" />
+                <span className="flex size-8.5 items-center justify-center rounded-xl bg-amber-400/20 text-slate-950 border border-amber-300/50">
+                  <Phone className="size-4 stroke-[2.5]" />
                 </span>
                 <div>
-                  <h3 className="text-sm font-black tracking-tight text-slate-900">
+                  <h3 className="text-sm font-black tracking-tight text-slate-950">
                     Captain Mobile Login
                   </h3>
-                  <p className="text-[9px] font-semibold text-slate-500">
+                  <p className="text-[9px] font-bold text-slate-500">
                     Login or Register in 2 Minutes
                   </p>
                 </div>
               </div>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-black text-slate-700">
                 Step 1 of 2
               </span>
             </div>
@@ -282,11 +280,11 @@ export function RiderAuthScreen() {
                   Mobile Number
                 </label>
                 <div
-                  className={`flex items-center gap-2.5 rounded-2xl border bg-slate-50/80 px-3.5 py-3 transition-all duration-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 ${
+                  className={`flex items-center gap-2.5 rounded-2xl border bg-slate-50/90 px-3.5 py-3 transition-all duration-200 focus-within:border-amber-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-amber-400/30 ${
                     error ? "border-rose-400 bg-rose-50/50" : "border-slate-200"
                   }`}
                 >
-                  <span className="flex items-center gap-1 text-sm font-black text-slate-900">
+                  <span className="flex items-center gap-1 text-sm font-black text-slate-950">
                     🇮🇳 +91
                   </span>
                   <span className="h-4.5 w-px bg-slate-300" />
@@ -309,7 +307,7 @@ export function RiderAuthScreen() {
                         void handleContinue();
                       }
                     }}
-                    className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                    className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-slate-950 outline-none placeholder:text-slate-400 placeholder:font-normal"
                   />
                   {value ? (
                     <button
@@ -332,29 +330,29 @@ export function RiderAuthScreen() {
                 ) : null}
               </div>
 
-              <p className="text-[10px] text-slate-500 leading-relaxed">
+              <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
                 We will send an SMS OTP to verify your mobile number.
               </p>
 
-              {/* Submit Button */}
+              {/* Rapido Style Signature Yellow Button */}
               <button
                 type="button"
                 disabled={busy || value.replace(/\D/g, "").length < 10}
                 onClick={() => void handleContinue()}
-                className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md shadow-emerald-600/25 transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-sm font-black text-slate-950 shadow-md shadow-amber-400/30 transition-all duration-200 hover:bg-amber-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {busy ? (
-                  <Loader2 className="size-4.5 animate-spin text-white" />
+                  <Loader2 className="size-4.5 animate-spin text-slate-950" />
                 ) : (
                   <>
                     <span>Get 6-Digit OTP</span>
-                    <ArrowRight className="size-4 stroke-[2.5] transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="size-4 stroke-[2.8] transition-transform group-hover:translate-x-1" />
                   </>
                 )}
               </button>
 
               {/* Separator */}
-              <div className="flex items-center gap-2.5 my-1.5">
+              <div className="flex items-center gap-2.5 my-1">
                 <span className="h-px flex-1 bg-slate-200" />
                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                   or
@@ -374,16 +372,16 @@ export function RiderAuthScreen() {
               </button>
             </div>
 
-            {/* Security Trust Footnote */}
-            <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3 text-[9px] font-semibold text-slate-500">
-              <Lock className="size-3 text-emerald-600" />
+            {/* Security Footnote */}
+            <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3 text-[9px] font-bold text-slate-500">
+              <Lock className="size-3 text-amber-500" />
               <span>256-Bit Encrypted · UIDAI &amp; NPCI Compliant</span>
             </div>
           </section>
         </div>
 
         {/* Android Footer */}
-        <footer className="border-t border-slate-200/80 pt-2.5 pb-safe text-center text-[9px] font-semibold text-slate-500">
+        <footer className="border-t border-slate-100 pt-2.5 pb-safe text-center text-[9px] font-bold text-slate-400">
           QuickPress Captain App &copy; 2026 · Kasganj Fleet Hub
         </footer>
       </div>

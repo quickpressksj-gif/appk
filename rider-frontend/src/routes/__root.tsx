@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" },
-      { name: "theme-color", content: "#059669" },
+      { name: "theme-color", content: "#FACC15" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
@@ -103,12 +103,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="bg-slate-100" suppressHydrationWarning>
+    <html lang="en" className="bg-white" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-slate-100 text-foreground antialiased selection:bg-primary/20" suppressHydrationWarning>
-        <div className="android-shell bg-slate-50 min-h-dvh shadow-2xl relative overflow-x-hidden">
+      <body className="min-h-screen bg-white text-slate-950 antialiased selection:bg-amber-400 selection:text-black" suppressHydrationWarning>
+        <div className="android-shell bg-white min-h-dvh shadow-2xl relative overflow-x-hidden">
           {children}
         </div>
         <Scripts />

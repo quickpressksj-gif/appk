@@ -112,57 +112,57 @@ export function RiderOtpScreen() {
   };
 
   return (
-    <main className="relative min-h-screen bg-slate-50/80 text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <main className="relative min-h-screen bg-white text-slate-950 selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
 
-      {/* Ambient lighting */}
-      <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[130px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-teal-500/10 blur-[140px]" />
+      {/* Rapido style warm ambient background glow */}
+      <div className="pointer-events-none absolute -top-28 left-1/2 size-96 -translate-x-1/2 rounded-full bg-amber-400/15 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-yellow-300/10 blur-[130px]" />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+        <header className="flex items-center justify-between border-b border-slate-100 pb-3 pt-2">
           <button
             type="button"
             onClick={() => navigate({ to: riderRoutes.auth })}
-            className="flex size-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.95] cursor-pointer"
+            className="flex size-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xs transition-all hover:bg-slate-50 active:scale-[0.95] cursor-pointer"
           >
             <ArrowLeft className="size-5" />
           </button>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-800 shadow-xs">
-            <ShieldCheck className="size-3.5 text-emerald-600" />
+          <div className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-black text-slate-950 shadow-2xs">
+            <ShieldCheck className="size-3.5 text-amber-600" />
             <span>Step 2 of 2 · Verification</span>
           </div>
           <div className="size-10" />
         </header>
 
         {/* OTP Input Card */}
-        <div className="my-auto py-6">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-            <span className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-              <MessageSquareLock className="size-7 stroke-[2.2]" />
+        <div className="my-auto py-5">
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-md">
+            <span className="flex size-13 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30">
+              <MessageSquareLock className="size-6.5 stroke-[2.5]" />
             </span>
 
-            <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900">
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-950">
               Enter 6-Digit OTP
             </h1>
 
             <div className="mt-1 flex items-center justify-between">
-              <p className="text-xs font-medium text-slate-500">
-                Code sent to <span className="font-bold text-slate-900">{displayPhone()}</span>
+              <p className="text-xs font-semibold text-slate-500">
+                Code sent to <span className="font-bold text-slate-950">{displayPhone()}</span>
               </p>
               <button
                 type="button"
                 onClick={() => navigate({ to: riderRoutes.auth })}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                className="inline-flex items-center gap-1 text-[11px] font-black text-amber-600 hover:text-amber-700 cursor-pointer"
               >
                 <Edit2 className="size-3" />
                 Change
               </button>
             </div>
 
-            {/* Production Instruction */}
-            <p className="mt-4 text-[11px] text-slate-500 leading-relaxed">
+            {/* Instruction */}
+            <p className="mt-3.5 text-[11px] text-slate-500 leading-relaxed font-medium">
               Please enter the 6-digit verification code sent via SMS to your mobile number.
             </p>
 
@@ -187,12 +187,12 @@ export function RiderOtpScreen() {
                     return (
                       <div
                         key={i}
-                        className={`flex h-14 sm:h-15 items-center justify-center rounded-2xl border text-2xl font-black tracking-tight shadow-sm transition-all duration-200 ${
+                        className={`flex h-14 sm:h-15 items-center justify-center rounded-2xl border text-2xl font-black tracking-tight shadow-xs transition-all duration-200 ${
                           isCurrent
-                            ? "border-emerald-600 bg-white ring-2 ring-emerald-500/20 text-slate-900 scale-105"
+                            ? "border-amber-400 bg-white ring-2 ring-amber-400/30 text-slate-950 scale-105"
                             : isFilled
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-800 font-black"
-                              : "border-slate-200 bg-slate-50 text-slate-900"
+                              ? "border-amber-400 bg-amber-50 text-slate-950 font-black"
+                              : "border-slate-200 bg-slate-50/80 text-slate-950"
                         }`}
                       >
                         {digits[i] ?? ""}
@@ -202,18 +202,18 @@ export function RiderOtpScreen() {
                 </div>
               </div>
 
-              {/* Verify CTA */}
+              {/* Verify CTA: Rapido Yellow Button */}
               <button
                 type="button"
                 disabled={busy || digits.length !== 6}
                 onClick={() => void handleVerify()}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md shadow-emerald-600/25 transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-sm font-black text-slate-950 shadow-md shadow-amber-400/30 transition-all duration-200 hover:bg-amber-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {busy ? (
-                  <Loader2 className="size-5 animate-spin text-white" />
+                  <Loader2 className="size-5 animate-spin text-slate-950" />
                 ) : (
                   <>
-                    <CheckCircle2 className="size-5 stroke-[2.5]" />
+                    <CheckCircle2 className="size-5 stroke-[2.8]" />
                     <span>Verify &amp; Continue</span>
                   </>
                 )}
@@ -221,7 +221,7 @@ export function RiderOtpScreen() {
 
               {/* Resend Action */}
               <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="text-[11px] font-medium text-slate-500">
+                <span className="text-[11px] font-semibold text-slate-500">
                   Didn&apos;t receive code?
                 </span>
 
@@ -229,7 +229,7 @@ export function RiderOtpScreen() {
                   type="button"
                   disabled={!canResend}
                   onClick={() => void handleResend()}
-                  className="flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:text-emerald-700 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs font-black text-amber-600 hover:text-amber-700 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <RotateCcw className="size-3.5" />
                   {canResend ? "Resend OTP Now" : `Resend in ${remaining}s`}
@@ -238,16 +238,16 @@ export function RiderOtpScreen() {
             </div>
 
             {/* Security Note */}
-            <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-4 text-[10px] font-semibold text-slate-500">
-              <Lock className="size-3 text-emerald-600" />
+            <div className="mt-5 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3.5 text-[9px] font-bold text-slate-500">
+              <Lock className="size-3 text-amber-500" />
               <span>Verified via UIDAI &amp; Telecom Gateway</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200/80 pt-3 pb-safe text-center text-[10px] font-semibold text-slate-500">
-          QuickPress Rider Support Helpline: 1800-QUICKPRESS
+        <footer className="border-t border-slate-100 pt-2.5 pb-safe text-center text-[9px] font-bold text-slate-400">
+          QuickPress Captain Support Helpline: 1800-QUICKPRESS
         </footer>
       </div>
     </main>
