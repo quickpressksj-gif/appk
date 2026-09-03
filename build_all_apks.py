@@ -45,7 +45,6 @@ def main():
     cust_apk_src = os.path.join(cust_android_dir, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     if os.path.exists(cust_apk_src):
         shutil.copy2(cust_apk_src, os.path.join(ROOT_DIR, "QuickPress-Customer.apk"))
-        shutil.copy2(cust_apk_src, os.path.join(ROOT_DIR, "QuickPress.apk"))
         shutil.copy2(cust_apk_src, os.path.join(apks_dir, "QuickPress-Customer.apk"))
         if os.path.exists(ARTIFACT_DIR):
             shutil.copy2(cust_apk_src, os.path.join(ARTIFACT_DIR, "QuickPress-Customer.apk"))
@@ -86,8 +85,7 @@ def main():
     rdr_apk_src = os.path.join(rdr_android_dir, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     if os.path.exists(rdr_apk_src):
         shutil.copy2(rdr_apk_src, os.path.join(ROOT_DIR, "QuickPress-Captain.apk"))
-        shutil.copy2(rdr_apk_src, os.path.join(ROOT_DIR, "QuickPress-Rider.apk"))
-        shutil.copy2(rdr_apk_src, os.path.join(apks_dir, "QuickPress-Rider.apk"))
+        shutil.copy2(rdr_apk_src, os.path.join(apks_dir, "QuickPress-Captain.apk"))
         if os.path.exists(ARTIFACT_DIR):
             shutil.copy2(rdr_apk_src, os.path.join(ARTIFACT_DIR, "QuickPress-Captain.apk"))
         print(f"✓ Rider APK updated: {os.path.getsize(rdr_apk_src)} bytes")
