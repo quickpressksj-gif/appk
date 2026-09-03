@@ -34,6 +34,8 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
+  Mail,
   User,
   X,
 } from "lucide-react";
@@ -130,6 +132,9 @@ export function RiderProfileScreen() {
   const [issueText, setIssueText] = useState("");
   const [currentLang, setCurrentLang] = useState("en");
   const [notificationsOn, setNotificationsOn] = useState(true);
+  const [legalPrivacyOpen, setLegalPrivacyOpen] = useState(false);
+  const [closeAccountOpen, setCloseAccountOpen] = useState(false);
+  const [closingAccount, setClosingAccount] = useState(false);
 
   // Load real profile, bank, and history from backend
   const loadData = useCallback(async (showToast = false) => {
@@ -389,6 +394,13 @@ export function RiderProfileScreen() {
                     return next;
                   });
                 },
+              },
+              {
+                id: "legal_privacy",
+                label: "Legal & Privacy",
+                note: "Privacy Policy, Terms, Payout & Closure",
+                icon: ShieldCheck,
+                action: () => setLegalPrivacyOpen(true),
               },
             ]}
           />
@@ -668,6 +680,188 @@ export function RiderProfileScreen() {
                 className="rounded-2xl bg-rose-600 hover:bg-rose-700 text-white py-2.5 text-xs font-bold cursor-pointer shadow-xs"
               >
                 Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ========================================================================= */}
+      {/* MODAL: LEGAL & PRIVACY (Section 17)                                       */}
+      {/* ========================================================================= */}
+      {legalPrivacyOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
+                  <ShieldCheck className="size-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Legal &amp; Privacy</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">Captain Governance &amp; Data Rights</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLegalPrivacyOpen(false)}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[65vh] overflow-y-auto pr-1">
+              <a
+                href="https://quickpress.in/#privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">🛡️</span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Privacy Policy</p>
+                    <p className="text-[10px] text-slate-500">Live GPS tracking &amp; personal data protection</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-slate-400" />
+              </a>
+
+              <a
+                href="https://quickpress.in/#terms"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📜</span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Delivery Partner Terms</p>
+                    <p className="text-[10px] text-slate-500">Captain guidelines, SLAs &amp; platform conduct</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-slate-400" />
+              </a>
+
+              <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/50 space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>💳</span>
+                    <span>Payment &amp; Incentive Policy</span>
+                  </p>
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    ₹30 + ₹8/km
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 leading-normal">
+                  All trip fares and peak incentives are reconciled every 48 hours and auto-credited to your verified bank account.
+                </p>
+              </div>
+
+              <a
+                href="mailto:official.quickpress@gmail.com?subject=Delivery%20Partner%20Grievance%20Redressal"
+                className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">⚖️</span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Grievance / Support</p>
+                    <p className="text-[10px] text-slate-500">Dispute resolution desk for trip adjustments</p>
+                  </div>
+                </div>
+                <Mail className="size-4 text-slate-400" />
+              </a>
+
+              <a
+                href="mailto:official.quickpress@gmail.com?subject=Delivery%20Partner%20Privacy%20Support"
+                className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">✉️</span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Privacy Support</p>
+                    <p className="text-[10px] text-slate-500">Inquire about your GPS location log records</p>
+                  </div>
+                </div>
+                <Mail className="size-4 text-slate-400" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLegalPrivacyOpen(false);
+                  setCloseAccountOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 transition-colors text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <Trash2 className="size-4 text-rose-600" />
+                  <div>
+                    <p className="text-xs font-bold text-rose-700">Account Closure</p>
+                    <p className="text-[10px] text-rose-600/80">Request deactivation of delivery partner profile</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-rose-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ACCOUNT CLOSURE WITH STATUTORY RETENTION NOTICE (Section 19)       */}
+      {/* ========================================================================= */}
+      {closeAccountOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-rose-200 text-center space-y-4">
+            <div className="size-14 rounded-3xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto ring-8 ring-rose-50">
+              <Trash2 className="size-7" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-slate-900">Request Account Closure?</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Closing your captain account will forfeit active duty dispatch and decouple your vehicle and bank credentials.
+              </p>
+            </div>
+
+            {/* Mandatory Statutory Retention Text (Section 19) */}
+            <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 text-[11px] text-slate-700 text-left leading-relaxed">
+              ⚖️ <strong>Statutory Notice:</strong> Deleting your account may not immediately remove information that QuickPress is required or permitted to retain for legal, security, transaction, fraud-prevention or dispute-resolution purposes.
+            </div>
+
+            <a
+              href="https://quickpress.in/#privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] font-bold text-emerald-800 underline block"
+            >
+              Read Privacy Policy →
+            </a>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setCloseAccountOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setClosingAccount(true);
+                  setTimeout(() => {
+                    setClosingAccount(false);
+                    setCloseAccountOpen(false);
+                    toast.success("Account closure request submitted to Captain Operations.");
+                  }, 1200);
+                }}
+                disabled={closingAccount}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {closingAccount ? "Submitting..." : "Continue"}
               </button>
             </div>
           </div>

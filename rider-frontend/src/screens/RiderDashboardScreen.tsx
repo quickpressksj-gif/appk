@@ -48,6 +48,8 @@ import { IncomingOrderAlertModal, type IncomingOffer } from "../components/dashb
 import { playSuccessChime, triggerHaptic } from "../lib/captain-audio";
 import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
 
+import { CaptainLocationPermissionModal } from "../components/CaptainLocationPermissionModal";
+
 const LOCAL_STORAGE_ACTIVE_ORDER_KEY = "qp.rider.activeOrder";
 
 export function RiderDashboardScreen() {
@@ -202,8 +204,14 @@ export function RiderDashboardScreen() {
     };
   }, [isOnline]);
 
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
   // Real toggle online/offline state to backend
   const handleToggleDuty = async (nextState: boolean) => {
+    if (nextState && typeof window !== "undefined" && !localStorage.getItem("quickpress_rider_location_consented")) {
+      setShowLocationModal(true);
+      return;
+    }
     try {
       await updateRiderStatus(nextState);
       setOnline(nextState);
@@ -211,6 +219,14 @@ export function RiderDashboardScreen() {
     } catch {
       setOnline(nextState);
     }
+  };
+
+  const handleAllowLocationConsent = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("quickpress_rider_location_consented", "true");
+    }
+    setShowLocationModal(false);
+    void handleToggleDuty(true);
   };
 
   // Handle incoming trip acceptance
@@ -345,6 +361,22 @@ export function RiderDashboardScreen() {
               onUpdateStatus={handleUpdateOrderStatus}
               riderCoords={currentCoords}
             />
+
+            {/* Section 16: Active Delivery Location Privacy Indicator */}
+            <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 text-[11px] text-emerald-950">
+              <span className="flex items-center gap-2 font-medium">
+                <span className="size-2 rounded-full bg-emerald-600 animate-ping" />
+                <span>Location sharing is active for this delivery.</span>
+              </span>
+              <a
+                href="https://quickpress.in/#privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold text-emerald-800 hover:underline shrink-0 ml-2"
+              >
+                Privacy information →
+              </a>
+            </div>
           </div>
         ) : isOnline ? (
           <div className="rounded-3xl border border-emerald-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
@@ -511,6 +543,13 @@ export function RiderDashboardScreen() {
             </button>
           </div>
         </div>
+
+        {/* Section 15: High-Priority Duty Location Permission Modal */}
+        <CaptainLocationPermissionModal
+          isOpen={showLocationModal}
+          onAllow={handleAllowLocationConsent}
+          onDeny={() => setShowLocationModal(false)}
+        />
       </div>
     </RiderLayout>
   );

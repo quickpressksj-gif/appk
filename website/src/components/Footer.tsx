@@ -61,7 +61,7 @@ export function Footer({
                   onClick={() => onNavigate("about")}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Our Story & Team
+                  About
                 </button>
               </li>
               <li>
@@ -69,7 +69,7 @@ export function Footer({
                   onClick={() => onNavigate("services")}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Services & Rates
+                  Services
                 </button>
               </li>
               <li>
@@ -82,60 +82,27 @@ export function Footer({
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate("ecosystem")}
+                  onClick={() => onNavigate("about")}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Live Ecosystem
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 2: Partners */}
-          <div>
-            <h5 className="text-xs font-black tracking-wider uppercase text-emerald-400 mb-4">
-              Partners
-            </h5>
-            <ul className="space-y-2.5 text-xs text-emerald-100/70">
-              <li>
-                <button
-                  onClick={() => onNavigate("partners")}
-                  className="hover:text-white transition-colors text-left cursor-pointer"
-                >
-                  Become a Partner
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate("partners")}
-                  className="hover:text-white transition-colors text-left cursor-pointer"
-                >
-                  Earnings Calculator
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => onNavigate("partners")}
-                  className="hover:text-white transition-colors text-left cursor-pointer"
-                >
-                  Fleet & Facilities
+                  Careers
                 </button>
               </li>
               <li>
                 <button
                   onClick={() => onOpenModal("contact")}
-                  className="hover:text-white transition-colors text-left cursor-pointer"
+                  className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Partner Support
+                  Contact
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Column 3: Legal & Support */}
+          {/* Column 2: Legal */}
           <div>
             <h5 className="text-xs font-black tracking-wider uppercase text-emerald-400 mb-4">
-              Legal & Support
+              Legal
             </h5>
             <ul className="space-y-2.5 text-xs text-emerald-100/70">
               <li>
@@ -143,7 +110,7 @@ export function Footer({
                   onClick={() => onNavigate("privacy")}
                   className="hover:text-white transition-colors text-left cursor-pointer text-emerald-300 font-semibold"
                 >
-                  Privacy Policy 🛡️
+                  Privacy Policy
                 </button>
               </li>
               <li>
@@ -151,7 +118,23 @@ export function Footer({
                   onClick={() => onNavigate("terms")}
                   className="hover:text-white transition-colors text-left cursor-pointer text-emerald-300 font-semibold"
                 >
-                  Terms of Service 📜
+                  Terms & Conditions
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate("terms")}
+                  className="hover:text-white transition-colors text-left cursor-pointer"
+                >
+                  Cancellation & Refund Policy
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate("terms")}
+                  className="hover:text-white transition-colors text-left cursor-pointer"
+                >
+                  Pickup & Delivery Policy
                 </button>
               </li>
               <li>
@@ -159,7 +142,32 @@ export function Footer({
                   onClick={() => onNavigate("privacy")}
                   className="hover:text-white transition-colors text-left cursor-pointer"
                 >
-                  Account Deletion
+                  Cookie Policy
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate("privacy")}
+                  className="hover:text-white transition-colors text-left cursor-pointer"
+                >
+                  Grievance Redressal
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: Support */}
+          <div>
+            <h5 className="text-xs font-black tracking-wider uppercase text-emerald-400 mb-4">
+              Support
+            </h5>
+            <ul className="space-y-2.5 text-xs text-emerald-100/70">
+              <li>
+                <button
+                  onClick={() => onOpenModal("contact")}
+                  className="hover:text-white transition-colors text-left cursor-pointer"
+                >
+                  Help Center
                 </button>
               </li>
               <li>
@@ -167,7 +175,15 @@ export function Footer({
                   onClick={() => onOpenModal("contact")}
                   className="hover:text-white transition-colors text-left cursor-pointer"
                 >
-                  Contact Grievance Officer
+                  Contact Support
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate("privacy")}
+                  className="hover:text-white transition-colors text-left cursor-pointer"
+                >
+                  Privacy & Data Help
                 </button>
               </li>
               <li>

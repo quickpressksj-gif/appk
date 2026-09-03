@@ -984,6 +984,22 @@ export function BusinessRegistrationScreen() {
 
             {step === 1 ? (
               <SectionCard title="Tax & Business KYC Verification">
+                {/* KYC Statutory Privacy Disclosure */}
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950 space-y-1">
+                  <p className="font-semibold leading-relaxed">
+                    Your information and documents may be processed for partner verification, onboarding, security, compliance and platform operations.
+                  </p>
+                  <a
+                    href="https://quickpress.in/#privacy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-amber-900 hover:underline pt-0.5"
+                  >
+                    <span>View Privacy Policy</span>
+                    <span>→</span>
+                  </a>
+                </div>
+
                 {/* Aadhaar Verification with UIDAI OTP */}
                 <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -1811,12 +1827,23 @@ export function BusinessRegistrationScreen() {
                     <ChevronRight className="size-4 stroke-[3]" />
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmit()}
-                    disabled={busy}
-                    className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-                  >
+                  <div className="space-y-2.5">
+                    <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
+                      By submitting your application, you acknowledge that you have read our{" "}
+                      <a href="https://quickpress.in/#privacy" target="_blank" rel="noreferrer" className="text-amber-800 font-bold underline">
+                        Privacy Policy
+                      </a>{" "}
+                      and agree to the applicable{" "}
+                      <a href="https://quickpress.in/#terms" target="_blank" rel="noreferrer" className="text-amber-800 font-bold underline">
+                        Partner Terms & Conditions
+                      </a>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleSubmit()}
+                      disabled={busy}
+                      className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#F4B400] font-black text-xs uppercase tracking-wider text-[#111827] shadow-sm hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                    >
                     {busy ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
@@ -1828,7 +1855,8 @@ export function BusinessRegistrationScreen() {
                         <span>Submit Registration</span>
                       </>
                     )}
-                  </button>
+                    </button>
+                  </div>
                 )}
 
                 {step > 0 ? (
@@ -1848,6 +1876,18 @@ export function BusinessRegistrationScreen() {
 
         {/* Mobile Sticky Bottom Action Bar (< lg) */}
         <div className="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-t border-zinc-200 p-4 shadow-2xl">
+          {step === STEPS.length - 1 && (
+            <p className="pb-2 text-[10.5px] text-zinc-500 text-center leading-relaxed">
+              By submitting, you agree to our{" "}
+              <a href="https://quickpress.in/#privacy" target="_blank" rel="noreferrer" className="text-amber-800 font-bold underline">
+                Privacy Policy
+              </a>{" "}
+              and{" "}
+              <a href="https://quickpress.in/#terms" target="_blank" rel="noreferrer" className="text-amber-800 font-bold underline">
+                Partner Terms
+              </a>.
+            </p>
+          )}
           <div className="mx-auto flex max-w-md items-center gap-3">
             {step > 0 ? (
               <button

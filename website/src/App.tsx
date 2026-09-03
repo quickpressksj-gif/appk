@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { PageType, ModalType, ServiceInfo } from "@/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { CookieBanner } from "@/components/CookieBanner";
 import {
   BookingModal,
   PartnerModal,
@@ -150,6 +151,9 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Cookie Consent Banner */}
+      <CookieBanner onNavigate={navigateTo} />
 
       {/* Global Multi-Column Footer */}
       <Footer onNavigate={navigateTo} onOpenModal={setActiveModal} />

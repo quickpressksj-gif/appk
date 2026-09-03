@@ -299,6 +299,18 @@ function TrackOrderScreen() {
                     <span className="size-1.5 animate-ping rounded-full bg-brand-green" /> Live
                   </span>
                 </div>
+
+                {/* Location Privacy Disclosure Link */}
+                <div className="flex flex-wrap items-center justify-between border-t border-border/60 bg-muted/30 px-4 py-2 text-[10.5px] text-muted-foreground">
+                  <span>Location is used to provide delivery tracking and operational updates.</span>
+                  <Link
+                    to="/legal/$docSlug"
+                    params={{ docSlug: "privacy-policy" }}
+                    className="font-bold text-primary hover:underline shrink-0 ml-1"
+                  >
+                    Privacy information →
+                  </Link>
+                </div>
               </div>
             </section>
 

@@ -714,6 +714,28 @@ export function CaptainOnboardingScreen() {
 
       {/* Footer Primary CTA */}
       <footer className="pt-2">
+        {step === 1 && (
+          <p className="pb-3 text-center text-[11px] leading-relaxed text-slate-500">
+            By creating a delivery partner account, you acknowledge our{" "}
+            <a
+              href="https://quickpress.in/#privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-emerald-700 underline"
+            >
+              Privacy Policy
+            </a>{" "}
+            and agree to the{" "}
+            <a
+              href="https://quickpress.in/#terms"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-emerald-700 underline"
+            >
+              Delivery Partner Terms & Conditions
+            </a>.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleNext}

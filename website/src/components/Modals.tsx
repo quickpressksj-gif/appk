@@ -231,6 +231,17 @@ export function BookingModal({
                   Confirm Booking →
                 </button>
               </div>
+
+              <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">
+                By creating an account, you acknowledge that you have read and understood our{" "}
+                <a href="#privacy" onClick={onClose} className="text-emerald-700 font-bold underline">
+                  Privacy Policy
+                </a>{" "}
+                and agree to the applicable{" "}
+                <a href="#terms" onClick={onClose} className="text-emerald-700 font-bold underline">
+                  Terms & Conditions
+                </a>.
+              </p>
             </form>
           </div>
         ) : (
@@ -404,6 +415,13 @@ export function PartnerModal({
                 >
                   Submit Partner Application →
                 </button>
+                <p className="text-[11px] text-gray-500 text-center mt-2.5">
+                  Your information will be used to respond to your request. See our{" "}
+                  <a href="#privacy" onClick={onClose} className="text-emerald-700 font-bold underline">
+                    Privacy Policy
+                  </a>{" "}
+                  for more information.
+                </p>
               </div>
             </form>
           </div>
@@ -694,6 +712,13 @@ export function ContactModal({
                 >
                   <span>Submit {inquiryType === "franchise" ? "Franchise Inquiry" : "Inquiry"} →</span>
                 </button>
+                <p className="text-[11px] text-gray-500 text-center mt-2.5">
+                  Your information will be used to respond to your request. See our{" "}
+                  <a href="#privacy" onClick={onClose} className="text-emerald-700 font-bold underline">
+                    Privacy Policy
+                  </a>{" "}
+                  for more information.
+                </p>
               </div>
             </form>
           </div>
@@ -833,6 +858,13 @@ export function JobApplyModal({
                 >
                   Submit Application →
                 </button>
+                <p className="text-[11px] text-gray-500 text-center mt-2.5">
+                  Your information will be used to process your application. See our{" "}
+                  <a href="#privacy" onClick={onClose} className="text-emerald-700 font-bold underline">
+                    Privacy Policy
+                  </a>{" "}
+                  for more information.
+                </p>
               </div>
             </form>
           </div>

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Banknote,
@@ -589,6 +589,19 @@ export function CheckoutPage() {
                 {selectedPayment === "cod" ? <Check className="size-3 text-white stroke-[3]" /> : null}
               </div>
             </label>
+
+            {/* Payment Privacy Disclosure */}
+            <p className="text-[10.5px] text-zinc-500 pt-1 leading-relaxed">
+              Payments may be processed through authorized third-party payment providers. See our{" "}
+              <Link
+                to="/legal/$docSlug"
+                params={{ docSlug: "privacy-policy" }}
+                className="text-[#0c831f] font-bold underline"
+              >
+                Privacy Policy
+              </Link>{" "}
+              for information about payment-related data.
+            </p>
           </div>
         </section>
 
@@ -651,6 +664,26 @@ export function CheckoutPage() {
 
       {/* SECTION 7: STICKY BOTTOM ACTION BAR */}
       <aside className="fixed inset-x-0 bottom-0 z-40 bg-white border-t border-zinc-200 p-4 shadow-xl">
+        {/* Pre-order Legal Disclosure */}
+        <p className="pb-2.5 text-center text-[11px] leading-relaxed text-zinc-500">
+          By placing this order, you agree to the QuickPress{" "}
+          <Link
+            to="/legal/$docSlug"
+            params={{ docSlug: "terms-of-service" }}
+            className="font-bold text-zinc-800 underline hover:text-[#0c831f]"
+          >
+            Terms & Conditions
+          </Link>{" "}
+          and acknowledge our{" "}
+          <Link
+            to="/legal/$docSlug"
+            params={{ docSlug: "privacy-policy" }}
+            className="font-bold text-zinc-800 underline hover:text-[#0c831f]"
+          >
+            Privacy Policy
+          </Link>.
+        </p>
+
         <div className="mx-auto max-w-md flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">To Pay</p>

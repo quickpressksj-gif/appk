@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
@@ -458,9 +458,22 @@ function PhoneStep({
       ) : null}
 
       <p className="mt-6 text-center text-[11.5px] leading-relaxed text-muted-foreground">
-        By continuing, you agree to our{" "}
-        <span className="font-bold text-foreground">Terms of Service</span> &{" "}
-        <span className="font-bold text-foreground">Privacy Policy</span>
+        By creating an account, you acknowledge our{" "}
+        <Link
+          to="/legal/$docSlug"
+          params={{ docSlug: "privacy-policy" }}
+          className="font-bold text-foreground underline hover:text-primary transition-colors"
+        >
+          Privacy Policy
+        </Link>{" "}
+        and agree to the{" "}
+        <Link
+          to="/legal/$docSlug"
+          params={{ docSlug: "terms-of-service" }}
+          className="font-bold text-foreground underline hover:text-primary transition-colors"
+        >
+          Terms & Conditions
+        </Link>.
       </p>
     </div>
   );

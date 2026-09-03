@@ -249,6 +249,7 @@ function ProfileScreen() {
   const [requestingDevicePerm, setRequestingDevicePerm] = useState(false);
   const [savedServicesOpen, setSavedServicesOpen] = useState(false);
   const [favouriteStoresOpen, setFavouriteStoresOpen] = useState(false);
+  const [legalPrivacyModalOpen, setLegalPrivacyModalOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const settings = useAppSettings();
   const activeLocation = readSavedLocation();
@@ -759,6 +760,13 @@ function ProfileScreen() {
                     action: () => setLanguageModalOpen(true),
                   },
                   {
+                    id: "legal_privacy",
+                    label: "Legal & Privacy",
+                    note: "Privacy Policy, Terms & Data Rights",
+                    icon: ShieldCheck,
+                    action: () => setLegalPrivacyModalOpen(true),
+                  },
+                  {
                     id: "delete",
                     label: "Delete Account",
                     note: "Permanently remove your data",
@@ -1019,6 +1027,16 @@ function ProfileScreen() {
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 This action is <span className="font-bold text-destructive">permanent and irreversible</span>. All your saved addresses, payment methods, profile details, active orders, and wallet balance will be deleted immediately.
               </p>
+              <div className="mt-3 p-2.5 rounded-xl bg-muted/60 border border-border text-[11px] text-muted-foreground text-left leading-relaxed">
+                ⚖️ <strong>Statutory Notice:</strong> Deleting your account may not immediately remove information that QuickPress is required or permitted to retain for legal, security, transaction, fraud-prevention or dispute-resolution purposes.
+              </div>
+              <Link
+                to="/legal/$docSlug"
+                params={{ docSlug: "privacy-policy" }}
+                className="mt-2 text-[11px] font-bold text-primary underline block"
+              >
+                Read Privacy Policy →
+              </Link>
             </div>
             <div className="mt-6 flex gap-3">
               <button
@@ -1038,6 +1056,130 @@ function ProfileScreen() {
                 {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-3.5" />}
                 {deleting ? "Deleting..." : "Delete Account"}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* LEGAL & PRIVACY MODAL — Section 6 & Section 18 */}
+      {legalPrivacyModalOpen ? (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            onClick={() => setLegalPrivacyModalOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md rounded-3xl bg-card p-6 shadow-2xl border border-border z-10 animate-in fade-in zoom-in-95 duration-200 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <ShieldCheck className="size-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-black tracking-tight text-foreground">
+                    Legal & Privacy
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground">Privacy & Data Governance</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLegalPrivacyModalOpen(false)}
+                className="size-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <Link
+                to="/legal/$docSlug"
+                params={{ docSlug: "privacy-policy" }}
+                onClick={() => setLegalPrivacyModalOpen(false)}
+                className="flex items-center justify-between p-3 rounded-2xl border border-border hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">🛡️</span>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Privacy Policy</p>
+                    <p className="text-[10px] text-muted-foreground">How your personal & location data is protected</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+
+              <Link
+                to="/legal/$docSlug"
+                params={{ docSlug: "terms-of-service" }}
+                onClick={() => setLegalPrivacyModalOpen(false)}
+                className="flex items-center justify-between p-3 rounded-2xl border border-border hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📜</span>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Terms & Conditions</p>
+                    <p className="text-[10px] text-muted-foreground">Garment care, SLAs, and customer agreement</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+
+              <Link
+                to="/legal/$docSlug"
+                params={{ docSlug: "privacy-policy" }}
+                onClick={() => setLegalPrivacyModalOpen(false)}
+                className="flex items-center justify-between p-3 rounded-2xl border border-border hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">🍪</span>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Cookie Policy</p>
+                    <p className="text-[10px] text-muted-foreground">Session storage and analytics preferences</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+
+              <div className="p-3 rounded-2xl border border-border bg-muted/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground">Data & Privacy Settings</span>
+                  <span className="text-[10px] font-bold text-[#0c831f] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Active</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Your location and phone data are encrypted with TLS 1.3 and used solely for active order fulfillment.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLegalPrivacyModalOpen(false);
+                  setDeleteOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Trash2 className="size-4 text-destructive" />
+                  <div>
+                    <p className="text-xs font-bold text-destructive">Request Account Deletion</p>
+                    <p className="text-[10px] text-destructive/80">Permanent data erasure request</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-destructive/70" />
+              </button>
+
+              <a
+                href="mailto:official.quickpress@gmail.com?subject=Privacy%20and%20Data%20Support%20Request"
+                className="flex items-center justify-between p-3 rounded-2xl border border-border hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">✉️</span>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Request Data / Privacy Support</p>
+                    <p className="text-[10px] text-muted-foreground">Contact our Data Grievance Officer</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </a>
             </div>
           </div>
         </div>
