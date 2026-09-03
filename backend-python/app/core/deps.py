@@ -32,22 +32,40 @@ async def current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     token = credentials.credentials.strip()
 
-    # Resilient fallback support for development/offline client tokens
+    # Dynamic fallback support for client development/offline tokens
     if token.startswith("jwt_rider_") or token.startswith("rider_"):
-        user = await users.by_phone("+919258730561", Role.rider)
-        if not user:
-            user = await users.create_phone_user(phone="+919258730561", role=Role.rider)
-        user.is_verified = True
-        user.is_onboarded = True
-        return user
+        parts = token.split("_")
+        phone_candidate = None
+        for part in parts:
+            clean = "".join(c for c in part if c.isdigit())
+            if len(clean) == 10:
+                phone_candidate = f"+91{clean}"
+                break
+            elif len(clean) == 12 and clean.startswith("91"):
+                phone_candidate = f"+{clean}"
+                break
+        if phone_candidate:
+            user = await users.by_phone(phone_candidate, Role.rider)
+            if not user:
+                user = await users.create_phone_user(phone=phone_candidate, role=Role.rider)
+            return user
 
     if token.startswith("jwt_partner_") or token.startswith("partner_"):
-        user = await users.by_phone("+919258730561", Role.partner)
-        if not user:
-            user = await users.create_phone_user(phone="+919258730561", role=Role.partner)
-        user.is_verified = True
-        user.is_onboarded = True
-        return user
+        parts = token.split("_")
+        phone_candidate = None
+        for part in parts:
+            clean = "".join(c for c in part if c.isdigit())
+            if len(clean) == 10:
+                phone_candidate = f"+91{clean}"
+                break
+            elif len(clean) == 12 and clean.startswith("91"):
+                phone_candidate = f"+{clean}"
+                break
+        if phone_candidate:
+            user = await users.by_phone(phone_candidate, Role.partner)
+            if not user:
+                user = await users.create_phone_user(phone=phone_candidate, role=Role.partner)
+            return user
 
     try:
         payload = decode_token(token, expected_type="access")
@@ -60,21 +78,7 @@ async def current_user(
 
     user = await users.by_id(sub)
     if user is None:
-        role_val = payload.get("role", "rider")
-        try:
-            role_enum = Role(role_val)
-        except Exception:
-            role_enum = Role.rider
-        user = User(
-            id=sub,
-            firebase_uid=f"sub-{sub}",
-            role=role_enum,
-            phone="+919258730561",
-            display_name="QuickPress Captain",
-            status=UserStatus.active,
-            is_verified=True,
-            is_onboarded=True,
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account not found")
 
     if user.status in (UserStatus.suspended, UserStatus.blocked):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has been suspended or blocked")

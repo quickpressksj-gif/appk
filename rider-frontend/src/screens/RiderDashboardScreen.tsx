@@ -66,7 +66,7 @@ export function RiderDashboardScreen() {
   const [completedToday, setCompletedToday] = useState(0);
   const [captainRating, setCaptainRating] = useState(5.0);
   const [captainName, setCaptainName] = useState(session?.fullName || "Delivery Captain");
-  const [captainId, setCaptainId] = useState(session?.riderId || "CP-9821");
+  const [captainId, setCaptainId] = useState(session?.riderId || "—");
   const [loading, setLoading] = useState(true);
 
   const geoWatchIdRef = useRef<number | null>(null);
@@ -111,11 +111,11 @@ export function RiderDashboardScreen() {
         setActiveOrder({
           id: String(backendActive.id),
           order_number: backendActive.order_number || String(backendActive.id),
-          store_name: backendActive.store_name || backendActive.partnerName || "QuickPress Partner Store",
-          pickup_address: backendActive.pickup_address || "Station Road, Kasganj",
+          store_name: backendActive.store_name || backendActive.partnerName || "Partner Store",
+          pickup_address: backendActive.pickup_address || "Store Address",
           customer_name: backendActive.customer_name || backendActive.customerName || "Customer",
-          customer_phone: backendActive.customer_phone || backendActive.customerPhone || "9876543210",
-          delivery_address: backendActive.delivery_address || backendActive.deliveryAddress || "Customer Address, Kasganj",
+          customer_phone: backendActive.customer_phone || backendActive.customerPhone || "",
+          delivery_address: backendActive.delivery_address || backendActive.deliveryAddress || "Delivery Address",
           status: backendActive.status || "assigned",
           delivery_fee: backendActive.delivery_fee || backendActive.estimatedEarning || 60,
           total_amount: backendActive.total_amount || backendActive.amount || 450,

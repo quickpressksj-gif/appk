@@ -159,22 +159,22 @@ export function RiderProfileScreen() {
     setCurrentLang(getActiveLanguage());
   }, [loadData]);
 
-  const captainName = profile?.fullName || session?.fullName || "Rahul";
-  const captainId = profile?.riderId || session?.riderId || "RDR-977689";
-  const phone = profile?.phone || session?.phone || "+91 9258730561";
-  const city = profile?.city || "Kasganj";
-  const vehicleNumber = profile?.vehicleNumber || "UP 87 AB 1234";
-  const vehicleType = profile?.vehicleType || "Hero Splendor Plus (Motorcycle)";
+  const captainName = profile?.fullName || session?.fullName || profile?.name || "Delivery Captain";
+  const captainId = profile?.riderId || session?.riderId || profile?.id || "—";
+  const phone = profile?.phone || session?.phone || "—";
+  const city = profile?.city || "";
+  const vehicleNumber = profile?.vehicleNumber || "—";
+  const vehicleType = profile?.vehicleType || "Motorcycle";
   const rating = profile?.rating ?? 5.0;
   const totalTrips = profile?.totalTrips || history.length || 0;
-  const joinedOn = profile?.joinedOn || "August 2026";
+  const joinedOn = profile?.joinedOn || "Active Partner";
 
   const initials = captainName
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase())
-    .join("") || "R";
+    .join("") || "CP";
 
   const handleSelectLanguage = (code: string, nativeName: string) => {
     setCurrentLang(code);
@@ -253,7 +253,7 @@ export function RiderProfileScreen() {
                 </p>
                 <p className="text-[11px] font-medium text-emerald-800 mt-0.5 flex items-center gap-1">
                   <MapPin className="size-3 shrink-0" />
-                  {city} Fleet Captain
+                  {city ? `${city} Fleet Captain` : "Fleet Captain"}
                 </p>
               </div>
             </div>
@@ -309,7 +309,7 @@ export function RiderProfileScreen() {
                 note: "Instant WhatsApp Fleet Support (Reply in 2 min)",
                 icon: MessageCircle,
                 action: () => {
-                  window.open("https://wa.me/919258730561?text=Hello%20QuickPress%20Support,%20I%20am%20Captain%20" + encodeURIComponent(captainName), "_blank");
+                  window.open("https://wa.me/?text=Hello%20QuickPress%20Fleet%20Support,%20I%20am%20Captain%20" + encodeURIComponent(captainName), "_blank");
                 },
               },
               {

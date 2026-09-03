@@ -2,8 +2,8 @@ import { Bell, ShieldCheck, User } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export function CaptainHomeHeader({
-  captainName = "Himanshu Pal",
-  captainId = "CP-9821",
+  captainName = "Captain",
+  captainId = "—",
   isOnline = true,
 }: {
   captainName?: string;
