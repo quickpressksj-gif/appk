@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -18,6 +18,7 @@ import {
   Package,
   PackageCheck,
   Phone,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -27,7 +28,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { RiderLayout } from "../components/layout/RiderLayout";
-import { fetchRiderOrders, updateOrderStatus, confirmPickup, confirmDelivery } from "../api/rider/rider-orders-api";
+import {
+  fetchRiderOrders,
+  confirmPickup,
+  confirmDelivery,
+  confirmDropAtPartner,
+} from "../api/rider/rider-orders-api";
 import { playSuccessChime, triggerHaptic } from "../lib/captain-audio";
 
 export type DetailedRiderOrder = {
@@ -56,196 +62,86 @@ export type DetailedRiderOrder = {
   estimated_time: string;
 };
 
-const DEFAULT_ORDERS: DetailedRiderOrder[] = [
-  {
-    id: "QP-8821",
-    order_number: "QP-8821",
-    status: "assigned",
-    placed_at: "Today, 10:15 AM",
-    slot: "10:00 AM - 12:00 PM Slot",
-    customer_name: "Rahul Sharma",
-    customer_phone: "9876543210",
-    customer_address: "Flat 302, Green Valley Apartments, Cinema Road, Kasganj",
-    customer_landmark: "Near Axis Bank ATM, 3rd Floor",
-    pickup_otp: "1234",
-    store_name: "QuickPress Laundry Hub (Kasganj Main)",
-    store_phone: "9812345678",
-    store_address: "Shop #14, Station Road, Near Railway Crossing, Kasganj",
-    store_manager: "Sunil Verma (Store Manager)",
-    service_name: "Wash & Fold + Steam Iron",
-    items_count: 12,
-    items_breakdown: [
-      { name: "Formal Shirts", qty: 5 },
-      { name: "Cotton Trousers", qty: 3 },
-      { name: "Bed Sheets (Double)", qty: 2 },
-      { name: "Bath Towels", qty: 2 },
-    ],
-    special_instructions: "Customer requested doorstep contactless pickup. Ring the bell twice.",
-    delivery_fee: 60,
-    order_amount: 450,
-    payment_method: "cod",
-    distance_km: 2.4,
-    estimated_time: "15 mins",
-  },
-  {
-    id: "QP-8822",
-    order_number: "QP-8822",
-    status: "picked_up",
-    placed_at: "Today, 09:40 AM",
-    slot: "09:00 AM - 11:00 AM Slot",
-    customer_name: "Pooja Verma",
-    customer_phone: "9898981234",
-    customer_address: "House #12, Teachers Colony, Bilram Gate Road, Kasganj",
-    customer_landmark: "Opposite Little Angels School",
-    pickup_otp: "5678",
-    store_name: "CleanWave Premium Dry Cleaners",
-    store_phone: "9765432109",
-    store_address: "Shop #4, Bus Stand Road, Main Market, Kasganj",
-    store_manager: "Ramesh Chandra",
-    service_name: "Premium Dry Cleaning",
-    items_count: 5,
-    items_breakdown: [
-      { name: "Men's 2-Piece Suits", qty: 2 },
-      { name: "Heavy Winter Blanket", qty: 1 },
-      { name: "Silk Sarees", qty: 2 },
-    ],
-    special_instructions: "Handle silk sarees with extra care. Place in separate garment bag.",
-    delivery_fee: 75,
-    order_amount: 820,
-    payment_method: "online",
-    distance_km: 3.1,
-    estimated_time: "18 mins",
-  },
-  {
-    id: "QP-8823",
-    order_number: "QP-8823",
-    status: "assigned",
-    placed_at: "Today, 11:00 AM",
-    slot: "11:00 AM - 01:00 PM Slot",
-    customer_name: "Amit Gupta",
-    customer_phone: "9456789012",
-    customer_address: "B-44, Mohalla Gangaputra, Soron Road, Kasganj",
-    customer_landmark: "Near Hanuman Mandir",
-    pickup_otp: "9012",
-    store_name: "QuickPress Express Laundry",
-    store_phone: "9812345678",
-    store_address: "Shop #14, Station Road, Kasganj",
-    store_manager: "Sunil Verma",
-    service_name: "Express Daily Wash",
-    items_count: 8,
-    items_breakdown: [
-      { name: "T-Shirts / Casuals", qty: 4 },
-      { name: "Jeans", qty: 2 },
-      { name: "Shorts", qty: 2 },
-    ],
-    special_instructions: "Urgent same-day express service requested by customer.",
-    delivery_fee: 65,
-    order_amount: 320,
-    payment_method: "cod",
-    distance_km: 1.8,
-    estimated_time: "12 mins",
-  },
-  {
-    id: "QP-8819",
-    order_number: "QP-8819",
-    status: "delivered",
-    placed_at: "Yesterday, 04:30 PM",
-    slot: "04:00 PM - 06:00 PM Slot",
-    customer_name: "Sunita Devi",
-    customer_phone: "9123456780",
-    customer_address: "Quarter 14-B, Railway Colony, Station Road, Kasganj",
-    customer_landmark: "Near Railway Officer Club",
-    pickup_otp: "4321",
-    store_name: "QuickPress Laundry Hub (Kasganj Main)",
-    store_phone: "9812345678",
-    store_address: "Shop #14, Station Road, Kasganj",
-    service_name: "Wash & Fold",
-    items_count: 10,
-    items_breakdown: [
-      { name: "Daily Clothes", qty: 8 },
-      { name: "Curtains", qty: 2 },
-    ],
-    delivery_fee: 55,
-    order_amount: 380,
-    payment_method: "online",
-    distance_km: 2.0,
-    estimated_time: "Completed",
-  },
-  {
-    id: "QP-8815",
-    order_number: "QP-8815",
-    status: "delivered",
-    placed_at: "01 Sep 2026, 02:15 PM",
-    slot: "02:00 PM - 04:00 PM Slot",
-    customer_name: "Manoj Kumar",
-    customer_phone: "9345678901",
-    customer_address: "Shop 19, Nadroi Gate Market, Kasganj",
-    customer_landmark: "Opposite State Bank Branch",
-    pickup_otp: "8899",
-    store_name: "Modern Washers Kasganj",
-    store_phone: "9876501234",
-    store_address: "Ganjdundwara Road, Kasganj",
-    service_name: "Heavy Winter Wash",
-    items_count: 4,
-    items_breakdown: [
-      { name: "Heavy Quilts", qty: 2 },
-      { name: "Woolen Blankets", qty: 2 },
-    ],
-    delivery_fee: 70,
-    order_amount: 600,
-    payment_method: "cod",
-    distance_km: 2.8,
-    estimated_time: "Completed",
-  },
-];
-
 type OrderFilter = "all" | "pickup" | "transit" | "delivered";
 
 export function RiderOrdersScreen() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<DetailedRiderOrder[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_ORDERS;
-    try {
-      const saved = window.localStorage.getItem("qp.rider.ordersList");
-      return saved ? JSON.parse(saved) : DEFAULT_ORDERS;
-    } catch {
-      return DEFAULT_ORDERS;
-    }
-  });
-
+  const [orders, setOrders] = useState<DetailedRiderOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<OrderFilter>("all");
   const [query, setQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<DetailedRiderOrder | null>(null);
   const [otpPromptOrder, setOtpPromptOrder] = useState<DetailedRiderOrder | null>(null);
   const [otpInput, setOtpInput] = useState("");
 
-  // Persist to local storage
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("qp.rider.ordersList", JSON.stringify(orders));
-  }, [orders]);
+  // Load real orders from backend
+  const loadOrders = useCallback(async (showToast = false) => {
+    try {
+      if (showToast) setRefreshing(true);
+      const data = await fetchRiderOrders();
+      const rawList = Array.isArray(data) ? data : (data as any)?.items || [];
 
-  // Load backend orders and merge
-  useEffect(() => {
-    let alive = true;
-    fetchRiderOrders()
-      .then((data) => {
-        if (!alive || !Array.isArray(data) || data.length === 0) return;
-        setOrders((prev) => {
-          const map = new Map(prev.map((o) => [o.id, o]));
-          data.forEach((item: any) => {
-            if (map.has(String(item.id))) {
-              map.set(String(item.id), { ...map.get(String(item.id))!, status: item.status || "assigned" });
-            }
-          });
-          return Array.from(map.values());
-        });
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
+      const mapped: DetailedRiderOrder[] = rawList.map((item: any) => {
+        const id = String(item.id || item._id || "");
+        const status =
+          item.status === "delivered" || item.status === "completed"
+            ? "delivered"
+            : item.status === "picked_up" || item.status === "out_for_delivery"
+              ? "picked_up"
+              : "assigned";
+
+        const garments = Array.isArray(item.items)
+          ? item.items.map((i: any) => ({
+              name: i.name || i.serviceName || "Garment",
+              qty: Number(i.quantity || i.qty || 1),
+            }))
+          : [
+              { name: "Daily Laundry Bags", qty: item.items_count || 3 },
+            ];
+
+        return {
+          id,
+          order_number: item.order_number || item.code || id.slice(-6).toUpperCase(),
+          status,
+          placed_at: item.placedAt || item.created_at || "Today",
+          slot: item.slot || "Immediate Pickup Slot",
+          customer_name: item.customer_name || item.customerName || "Customer",
+          customer_phone: item.customer_phone || item.customerPhone || "9876543210",
+          customer_address: item.customer_address || item.deliveryAddress || "Customer Address, Kasganj",
+          customer_landmark: item.customer_landmark || item.landmark || "",
+          pickup_otp: item.pickup_otp || item.pickupOtp || "0000",
+          store_name: item.store_name || item.partnerName || "QuickPress Partner Store",
+          store_phone: item.store_phone || item.partnerPhone || "9812345678",
+          store_address: item.pickup_address || item.store_address || "Station Road, Kasganj",
+          store_manager: item.store_manager || "Store Incharge",
+          service_name: item.service_name || item.serviceType || "Laundry & Dry Clean",
+          items_count: item.items_count || garments.reduce((a: number, b: any) => a + b.qty, 0),
+          items_breakdown: garments,
+          special_instructions: item.special_instructions || item.instructions || "",
+          delivery_fee: item.delivery_fee || item.estimatedEarning || 60,
+          order_amount: item.total_amount || item.amount || 450,
+          payment_method: item.payment_method === "online" ? "online" : "cod",
+          distance_km: item.distance_km || item.distanceKm || 2.4,
+          estimated_time: item.estimated_time || "15 mins",
+        };
+      });
+
+      setOrders(mapped);
+      if (showToast) toast.success("Orders queue refreshed from server!");
+    } catch {
+      if (showToast) toast.error("Could not refresh orders queue");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOrders();
+    const interval = setInterval(() => void loadOrders(), 15000);
+    return () => clearInterval(interval);
+  }, [loadOrders]);
 
   // Filtered orders list
   const filteredOrders = useMemo(() => {
@@ -318,7 +214,7 @@ export function RiderOrdersScreen() {
     void navigate({ to: "/dashboard" });
   };
 
-  // Step 1: Verify OTP and Mark Picked Up
+  // Step 1: Verify OTP and Mark Picked Up via Real Backend API
   const handleVerifyOtpAndPickup = async (order: DetailedRiderOrder) => {
     if (otpInput.trim().length !== 4 && otpInput.trim() !== "") {
       toast.error("Please enter a valid 4-digit Customer Pickup OTP");
@@ -326,9 +222,9 @@ export function RiderOrdersScreen() {
     }
 
     try {
-      await confirmPickup(order.id, otpInput || "0000").catch(() => true);
+      await confirmPickup(order.id, otpInput || "0000");
       playSuccessChime();
-      toast.success(`Clothes picked up for Order #${order.order_number}! Now deliver to Store.`);
+      toast.success(`Clothes collected for Order #${order.order_number}! Now deliver to Store.`);
       setOrders((prev) =>
         prev.map((o) => (o.id === order.id ? { ...o, status: "picked_up" } : o))
       );
@@ -337,25 +233,25 @@ export function RiderOrdersScreen() {
       if (selectedOrder?.id === order.id) {
         setSelectedOrder((prev) => (prev ? { ...prev, status: "picked_up" } : null));
       }
-    } catch {
-      toast.error("Pickup confirmation failed");
+    } catch (err: any) {
+      toast.error(err?.message || "Pickup verification failed");
     }
   };
 
-  // Step 2: Deliver and Handover to Store
+  // Step 2: Deliver and Handover to Store via Real Backend API
   const handleHandoverToStore = async (orderId: string) => {
     try {
-      await confirmDelivery(orderId, "0000").catch(() => true);
+      await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, "0000"));
       playSuccessChime();
-      toast.success("Order handed over to Store! Payout added to your wallet.");
+      toast.success("Order handed over to Store! ₹60 payout credited to your wallet.");
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: "delivered" } : o))
       );
       if (selectedOrder?.id === orderId) {
         setSelectedOrder((prev) => (prev ? { ...prev, status: "delivered" } : null));
       }
-    } catch {
-      toast.error("Delivery completion failed");
+    } catch (err: any) {
+      toast.error(err?.message || "Delivery completion failed");
     }
   };
 
@@ -369,53 +265,92 @@ export function RiderOrdersScreen() {
     >
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6 select-none">
         {/* ========================================================================= */}
-        {/* 1. STAGE FILTER TABS WITH COUNTERS (White & Dark Green)                    */}
+        {/* 1. TOP TOOLBAR: REFRESH & STAGE FILTER TABS (White & Dark Green)           */}
         {/* ========================================================================= */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          {[
-            { id: "all" as const, label: "All Tasks", count: counts.all },
-            { id: "pickup" as const, label: "Customer Pickups", count: counts.pickup },
-            { id: "transit" as const, label: "In Transit to Store", count: counts.transit },
-            { id: "delivered" as const, label: "Completed Drops", count: counts.delivered },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilter(tab.id)}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                filter === tab.id
-                  ? "bg-emerald-800 text-white shadow-xs font-black"
-                  : "border border-emerald-200 bg-white text-emerald-950 hover:bg-emerald-50"
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-1">
+          <div className="flex items-center gap-2">
+            {[
+              { id: "all" as const, label: "All Tasks", count: counts.all },
+              { id: "pickup" as const, label: "Customer Pickups", count: counts.pickup },
+              { id: "transit" as const, label: "In Transit to Store", count: counts.transit },
+              { id: "delivered" as const, label: "Completed", count: counts.delivered },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id)}
+                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   filter === tab.id
-                    ? "bg-white text-emerald-800"
-                    : "bg-emerald-100 text-emerald-800"
+                    ? "bg-emerald-800 text-white shadow-xs font-black"
+                    : "border border-emerald-200 bg-white text-emerald-950 hover:bg-emerald-50"
                 }`}
               >
-                {tab.count}
-              </span>
-            </button>
-          ))}
+                <span>{tab.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                    filter === tab.id
+                      ? "bg-white text-emerald-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadOrders(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer shrink-0 shadow-2xs"
+            title="Refresh Live Orders Queue"
+          >
+            <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin text-emerald-800" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
 
         {/* ========================================================================= */}
-        {/* 2. ORDERS LIST CARDS                                                      */}
+        {/* 2. ORDERS LIST OR PRODUCTION EMPTY STATE                                  */}
         {/* ========================================================================= */}
-        {filteredOrders.length === 0 ? (
+        {loading ? (
           <div className="rounded-3xl border border-emerald-200 bg-white p-12 text-center shadow-xs">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
-              <Package className="size-7" />
+            <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 animate-pulse">
+              <Package className="size-6" />
             </div>
-            <h3 className="mt-3 text-base font-black text-slate-900">
-              No orders in this category
-            </h3>
-            <p className="mt-1 text-xs text-slate-500 max-w-xs mx-auto">
-              New customer laundry pickups will automatically appear here.
+            <p className="mt-3 text-sm font-black text-slate-800">
+              Connecting to QuickPress Dispatch Gateway...
             </p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-emerald-200 bg-white p-10 sm:p-14 text-center shadow-xs space-y-3">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
+              <Package className="size-8" />
+            </div>
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-black uppercase text-emerald-800">
+                <span className="size-2 rounded-full bg-emerald-600 animate-ping" />
+                Live Dispatch Ready
+              </span>
+              <h3 className="text-lg font-black text-slate-950 pt-1">
+                No orders in this category
+              </h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                You currently have no pending tasks assigned. Keep duty switched ON from your Dashboard — incoming laundry orders from Kasganj outlets will dispatch directly to your phone.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => void loadOrders(true)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs px-5 py-3 shadow-sm active:scale-95 transition-all cursor-pointer"
+              >
+                <RefreshCw className="size-3.5" />
+                <span>Check for Newly Dispatched Orders</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -492,7 +427,7 @@ export function RiderOrdersScreen() {
                         </span>
                         {isAssigned && (
                           <span className="text-[10px] font-black text-emerald-700 bg-white border border-emerald-200 px-1.5 py-0.2 rounded">
-                            OTP: {order.pickup_otp}
+                            OTP Required
                           </span>
                         )}
                       </div>
@@ -523,7 +458,7 @@ export function RiderOrdersScreen() {
                     <div className="flex items-center gap-2 text-emerald-950 font-bold">
                       <Package className="size-4 text-emerald-800" />
                       <span>
-                        {order.service_name} · {order.items_count} Clothes ({order.items_breakdown.length} Categories)
+                        {order.service_name} · {order.items_count} Clothes
                       </span>
                     </div>
 
@@ -614,7 +549,7 @@ export function RiderOrdersScreen() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. FULL ORDER DETAILS MODAL / DRAWER (Complete Transparency)               */}
+      {/* 3. FULL ORDER DETAILS MODAL / DRAWER                                      */}
       {/* ========================================================================= */}
       {selectedOrder ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-md animate-in fade-in duration-200 select-none">
@@ -686,7 +621,7 @@ export function RiderOrdersScreen() {
                 )}
 
                 <div className="pt-1 flex items-center justify-between text-slate-500">
-                  <span>Pickup OTP: <strong className="text-emerald-800 font-mono">{selectedOrder.pickup_otp}</strong></span>
+                  <span>Pickup Code: <strong className="text-emerald-800 font-mono">OTP Required</strong></span>
                   <button
                     type="button"
                     onClick={() => handleOpenMaps(selectedOrder.customer_address)}
@@ -724,7 +659,7 @@ export function RiderOrdersScreen() {
                 )}
               </div>
 
-              {/* Itemized Garment Breakdown */}
+              {/* Garment Breakdown */}
               <div className="rounded-2xl border border-emerald-200 bg-white p-4 space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
                   <span className="text-xs font-black text-emerald-950">
@@ -745,19 +680,6 @@ export function RiderOrdersScreen() {
                 </div>
               </div>
 
-              {/* Special Instructions Note */}
-              {selectedOrder.special_instructions && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-emerald-800 flex items-center gap-1">
-                    <Info className="size-3 text-emerald-800" />
-                    Customer Delivery Instructions
-                  </p>
-                  <p className="text-slate-800 font-medium">
-                    {selectedOrder.special_instructions}
-                  </p>
-                </div>
-              )}
-
               {/* Set as Active Task CTA */}
               <div className="pt-2 flex flex-col gap-2">
                 <button
@@ -775,7 +697,7 @@ export function RiderOrdersScreen() {
       ) : null}
 
       {/* ========================================================================= */}
-      {/* 4. VERIFY OTP PROMPT MODAL                                                */}
+      {/* 4. VERIFY OTP PROMPT MODAL (Real Backend Verification)                    */}
       {/* ========================================================================= */}
       {otpPromptOrder ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/80 backdrop-blur-md animate-in fade-in select-none">
@@ -805,13 +727,9 @@ export function RiderOrdersScreen() {
                 className="h-12 w-full rounded-xl border-2 border-emerald-300 text-center text-xl font-black tracking-widest text-emerald-950 focus:border-emerald-800 focus:outline-hidden"
                 autoFocus
               />
-              <button
-                type="button"
-                onClick={() => setOtpInput(otpPromptOrder.pickup_otp || "1234")}
-                className="text-[11px] font-bold text-emerald-800 hover:underline cursor-pointer"
-              >
-                Auto-fill Customer OTP ({otpPromptOrder.pickup_otp})
-              </button>
+              <p className="text-[11px] text-slate-400 text-center">
+                Ask customer for 4-digit QuickPress pickup OTP
+              </p>
             </div>
 
             <button

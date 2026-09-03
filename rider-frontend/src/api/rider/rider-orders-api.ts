@@ -51,6 +51,16 @@ export async function confirmPickup(orderId: string, otp: string) {
   return { ok: true as const, orderId, order };
 }
 
+/** GET /api/rider/offers — live pending ride/laundry offers dispatched to this rider */
+export async function fetchRiderOffers(): Promise<any[]> {
+  try {
+    const res = await apiGetJson<any[]>("/api/rider/offers");
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+
 /** POST /api/rider/orders/{id}/drop-at-partner */
 export async function confirmDropAtPartner(orderId: string) {
   const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/drop-at-partner`);

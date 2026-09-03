@@ -20,43 +20,30 @@ import {
   Truck,
   Wallet,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { RiderLayout } from "../components/layout/RiderLayout";
 import { useRiderContext } from "../context/RiderContext";
-import { fetchRiderOrders, updateOrderStatus, confirmPickup, confirmDelivery } from "../api/rider/rider-orders-api";
-import { fetchRiderDashboard } from "../api/rider/rider-dashboard-api";
+import {
+  fetchRiderOrders,
+  fetchRiderOffers,
+  updateOrderStatus,
+  confirmPickup,
+  confirmDelivery,
+  confirmDropAtPartner,
+} from "../api/rider/rider-orders-api";
+import {
+  fetchRiderDashboard,
+  updateRiderStatus,
+  pushRiderLocation,
+} from "../api/rider/rider-dashboard-api";
+import { fetchRiderProfile } from "../api/rider/rider-profile-api";
 import { CaptainHomeHeader } from "../components/dashboard/CaptainHomeHeader";
 import { BikeDutyBanner } from "../components/dashboard/BikeDutyBanner";
 import { ActiveDeliveryCockpit, type ActiveOrder } from "../components/dashboard/ActiveDeliveryCockpit";
 import { IncomingOrderAlertModal, type IncomingOffer } from "../components/dashboard/IncomingOrderAlertModal";
 import { playSuccessChime, triggerHaptic } from "../lib/captain-audio";
-
-const DEMO_OFFERS: IncomingOffer[] = [
-  {
-    id: "QP-DEMO-8821",
-    order_number: "QP-8821",
-    store_name: "QuickPress Laundry Hub (Kasganj Main)",
-    pickup_address: "Shop #14, Station Road, Near Railway Crossing, Kasganj",
-    customer_name: "Rahul Sharma",
-    delivery_address: "Flat 302, Green Valley Apartments, Cinema Road, Kasganj",
-    distance_km: 2.3,
-    payout_amount: 60,
-    items_summary: "3 Laundry Bags (Wash & Fold)",
-  },
-  {
-    id: "QP-DEMO-8822",
-    order_number: "QP-8822",
-    store_name: "CleanWave Premium Dry Cleaners",
-    pickup_address: "Opposite Bus Stand, Main Market, Kasganj",
-    customer_name: "Pooja Verma",
-    delivery_address: "House 12, Teachers Colony, Bilram Gate, Kasganj",
-    distance_km: 3.1,
-    payout_amount: 75,
-    items_summary: "2 Suits + 1 Blanket (Dry Clean)",
-  },
-];
 
 const LOCAL_STORAGE_ACTIVE_ORDER_KEY = "qp.rider.activeOrder";
 
@@ -75,12 +62,14 @@ export function RiderDashboardScreen() {
   });
 
   const [incomingOffer, setIncomingOffer] = useState<IncomingOffer | null>(null);
-  const [earningsToday, setEarningsToday] = useState(650);
-  const [completedToday, setCompletedToday] = useState(7);
+  const [earningsToday, setEarningsToday] = useState(0);
+  const [completedToday, setCompletedToday] = useState(0);
+  const [captainRating, setCaptainRating] = useState(5.0);
+  const [captainName, setCaptainName] = useState(session?.fullName || "Delivery Captain");
+  const [captainId, setCaptainId] = useState(session?.riderId || "CP-9821");
   const [loading, setLoading] = useState(true);
 
-  const captainName = session?.fullName || "Himanshu Pal";
-  const captainId = session?.riderId || "CP-9821";
+  const geoWatchIdRef = useRef<number | null>(null);
 
   // Persist active order to localStorage
   useEffect(() => {
@@ -92,19 +81,28 @@ export function RiderDashboardScreen() {
     }
   }, [activeOrder]);
 
-  // Load real backend data
+  // Load real backend profile and dashboard metrics
   const loadData = useCallback(async () => {
     try {
-      const [ordersRes, dashRes] = await Promise.all([
+      const [dashRes, profileRes, ordersRes] = await Promise.all([
+        fetchRiderDashboard().catch(() => null),
+        fetchRiderProfile().catch(() => null),
         fetchRiderOrders().catch(() => []),
-        fetchRiderDashboard().catch(() => ({ todayEarnings: 650, todayDeliveries: 7 })),
       ]);
 
-      const list = Array.isArray(ordersRes) ? ordersRes : (ordersRes as any)?.items || [];
-      if (dashRes.todayEarnings) setEarningsToday(dashRes.todayEarnings);
-      if (dashRes.todayDeliveries) setCompletedToday(dashRes.todayDeliveries);
+      if (profileRes) {
+        if (profileRes.fullName) setCaptainName(profileRes.fullName);
+        if (profileRes.riderId) setCaptainId(profileRes.riderId);
+        if (typeof profileRes.rating === "number") setCaptainRating(profileRes.rating);
+      }
 
-      // Check if backend has an assigned/in-progress order
+      if (dashRes) {
+        if (typeof dashRes.todayEarnings === "number") setEarningsToday(dashRes.todayEarnings);
+        if (typeof dashRes.todayDeliveries === "number") setCompletedToday(dashRes.todayDeliveries);
+        if (typeof dashRes.rating === "number") setCaptainRating(dashRes.rating);
+      }
+
+      const list = Array.isArray(ordersRes) ? ordersRes : (ordersRes as any)?.items || [];
       const backendActive = list.find(
         (o: any) => o.status === "assigned" || o.status === "picked_up"
       );
@@ -113,16 +111,17 @@ export function RiderDashboardScreen() {
         setActiveOrder({
           id: String(backendActive.id),
           order_number: backendActive.order_number || String(backendActive.id),
-          store_name: backendActive.store_name || "QuickPress Partner Store",
+          store_name: backendActive.store_name || backendActive.partnerName || "QuickPress Partner Store",
           pickup_address: backendActive.pickup_address || "Station Road, Kasganj",
-          customer_name: backendActive.customer_name || "Valued Customer",
-          delivery_address: backendActive.delivery_address || "Cinema Road, Kasganj",
+          customer_name: backendActive.customer_name || backendActive.customerName || "Customer",
+          customer_phone: backendActive.customer_phone || backendActive.customerPhone || "9876543210",
+          delivery_address: backendActive.delivery_address || backendActive.deliveryAddress || "Customer Address, Kasganj",
           status: backendActive.status || "assigned",
-          delivery_fee: backendActive.delivery_fee || 60,
-          total_amount: backendActive.total_amount || 420,
+          delivery_fee: backendActive.delivery_fee || backendActive.estimatedEarning || 60,
+          total_amount: backendActive.total_amount || backendActive.amount || 450,
           payment_method: backendActive.payment_method || "cod",
-          items_count: 3,
-          service_name: "Wash & Fold",
+          items_count: backendActive.items_count || 3,
+          service_name: backendActive.service_name || "Laundry Pickup",
         });
       }
     } catch {
@@ -132,11 +131,82 @@ export function RiderDashboardScreen() {
     }
   }, [activeOrder]);
 
+  // Poll real offers from /api/rider/offers when online
+  const checkLiveOffers = useCallback(async () => {
+    if (!isOnline || activeOrder) return;
+    try {
+      const offers = await fetchRiderOffers();
+      if (Array.isArray(offers) && offers.length > 0) {
+        const topOffer = offers[0];
+        setIncomingOffer({
+          id: topOffer._id || topOffer.id || topOffer.rideId,
+          order_number: topOffer.order_number || topOffer.orderId || "QP-NEW",
+          store_name: topOffer.store_name || topOffer.partnerName || "QuickPress Partner Store",
+          pickup_address: topOffer.pickup_address || "Store Address, Kasganj",
+          customer_name: topOffer.customer_name || topOffer.customerName || "Customer",
+          delivery_address: topOffer.delivery_address || topOffer.customerAddress || "Kasganj",
+          distance_km: topOffer.distance_km || topOffer.distanceKm || 2.4,
+          payout_amount: topOffer.payout_amount || topOffer.fare || 60,
+          items_summary: topOffer.items_summary || "Laundry Pickup",
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isOnline, activeOrder]);
+
   useEffect(() => {
     void loadData();
-    const interval = setInterval(loadData, 20000);
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, [loadData]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    void checkLiveOffers();
+    const offerInterval = setInterval(checkLiveOffers, 8000);
+    return () => clearInterval(offerInterval);
+  }, [isOnline, checkLiveOffers]);
+
+  // Real-time GPS location streaming when online
+  useEffect(() => {
+    if (!isOnline) {
+      if (geoWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      geoWatchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          void pushRiderLocation(latitude, longitude).catch(() => {});
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      );
+    }
+
+    return () => {
+      if (geoWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+    };
+  }, [isOnline]);
+
+  // Real toggle online/offline state to backend
+  const handleToggleDuty = async (nextState: boolean) => {
+    try {
+      await updateRiderStatus(nextState);
+      setOnline(nextState);
+      toast.success(nextState ? "Duty Started! Radar active." : "Duty Paused. You are offline.");
+    } catch {
+      setOnline(nextState);
+    }
+  };
 
   // Handle incoming trip acceptance
   const handleAcceptOffer = async (offer: IncomingOffer) => {
@@ -162,22 +232,26 @@ export function RiderDashboardScreen() {
     toast.success("Trip Accepted! Proceed to pick up from Customer.");
   };
 
-  // Handle step progression
+  // Handle real step progression
   const handleUpdateOrderStatus = async (
     orderId: string,
     nextStatus: ActiveOrder["status"]
   ) => {
     try {
       if (nextStatus === "picked_up") {
-        await confirmPickup(orderId, "0000").catch(() => true);
+        await confirmPickup(orderId, "0000");
         setActiveOrder((prev) => (prev ? { ...prev, status: "picked_up" } : null));
+        playSuccessChime();
+        toast.success("Customer pickup confirmed! Now deliver to Laundry Store.");
       } else if (nextStatus === "delivered") {
-        await confirmDelivery(orderId, "0000").catch(() => true);
+        await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, "0000"));
+        playSuccessChime();
+        toast.success(`Handover to Store complete! ₹${activeOrder?.delivery_fee || 60} credited.`);
         setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
         setCompletedToday((prev) => prev + 1);
         setActiveOrder(null);
       } else {
-        await updateOrderStatus(orderId, nextStatus).catch(() => true);
+        await updateOrderStatus(orderId, nextStatus);
         setActiveOrder((prev) => (prev ? { ...prev, status: nextStatus } : null));
       }
     } catch {
@@ -191,23 +265,13 @@ export function RiderDashboardScreen() {
     }
   };
 
-  // Trigger demo order for testing bike flow
-  const handleTriggerDemoOrder = () => {
-    if (!isOnline) {
-      toast.error("Please turn ON duty first to receive orders!");
-      return;
-    }
-    const sample = DEMO_OFFERS[Math.floor(Math.random() * DEMO_OFFERS.length)] || DEMO_OFFERS[0];
-    setIncomingOffer(sample!);
-  };
-
   return (
     <RiderLayout
       activeTab="dashboard"
       title="Captain Cockpit"
       subtitle="Live Dispatch & Bike Delivery Operations"
     >
-      {/* Top Header Showing Rider Name & Status */}
+      {/* Top Header Showing Real Rider Name & Live Status */}
       <CaptainHomeHeader
         captainName={captainName}
         captainId={captainId}
@@ -220,7 +284,7 @@ export function RiderDashboardScreen() {
         {/* ========================================================================= */}
         <BikeDutyBanner
           isOnline={isOnline}
-          onToggle={setOnline}
+          onToggle={handleToggleDuty}
           captainName={captainName}
           captainId={captainId}
         />
@@ -249,13 +313,13 @@ export function RiderDashboardScreen() {
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm("Do you want to cancel and dismiss this active task?")) {
+                  if (confirm("Do you want to dismiss this active order from your cockpit?")) {
                     setActiveOrder(null);
                   }
                 }}
                 className="text-[11px] font-bold text-slate-400 hover:text-emerald-900 cursor-pointer"
               >
-                Cancel Task
+                Dismiss Active View
               </button>
             </div>
 
@@ -267,7 +331,7 @@ export function RiderDashboardScreen() {
         ) : null}
 
         {/* ========================================================================= */}
-        {/* 4. REVENUE & TRIPS HERO CARD (Pure White & Dark Green)                    */}
+        {/* 4. REVENUE & TRIPS HERO CARD (Real Backend Data)                          */}
         {/* ========================================================================= */}
         <div className="rounded-3xl border border-emerald-200 bg-white p-5 sm:p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3 border-b border-emerald-100 pb-4">
@@ -277,7 +341,7 @@ export function RiderDashboardScreen() {
                   Today&apos;s Gross Earnings
                 </span>
                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
-                  +100% On-Time
+                  100% On-Time
                 </span>
               </div>
               <p className="mt-1 flex items-center text-3xl sm:text-4xl font-black tracking-tight text-emerald-950">
@@ -296,23 +360,27 @@ export function RiderDashboardScreen() {
             </button>
           </div>
 
-          {/* 4 Large Metric Columns in White & Dark Green */}
+          {/* Metric Columns in White & Dark Green */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
               <p className="text-[10px] font-bold uppercase text-emerald-800">Trips Done</p>
               <p className="mt-0.5 text-xl font-black text-slate-900">{completedToday}</p>
             </div>
             <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Active Duty</p>
-              <p className="mt-0.5 text-xl font-black text-emerald-800">4.2 hrs</p>
+              <p className="text-[10px] font-bold uppercase text-emerald-800">Duty Status</p>
+              <p className="mt-0.5 text-xl font-black text-emerald-800">
+                {isOnline ? "Online" : "Offline"}
+              </p>
             </div>
             <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Tips</p>
-              <p className="mt-0.5 text-xl font-black text-slate-900">₹40</p>
+              <p className="text-[10px] font-bold uppercase text-emerald-800">Fleet City</p>
+              <p className="mt-0.5 text-xl font-black text-slate-900">Kasganj</p>
             </div>
             <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
               <p className="text-[10px] font-bold uppercase text-emerald-800">Rating</p>
-              <p className="mt-0.5 text-xl font-black text-emerald-800">4.9 ★</p>
+              <p className="mt-0.5 text-xl font-black text-emerald-800">
+                {captainRating.toFixed(1)} ★
+              </p>
             </div>
           </div>
         </div>
@@ -339,26 +407,14 @@ export function RiderDashboardScreen() {
             <div className="mt-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-900 border border-emerald-200">
                 <span className="size-2 rounded-full bg-emerald-700 animate-ping" />
-                <span>GPS Radar Active</span>
+                <span>Live GPS Radar Active</span>
               </span>
               <h3 className="mt-2 text-base font-black text-slate-900">
-                Searching for Nearby Laundry Pickups...
+                Scanning for Nearby Laundry Pickups...
               </h3>
               <p className="mt-0.5 text-xs text-slate-600 max-w-sm mx-auto">
-                Scanning Kasganj customer locations within 5 km. Keep phone on bike mount.
+                Connected to QuickPress Kasganj Dispatch Gateway. Keep phone volume up on bike mount.
               </p>
-
-              {/* Demo trigger button in Dark Green */}
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={handleTriggerDemoOrder}
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-2.5 text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
-                >
-                  <Sparkles className="size-3.5 text-emerald-300" />
-                  <span>Test New Order Dispatch Siren</span>
-                </button>
-              </div>
             </div>
           </div>
         ) : null}
