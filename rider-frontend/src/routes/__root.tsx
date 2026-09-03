@@ -78,15 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" },
+      { name: "theme-color", content: "#059669" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { title: "QuickPress Captain — Delivery Partner App" },
-      { name: "description", content: "QuickPress Captain Delivery Partner Portal & Dispatch App" },
+      { name: "description", content: "QuickPress Captain Delivery Partner App" },
       { name: "author", content: "QuickPress" },
-      { property: "og:title", content: "QuickPress Captain — Delivery Partner App" },
-      { property: "og:description", content: "QuickPress Captain Delivery Partner Portal & Dispatch App" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@QuickPress" },
     ],
     links: [
       {
@@ -104,12 +103,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="bg-white" suppressHydrationWarning>
+    <html lang="en" className="bg-slate-100" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-white text-foreground antialiased selection:bg-primary/20" suppressHydrationWarning>
-        {children}
+      <body className="min-h-screen bg-slate-100 text-foreground antialiased selection:bg-primary/20" suppressHydrationWarning>
+        <div className="android-shell bg-slate-50 min-h-dvh shadow-2xl relative overflow-x-hidden">
+          {children}
+        </div>
         <Scripts />
       </body>
     </html>
@@ -121,11 +122,38 @@ import { LanguageProvider } from "../lib/i18n";
 import { LanguageSelectionModal } from "../components/common/LanguageSelectionModal";
 import { readSession } from "@/api/core/session-store";
 
-// v1.0.1: QuickPress Captain Production Light Mode
+// v1.0.2: QuickPress Captain Dedicated Android App
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // 📱 Android Hardware Back Button listener
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleBack = () => {
+      const pathname = window.location.pathname;
+      const rootRoutes = ["/", "/auth", "/dashboard", "/registration-submitted"];
+      if (!rootRoutes.includes(pathname)) {
+        window.history.back();
+      }
+    };
+
+    const capApp = (window as any).Capacitor?.Plugins?.App;
+    let listenerHandle: any = null;
+    if (capApp?.addListener) {
+      capApp.addListener("backButton", handleBack).then((h: any) => {
+        listenerHandle = h;
+      }).catch(() => undefined);
+    }
+
+    return () => {
+      if (listenerHandle?.remove) {
+        listenerHandle.remove();
+      }
+    };
+  }, []);
 
   // 🛡️ Global Strict Authentication & Onboarding Guard
   useEffect(() => {

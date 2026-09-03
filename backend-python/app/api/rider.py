@@ -502,6 +502,12 @@ async def get_onboarding_status(
         return {"status": "unregistered", "step": 1, "isVerified": False}
 
     profile = await database.find_one("rider_profiles", query)
+    if not profile and phone:
+        clean_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        u = await database.find_one("users", {"$or": [{"phone": phone}, {"phone": clean_phone}, {"phone": f"+91{clean_phone}"}]})
+        if u and u.get("linked_id"):
+            profile = await database.find_one("rider_profiles", {"$or": [{"_id": u["linked_id"]}, {"riderId": u["linked_id"]}]})
+
     if not profile:
         return {"status": "unregistered", "step": 1, "isVerified": False}
 
@@ -803,6 +809,22 @@ async def submit_registration(body: dict) -> dict:
             "lifetimeEarned": 0.0,
         },
     )
+
+    # Sync with users collection if exists
+    if phone:
+        clean_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        u = await database.find_one("users", {"$or": [{"phone": phone}, {"phone": clean_phone}, {"phone": f"+91{clean_phone}"}]})
+        if u:
+            await users.update(
+                u["_id"],
+                {
+                    "is_onboarded": True,
+                    "is_verified": False,
+                    "display_name": full_name,
+                    "city": city,
+                    "linked_id": rider_id,
+                },
+            )
     return {
         "ok": True,
         "riderId": rider_id,

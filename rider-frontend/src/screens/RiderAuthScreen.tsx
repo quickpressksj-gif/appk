@@ -162,235 +162,229 @@ export function RiderAuthScreen() {
       <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[130px]" />
       <div className="pointer-events-none absolute bottom-0 right-0 size-96 rounded-full bg-teal-500/10 blur-[140px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-5 pb-8 pt-6 lg:max-w-5xl lg:justify-center lg:py-12">
-        {/* Top App Bar Branding */}
-        <header className="flex items-center justify-between border-b border-slate-200/80 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
-              <Bike className="size-5.5 stroke-[2.5]" />
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
+        {/* Android Top App Bar Branding */}
+        <header className="flex items-center justify-between border-b border-slate-200/80 pb-3 pt-1">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9.5 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
+              <Bike className="size-5 stroke-[2.5]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight text-slate-950">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-lg font-black tracking-tight text-slate-950">
                   Quick<span className="text-emerald-600">Press</span>
                 </h1>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
                   CAPTAIN
                 </span>
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
                 On-Demand Delivery Fleet
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-800 shadow-xs">
-            <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-            <span>Kasganj Fleet Active</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800 shadow-2xs">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
+            <span>Kasganj Hub</span>
           </div>
         </header>
 
-        {/* Main Content Layout */}
-        <div className="my-auto py-8 lg:grid lg:grid-cols-12 lg:items-center lg:gap-12">
-          {/* Left Column: Hero & Benefits */}
-          <div className="space-y-5 lg:col-span-7">
-            {/* Hero Card */}
-            <section className="relative overflow-hidden rounded-3xl border border-emerald-600/30 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-6 text-white shadow-xl">
-              <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-white/15 blur-2xl" />
+        {/* Main Content Area: Phone Optimized */}
+        <div className="my-auto py-4 space-y-4">
+          {/* Hero Card */}
+          <section className="relative overflow-hidden rounded-3xl border border-emerald-600/20 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-4.5 text-white shadow-lg">
+            <div className="pointer-events-none absolute -right-6 -top-6 size-36 rounded-full bg-white/15 blur-xl" />
 
-              <div className="flex items-center gap-2 text-emerald-200">
-                <Zap className="size-4 fill-current" />
-                <span className="text-xs font-black uppercase tracking-wider">
-                  Captain Partner Fleet
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-emerald-200">
+                <Zap className="size-3.5 fill-current" />
+                <span className="text-[10px] font-black uppercase tracking-wider">
+                  Partner Fleet
                 </span>
               </div>
-
-              <h2 className="mt-2 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
-                Deliver Laundry, Earn Daily &amp; Grow with QuickPress
-              </h2>
-
-              <p className="mt-2 text-xs font-medium leading-relaxed text-emerald-100 sm:text-sm">
-                Join Kasganj &amp; Uttar Pradesh’s leading on-demand delivery network. Earn up to{" "}
-                <span className="font-black text-white">₹25,000+/month</span> with daily direct UPI payouts.
-              </p>
-
-              {/* Earnings Ticker Strip */}
-              <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/25 bg-white/15 p-3 text-xs backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="size-4 text-emerald-200" />
-                  <span className="font-bold text-white">Average Payout / Order:</span>
-                </div>
-                <span className="font-black text-emerald-100 text-sm">₹45 - ₹120 + 100% Tips</span>
-              </div>
-
-              <div className="mt-4 flex justify-center">
-                <img
-                  src={riderAssets.courier}
-                  alt="QuickPress Delivery Captain"
-                  className="h-32 w-auto object-contain drop-shadow-xl sm:h-40"
-                  loading="lazy"
-                />
-              </div>
-            </section>
-
-            {/* 3 Highlight Cards */}
-            <div className="grid grid-cols-3 gap-2.5">
-              {HIGHLIGHTS.map((item) => (
-                <div
-                  key={item.title}
-                  className="group relative rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 transition-transform group-hover:scale-110">
-                      <item.icon className="size-4 stroke-[2.3]" />
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[8px] font-black text-emerald-700 border border-emerald-200">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs font-black text-slate-900">{item.title}</p>
-                  <p className="mt-0.5 text-[9px] font-medium text-slate-500 line-clamp-1">{item.desc}</p>
-                </div>
-              ))}
+              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                Earn Up to ₹25k/Mo
+              </span>
             </div>
+
+            <div className="mt-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-black leading-tight tracking-tight text-white">
+                  Deliver Laundry, Earn Daily
+                </h2>
+                <p className="mt-1 text-[11px] font-medium leading-snug text-emerald-100">
+                  Daily direct UPI payouts, flexible hours &amp; Kasganj fleet protection.
+                </p>
+              </div>
+
+              <img
+                src={riderAssets.courier}
+                alt="QuickPress Delivery Captain"
+                className="h-20 w-auto object-contain drop-shadow-md shrink-0"
+                loading="eager"
+              />
+            </div>
+
+            {/* Earnings Ticker Strip */}
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-white/25 bg-white/15 px-3 py-2 text-[11px] backdrop-blur-md">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="size-3.5 text-emerald-200" />
+                <span className="font-semibold text-white">Per Order:</span>
+              </div>
+              <span className="font-black text-emerald-100 text-xs">₹45 - ₹120 + 100% Tips</span>
+            </div>
+          </section>
+
+          {/* 3 Mobile Highlight Chips */}
+          <div className="grid grid-cols-3 gap-2">
+            {HIGHLIGHTS.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xs text-center"
+              >
+                <div className="mx-auto flex size-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 mb-1.5 border border-emerald-100">
+                  <item.icon className="size-3.5 stroke-[2.3]" />
+                </div>
+                <p className="text-[10px] font-black text-slate-900 truncate">{item.title}</p>
+                <p className="text-[8px] font-bold text-emerald-700 mt-0.5">{item.badge}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Right Column: Phone Login Card */}
-          <div className="mt-6 lg:col-span-5 lg:mt-0">
-            <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Phone className="size-4.5" />
-                  </span>
-                  <div>
-                    <h3 className="text-base font-black tracking-tight text-slate-900">
-                      Captain Mobile Login
-                    </h3>
-                    <p className="text-[10px] font-semibold text-slate-500">
-                      Login or Register in 2 Minutes
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-                  Step 1 of 2
+          {/* Mobile Login Card */}
+          <section className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <Phone className="size-4" />
                 </span>
-              </div>
-
-              <div className="mt-5 space-y-4">
                 <div>
-                  <label
-                    htmlFor="rider-phone"
-                    className="block text-[11px] font-black uppercase tracking-wider text-slate-600 mb-1.5"
-                  >
-                    Mobile Number
-                  </label>
-                  <div
-                    className={`flex items-center gap-3 rounded-2xl border bg-slate-50/80 px-4 py-3.5 transition-all duration-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 ${
-                      error ? "border-rose-400 bg-rose-50/50" : "border-slate-200"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5 text-sm font-black text-slate-900">
-                      🇮🇳 +91
-                    </span>
-                    <span className="h-5 w-px bg-slate-300" />
-                    <input
-                      id="rider-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel"
-                      maxLength={11}
-                      placeholder="98765 43210"
-                      value={formatDisplayValue(value)}
-                      aria-invalid={Boolean(error)}
-                      onChange={(e) => {
-                        const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
-                        setValue(cleaned);
+                  <h3 className="text-sm font-black tracking-tight text-slate-900">
+                    Captain Mobile Login
+                  </h3>
+                  <p className="text-[9px] font-semibold text-slate-500">
+                    Login or Register in 2 Minutes
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                Step 1 of 2
+              </span>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label
+                  htmlFor="rider-phone"
+                  className="block text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1"
+                >
+                  Mobile Number
+                </label>
+                <div
+                  className={`flex items-center gap-2.5 rounded-2xl border bg-slate-50/80 px-3.5 py-3 transition-all duration-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 ${
+                    error ? "border-rose-400 bg-rose-50/50" : "border-slate-200"
+                  }`}
+                >
+                  <span className="flex items-center gap-1 text-sm font-black text-slate-900">
+                    🇮🇳 +91
+                  </span>
+                  <span className="h-4.5 w-px bg-slate-300" />
+                  <input
+                    id="rider-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={11}
+                    placeholder="98765 43210"
+                    value={formatDisplayValue(value)}
+                    aria-invalid={Boolean(error)}
+                    onChange={(e) => {
+                      const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      setValue(cleaned);
+                      setError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        void handleContinue();
+                      }
+                    }}
+                    className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                  />
+                  {value ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setValue("");
                         setError(null);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          void handleContinue();
-                        }
-                      }}
-                      className="min-w-0 flex-1 bg-transparent text-base font-black tracking-wider text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
-                    />
-                    {value ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setValue("");
-                          setError(null);
-                        }}
-                        className="rounded-full p-1 text-slate-400 hover:text-slate-700"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {error ? (
-                    <p role="alert" className="mt-1.5 text-xs font-bold text-rose-600">
-                      {error}
-                    </p>
+                      className="rounded-full p-1 text-slate-400 hover:text-slate-700 active:scale-95"
+                    >
+                      <X className="size-4" />
+                    </button>
                   ) : null}
                 </div>
 
-                {/* Production Notice */}
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  We will send a 6-digit one-time password (OTP) to your mobile number for secure authentication.
-                </p>
-
-                {/* Submit Button */}
-                <button
-                  type="button"
-                  disabled={busy || value.replace(/\D/g, "").length < 10}
-                  onClick={() => void handleContinue()}
-                  className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md shadow-emerald-600/25 transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {busy ? (
-                    <Loader2 className="size-4.5 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <span>Get 6-Digit OTP</span>
-                      <ArrowRight className="size-4.5 stroke-[2.5] transition-transform group-hover:translate-x-1" />
-                    </>
-                  )}
-                </button>
-
-                {/* Separator */}
-                <div className="flex items-center gap-3 my-2">
-                  <span className="h-px flex-1 bg-slate-200" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    or
-                  </span>
-                  <span className="h-px flex-1 bg-slate-200" />
-                </div>
-
-                {/* Google Sign In */}
-                <button
-                  type="button"
-                  disabled={googleBusy}
-                  onClick={handleGoogle}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-3 text-xs font-black text-slate-800 shadow-sm transition-all duration-200 hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
-                >
-                  {googleBusy ? <Loader2 className="size-4 animate-spin" /> : <GoogleGlyph />}
-                  <span>Continue with Google</span>
-                </button>
+                {error ? (
+                  <p role="alert" className="mt-1 text-[11px] font-bold text-rose-600">
+                    {error}
+                  </p>
+                ) : null}
               </div>
 
-              {/* Security Trust Footnote */}
-              <div className="mt-5 flex items-center justify-center gap-2 border-t border-slate-100 pt-4 text-[10px] font-semibold text-slate-500">
-                <Lock className="size-3 text-emerald-600" />
-                <span>256-Bit Encrypted · UIDAI &amp; NPCI Compliant</span>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                We will send an SMS OTP to verify your mobile number.
+              </p>
+
+              {/* Submit Button */}
+              <button
+                type="button"
+                disabled={busy || value.replace(/\D/g, "").length < 10}
+                onClick={() => void handleContinue()}
+                className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md shadow-emerald-600/25 transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {busy ? (
+                  <Loader2 className="size-4.5 animate-spin text-white" />
+                ) : (
+                  <>
+                    <span>Get 6-Digit OTP</span>
+                    <ArrowRight className="size-4 stroke-[2.5] transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </button>
+
+              {/* Separator */}
+              <div className="flex items-center gap-2.5 my-1.5">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  or
+                </span>
+                <span className="h-px flex-1 bg-slate-200" />
               </div>
-            </section>
-          </div>
+
+              {/* Google Sign In */}
+              <button
+                type="button"
+                disabled={googleBusy}
+                onClick={handleGoogle}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-2.5 text-xs font-black text-slate-800 shadow-2xs transition-all duration-200 hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+              >
+                {googleBusy ? <Loader2 className="size-4 animate-spin" /> : <GoogleGlyph />}
+                <span>Continue with Google</span>
+              </button>
+            </div>
+
+            {/* Security Trust Footnote */}
+            <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3 text-[9px] font-semibold text-slate-500">
+              <Lock className="size-3 text-emerald-600" />
+              <span>256-Bit Encrypted · UIDAI &amp; NPCI Compliant</span>
+            </div>
+          </section>
         </div>
 
-        {/* Footer */}
-        <footer className="border-t border-slate-200/80 pt-4 text-center text-[10px] font-semibold text-slate-500">
-          QuickPress Delivery Fleet &copy; 2026 · Kasganj Operations Hub · Support: 1800-QUICKPRESS
+        {/* Android Footer */}
+        <footer className="border-t border-slate-200/80 pt-2.5 pb-safe text-center text-[9px] font-semibold text-slate-500">
+          QuickPress Captain App &copy; 2026 · Kasganj Fleet Hub
         </footer>
       </div>
     </main>

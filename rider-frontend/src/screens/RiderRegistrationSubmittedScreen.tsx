@@ -147,7 +147,7 @@ export function RiderRegistrationSubmittedScreen() {
       <div className="pointer-events-none absolute -top-40 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-amber-500/10 blur-[140px]" />
       <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-emerald-500/10 blur-[130px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-5 pb-10 pt-10 lg:max-w-2xl">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
         {/* Top Header */}
         <div>
           <div className="text-center">
@@ -268,7 +268,7 @@ export function RiderRegistrationSubmittedScreen() {
         </div>
 
         {/* Bottom Help & Support Section */}
-        <div className="mt-8 border-t border-slate-200/80 pt-5 text-center">
+        <div className="mt-6 border-t border-slate-200/80 pt-4 pb-safe text-center">
           <button
             type="button"
             onClick={() => setShowHelpModal(true)}

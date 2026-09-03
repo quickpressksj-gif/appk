@@ -102,7 +102,13 @@ export function RiderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const signIn = useCallback((next: RiderSession) => setSession(next), []);
+  const signIn = useCallback(
+    (next: RiderSession) => {
+      setSession(next);
+      if (next.phone) setPhone(next.phone);
+    },
+    [setPhone],
+  );
   const signOut = useCallback(() => {
     setSession(null);
     void logoutRider().catch(() => undefined);
@@ -110,7 +116,7 @@ export function RiderProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<RiderContextValue>(
     () => ({ session, phone, isOnline, hydrating, setPhone, setOnline: setOnlineWithBackend, signIn, signOut }),
-    [session, phone, isOnline, hydrating, setOnlineWithBackend, signIn, signOut],
+    [session, phone, isOnline, hydrating, setPhone, setOnlineWithBackend, signIn, signOut],
   );
 
   return <RiderContext.Provider value={value}>{children}</RiderContext.Provider>;

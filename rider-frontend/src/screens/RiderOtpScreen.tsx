@@ -119,7 +119,7 @@ export function RiderOtpScreen() {
       <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[130px]" />
       <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-teal-500/10 blur-[140px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col justify-between px-5 pb-8 pt-6">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-200/80 pb-4">
           <button
@@ -246,7 +246,7 @@ export function RiderOtpScreen() {
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200/80 pt-4 text-center text-[10px] font-semibold text-slate-500">
+        <footer className="border-t border-slate-200/80 pt-3 pb-safe text-center text-[10px] font-semibold text-slate-500">
           QuickPress Rider Support Helpline: 1800-QUICKPRESS
         </footer>
       </div>

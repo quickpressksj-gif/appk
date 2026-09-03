@@ -718,7 +718,7 @@ export function RiderRegistrationScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground pt-safe">
       <Toaster position="top-center" richColors />
       <RiderTopBar
         title="Captain Onboarding"
@@ -745,7 +745,7 @@ export function RiderRegistrationScreen() {
         onClose={() => setScannerOverlay((prev) => ({ ...prev, isOpen: false }))}
       />
 
-      <main className="mx-auto max-w-lg pb-32">
+      <main className="mx-auto max-w-md pb-36">
         {/* Progress Stepper */}
         <OnboardingStepper steps={ONBOARDING_STEPS} current={step} />
 
@@ -1682,13 +1682,13 @@ export function RiderRegistrationScreen() {
         </div>
 
         {/* Floating Bottom Navigation Bar */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-4 backdrop-blur-md">
-          <div className="mx-auto flex max-w-lg items-center gap-3">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 pt-3 pb-safe backdrop-blur-md">
+          <div className="mx-auto flex max-w-md items-center gap-3">
             {step > 1 && (
               <button
                 type="button"
                 onClick={handleBack}
-                className="rounded-2xl border border-border bg-card px-5 py-3.5 text-xs font-bold text-foreground transition-colors hover:bg-muted"
+                className="rounded-2xl border border-border bg-card px-5 py-3.5 text-xs font-bold text-foreground transition-colors hover:bg-muted active:scale-95"
               >
                 Back
               </button>
@@ -1698,7 +1698,7 @@ export function RiderRegistrationScreen() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-400 py-3.5 text-xs font-black text-black shadow-lg shadow-amber-400/20 transition-transform active:scale-[0.98] hover:bg-amber-300"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-transform active:scale-[0.98] hover:bg-emerald-700"
               >
                 <span>Continue</span>
                 <Check className="size-4 stroke-[3]" />
@@ -1708,7 +1708,7 @@ export function RiderRegistrationScreen() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || !form.termsAccepted}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 py-3.5 text-xs font-black text-black shadow-lg shadow-amber-400/30 transition-transform active:scale-[0.98] disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-[0.98] disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
@@ -1717,8 +1717,8 @@ export function RiderRegistrationScreen() {
                   </>
                 ) : (
                   <>
-                    <span>Submit & Request Admin Approval</span>
-                    <Sparkles className="size-4 fill-black" />
+                    <span>Submit &amp; Request Admin Approval</span>
+                    <Sparkles className="size-4 fill-white" />
                   </>
                 )}
               </button>
