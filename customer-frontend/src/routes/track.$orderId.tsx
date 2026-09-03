@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { OrderReviewModal } from "@/components/orders/OrderReviewModal";
 import { useCustomerOrderRealtime } from "@/shared/hooks/use-customer-realtime";
 import { GoogleMapView, type MapPoint } from "@/shared/ui/google-map";
+import { LiveDeliveryMap } from "@/components/map/LiveDeliveryMap";
 
 import { TrackingSkeleton } from "@/components/order/OrderSkeleton";
 import {
@@ -246,7 +247,7 @@ function TrackOrderScreen() {
             {/* Live Interactive Map */}
             <section className="">
               <div className="card-soft relative overflow-hidden border border-border">
-                <div className="relative h-56 bg-muted">
+                <div className="relative min-h-[260px] bg-muted">
                   {(() => {
                     const riderLat = live?.riderLocation?.lat ?? Number((detail?.rider as any)?.location?.latitude ?? (detail?.rider as any)?.latitude);
                     const riderLng = live?.riderLocation?.lng ?? Number((detail?.rider as any)?.location?.longitude ?? (detail?.rider as any)?.longitude);
@@ -260,55 +261,26 @@ function TrackOrderScreen() {
                     const custLng = Number((detail?.address as any)?.longitude);
                     const hasCustLocation = Boolean(custLat && custLng && !isNaN(custLat) && !isNaN(custLng));
 
-                    const mapCenter = hasRiderLocation
-                      ? { latitude: riderLat, longitude: riderLng, label: "Delivery Captain", tone: "primary" as const }
-                      : hasPartnerLocation
-                        ? { latitude: partnerLat, longitude: partnerLng, label: "QuickPress Store", tone: "secondary" as const }
-                        : hasCustLocation
-                          ? { latitude: custLat, longitude: custLng, label: "Delivery Address", tone: "primary" as const }
-                          : { latitude: 27.8118, longitude: 78.6477, label: "Kasganj", tone: "secondary" as const };
+                    const riderCoord = hasRiderLocation
+                      ? { lat: riderLat, lng: riderLng, label: "Delivery Captain (Live)" }
+                      : null;
 
-                    const markers = [
-                      ...(hasRiderLocation
-                        ? [{ id: "rider", latitude: riderLat, longitude: riderLng, label: "Delivery Captain (Live)", tone: "primary" as const }]
-                        : []),
-                      ...(hasPartnerLocation
-                        ? [{ id: "partner", latitude: partnerLat, longitude: partnerLng, label: "QuickPress Store", tone: "secondary" as const }]
-                        : []),
-                      ...(hasCustLocation
-                        ? [{ id: "customer", latitude: custLat, longitude: custLng, label: "Your Location", tone: "primary" as const }]
-                        : []),
-                    ];
+                    const partnerCoord = hasPartnerLocation
+                      ? { lat: partnerLat, lng: partnerLng, label: (detail?.partner as any)?.name || "QuickPress Store" }
+                      : null;
+
+                    const custCoord = hasCustLocation
+                      ? { lat: custLat, lng: custLng, label: "Your Location", sublabel: (detail?.address as any)?.street || "" }
+                      : null;
 
                     return (
-                      <GoogleMapView
-                        className="h-full w-full"
-                        interactive={true}
-                        zoom={15}
-                        center={mapCenter}
-                        markers={markers}
-                        fallback={
-                          <div className="relative h-full w-full bg-muted">
-                            <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [background-size:28px_28px]" />
-                            <svg viewBox="0 0 320 176" className="absolute inset-0 h-full w-full">
-                              <path
-                                d="M28 148 C 90 148, 96 96, 150 92 S 244 60, 292 34"
-                                fill="none"
-                                stroke="currentColor"
-                                className="text-primary"
-                                strokeWidth="4"
-                                strokeLinecap="round"
-                                strokeDasharray="10 12"
-                              />
-                            </svg>
-                            <span className="absolute bottom-6 left-5 flex size-9 items-center justify-center rounded-full bg-card text-brand-green shadow-soft">
-                              <MapPin className="size-4" />
-                            </span>
-                            <span className="absolute right-6 top-6 flex size-9 items-center justify-center rounded-full bg-card text-primary shadow-soft">
-                              <Package className="size-4" />
-                            </span>
-                          </div>
-                        }
+                      <LiveDeliveryMap
+                        riderLocation={riderCoord}
+                        destinationLocation={custCoord || partnerCoord}
+                        storeLocation={partnerCoord}
+                        phase={stageIndex <= 1 ? "pickup" : "delivery"}
+                        heightClassName="h-64 sm:h-72"
+                        showControls={true}
                       />
                     );
                   })()}

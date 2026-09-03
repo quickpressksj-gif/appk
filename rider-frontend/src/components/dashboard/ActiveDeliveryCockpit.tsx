@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { playSuccessChime, triggerHaptic } from "../../lib/captain-audio";
+import { LiveDeliveryMap } from "../map/LiveDeliveryMap";
 
 export type ActiveOrder = {
   id: string;
@@ -38,9 +39,11 @@ export type ActiveOrder = {
 export function ActiveDeliveryCockpit({
   order,
   onUpdateStatus,
+  riderCoords,
 }: {
   order: ActiveOrder;
   onUpdateStatus: (orderId: string, nextStatus: ActiveOrder["status"]) => Promise<void> | void;
+  riderCoords?: { lat: number; lng: number } | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [otpInput, setOtpInput] = useState("");
@@ -116,15 +119,33 @@ export function ActiveDeliveryCockpit({
     }
   };
 
+  const currentRiderPoint = riderCoords
+    ? { lat: riderCoords.lat, lng: riderCoords.lng, label: "Captain (You)" }
+    : { lat: 27.8118, lng: 78.6477, label: "Captain (You)" };
+
+  const targetPoint = isPickupPhase
+    ? {
+        lat: currentRiderPoint.lat + 0.0075,
+        lng: currentRiderPoint.lng + 0.0065,
+        label: targetName,
+        sublabel: targetAddress,
+      }
+    : {
+        lat: currentRiderPoint.lat - 0.0065,
+        lng: currentRiderPoint.lng - 0.0055,
+        label: targetName,
+        sublabel: targetAddress,
+      };
+
   return (
     <div className="w-full select-none">
-      <div className="overflow-hidden rounded-3xl border-2 border-emerald-800 bg-white shadow-lg">
-        {/* Phase Header Bar — Pure White and Dark Green */}
-        <div className="bg-emerald-900 p-4 sm:p-5 text-white flex items-center justify-between">
+      <div className="overflow-hidden rounded-3xl border-2 border-emerald-800 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200">
+        {/* Action Header Banner */}
+        <div className="bg-emerald-900 px-5 py-4 sm:px-6 flex items-center justify-between gap-3 text-white">
           <div className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-full bg-emerald-800 border border-emerald-700 text-sm font-black text-white">
-              {isPickupPhase ? "1" : "2"}
-            </span>
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-xs text-white">
+              {isPickupPhase ? <Package className="size-5" /> : <Truck className="size-5" />}
+            </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
                 {isPickupPhase ? "STEP 1: CUSTOMER PICKUP" : "STEP 2: STORE DELIVERY"}
@@ -165,6 +186,17 @@ export function ActiveDeliveryCockpit({
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Real-time Interactive Leaflet Live Map */}
+          <div className="overflow-hidden rounded-2xl border border-emerald-200">
+            <LiveDeliveryMap
+              riderLocation={currentRiderPoint}
+              destinationLocation={targetPoint}
+              phase={isPickupPhase ? "pickup" : "delivery"}
+              heightClassName="h-60 sm:h-72"
+              onOpenNavigation={handleOpenMaps}
+            />
           </div>
 
           {/* TWO GIANT 1-TAP BIKE BUTTONS (White & Dark Green Theme) */}

@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Clock3, IndianRupee, Timer, X } from "lucide-react";
+import { Check, ChevronRight, Clock3, IndianRupee, MapPin, Timer, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export type LiveOrder = {
@@ -45,12 +45,14 @@ export function LiveOrderCard({
   onAccept,
   onReject,
   onView,
+  onTrackMap,
 }: {
   order: LiveOrder;
   delay?: number;
   onAccept: (order: LiveOrder) => void;
   onReject: (order: LiveOrder) => void;
   onView: (order: LiveOrder) => void;
+  onTrackMap?: (order: LiveOrder) => void;
 }) {
   const isPending = order.status === "pending";
   const [countdown, setCountdown] = useState(60);
@@ -167,9 +169,19 @@ export function LiveOrderCard({
               </button>
             </>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-black text-emerald-800">
-              <Check className="size-3.5" /> Accepted
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-black text-emerald-800">
+                <Check className="size-3.5" /> Accepted
+              </span>
+              <button
+                type="button"
+                onClick={() => onTrackMap?.(order)}
+                className="flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-2 text-xs font-black transition-all hover:bg-emerald-100 active:scale-95 cursor-pointer"
+              >
+                <MapPin className="size-3.5 text-emerald-700" />
+                <span>Live Map</span>
+              </button>
+            </>
           )}
           <button
             type="button"

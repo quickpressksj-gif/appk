@@ -1,10 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, LayoutGrid, Plus, ShoppingBag, Sparkles, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, LayoutGrid, MapPin, Plus, ShoppingBag, Sparkles, TrendingUp, Wallet, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
 import type { EarningsSummary, PartnerOrderStatus } from "@/shared/types/partner";
+import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
 
 import { SectionHeading } from "../components/PartnerPrimitives";
 import { PartnerLayout } from "../components/layout/PartnerLayout";
@@ -109,6 +110,7 @@ export function PartnerDashboardScreen() {
   const [isOnline, setIsOnline] = useState(cached.isOnline);
   const [isLoading, setIsLoading] = useState(() => !cached.shop && !cached.summary && !session);
   const [error, setError] = useState<string | null>(null);
+  const [trackingOrder, setTrackingOrder] = useState<LiveOrder | null>(null);
 
   const load = useCallback(async () => {
     if (!shop && !summary) setIsLoading(true);
@@ -381,6 +383,7 @@ export function PartnerDashboardScreen() {
                           onAccept={handleAccept}
                           onReject={handleReject}
                           onView={handleView}
+                          onTrackMap={(o) => setTrackingOrder(o)}
                         />
                       ))}
                     </div>
@@ -419,6 +422,82 @@ export function PartnerDashboardScreen() {
           )}
         </PullToRefresh>
       </div>
+
+      {/* Live Captain Fleet Tracking Modal */}
+      {trackingOrder ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
+                  <MapPin className="size-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900">
+                    Live Captain Tracking
+                  </h3>
+                  <p className="text-[11px] font-semibold text-slate-500">
+                    Order #{trackingOrder.code} · {trackingOrder.customerName}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTrackingOrder(null)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Map Body */}
+            <div className="p-4 space-y-3">
+              <LiveDeliveryMap
+                storeLocation={{
+                  lat: 27.8118,
+                  lng: 78.6477,
+                  label: session?.businessName || "My Laundry Store",
+                  sublabel: "Store Hub",
+                }}
+                destinationLocation={{
+                  lat: 27.8118 + 0.0075,
+                  lng: 78.6477 + 0.0065,
+                  label: trackingOrder.customerName,
+                  sublabel: "Customer Delivery Location",
+                }}
+                riderLocation={{
+                  lat: 27.8118 + 0.0035,
+                  lng: 78.6477 + 0.0028,
+                  label: "Assigned Captain",
+                  sublabel: "On the way to store",
+                }}
+                phase="pickup"
+                heightClassName="h-72 sm:h-80"
+                showControls={true}
+              />
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Captain Status</span>
+                  <p className="font-black text-slate-900 flex items-center gap-1.5 mt-0.5">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Approaching Store (~4 mins)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTrackingOrder(null)}
+                  className="rounded-xl bg-zinc-900 px-3.5 py-1.5 font-bold text-white text-xs hover:bg-black cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {sheetNode}
       {overlay}

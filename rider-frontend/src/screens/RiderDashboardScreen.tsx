@@ -44,6 +44,7 @@ import { BikeDutyBanner } from "../components/dashboard/BikeDutyBanner";
 import { ActiveDeliveryCockpit, type ActiveOrder } from "../components/dashboard/ActiveDeliveryCockpit";
 import { IncomingOrderAlertModal, type IncomingOffer } from "../components/dashboard/IncomingOrderAlertModal";
 import { playSuccessChime, triggerHaptic } from "../lib/captain-audio";
+import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
 
 const LOCAL_STORAGE_ACTIVE_ORDER_KEY = "qp.rider.activeOrder";
 
@@ -67,6 +68,7 @@ export function RiderDashboardScreen() {
   const [captainRating, setCaptainRating] = useState(5.0);
   const [captainName, setCaptainName] = useState(session?.fullName || "Delivery Captain");
   const [captainId, setCaptainId] = useState(session?.riderId || "—");
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const geoWatchIdRef = useRef<number | null>(null);
@@ -182,6 +184,7 @@ export function RiderDashboardScreen() {
       geoWatchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
+          setCurrentCoords({ lat: latitude, lng: longitude });
           void pushRiderLocation(latitude, longitude).catch(() => {});
         },
         () => {},
@@ -326,7 +329,30 @@ export function RiderDashboardScreen() {
             <ActiveDeliveryCockpit
               order={activeOrder}
               onUpdateStatus={handleUpdateOrderStatus}
+              riderCoords={currentCoords}
             />
+          </div>
+        ) : isOnline ? (
+          <div className="rounded-3xl border border-emerald-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                  Live Duty GPS Radar Active
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500">
+                Auto-Dispatch Ready
+              </span>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-emerald-100">
+              <LiveDeliveryMap
+                riderLocation={currentCoords ? { lat: currentCoords.lat, lng: currentCoords.lng, label: "Captain (You)" } : null}
+                phase="online"
+                heightClassName="h-48 sm:h-56"
+                showControls={true}
+              />
+            </div>
           </div>
         ) : null}
 
