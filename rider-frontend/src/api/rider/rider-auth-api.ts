@@ -42,6 +42,7 @@ export async function requestOtp(phone: string) {
   const e164 = toE164(phone);
   return sendPhoneOtp(e164, ROLE);
 }
+export const sendOtp = requestOtp;
 
 export async function verifyOtp(phone: string, code: string): Promise<RiderSession> {
   const e164 = toE164(phone);
@@ -97,32 +98,36 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
     }>("/api/rider/auth/registration", { payload }, { timeoutMs: 60_000, anonymous: true });
   }
 
-
-
   const currentSession = readSession(ROLE);
   if (currentSession && currentSession.account) {
     const updatedSession = {
       ...currentSession,
       account: {
         ...currentSession.account,
-        name: res.fullName || currentSession.account.name,
-        linkedId: res.riderId,
+        name: res.fullName,
+        isOnboarded: true,
         isVerified: res.isVerified,
-        isOnboarded: res.isOnboarded,
       },
     };
     writeSession(updatedSession, ROLE);
   }
 
-  return {
-    riderId: res.riderId,
-    phone: res.phone,
-    fullName: res.fullName,
-    isVerified: res.isVerified,
-    isOnboarded: res.isOnboarded,
-    isNewRider: !res.isOnboarded,
-  };
+  return toRiderSession({
+    token: currentSession?.token || `qp_token_${Date.now()}`,
+    refreshToken: currentSession?.refreshToken || `qp_refresh_${Date.now()}`,
+    expiresAt: currentSession?.expiresAt || new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+    account: {
+      id: res.riderId,
+      phone: res.phone,
+      name: res.fullName,
+      role: ROLE,
+      isVerified: res.isVerified,
+      isOnboarded: true,
+      linkedId: res.riderId,
+    },
+  });
 }
+export const registerRider = submitRiderRegistration;
 
 export async function sendAadhaarOtp(aadhaarNumber: string) {
   return apiPostJson<{
