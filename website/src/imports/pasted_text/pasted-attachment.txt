@@ -1,0 +1,409 @@
+## QuickPress — Homepage Figma Design Prompt
+
+Design a **premium, modern, high-conversion corporate startup homepage for “QuickPress”**, an information-focused website for a modern on-demand services and delivery platform.
+
+### Design Inspiration
+
+Take **Pronto-style modern startup website design inspiration** — especially its clean layout, strong typography, spacious sections, modern cards, smooth transitions, premium SaaS/startup feel and simple navigation.
+
+**Do NOT copy Pronto’s exact layout, text, graphics, illustrations, branding or components.** Use it only as visual inspiration and create a completely original QuickPress design.
+
+### Brand Style
+
+* Background: **Pure White**
+* Primary text: **Black / near-black**
+* Primary brand color: **QuickPress Green**
+* Secondary accent: **Yellow**, used selectively
+* Clean premium typography
+* Large bold headings
+* Generous whitespace
+* Minimal borders
+* Soft rounded cards
+* Subtle shadows only where required
+* Modern professional startup appearance
+* Avoid excessive gradients
+* Avoid a generic AI-generated website look
+* The final design should look like it was created by a professional product/UI design agency.
+
+---
+
+## 1. NAVBAR
+
+Create a clean sticky navigation bar.
+
+Left:
+**QuickPress Logo**
+
+Center navigation:
+
+* Home
+* About
+* Services
+* How It Works
+* Partners
+* Careers
+
+Right:
+**Contact Us**
+**Get Started** — green filled button
+
+Navbar should become slightly compact while scrolling.
+
+---
+
+## 2. HERO SECTION
+
+Create a large, visually impressive hero section.
+
+Small label:
+
+**THE SMARTER WAY TO GET THINGS DONE**
+
+Main headline:
+
+**Everyday Services.
+Made Simple.**
+
+Highlight the word **Simple** with QuickPress green.
+
+Supporting text:
+
+**QuickPress connects customers, businesses and service partners through one simple, reliable platform.**
+
+CTA buttons:
+
+**Get Started →**
+
+**Explore QuickPress**
+
+On the right side, create an original visual showing the QuickPress ecosystem:
+
+Customer → QuickPress → Service Partner → Delivery
+
+Use clean floating UI cards rather than a generic stock illustration.
+
+Floating cards can show:
+
+* Order Confirmed
+* Pickup Scheduled
+* Processing
+* Out for Delivery
+* Delivered
+
+Add subtle green and yellow visual accents.
+
+Hero should immediately communicate:
+**technology + convenience + services + delivery.**
+
+---
+
+## 3. TRUST / QUICK STATS STRIP
+
+Under the hero, create a minimal horizontal section:
+
+**Built for everyday convenience**
+
+Then 4 compact statistics:
+
+**Fast Service**
+Quick & convenient operations
+
+**Reliable Partners**
+Trusted service ecosystem
+
+**Simple Experience**
+Designed around the customer
+
+**Smart Operations**
+Technology-driven platform
+
+Do not use fake numerical statistics.
+
+---
+
+## 4. WHAT IS QUICKPRESS?
+
+Create a large editorial-style section.
+
+Left:
+Large heading:
+
+**One platform.
+Multiple everyday needs.**
+
+Right:
+2–3 short paragraphs explaining QuickPress.
+
+Use a large abstract green QuickPress visual / ecosystem diagram.
+
+Include a small label:
+
+**ABOUT QUICKPRESS**
+
+Add a subtle yellow accent element.
+
+---
+
+## 5. SERVICES SECTION
+
+Heading:
+
+**Everything you need, in one place.**
+
+Supporting text:
+
+**QuickPress brings everyday services together through a simple digital experience.**
+
+Create 4 large modern service cards:
+
+### Laundry
+
+Pickup, processing and delivery made simple.
+
+### Pickup & Delivery
+
+Convenient movement of items from one place to another.
+
+### Business Services
+
+Technology and operational support for businesses.
+
+### Local Services
+
+A growing ecosystem of useful everyday services.
+
+Each card should have:
+
+* Original minimal icon/visual
+* Service name
+* Short description
+* Arrow button
+
+Use different compositions inside cards while maintaining a consistent design system.
+
+---
+
+## 6. HOW QUICKPRESS WORKS
+
+Create a visually strong horizontal process section.
+
+Small label:
+
+**HOW IT WORKS**
+
+Heading:
+
+**From request to delivery, without the complexity.**
+
+Four steps:
+
+**01 — Book**
+Choose the service you need.
+
+**02 — Pickup**
+Your order is collected at the scheduled time.
+
+**03 — Process**
+Our service network handles the request.
+
+**04 — Deliver**
+Your order reaches you safely and conveniently.
+
+Connect the four steps with a thin green line.
+
+Add subtle scroll animation indicators.
+
+---
+
+## 7. CUSTOMER + PARTNER SECTION
+
+Create a split-screen section.
+
+Left side:
+
+### For Customers
+
+**Simple services. Better experience.**
+
+* Easy booking
+* Pickup & delivery
+* Order updates
+* Transparent experience
+* Convenient support
+
+Button:
+**Get Started →**
+
+Right side:
+
+### For Partners
+
+**Grow your business with QuickPress.**
+
+* Digital onboarding
+* Order management
+* Business visibility
+* Operational support
+* Partner ecosystem
+
+Button:
+**Become a Partner →**
+
+Use contrasting but harmonious white/green layouts.
+
+---
+
+## 8. QUICKPRESS ECOSYSTEM
+
+Create a premium dark/green visual section.
+
+Heading:
+
+**Connecting people, services and possibilities.**
+
+Show a central QuickPress node connected to:
+
+**Customers**
+**Partners**
+**Businesses**
+**Delivery**
+**Services**
+
+Use animated-looking connecting lines and floating cards.
+
+This should be one of the strongest visual sections on the homepage.
+
+---
+
+## 9. WHY QUICKPRESS
+
+Heading:
+
+**Built around simplicity.**
+
+Create 4 feature blocks:
+
+**Convenient**
+Everything designed to reduce unnecessary steps.
+
+**Reliable**
+A service ecosystem built around dependable operations.
+
+**Transparent**
+Clear communication throughout the experience.
+
+**Scalable**
+Technology designed to grow with customers and partners.
+
+Use minimalist icons and plenty of whitespace.
+
+---
+
+## 10. FINAL CTA
+
+Create a large premium CTA section.
+
+Heading:
+
+**Ready to experience QuickPress?**
+
+Supporting text:
+
+**Discover a simpler way to manage everyday services.**
+
+Buttons:
+
+**Get Started →**
+
+**Partner With Us →**
+
+Use a large abstract QuickPress green visual in the background with subtle yellow details.
+
+---
+
+## 11. FOOTER
+
+Create a professional multi-column footer.
+
+### QuickPress
+
+Short company description.
+
+### Company
+
+* About
+* Services
+* How It Works
+* Careers
+
+### Partners
+
+* Become a Partner
+* Partner Benefits
+* Partner Support
+
+### Support
+
+* Contact
+* Help
+* FAQs
+
+### Legal
+
+* Privacy Policy
+* Terms & Conditions
+* Refund Policy
+
+Bottom:
+
+**© 2026 QuickPress. All rights reserved.**
+
+Social icons.
+
+---
+
+# UI / UX REQUIREMENTS
+
+Create the complete homepage as a **high-fidelity Figma desktop design**, approximately **1440px wide**.
+
+Also create responsive versions for:
+
+* Desktop: 1440px
+* Tablet: 768px
+* Mobile: 390px
+
+Use:
+
+* 12-column desktop grid
+* Consistent 8px spacing system
+* Auto Layout
+* Reusable components
+* Component variants
+* Proper typography hierarchy
+* Responsive constraints
+* Consistent button states
+* Hover states
+* Smooth micro-interactions
+
+### Animation Direction
+
+Design the UI so it can later support:
+
+* Hero floating-card animation
+* Smooth section reveal
+* Card hover movement
+* Button hover animation
+* Number/stat fade-in
+* Process-line animation
+* Ecosystem connection animation
+* Subtle navbar transition on scroll
+
+Animations should feel **premium and restrained**, not flashy.
+
+### Important
+
+The website must feel like a **real technology company website**, not an AI template.
+
+Use **Pronto as inspiration for the overall premium startup feel**, but create a completely original QuickPress visual identity, layout, copy, graphics and components.
+
+The final Figma homepage should look suitable for an actual company launch and should be developer-ready.

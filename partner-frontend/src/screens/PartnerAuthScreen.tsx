@@ -547,8 +547,8 @@ export function PartnerAuthScreen() {
         <footer className="flex items-center justify-between border-t border-zinc-200/80 pt-6 text-xs text-zinc-500">
           <span>© 2026 QuickPress Technologies Inc. All rights reserved.</span>
           <div className="flex items-center gap-6">
-            <span className="hover:underline cursor-pointer">Partner Terms</span>
-            <span className="hover:underline cursor-pointer">Privacy Policy</span>
+            <a href="/legal/terms" target="_blank" rel="noreferrer" className="hover:underline cursor-pointer">Partner Terms</a>
+            <a href="/legal/privacy-policy" target="_blank" rel="noreferrer" className="hover:underline cursor-pointer">Privacy Policy</a>
             <span className="hover:underline cursor-pointer">Security Center</span>
           </div>
         </footer>

@@ -1,0 +1,10 @@
+{
+  "description": "Connects businesses with on-demand local service professionals instantly, streamlining hiring and ensuring reliable, fast service delivery.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

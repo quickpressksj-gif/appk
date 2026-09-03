@@ -23,7 +23,9 @@
     "build:rider": "cd rider-frontend && QUICKPRESS_APP=rider vite build",
     "dev:admin": "cd admin-frontend && QUICKPRESS_APP=admin vite dev --port 8084",
     "typecheck:admin": "cd admin-frontend && tsc --noEmit -p tsconfig.typecheck.json",
-    "build:admin": "cd admin-frontend && QUICKPRESS_APP=admin vite build"
+    "build:admin": "cd admin-frontend && QUICKPRESS_APP=admin vite build",
+    "dev:website": "cd website && vite dev --port 8080",
+    "build:website": "cd website && vite build"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
