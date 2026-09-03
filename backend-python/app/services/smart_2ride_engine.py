@@ -888,9 +888,12 @@ class Smart2RideEngine:
             },
         )
 
-        # Settle rider earnings and financials
-        from app.services.financial_engine import financial_engine
-        financial_engine.record_delivery_completion_financials(order)
+        # Settle partner, rider, and platform financials via settlement_engine
+        try:
+            from app.services.settlement_engine import settlement_engine
+            await settlement_engine.settle_order_on_completion(order)
+        except Exception as err:
+            logger.warning(f"Settlement completion hook error: {err}")
 
         updated = await lifecycle.find_order(canonical_id)
         if updated:

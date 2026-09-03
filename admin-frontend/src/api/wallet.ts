@@ -269,3 +269,91 @@ export async function approveAdminRefund(refundId: string) {
 export async function rejectAdminRefund(refundId: string, reason: string) {
   return await apiPostJson<{ ok: boolean }>(`/api/admin/refunds/${refundId}/reject`, { reason });
 }
+
+export type SettlementSummary = {
+  totalGmv: number;
+  totalPartnerSettled: number;
+  totalPartnerPending: number;
+  totalRiderSettled: number;
+  totalRiderPending: number;
+  totalPlatformCommission: number;
+  totalPlatformNetMargin: number;
+  settledOrdersCount: number;
+  pendingPayoutsCount: number;
+};
+
+export type SettlementRecordItem = {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  role: "partner" | "rider";
+  accountName: string;
+  grossAmount: number;
+  commission: number;
+  netPayout: number;
+  status: "SETTLED" | "PENDING" | "REJECTED";
+  utr: string;
+  date: string;
+};
+
+export type SettlementsOverview = {
+  summary: SettlementSummary;
+  settlements: SettlementRecordItem[];
+  cycles: Array<{
+    cycleId: string;
+    title: string;
+    period: string;
+    startDate: string;
+    endDate: string;
+    payoutDate: string;
+    status: string;
+    isCurrent: boolean;
+  }>;
+};
+
+export async function fetchSettlementsOverview(): Promise<SettlementsOverview> {
+  try {
+    const res = await apiGetJson<SettlementsOverview>("/api/admin/settlements/overview");
+    return (
+      res || {
+        summary: {
+          totalGmv: 0,
+          totalPartnerSettled: 0,
+          totalPartnerPending: 0,
+          totalRiderSettled: 0,
+          totalRiderPending: 0,
+          totalPlatformCommission: 0,
+          totalPlatformNetMargin: 0,
+          settledOrdersCount: 0,
+          pendingPayoutsCount: 0,
+        },
+        settlements: [],
+        cycles: [],
+      }
+    );
+  } catch {
+    return {
+      summary: {
+        totalGmv: 0,
+        totalPartnerSettled: 0,
+        totalPartnerPending: 0,
+        totalRiderSettled: 0,
+        totalRiderPending: 0,
+        totalPlatformCommission: 0,
+        totalPlatformNetMargin: 0,
+        settledOrdersCount: 0,
+        pendingPayoutsCount: 0,
+      },
+      settlements: [],
+      cycles: [],
+    };
+  }
+}
+
+export async function batchDisburseSettlements() {
+  return await apiPostJson<{ ok: boolean; disbursedCount: number; totalAmount: number }>("/api/admin/settlements/batch-disburse", {});
+}
+
+export async function approveSettlementRecord(settlementId: string, utr?: string) {
+  return await apiPostJson<{ ok: boolean }>(`/api/admin/settlements/${settlementId}/approve`, { utr });
+}

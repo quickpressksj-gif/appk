@@ -77,9 +77,14 @@ import {
   initiateAdminRefund,
   rejectAdminRefund,
   rejectWithdrawal,
+  fetchSettlementsOverview,
+  batchDisburseSettlements,
+  approveSettlementRecord,
   type AccountWallet,
   type Payout,
   type RefundRecord,
+  type SettlementsOverview,
+  type SettlementRecordItem,
 } from "../api/wallet";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
@@ -105,9 +110,12 @@ export function WalletPage() {
   const transactionsQuery = useQuery({ queryKey: ["admin", "finance", "transactions"], queryFn: fetchTransactions });
   const refundsQuery = useQuery({ queryKey: ["admin", "finance", "refunds"], queryFn: fetchAdminRefunds });
   const refundStatsQuery = useQuery({ queryKey: ["admin", "finance", "refund-stats"], queryFn: fetchAdminRefundsStats });
+  const settlementsQuery = useQuery({ queryKey: ["admin", "finance", "settlements-overview"], queryFn: fetchSettlementsOverview });
 
-  const [activeTab, setActiveTab] = useState<"wallets" | "refunds" | "withdrawals" | "split" | "ledger" | "cod">("wallets");
+  const [activeTab, setActiveTab] = useState<"settlements" | "wallets" | "refunds" | "withdrawals" | "split" | "ledger" | "cod">("settlements");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [settlementRoleFilter, setSettlementRoleFilter] = useState<"all" | "partner" | "rider">("all");
+  const [settlementStatusFilter, setSettlementStatusFilter] = useState<"all" | "settled" | "pending">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [adjustTarget, setAdjustTarget] = useState<AccountWallet | null>(null);
 
@@ -116,6 +124,7 @@ export function WalletPage() {
   const allTxns = transactionsQuery.data ?? [];
   const allRefunds = refundsQuery.data ?? [];
   const refundStats = refundStatsQuery.data;
+  const settlementsOverview = settlementsQuery.data;
 
   // Refund Actions Mutations
   const approveRefundMutation = useMutation({
@@ -151,6 +160,28 @@ export function WalletPage() {
     onError: () => toast.error("Failed to update withdrawal status."),
   });
 
+  const batchDisburseMutation = useMutation({
+    mutationFn: () => batchDisburseSettlements(),
+    onSuccess: (res) => {
+      toast.success(`Batch settlement executed! Disbursed ${res.disbursedCount} payouts (₹${res.totalAmount}). 🎉`);
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "settlements-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "all-wallets"] });
+    },
+    onError: () => toast.error("Failed to execute batch settlement."),
+  });
+
+  const approveSettlementMutation = useMutation({
+    mutationFn: (settlementId: string) => approveSettlementRecord(settlementId),
+    onSuccess: () => {
+      toast.success("Settlement payout marked as completed with bank UTR!");
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "settlements-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "finance", "withdrawals"] });
+    },
+    onError: () => toast.error("Failed to approve settlement."),
+  });
+
   const filteredWallets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return allWallets.filter((w) => {
@@ -166,6 +197,19 @@ export function WalletPage() {
       return !q || [r.refundNumber, r.orderNumber, r.customerName, r.customerPhone, r.reason, r.status].join(" ").toLowerCase().includes(q);
     });
   }, [allRefunds, searchQuery]);
+
+  const filteredSettlements = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const items = settlementsOverview?.settlements || [];
+    return items.filter((s) => {
+      const matchSearch =
+        !q || [s.accountName, s.orderCode, s.utr, s.role, s.id].join(" ").toLowerCase().includes(q);
+      const matchRole = settlementRoleFilter === "all" || s.role.toLowerCase() === settlementRoleFilter.toLowerCase();
+      const matchStatus =
+        settlementStatusFilter === "all" || s.status.toLowerCase() === settlementStatusFilter.toLowerCase();
+      return matchSearch && matchRole && matchStatus;
+    });
+  }, [settlementsOverview, searchQuery, settlementRoleFilter, settlementStatusFilter]);
 
   return (
     <AdminShell
@@ -263,6 +307,9 @@ export function WalletPage() {
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-100">
             <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
               <TabsList className="bg-zinc-100 p-1 rounded-xl">
+                <TabsTrigger value="settlements" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                  ⚖️ Auto Settlement Engine ({settlementsOverview?.settlements?.length ?? 0})
+                </TabsTrigger>
                 <TabsTrigger value="wallets" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
                   💳 All Accounts ({allWallets.length})
                 </TabsTrigger>
@@ -290,6 +337,187 @@ export function WalletPage() {
             </div>
           </div>
         </SectionCard>
+
+        {/* =========================================================================
+            AUTO SETTLEMENT & PROFIT MARGIN ENGINE TAB
+        ========================================================================= */}
+        {activeTab === "settlements" && (
+          <SectionCard
+            title="Auto Settlement & Profit Margin Engine"
+            description="Autonomous double-entry clearing house: Partner store net payouts, Captain delivery earnings, and QuickPress platform commission margin."
+            action={
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (confirm("Execute automated payout settlement for all pending partner and captain balances?")) {
+                    batchDisburseMutation.mutate();
+                  }
+                }}
+                disabled={batchDisburseMutation.isPending}
+                className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-sm"
+              >
+                <Banknote className={`size-3.5 ${batchDisburseMutation.isPending ? "animate-spin" : ""}`} />
+                <span>{batchDisburseMutation.isPending ? "Disbursing..." : "Batch Settle All Payouts"}</span>
+              </Button>
+            }
+          >
+            <div className="space-y-6">
+              {/* Settlement Metrics Cards */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/40 border border-emerald-100 shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
+                    <span>Partner Store Payouts</span>
+                    <Store className="size-4 text-emerald-600" />
+                  </div>
+                  <div className="mt-2 text-2xl font-black text-emerald-950">
+                    ₹{settlementsOverview?.summary.totalPartnerSettled?.toLocaleString("en-IN") || "0.00"}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-emerald-700">
+                    Net 85% item earnings settled to stores
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-100 shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-800">
+                    <span>Captain Delivery Payouts</span>
+                    <Bike className="size-4 text-amber-600" />
+                  </div>
+                  <div className="mt-2 text-2xl font-black text-amber-950">
+                    ₹{settlementsOverview?.summary.totalRiderSettled?.toLocaleString("en-IN") || "0.00"}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-amber-700">
+                    Pickup & doorstep delivery trip earnings
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-100 shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
+                    <span>Platform Commission (Revenue)</span>
+                    <TrendingUp className="size-4 text-indigo-600" />
+                  </div>
+                  <div className="mt-2 text-2xl font-black text-indigo-950">
+                    ₹{settlementsOverview?.summary.totalPlatformCommission?.toLocaleString("en-IN") || "0.00"}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-indigo-700">
+                    12% - 18% realized commission on orders
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50/40 border border-purple-100 shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-purple-800">
+                    <span>Platform Net Margin (Profit)</span>
+                    <ShieldCheck className="size-4 text-purple-600" />
+                  </div>
+                  <div className="mt-2 text-2xl font-black text-purple-950">
+                    ₹{settlementsOverview?.summary.totalPlatformNetMargin?.toLocaleString("en-IN") || "0.00"}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-purple-700">
+                    Pure platform net margin after all payouts
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Toolbar */}
+              <div className="pb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100">
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by order, partner, captain, or UTR..."
+                    className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Select value={settlementRoleFilter} onValueChange={(v: any) => setSettlementRoleFilter(v)}>
+                    <SelectTrigger className="h-9 w-44 rounded-xl bg-white text-xs border-zinc-200">
+                      <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">🌐 All Accounts</SelectItem>
+                      <SelectItem value="partner">🏪 Partner Stores Only</SelectItem>
+                      <SelectItem value="rider">🛵 Delivery Captains Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={settlementStatusFilter} onValueChange={(v: any) => setSettlementStatusFilter(v)}>
+                    <SelectTrigger className="h-9 w-36 rounded-xl bg-white text-xs border-zinc-200">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">⚡ All Status</SelectItem>
+                      <SelectItem value="settled">✅ Settled</SelectItem>
+                      <SelectItem value="pending">⏳ Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Settlements Table */}
+              <DataTable
+                headers={[
+                  "Recipient Account",
+                  "Account Type",
+                  "Order / Period",
+                  "Gross Value",
+                  "Commission / Deductions",
+                  "Net Payout",
+                  "Status",
+                  "Bank UTR Ref",
+                  "Date",
+                  "Action",
+                ]}
+                rows={filteredSettlements.map((s) => [
+                  <div key="acc" className="flex items-center gap-2">
+                    <div className={`size-7 rounded-lg flex items-center justify-center font-black text-xs ${
+                      s.role === "partner" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {s.role === "partner" ? <Store className="size-3.5" /> : <Bike className="size-3.5" />}
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-zinc-900">{s.accountName}</div>
+                      <div className="text-[10px] text-zinc-400">ID: {s.id.slice(0, 14)}</div>
+                    </div>
+                  </div>,
+                  <span key="role" className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                    s.role === "partner" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    {s.role === "partner" ? "Partner Store" : "Captain Fleet"}
+                  </span>,
+                  <span key="ord" className="font-mono text-xs font-bold text-zinc-800">{s.orderCode}</span>,
+                  <span key="gross" className="text-xs font-semibold text-zinc-600">₹{s.grossAmount.toFixed(2)}</span>,
+                  <span key="comm" className="text-xs font-semibold text-rose-600">-₹{s.commission.toFixed(2)}</span>,
+                  <span key="net" className="font-mono text-xs font-black text-emerald-950">₹{s.netPayout.toFixed(2)}</span>,
+                  <StatusPill
+                    key="status"
+                    status={s.status.toLowerCase() === "settled" ? "completed" : "pending"}
+                    label={s.status}
+                  />,
+                  <span key="utr" className="font-mono text-[11px] text-zinc-500">{s.utr}</span>,
+                  <span key="date" className="text-[11px] text-zinc-500">{s.date}</span>,
+                  <div key="act">
+                    {s.status.toLowerCase() === "pending" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => approveSettlementMutation.mutate(s.id)}
+                        disabled={approveSettlementMutation.isPending}
+                        className="h-7 text-[10px] font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                      >
+                        Settle Now
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1">
+                        <CheckCircle2 className="size-3 text-emerald-600" /> Settled
+                      </span>
+                    )}
+                  </div>,
+                ])}
+              />
+            </div>
+          </SectionCard>
+        )}
 
         {/* =========================================================================
             3. TAB 1: ALL WALLETS DIRECTORY

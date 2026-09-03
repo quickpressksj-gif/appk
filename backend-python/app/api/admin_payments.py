@@ -26,9 +26,27 @@ async def admin_dashboard(user: User = Depends(require_roles(Role.admin))) -> di
     return await repo.admin_dashboard()
 
 
+@router.get("/admin/settlements/overview")
+async def admin_settlements_overview(user: User = Depends(require_roles(Role.admin))) -> dict:
+    from app.services.settlement_engine import settlement_engine
+    return await settlement_engine.get_admin_settlements_overview()
+
+
+@router.post("/admin/settlements/batch-disburse")
+async def admin_batch_disburse_settlements(user: User = Depends(require_roles(Role.admin))) -> dict:
+    from app.services.settlement_engine import settlement_engine
+    return await settlement_engine.batch_disburse_pending()
+
+
 @router.get("/admin/settlements")
 async def admin_settlements(user: User = Depends(require_roles(Role.admin))) -> dict:
-    return await repo.all_settlements()
+    from app.services.settlement_engine import settlement_engine
+    overview = await settlement_engine.get_admin_settlements_overview()
+    items = overview.get("settlements") or []
+    if not items:
+        res = await repo.all_settlements()
+        items = res.get("items") or []
+    return {"items": items, "summary": overview.get("summary")}
 
 
 @router.post("/admin/settlements/{settlement_id}/approve")
@@ -159,20 +177,27 @@ async def admin_revenue_split(user: User = Depends(require_roles(Role.admin))) -
 
 @router.get("/admin/wallet/partner-earnings")
 async def admin_partner_earnings(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
-    partners = await database.find_many("partners", {})
+    partners = await database.find_many("partner_profiles", {})
+    if not partners:
+        partners = await database.find_many("admin_partners", {})
+    if not partners:
+        partners = await database.find_many("partners", {})
     orders = await database.find_many("customer_orders", {})
     
     rows = []
     for p in partners:
-        p_id = p.get("_id")
-        p_orders = [o for o in orders if o.get("partner_id") == p_id]
-        gross = sum(int(o.get("grand_total") or o.get("total") or 0) for o in p_orders)
-        commission = int(gross * 0.15)
-        net = gross - commission
+        p_id = str(p.get("_id") or p.get("id") or p.get("partnerId") or "")
+        p_orders = [
+            o for o in orders
+            if str((o.get("partner") or {}).get("id") or o.get("partner_id") or o.get("partnerId") or "") == p_id
+        ]
+        gross = sum(float(o.get("grand_total") or o.get("total") or 0) for o in p_orders)
+        commission = round(gross * 0.15, 2)
+        net = round(gross - commission - (gross * 0.01), 2)
         rows.append({
             "id": p_id,
-            "account": p.get("name", "Laundry Store"),
-            "city": p.get("city", "Delhi NCR"),
+            "account": p.get("businessName") or p.get("storeName") or p.get("name") or "Laundry Store",
+            "city": p.get("city") or "Kasganj",
             "orders": len(p_orders),
             "gross": gross,
             "commission": commission,
@@ -183,20 +208,27 @@ async def admin_partner_earnings(user: User = Depends(require_roles(Role.admin))
 
 @router.get("/admin/wallet/rider-earnings")
 async def admin_rider_earnings(user: User = Depends(require_roles(Role.admin))) -> list[dict]:
-    riders = await database.find_many("riders", {})
+    riders = await database.find_many("rider_profiles", {})
+    if not riders:
+        riders = await database.find_many("admin_riders", {})
+    if not riders:
+        riders = await database.find_many("riders", {})
     orders = await database.find_many("customer_orders", {})
     
     rows = []
     for r in riders:
-        r_id = r.get("_id")
-        r_orders = [o for o in orders if o.get("rider_id") == r_id]
-        gross = sum(int(o.get("grand_total") or o.get("total") or 0) for o in r_orders)
-        commission = int(gross * 0.10)
-        net = gross - commission
+        r_id = str(r.get("_id") or r.get("id") or r.get("riderId") or "")
+        r_orders = [
+            o for o in orders
+            if str((o.get("rider") or {}).get("id") or o.get("rider_id") or o.get("riderId") or "") == r_id
+        ]
+        gross = sum(float(o.get("grand_total") or o.get("total") or 0) for o in r_orders)
+        commission = round(gross * 0.10, 2)
+        net = round(gross - commission, 2)
         rows.append({
             "id": r_id,
-            "account": r.get("name", "Rider Partner"),
-            "city": r.get("city", "Delhi NCR"),
+            "account": r.get("fullName") or r.get("name") or "Captain",
+            "city": r.get("city") or "Kasganj",
             "orders": len(r_orders),
             "gross": gross,
             "commission": commission,

@@ -385,13 +385,18 @@ async def transition(
         changes=changes,
     )
 
-    # Referral engine settlement hook: disburse referrer reward when first order is delivered
+    # Referral & Settlement engine hooks on order delivery
     if target in (DELIVERED, COMPLETED):
         try:
             from app.db.referral_repositories import referral_repository
             await referral_repository.on_order_delivered(updated)
         except Exception:
             pass
+        try:
+            from app.services.settlement_engine import settlement_engine
+            await settlement_engine.settle_order_on_completion(updated)
+        except Exception as err:
+            logger.warning(f"Settlement engine hook error: {err}")
 
     return updated
 
