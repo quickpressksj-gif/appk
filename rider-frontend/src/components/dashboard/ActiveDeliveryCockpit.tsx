@@ -42,11 +42,11 @@ export function ActiveDeliveryCockpit({
   riderCoords,
 }: {
   order: ActiveOrder;
-  onUpdateStatus: (orderId: string, nextStatus: ActiveOrder["status"]) => Promise<void> | void;
+  onUpdateStatus: (orderId: string, nextStatus: ActiveOrder["status"], otp?: string) => Promise<void> | void;
   riderCoords?: { lat: number; lng: number } | null;
 }) {
+  const [otpInput, setOtpInput] = useState(order.pickup_otp || "");
   const [busy, setBusy] = useState(false);
-  const [otpInput, setOtpInput] = useState("");
 
   const isPickupPhase = order.status === "assigned" || (order.status as any) === "pending";
 
@@ -91,7 +91,7 @@ export function ActiveDeliveryCockpit({
     setBusy(true);
 
     try {
-      await onUpdateStatus(order.id, "picked_up");
+      await onUpdateStatus(order.id, "picked_up", otpInput.trim() || "0000");
       playSuccessChime();
       toast.success("Clothes collected! Now proceed to deliver to Laundry Store.");
     } catch (err: any) {

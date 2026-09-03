@@ -9,7 +9,7 @@ account exists.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -1098,16 +1098,63 @@ async def update_settings(body: dict, user: User = Depends(current_user)) -> dic
 async def get_active_offers(user: User = Depends(current_user)) -> list:
     """Fetch live pending ride offers dispatched to this rider."""
     rider_id = await _rider_id(user)
-    from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION
+    from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION, RIDES_COLLECTION
+    from app.services.rider_dispatch import OFFERS_COLLECTION
     now_iso = datetime.now(timezone.utc).isoformat()
+    
     offers = await database.find_many(
         RIDE_ASSIGNMENTS_COLLECTION,
         {"riderId": rider_id, "status": "pending"},
     )
-    # Filter unexpired offers
-    valid_offers = [
-        off for off in offers if not off.get("expiresAt") or off.get("expiresAt") > now_iso
-    ]
+    alt_offers = await database.find_many(
+        OFFERS_COLLECTION,
+        {"riderId": rider_id, "status": "pending"},
+    )
+    all_raw = list(offers) + list(alt_offers)
+
+    # Also check if there is an active ride in SEARCHING_RIDER or OFFER_SENT state
+    open_rides = await database.find_many(
+        RIDES_COLLECTION,
+        {"status": {"$in": ["SEARCHING_RIDER", "OFFER_SENT"]}}
+    )
+    for r in open_rides:
+        attempted = list(r.get("attemptedRiderIds") or [])
+        offered_to = r.get("offeredRiderId")
+        if (offered_to == rider_id or not offered_to) and (rider_id not in attempted or offered_to == rider_id):
+            p_loc = r.get("pickupLocation") or {}
+            d_loc = r.get("dropLocation") or {}
+            all_raw.append({
+                "_id": f"off-{r.get('_id')}-{rider_id}",
+                "offerId": f"off-{r.get('_id')}-{rider_id}",
+                "rideId": r.get("_id"),
+                "orderId": r.get("orderId"),
+                "orderCode": r.get("orderCode"),
+                "rideType": r.get("rideType", "pickup"),
+                "riderId": rider_id,
+                "status": "pending",
+                "distanceKm": r.get("distanceKm", 2.5),
+                "estimatedEarning": r.get("estimatedEarning", 45),
+                "pickupAddress": p_loc.get("address") or "Customer Pickup Address, Kasganj",
+                "dropAddress": d_loc.get("address") or "QuickPress Partner Store, Kasganj",
+                "customerName": p_loc.get("contactName") or "Customer",
+                "customerPhone": p_loc.get("contactPhone") or "",
+                "partnerName": d_loc.get("contactName") or "QuickPress Store",
+                "partnerPhone": d_loc.get("contactPhone") or "",
+                "createdAt": r.get("createdAt"),
+                "expiresAt": (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat(),
+            })
+
+    # Deduplicate by orderId or rideId
+    seen = set()
+    valid_offers = []
+    for off in all_raw:
+        oid = off.get("orderId") or off.get("rideId") or off.get("_id")
+        if oid in seen:
+            continue
+        seen.add(oid)
+        if not off.get("expiresAt") or off.get("expiresAt") > now_iso:
+            valid_offers.append(off)
+
     return valid_offers
 
 
@@ -1163,6 +1210,11 @@ async def accept_order(order_id: str, user: User = Depends(current_user)) -> dic
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
     if not ride:
         ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id, "status": {"$in": ["OFFER_SENT", "SEARCHING_RIDER"]}})
+    if not ride:
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id})
+    if not ride and "ord-" in order_id:
+        sub_id = order_id[order_id.find("ord-"):]
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": sub_id})
     
     if ride:
         try:
@@ -1181,18 +1233,12 @@ async def reject_order(
     from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
     if not ride:
-        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id, "status": "OFFER_SENT"})
-    
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id})
     if ride:
-        return await smart_2ride_engine.handle_rider_reject(ride["_id"], rider_id, reason=(body or {}).get("reason", "Declined"))
+        reason = (body or {}).get("reason", "Declined by rider")
+        return await smart_2ride_engine.handle_rider_reject(ride["_id"], rider_id, reason)
 
-    try:
-        order = await rider_delivery_repository.by_id(order_id, rider_id)
-    except lifecycle.OrderAuthorizationError as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    if order is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    return order
+    return await _rider_action(rider_delivery_repository.reject, order_id, user)
 
 
 @router.post("/orders/{order_id}/pickup")
@@ -1213,7 +1259,16 @@ async def pickup_order(
 
 @router.post("/orders/{order_id}/drop-at-partner")
 async def drop_at_partner(order_id: str, user: User = Depends(current_user)) -> dict:
-    return await _rider_action(rider_delivery_repository.drop_at_partner, order_id, user)
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    target_order_id = ride.get("orderId") if ride else order_id
+    if ride:
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"_id": ride["_id"]},
+            {"$set": {"status": "COMPLETED", "completedAt": lifecycle.now_iso()}}
+        )
+    return await _rider_action(rider_delivery_repository.drop_at_partner, target_order_id, user)
 
 
 @router.post("/orders/{order_id}/start-delivery")

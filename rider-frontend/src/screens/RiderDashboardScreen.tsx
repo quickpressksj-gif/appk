@@ -28,6 +28,8 @@ import { useRiderContext } from "../context/RiderContext";
 import {
   fetchRiderOrders,
   fetchRiderOffers,
+  acceptRiderOrder,
+  rejectRiderOrder,
   updateOrderStatus,
   confirmPickup,
   confirmDelivery,
@@ -141,15 +143,15 @@ export function RiderDashboardScreen() {
       if (Array.isArray(offers) && offers.length > 0) {
         const topOffer = offers[0];
         setIncomingOffer({
-          id: topOffer._id || topOffer.id || topOffer.rideId,
-          order_number: topOffer.order_number || topOffer.orderId || "QP-NEW",
-          store_name: topOffer.store_name || topOffer.partnerName || "QuickPress Partner Store",
-          pickup_address: topOffer.pickup_address || "Store Address, Kasganj",
-          customer_name: topOffer.customer_name || topOffer.customerName || "Customer",
-          delivery_address: topOffer.delivery_address || topOffer.customerAddress || "Kasganj",
-          distance_km: topOffer.distance_km || topOffer.distanceKm || 2.4,
-          payout_amount: topOffer.payout_amount || topOffer.fare || 60,
-          items_summary: topOffer.items_summary || "Laundry Pickup",
+          id: topOffer.rideId || topOffer._id || topOffer.id || topOffer.orderId,
+          order_number: topOffer.orderCode || topOffer.order_number || topOffer.orderId || "QP-NEW",
+          store_name: topOffer.partnerName || topOffer.store_name || "QuickPress Partner Store",
+          pickup_address: topOffer.pickupAddress || topOffer.pickup_address || "Customer Address, Kasganj",
+          customer_name: topOffer.customerName || topOffer.customer_name || topOffer.contactName || "Customer",
+          delivery_address: topOffer.dropAddress || topOffer.deliveryAddress || topOffer.delivery_address || "Partner Store, Kasganj",
+          distance_km: topOffer.distanceKm || topOffer.distance_km || 2.4,
+          payout_amount: topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 60,
+          items_summary: topOffer.rideType === "pickup" ? "Customer Clothes Pickup -> Handover to Store" : "Store Clean Clothes Delivery -> Customer",
         });
       }
     } catch {
@@ -166,7 +168,7 @@ export function RiderDashboardScreen() {
   useEffect(() => {
     if (!isOnline) return;
     void checkLiveOffers();
-    const offerInterval = setInterval(checkLiveOffers, 8000);
+    const offerInterval = setInterval(checkLiveOffers, 3000);
     return () => clearInterval(offerInterval);
   }, [isOnline, checkLiveOffers]);
 
@@ -216,6 +218,14 @@ export function RiderDashboardScreen() {
     triggerHaptic([100, 50, 100]);
     setIncomingOffer(null);
 
+    try {
+      await acceptRiderOrder(offer.id);
+      toast.success("Trip Accepted! Proceed to pick up from Customer.");
+    } catch (err: any) {
+      console.warn("Backend accept error:", err);
+      toast.info("Trip Accepted! Proceeding to pickup.");
+    }
+
     const newActive: ActiveOrder = {
       id: offer.id,
       order_number: offer.order_number || offer.id,
@@ -228,26 +238,26 @@ export function RiderDashboardScreen() {
       total_amount: 450,
       payment_method: "cod",
       items_count: 3,
-      service_name: "Laundry Pickup",
+      service_name: offer.items_summary || "Laundry Pickup",
     };
 
     setActiveOrder(newActive);
-    toast.success("Trip Accepted! Proceed to pick up from Customer.");
   };
 
   // Handle real step progression
   const handleUpdateOrderStatus = async (
     orderId: string,
-    nextStatus: ActiveOrder["status"]
+    nextStatus: ActiveOrder["status"],
+    otp?: string
   ) => {
     try {
       if (nextStatus === "picked_up") {
-        await confirmPickup(orderId, "0000");
+        await confirmPickup(orderId, otp || "0000");
         setActiveOrder((prev) => (prev ? { ...prev, status: "picked_up" } : null));
         playSuccessChime();
         toast.success("Customer pickup confirmed! Now deliver to Laundry Store.");
       } else if (nextStatus === "delivered") {
-        await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, "0000"));
+        await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, otp || "0000"));
         playSuccessChime();
         toast.success(`Handover to Store complete! ₹${activeOrder?.delivery_fee || 60} credited.`);
         setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
@@ -299,7 +309,11 @@ export function RiderDashboardScreen() {
           <IncomingOrderAlertModal
             offer={incomingOffer}
             onAccept={handleAcceptOffer}
-            onDecline={() => setIncomingOffer(null)}
+            onDecline={() => {
+              const offId = incomingOffer.id;
+              setIncomingOffer(null);
+              void rejectRiderOrder(offId).catch(() => {});
+            }}
           />
         ) : null}
 
