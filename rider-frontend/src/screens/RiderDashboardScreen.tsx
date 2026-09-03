@@ -340,9 +340,6 @@ export function RiderDashboardScreen() {
                 <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
                   Today&apos;s Gross Earnings
                 </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
-                  100% On-Time
-                </span>
               </div>
               <p className="mt-1 flex items-center text-3xl sm:text-4xl font-black tracking-tight text-emerald-950">
                 <IndianRupee className="size-7 sm:size-8 text-emerald-800" strokeWidth={2.6} />
