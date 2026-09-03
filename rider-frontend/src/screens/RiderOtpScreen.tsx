@@ -115,10 +115,6 @@ export function RiderOtpScreen() {
     <main className="relative min-h-screen bg-white text-slate-950 selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
 
-      {/* Rapido style warm ambient background glow */}
-      <div className="pointer-events-none absolute -top-28 left-1/2 size-96 -translate-x-1/2 rounded-full bg-amber-400/15 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-yellow-300/10 blur-[130px]" />
-
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-3 pt-2">

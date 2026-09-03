@@ -140,12 +140,8 @@ export function RiderRegistrationSubmittedScreen() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50/80 text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <main className="relative min-h-screen overflow-x-hidden bg-white text-slate-950 selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
-
-      {/* Ambient background glow */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-amber-500/10 blur-[140px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-emerald-500/10 blur-[130px]" />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4 pb-6 pt-safe">
         {/* Top Header */}
@@ -278,7 +274,7 @@ export function RiderRegistrationSubmittedScreen() {
             <span>Need Help with Application? Contact Support</span>
           </button>
           <p className="mt-2 text-[10px] font-semibold text-slate-500">
-            QuickPress Captain Support · Kasganj Operations Hub
+            QuickPress Captain Support · Operations Hub
           </p>
         </div>
       </div>

@@ -9,10 +9,8 @@ import {
   Lock,
   MapPin,
   Phone,
-  ShieldCheck,
   Sparkles,
   Timer,
-  TrendingUp,
   X,
   Zap,
 } from "lucide-react";
@@ -38,12 +36,6 @@ const HIGHLIGHTS = [
     title: "Flexible Shifts",
     desc: "Work on your time, part-time or full-time",
     badge: "Own Schedule",
-  },
-  {
-    icon: ShieldCheck,
-    title: "₹5,00,000 Insurance",
-    desc: "Free accidental & health coverage on road",
-    badge: "Free Cover",
   },
 ];
 
@@ -158,10 +150,6 @@ export function RiderAuthScreen() {
     <main className="relative min-h-screen bg-white text-slate-950 selection:bg-amber-400 selection:text-black">
       <Toaster position="top-center" richColors />
 
-      {/* Rapido style warm ambient background glow */}
-      <div className="pointer-events-none absolute -top-28 left-1/2 size-96 -translate-x-1/2 rounded-full bg-amber-400/15 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 size-80 rounded-full bg-yellow-300/10 blur-[130px]" />
-
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between px-4.5 pb-6 pt-safe">
         {/* Official QuickPress Captain Logo Header */}
         <header className="flex items-center justify-between border-b border-slate-100 pb-3 pt-2">
@@ -175,7 +163,7 @@ export function RiderAuthScreen() {
 
           <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-800 shadow-2xs">
             <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-            <span>Kasganj Hub</span>
+            <span>Fleet Active</span>
           </div>
         </header>
 
@@ -199,7 +187,7 @@ export function RiderAuthScreen() {
                   Deliver Laundry, Earn Daily
                 </h2>
                 <p className="mt-1 text-[11px] font-medium leading-snug text-slate-600">
-                  Daily direct UPI payouts, flexible hours &amp; Kasganj fleet protection.
+                  Daily direct UPI payouts, flexible working hours &amp; fleet protection.
                 </p>
               </div>
 
@@ -210,29 +198,20 @@ export function RiderAuthScreen() {
                 loading="eager"
               />
             </div>
-
-            {/* Earnings Ticker Strip */}
-            <div className="mt-3.5 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px]">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="size-3.5 text-slate-800" />
-                <span className="font-bold text-slate-700">Per Order Payout:</span>
-              </div>
-              <span className="font-black text-slate-950 text-xs">₹45 - ₹120 + 100% Tips</span>
-            </div>
           </section>
 
-          {/* 3 Highlight Chips: White Background for Icons */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 2 Highlight Chips: White Background for Icons */}
+          <div className="grid grid-cols-2 gap-2.5">
             {HIGHLIGHTS.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xs text-center transition-all hover:border-slate-300"
+                className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs text-center transition-all hover:border-slate-300"
               >
-                <div className="mx-auto flex size-8 items-center justify-center rounded-xl bg-white text-slate-950 mb-1.5 border border-slate-200 shadow-2xs">
+                <div className="mx-auto flex size-8.5 items-center justify-center rounded-xl bg-white text-slate-950 mb-1.5 border border-slate-200 shadow-2xs">
                   <item.icon className="size-4 stroke-[2.2] text-slate-800" />
                 </div>
-                <p className="text-[10px] font-black text-slate-900 truncate">{item.title}</p>
-                <p className="text-[8px] font-black text-emerald-700 mt-0.5">{item.badge}</p>
+                <p className="text-[11px] font-black text-slate-900 truncate">{item.title}</p>
+                <p className="text-[9px] font-black text-emerald-700 mt-0.5">{item.badge}</p>
               </div>
             ))}
           </div>
@@ -369,7 +348,7 @@ export function RiderAuthScreen() {
 
         {/* Android Footer */}
         <footer className="border-t border-slate-100 pt-2.5 pb-safe text-center text-[9px] font-bold text-slate-400">
-          QuickPress Captain App &copy; 2026 · Kasganj Fleet Hub
+          QuickPress Captain App &copy; 2026 · Delivery Partner Fleet
         </footer>
       </div>
     </main>
