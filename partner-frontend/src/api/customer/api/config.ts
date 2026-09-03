@@ -80,8 +80,8 @@ export function appEnvironment(): AppEnvironment {
 
 
 export function apiTimeoutMs(): number {
-  const parsed = Number(readString("VITE_API_TIMEOUT_MS"));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15_000;
+  const custom = Number(readString("VITE_API_TIMEOUT_MS"));
+  return Number.isFinite(custom) && custom > 0 ? custom : 30000;
 }
 
 /** True once a real backend base URL is configured for this environment. */

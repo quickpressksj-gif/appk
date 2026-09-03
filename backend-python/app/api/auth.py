@@ -98,8 +98,9 @@ async def send_otp(payload: SendOtpRequest) -> SendOtpResponse:
     await otp_attempts.record(phone, payload.role)
     existing = await users.by_phone(phone, payload.role)
 
-    # Dispatch SMS via Twilio (or fallback if keys not configured)
-    await send_twilio_sms_otp(phone, payload.role.value)
+    # Dispatch SMS in background so client receives instant response without timing out
+    import asyncio
+    asyncio.create_task(send_twilio_sms_otp(phone, payload.role.value))
 
     return SendOtpResponse(
         expiresInSeconds=settings.otp_ttl_seconds,

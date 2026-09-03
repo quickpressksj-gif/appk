@@ -77,7 +77,7 @@ async def send_twilio_sms_otp(phone: str, role: str = "customer") -> Tuple[bool,
         auth = (settings.twilio_account_sid, settings.twilio_auth_token)
         data = {"To": phone, "Channel": "sms"}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.post(url, auth=auth, data=data)
                 if resp.status_code in (200, 201):
                     _log.info("Twilio Verify SMS dispatched successfully to %s", phone)
@@ -100,7 +100,7 @@ async def send_twilio_sms_otp(phone: str, role: str = "customer") -> Tuple[bool,
             "Body": body,
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.post(url, auth=auth, data=data)
                 if resp.status_code in (200, 201):
                     _log.info("Twilio SMS dispatched successfully to %s", phone)
