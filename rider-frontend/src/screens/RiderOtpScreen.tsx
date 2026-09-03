@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
+import { riderAssets } from "../assets/rider-assets";
 import { useRiderContext } from "../context/RiderContext";
 import { useOtpCountdown } from "../hooks/use-otp-countdown";
 import { fetchOnboardingStatus, requestOtp, verifyOtp } from "@/api/rider/rider-auth-api";
