@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ArrowRight,
   Bell,
   CheckCircle2,
   ClipboardList,
@@ -25,9 +26,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/shared/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 import { RiderBottomNav } from "../components/RiderBottomNav";
-import { DualSwipeActionButton } from "../components/common/DualSwipeActionButton";
+import { RapidoDutyToggle } from "../components/common/RapidoDutyToggle";
+import { SwipeToConfirm } from "../components/common/SwipeToConfirm";
 import { IncomingOrderAlertModal } from "../components/alerts/IncomingOrderAlertModal";
 import { stopOrderAlertRing } from "../lib/order-alert-sound";
 import {
@@ -104,9 +107,27 @@ export function RiderDashboardScreen() {
     }
   }, []);
 
+  // ⚡ Live Supabase Realtime WebSocket subscription for instant dispatch (0ms latency)
+  useEffect(() => {
+    const channel = supabase
+      .channel("rider-live-orders")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          void loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadData]);
+
   useEffect(() => {
     void loadData();
-    // Refresh active orders every 5s when online
+    // Background polling fallback every 5s when online
     if (isOnline) {
       const timer = setInterval(() => {
         void loadData();
@@ -185,30 +206,49 @@ export function RiderDashboardScreen() {
   const activePendingOffer = isOnline && pendingOrders.length > 0 ? pendingOrders[0] : null;
 
   return (
-    <main className="relative min-h-screen bg-slate-50/50 pb-28 text-slate-900">
+    <main className="relative min-h-screen bg-white pb-28 text-slate-900">
       <div className="mx-auto w-full max-w-md lg:max-w-3xl">
         {/* Sticky Mobile Header */}
-        <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-black tracking-tight text-slate-900">
-                {data?.rider.name ?? "Delivery Partner"}
-              </h1>
-              <p className="truncate text-xs font-semibold text-slate-500">
-                ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "Kasganj"}
-              </p>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 font-black text-slate-950 text-sm shadow-sm">
+                QP
+              </span>
+              <div className="min-w-0 flex-1">
+                <h1 className="truncate text-sm font-black tracking-tight text-slate-900">
+                  {data?.rider.name ?? "Delivery Captain"}
+                </h1>
+                <p className="truncate text-[11px] font-semibold text-slate-500">
+                  ID: {data?.rider.riderId ?? "—"} · Hub: {data?.rider.city ?? "—"}
+                </p>
+              </div>
             </div>
-            <button
-              type="button"
-              aria-label="Notifications"
-              onClick={() => navigate({ to: riderRoutes.notifications })}
-              className="relative flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.95]"
-            >
-              <Bell className="size-4.5" strokeWidth={2} />
-              {(data?.unreadNotifications ?? 0) > 0 ? (
-                <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-              ) : null}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="SOS Emergency"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.location.href = "tel:112";
+                  }
+                }}
+                className="flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[11px] font-black text-rose-600 transition-all hover:bg-rose-100 active:scale-95 cursor-pointer"
+              >
+                SOS
+              </button>
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={() => navigate({ to: riderRoutes.notifications })}
+                className="relative flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-95 cursor-pointer"
+              >
+                <Bell className="size-4" strokeWidth={2.2} />
+                {(data?.unreadNotifications ?? 0) > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-white" />
+                ) : null}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -218,66 +258,64 @@ export function RiderDashboardScreen() {
           </div>
         ) : (
           <div className="space-y-4 px-4 pt-3.5">
-            {/* HERO CARD: Today's Earnings & Online Toggle */}
-            <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-emerald-100/50 to-teal-50 p-5 text-slate-900 shadow-sm border border-emerald-200/80">
-              <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-emerald-400/20 blur-2xl" />
-              <div className="flex items-start justify-between gap-3">
+            {/* RAPIDO DUTY TOGGLE */}
+            <RapidoDutyToggle
+              isOnline={isOnline}
+              onToggle={handleToggle}
+              busy={actionBusy}
+            />
+
+            {/* HERO CARD: Today's Earnings */}
+            <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <div className="flex items-center gap-1.5 text-emerald-800">
-                    <Zap className="size-3.5 text-emerald-600 fill-emerald-600" />
-                    <p className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
-                      Today&apos;s Earnings
-                    </p>
-                  </div>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    Today&apos;s Earnings
+                  </p>
                   <p className="mt-1 flex items-center text-3xl font-black tracking-tight text-slate-950">
-                    <IndianRupee className="size-6 text-emerald-700" strokeWidth={2.6} />
+                    <IndianRupee className="size-6 text-amber-500" strokeWidth={2.6} />
                     {(data.kpis?.earningsToday ?? 0).toLocaleString("en-IN")}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-600">
-                    <span className="text-emerald-700 font-bold">
-                      {data.kpis?.deliveriesToday ?? 0}
-                    </span>{" "}
-                    orders completed · {data.kpis?.workingHours ?? 0}h online
-                  </p>
                 </div>
-
-                {/* Modern Switch */}
                 <button
                   type="button"
-                  role="switch"
-                  aria-checked={isOnline}
-                  aria-label="Online status"
-                  onClick={handleToggle}
-                  className={`flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all active:scale-[0.95] ${
-                    isOnline
-                      ? "bg-emerald-600/15 border border-emerald-500/30 text-emerald-800"
-                      : "bg-slate-200/80 border border-slate-300 text-slate-600"
-                  }`}
+                  onClick={() => navigate({ to: riderRoutes.wallet })}
+                  className="mt-1 flex items-center gap-1 rounded-xl bg-amber-400 px-3 py-1.5 text-xs font-black text-slate-950 shadow-sm hover:bg-amber-500 active:scale-95 transition-all cursor-pointer"
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider">
-                    {isOnline ? "ONLINE" : "OFFLINE"}
-                  </span>
-                  <span
-                    className={`relative h-6 w-11 rounded-full transition-colors duration-300 ${
-                      isOnline ? "bg-emerald-600" : "bg-slate-400"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 size-5 rounded-full bg-white shadow-md transition-all duration-300 ${
-                        isOnline ? "left-[1.35rem]" : "left-0.5"
-                      }`}
-                    />
-                  </span>
+                  <span>Withdraw</span>
+                  <ArrowRight className="size-3.5" />
                 </button>
+              </div>
+
+              {/* 3 Quick Stat Columns */}
+              <div className="mt-3 grid grid-cols-3 divide-x divide-slate-100 text-center text-xs">
+                <div className="px-2">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Trips</p>
+                  <p className="mt-0.5 text-sm font-black text-slate-900">
+                    {data.kpis?.deliveriesToday ?? 0}
+                  </p>
+                </div>
+                <div className="px-2">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Online</p>
+                  <p className="mt-0.5 text-sm font-black text-slate-900">
+                    {data.kpis?.workingHours ?? 0}h
+                  </p>
+                </div>
+                <div className="px-2">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Distance</p>
+                  <p className="mt-0.5 text-sm font-black text-slate-900">
+                    {data.kpis?.distanceKm ?? 0} km
+                  </p>
+                </div>
               </div>
             </section>
 
-            {/* 🚀 NEW DELIVERY JOB OFFER CARD (IF ANY NEW ASSIGNED ORDER) */}
+            {/* 🚀 NEW DELIVERY JOB OFFER CARD (Rapido Yellow Style) */}
             {activePendingOffer ? (
-              <section className="animate-rise overflow-hidden rounded-3xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/80 p-5 text-slate-900 shadow-md">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-800 border border-emerald-300">
-                    <Sparkles className="size-3 text-emerald-600 animate-spin" />
+              <section className="overflow-hidden rounded-2xl border-2 border-amber-400 bg-white p-4 text-slate-900 shadow-md">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900">
+                    <Sparkles className="size-3 text-amber-600" />
                     New Laundry Trip Offer
                   </span>
                   <span className="text-xs font-bold text-slate-500">
@@ -285,16 +323,16 @@ export function RiderDashboardScreen() {
                   </span>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-b border-slate-200/80 pb-3">
+                <div className="mt-3 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500">Trip Earnings</p>
-                    <p className="flex items-center text-2xl font-black text-emerald-700">
-                      <IndianRupee className="size-5" />
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Guaranteed Payout</p>
+                    <p className="flex items-center text-2xl font-black text-slate-950">
+                      <IndianRupee className="size-5 text-amber-500" strokeWidth={2.5} />
                       {activePendingOffer.estimatedEarning || 55}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold text-slate-500">Estimated Distance</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-right">
+                    <p className="text-[9px] font-bold uppercase text-slate-400">Estimated Distance</p>
                     <p className="text-sm font-black text-slate-900">
                       {activePendingOffer.distanceKm || "2.4"} KM
                     </p>
@@ -302,31 +340,29 @@ export function RiderDashboardScreen() {
                 </div>
 
                 {/* Pickup & Drop Points */}
-                <div className="mt-3.5 space-y-2.5">
+                <div className="mt-3.5 space-y-2 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
                   <div className="flex items-start gap-2.5">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-                      <Store className="size-3.5" />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-400 text-slate-950 font-black text-[10px]">
+                      P
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-slate-500">Store Pickup</p>
-                      <p className="truncate text-xs font-bold text-slate-900">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Store Pickup</p>
+                      <p className="truncate text-xs font-black text-slate-900">
                         {activePendingOffer.partnerName || "Partner Outlet"}
                       </p>
                       <p className="truncate text-[11px] text-slate-500">
-                        {activePendingOffer.pickupAddress || "Kasganj Hub"}
+                        {activePendingOffer.pickupAddress || "Pickup Location"}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                      <MapPin className="size-3.5" />
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white font-black text-[10px]">
+                      D
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-slate-500">
-                        Customer Drop-off
-                      </p>
-                      <p className="truncate text-xs font-bold text-slate-900">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Customer Drop</p>
+                      <p className="truncate text-xs font-black text-slate-900">
                         {activePendingOffer.customerName || "Customer"}
                       </p>
                       <p className="truncate text-[11px] text-slate-500">
@@ -336,15 +372,21 @@ export function RiderDashboardScreen() {
                   </div>
                 </div>
 
-                {/* Dual Swipe Action */}
-                <div className="mt-4 pt-2">
-                  <DualSwipeActionButton
-                    acceptLabel="Swipe Right to Accept Offer"
-                    rejectLabel="Swipe Left to Reject"
-                    onAccept={() => handleAcceptOffer(activePendingOffer)}
-                    onReject={() => handleRejectOffer(activePendingOffer)}
-                    loading={actionBusy}
+                {/* Rapido Style Swipe to Accept */}
+                <div className="mt-4 space-y-2">
+                  <SwipeToConfirm
+                    label={`Swipe to Accept (₹${activePendingOffer.estimatedEarning || 55})`}
+                    onConfirm={() => handleAcceptOffer(activePendingOffer)}
+                    busy={actionBusy}
                   />
+                  <button
+                    type="button"
+                    disabled={actionBusy}
+                    onClick={() => handleRejectOffer(activePendingOffer)}
+                    className="w-full py-2 text-center text-xs font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                  >
+                    Decline offer
+                  </button>
                 </div>
               </section>
             ) : null}

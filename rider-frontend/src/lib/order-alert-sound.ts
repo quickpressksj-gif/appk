@@ -190,3 +190,85 @@ export function testSoundAndVibration() {
   playSirenBeepTone();
   triggerVibration();
 }
+
+/** Play Online ascending chime */
+export function playOnlineChime() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [440, 554.37, 659.25, 880];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.07);
+      gain.gain.setValueAtTime(0.01, now + i * 0.07);
+      gain.gain.linearRampToValueAtTime(0.35, now + i * 0.07 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.07);
+      osc.stop(now + i * 0.07 + 0.28);
+    });
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([60, 40, 60]);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Play Offline descending chime */
+export function playOfflineChime() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [659.25, 554.37, 440];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.09);
+      gain.gain.setValueAtTime(0.01, now + i * 0.09);
+      gain.gain.linearRampToValueAtTime(0.25, now + i * 0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.25);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Play Cash Ka-Ching on order completion */
+export function playCashKaChingChime() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [987.77, 1318.51, 1975.53];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now + i * 0.06);
+      gain.gain.setValueAtTime(0.01, now + i * 0.06);
+      gain.gain.linearRampToValueAtTime(0.45, now + i * 0.06 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.06);
+      osc.stop(now + i * 0.06 + 0.45);
+    });
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([100, 50, 100, 50, 200]);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+

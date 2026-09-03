@@ -38,7 +38,7 @@ import {
   type RouteResult,
 } from "@/api/core/maps-api";
 
-const DEFAULT_KASGANJ_CENTER: LatLng = { latitude: 27.8118, longitude: 78.6477 };
+const DEFAULT_MAP_CENTER: LatLng = { latitude: 28.6139, longitude: 77.2090 };
 
 function calculateRoadDistanceKm(p1: LatLng, p2: LatLng): number {
   const R = 6371;
@@ -70,7 +70,7 @@ export function RiderNavigationScreen() {
   const [otp, setOtp] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const [riderPoint, setRiderPoint] = useState<LatLng>(DEFAULT_KASGANJ_CENTER);
+  const [riderPoint, setRiderPoint] = useState<LatLng>(DEFAULT_MAP_CENTER);
   const [dropPoint, setDropPoint] = useState<LatLng>({ latitude: 27.8118, longitude: 78.6477 });
   const [pickupPoint, setPickupPoint] = useState<LatLng>({ latitude: 27.8165, longitude: 78.6530 });
   const [route, setRoute] = useState<RouteResult | null>(null);
@@ -150,7 +150,7 @@ export function RiderNavigationScreen() {
         void pushRiderLocation(point.latitude, point.longitude).catch(() => undefined);
       },
       () => {
-        /* Keep Kasganj fallback */
+        /* Keep fallback coordinates */
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
     );

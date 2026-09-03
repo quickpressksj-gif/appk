@@ -10,7 +10,7 @@ export async function fetchRiderProfile(): Promise<RiderProfile> {
     fullName: res.fullName || res.name || "Delivery Partner",
     phone: res.phone || res.mobile || "—",
     email: res.email || "—",
-    city: res.city || "Kasganj",
+    city: res.city || "—",
     rating: typeof res.rating === "number" ? res.rating : 5.0,
     totalTrips:
       typeof res.totalTrips === "number"

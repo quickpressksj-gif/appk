@@ -82,9 +82,9 @@ export function RiderBottomNav({ active = "dashboard" }: { active?: RiderTabId }
         visible ? "nav-shown" : "nav-hidden"
       }`}
     >
-      {/* Floating Glassmorphic Pill Dock */}
-      <div className="mx-auto w-full max-w-md px-4 lg:max-w-lg">
-        <div className="flex items-stretch gap-1 rounded-full border border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-900/85 p-1.5 shadow-[0_16px_40px_-18px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+      {/* Rapido Captain High-Contrast Dock */}
+      <div className="mx-auto w-full max-w-md px-3 lg:max-w-lg">
+        <div className="flex items-stretch gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.18)]">
           {riderTabs.map((item) => {
             const isActive = item.id === active || pathname === item.to;
             return (
@@ -95,21 +95,21 @@ export function RiderBottomNav({ active = "dashboard" }: { active?: RiderTabId }
                 onPointerEnter={() => void router.preloadRoute({ to: item.to }).catch(() => undefined)}
                 aria-current={isActive ? "page" : undefined}
                 aria-label={item.label}
-                className={`tap-target relative flex flex-1 flex-col items-center justify-center gap-1 rounded-full px-3 py-2 transition-all duration-300 ease-out ${
+                className={`tap-target relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 transition-all duration-200 ease-out cursor-pointer ${
                   isActive
-                    ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                    ? "bg-amber-400 text-slate-950 shadow-sm font-black scale-[1.02]"
+                    : "text-slate-500 hover:text-slate-950 hover:bg-slate-50 font-semibold"
                 }`}
               >
                 <item.icon
-                  className={`size-[1.2rem] shrink-0 transition-transform duration-300 ease-out ${
-                    pressed === item.id ? "scale-[1.22]" : isActive ? "scale-110" : "scale-100"
+                  className={`size-[1.2rem] shrink-0 transition-transform duration-200 ${
+                    pressed === item.id ? "scale-125" : isActive ? "scale-110" : "scale-100"
                   }`}
-                  strokeWidth={isActive ? 2.2 : 1.7}
+                  strokeWidth={isActive ? 2.5 : 1.8}
                 />
                 <span
-                  className={`text-[0.7rem] leading-none tracking-[-0.01em] transition-all duration-200 ${
-                    isActive ? "font-bold" : "font-medium"
+                  className={`text-[0.7rem] leading-none tracking-tight ${
+                    isActive ? "font-black text-slate-950" : "font-medium"
                   }`}
                 >
                   {item.label}

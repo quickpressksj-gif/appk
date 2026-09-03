@@ -90,7 +90,7 @@ export function RiderProfileScreen() {
               <div className="space-y-1">
                 <InfoRow icon={Phone} label="Mobile Phone" value={data.phone || "—"} />
                 <InfoRow icon={Mail} label="Email Address" value={data.email || "—"} />
-                <InfoRow icon={MapPin} label="Operational Hub" value={data.city || "Kasganj"} />
+                <InfoRow icon={MapPin} label="Operational Hub" value={data.city || "—"} />
               </div>
             </section>
 

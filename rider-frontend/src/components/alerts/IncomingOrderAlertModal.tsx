@@ -236,10 +236,10 @@ export function IncomingOrderAlertModal({
                   Step 1: Store Pickup
                 </p>
                 <p className="truncate text-xs font-black text-slate-900">
-                  {order.partnerName || "Kasganj Partner Hub"}
+                  {order.partnerName || "Partner Hub"}
                 </p>
                 <p className="truncate text-[11px] text-slate-500 font-medium">
-                  {order.pickupAddress || "Main Market, Kasganj"}
+                  {order.pickupAddress || "Store Pickup Address"}
                 </p>
               </div>
             </div>

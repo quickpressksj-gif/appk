@@ -309,15 +309,15 @@ export function RiderRegistrationScreen() {
         const kycPayload: AadhaarExtractedData = {
           aadhaar: res.aadhaar,
           maskedAadhaar: res.maskedAadhaar,
-          fullName: res.fullName || "Rahul Sharma",
+          fullName: res.fullName || "",
           gender: res.gender || "Male",
-          dob: res.dob || "1998-05-14",
-          address: res.address || "House 402, Sai Residency, Station Road, Kasganj",
-          street: res.street || "Station Road",
-          landmark: res.landmark || "Near City Hospital",
-          city: res.city || "Kasganj",
-          state: res.state || "Uttar Pradesh",
-          pincode: res.pincode || "207123",
+          dob: res.dob || "",
+          address: res.address || "",
+          street: res.street || "",
+          landmark: res.landmark || "",
+          city: res.city || "",
+          state: res.state || "",
+          pincode: res.pincode || "",
           photo: res.photo,
         };
         setAadhaarKycData(kycPayload);
