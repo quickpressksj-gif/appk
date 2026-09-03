@@ -59,8 +59,8 @@ export function RiderBottomNav({ active }: { active: RiderTabId }) {
                 }}
                 className={`tap-target relative flex flex-1 flex-col items-center justify-center gap-1 rounded-full px-2 py-2 transition-all duration-300 ease-out active:scale-95 cursor-pointer ${
                   isActive
-                    ? "bg-emerald-50 text-emerald-700 font-bold shadow-2xs"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-emerald-800 text-white font-bold shadow-xs"
+                    : "text-emerald-950/70 hover:text-emerald-900"
                 }`}
               >
                 <tab.icon
@@ -71,7 +71,7 @@ export function RiderBottomNav({ active }: { active: RiderTabId }) {
                 />
                 <span
                   className={`text-[0.68rem] leading-none tracking-tight ${
-                    isActive ? "font-black text-emerald-800" : "font-semibold"
+                    isActive ? "font-black text-white" : "font-semibold text-emerald-950/80"
                   }`}
                 >
                   {tab.label}

@@ -46,20 +46,20 @@ export function RiderWalletScreen() {
       subtitle="Track your daily income, weekly transfers & bank account"
     >
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6 select-none">
-        {/* Main Wallet Balance Card (Partner style) */}
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        {/* Main Wallet Balance Card */}
+        <div className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm">
           <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-emerald-500/10 blur-2xl" />
 
           <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-wider text-slate-400">
+              <p className="text-xs font-black uppercase tracking-wider text-emerald-800">
                 Available Wallet Balance
               </p>
-              <p className="mt-1 flex items-center text-4xl sm:text-5xl font-black tracking-tight text-slate-950">
-                <IndianRupee className="size-8 sm:size-10 text-emerald-600" strokeWidth={2.6} />
+              <p className="mt-1 flex items-center text-4xl sm:text-5xl font-black tracking-tight text-emerald-950">
+                <IndianRupee className="size-8 sm:size-10 text-emerald-800" strokeWidth={2.6} />
                 {balance.toLocaleString("en-IN")}
               </p>
-              <p className="mt-1 text-xs font-semibold text-emerald-700">
+              <p className="mt-1 text-xs font-semibold text-emerald-800">
                 ✓ Auto-settles every Monday directly to your bank account
               </p>
             </div>
@@ -68,7 +68,7 @@ export function RiderWalletScreen() {
               type="button"
               onClick={handleWithdraw}
               disabled={withdrawing || balance <= 0}
-              className="flex items-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs px-5 py-3 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-2 rounded-2xl bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white font-bold text-xs px-5 py-3 shadow-sm transition-all cursor-pointer disabled:opacity-50"
             >
               <WalletIcon className="size-4" />
               <span>{withdrawing ? "Processing..." : "Instant Withdraw"}</span>
@@ -77,10 +77,10 @@ export function RiderWalletScreen() {
         </div>
 
         {/* Bank Details Card */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
                 <Building2 className="size-5" />
               </div>
               <div>
@@ -89,46 +89,40 @@ export function RiderWalletScreen() {
               </div>
             </div>
             <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200">
-              <ShieldCheck className="size-3 text-emerald-600" />
+              <ShieldCheck className="size-3 text-emerald-800" />
               Verified
             </span>
           </div>
 
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
             <div>
-              <p className="text-[10px] font-bold uppercase text-slate-400">Account Holder</p>
+              <p className="text-[10px] font-bold uppercase text-emerald-800">Account Holder</p>
               <p className="font-bold text-slate-900">Delivery Captain</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase text-slate-400">IFSC Code</p>
+              <p className="text-[10px] font-bold uppercase text-emerald-800">IFSC Code</p>
               <p className="font-bold text-slate-900">SBIN0001234</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase text-slate-400">Payout Cycle</p>
-              <p className="font-bold text-emerald-700">Weekly (Every Monday)</p>
+              <p className="text-[10px] font-bold uppercase text-emerald-800">Payout Cycle</p>
+              <p className="font-bold text-emerald-800">Weekly (Every Monday)</p>
             </div>
           </div>
         </div>
 
         {/* Recent Activity List */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-3">
+        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 mb-3">
             Recent Payout Activity
           </h3>
           <div className="space-y-2.5">
             {transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-3"
+                className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3"
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`flex size-9 items-center justify-center rounded-xl ${
-                      tx.status === "credited"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
                     {tx.status === "credited" ? (
                       <ArrowDownLeft className="size-4.5" />
                     ) : (
@@ -141,11 +135,7 @@ export function RiderWalletScreen() {
                   </div>
                 </div>
 
-                <span
-                  className={`text-sm font-black ${
-                    tx.status === "credited" ? "text-emerald-700" : "text-slate-900"
-                  }`}
-                >
+                <span className="text-sm font-black text-emerald-800">
                   {tx.amount}
                 </span>
               </div>

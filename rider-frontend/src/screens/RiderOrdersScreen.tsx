@@ -89,8 +89,8 @@ export function RiderOrdersScreen() {
               onClick={() => setFilter(tab.id)}
               className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all shrink-0 cursor-pointer ${
                 filter === tab.id
-                  ? "bg-[#111827] text-white shadow-xs"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "bg-emerald-800 text-white shadow-xs"
+                  : "border border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-50"
               }`}
             >
               {tab.label}
@@ -100,8 +100,8 @@ export function RiderOrdersScreen() {
 
         {/* Orders List */}
         {filteredOrders.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-xs">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+          <div className="rounded-3xl border border-emerald-200 bg-white p-12 text-center shadow-xs">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
               <Package className="size-7" />
             </div>
             <h3 className="mt-3 text-base font-black text-slate-900">
@@ -118,10 +118,10 @@ export function RiderOrdersScreen() {
               return (
                 <div
                   key={order.id}
-                  className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs hover:border-slate-300 transition-all space-y-3"
+                  className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-xs hover:border-emerald-300 transition-all space-y-3"
                 >
                   {/* Card Header */}
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="font-black text-sm text-slate-950">
                         Order #{order.order_number || order.id}
@@ -134,8 +134,8 @@ export function RiderOrdersScreen() {
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
                         isDelivered
-                          ? "bg-slate-100 text-slate-700"
-                          : "bg-amber-100 text-amber-900"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                       }`}
                     >
                       {order.status || "Assigned"}
@@ -145,10 +145,10 @@ export function RiderOrdersScreen() {
                   {/* Locations */}
                   <div className="space-y-2 text-xs">
                     <div className="flex items-start gap-2.5">
-                      <MapPin className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                      <MapPin className="size-4 text-emerald-700 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-400">
-                          Pickup Store
+                        <p className="text-[10px] font-bold uppercase text-emerald-800">
+                          Pickup Location
                         </p>
                         <p className="font-bold text-slate-900">
                           {order.pickup_address || "QuickPress Partner Store"}
@@ -157,10 +157,10 @@ export function RiderOrdersScreen() {
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <MapPin className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <MapPin className="size-4 text-emerald-800 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-400">
-                          Customer Drop
+                        <p className="text-[10px] font-bold uppercase text-emerald-800">
+                          Drop Destination
                         </p>
                         <p className="font-bold text-slate-900">
                           {order.delivery_address || order.customer_name || "Customer Destination"}
@@ -184,24 +184,24 @@ export function RiderOrdersScreen() {
                             );
                           }
                         }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-900 text-xs font-bold transition-all cursor-pointer"
                       >
-                        <Navigation className="size-3.5 text-emerald-600" />
+                        <Navigation className="size-3.5 text-emerald-800" />
                         <span>Navigate (GPS)</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleMarkDelivered(order.id)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-all cursor-pointer"
                       >
                         <CheckCircle2 className="size-3.5" />
                         <span>Mark Delivered</span>
                       </button>
                     </div>
                   ) : (
-                    <div className="pt-1 flex items-center gap-1 text-xs font-bold text-emerald-700">
-                      <CheckCircle2 className="size-4" />
+                    <div className="pt-1 flex items-center gap-1 text-xs font-bold text-emerald-800">
+                      <CheckCircle2 className="size-4 text-emerald-700" />
                       <span>Delivered Successfully</span>
                     </div>
                   )}
