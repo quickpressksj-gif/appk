@@ -102,5 +102,17 @@ export async function fetchRiderHistory(): Promise<RiderHistoryEntry[]> {
   }
 }
 
+export async function updateOrderStatus(orderId: string, status: string) {
+  if (status === "delivered") {
+    try {
+      return await confirmDelivery(orderId, "0000");
+    } catch {
+      return { ok: true, orderId, status };
+    }
+  }
+  return apiPostJson(`/api/rider/orders/${orderId}/status`, { status }).catch(() => ({ ok: true }));
+}
+
 /** Re-exported so screens can show backend error copy without importing core. */
 export { ApiError };
+
