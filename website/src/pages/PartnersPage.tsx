@@ -17,69 +17,47 @@ import {
 const GREEN = "#1A7A3C";
 const YELLOW = "#F59E0B";
 
-const FRANCHISE_MODELS = [
+const PARTNER_CATEGORIES = [
   {
-    id: "15lakh",
-    badge: "Most Popular FOFO Model",
-    title: "QuickPress Express Hub Franchise",
-    investment: "₹15 Lakhs",
-    investmentNum: 1500000,
-    areaRequired: "250 – 450 sq.ft.",
-    locationType: "High-density residential society / retail high-street",
-    targetBreakEven: "9 to 14 Months",
-    monthlyRevenue: "₹2,50,000 – ₹4,50,000 / mo",
-    netProfitMargin: "35% – 42% Net Margin",
-    monthlyNetProfit: "₹90,000 – ₹1,65,000 / mo",
+    id: "store",
+    badge: "Laundry & Dry Cleaners",
+    title: "Store & Laundromat Partners",
+    tagline: "Boost your store's daily revenue with automated digital pickups",
+    commission: "Zero Upfront Fees",
+    areaRequired: "Any Existing Store",
+    payoutCycle: "Instant / Daily Bank Payouts",
+    monthlyRevenue: "₹1,50,000 – ₹3,50,000+ / mo",
     description:
-      "A high-footfall collection, customer intake, and express garment steaming hub. Built for fast turnaround, seamless app order routing, and localized neighborhood pickups.",
-    capitalAllocation: [
-      { item: "Turnkey Store Interior & Signage Branding", amount: "₹4,00,000" },
-      { item: "Smart POS Counter, Barcode Hardware & Tablet OS", amount: "₹1,50,000" },
-      { item: "Commercial Boiler Steam Finishing Stations (2 Units)", amount: "₹3,50,000" },
-      { item: "Brand Franchise License & Tech Onboarding", amount: "₹3,00,000" },
-      { item: "Initial Eco-Packaging, Chemicals & Marketing Launch", amount: "₹2,00,000" },
-      { item: "Working Capital Reserve", amount: "₹1,00,000" },
-    ],
+      "Connect your existing dry cleaner, laundry shop, or ironing facility to QuickPress. Receive scheduled customer orders directly on the Partner App without marketing spend.",
     inclusions: [
-      "100% Demand Generation from QuickPress Consumer App",
-      "Exclusive 2 km Geofenced Pincode Neighborhood Rights",
-      "Turnkey Store Layout, Signboards & Interior Design Blueprint",
-      "Staff Recruitment Assistance & 14-Day SOP Training",
-      "QuickPress Cloud POS, Barcode Scanner & Digital Billing System",
-      "Direct Logistics Route Linkage with QuickPress Fleet",
+      "Guaranteed neighborhood order flow from the QuickPress Customer App",
+      "Free QuickPress Partner Merchant App & Cloud POS Billing",
+      "Doorstep pickup & drop handled entirely by QuickPress Captains",
+      "Automated garment tagging, digital receipts & customer notifications",
+      "Premium eco-packaging support & detergent bulk supply discounts",
+      "Dedicated partner relationship manager & 24/7 partner helpline",
     ],
     accentColor: GREEN,
     bgHeader: "bg-emerald-900",
   },
   {
-    id: "25lakh",
-    badge: "Master Processing Facility",
-    title: "QuickPress Master Processing Hub Franchise",
-    investment: "₹25 Lakhs",
-    investmentNum: 2500000,
-    areaRequired: "600 – 1,200 sq.ft.",
-    locationType: "Commercial / Industrial hub / Central city logistics zone",
-    targetBreakEven: "12 to 18 Months",
-    monthlyRevenue: "₹6,00,000 – ₹10,50,000 / mo",
-    netProfitMargin: "38% – 46% Net Margin",
-    monthlyNetProfit: "₹2,40,000 – ₹4,20,000 / mo",
+    id: "fleet",
+    badge: "Delivery Captains & Fleet",
+    title: "Rider & Fleet Logistics Partners",
+    tagline: "Drive, deliver and earn with smart batch-routed pickups",
+    commission: "High Per-Trip Earnings + Bonuses",
+    areaRequired: "2-Wheeler / Electric Bike",
+    payoutCycle: "Weekly Guaranteed Payouts",
+    monthlyRevenue: "₹35,000 – ₹65,000+ / mo",
     description:
-      "A high-capacity industrial garment processing, ozone dry-cleaning, and centralized multi-rider fleet dispatch center capable of servicing 150+ orders per day across an entire municipal territory.",
-    capitalAllocation: [
-      { item: "Commercial Heavy-Duty Eco-Washers & Extractors (15kg+)", amount: "₹7,50,000" },
-      { item: "Italian Steam Formers, Vacuum Tables & Ironing Stations", amount: "₹4,50,000" },
-      { item: "Ozone Sanitization & Eco-Dry Cleaning System", amount: "₹3,00,000" },
-      { item: "Facility Architecture, 3-Phase Wiring & Plumbing Fit-out", amount: "₹4,00,000" },
-      { item: "Master Franchise License, Territory Lock & Software Suite", amount: "₹4,00,000" },
-      { item: "Automated Garment Packing Sealer & Raw Chemicals Stock", amount: "₹2,00,000" },
-    ],
+      "Join the QuickPress Captain Fleet. Pick up garments from customer doorsteps and transfer to verified hubs with live GPS navigation and optimized return routes.",
     inclusions: [
-      "Guaranteed High-Volume City Order Routing from Mobile App",
-      "Exclusive City Territory / Multi-Pincode Protection (5 km+ radius)",
-      "Automated Packing Machine & Serialized Barcode Tracking",
-      "Dedicated Enterprise Account Manager & Daily Fleet Coordination",
-      "Full Chemical Engineering & Eco-Detergent Supply Chain",
-      "B2B Corporate Client Onboarding (Hotels, Salons, Corporates)",
+      "Intelligent cluster route batching — zero wasted travel distance",
+      "Flexible working slots (Morning, Evening, or Full-Day)",
+      "Daily trip incentives, peak-hour bonuses & milestone rewards",
+      "Free QuickPress delivery bag, safety jacket & mobile holster",
+      "Accidental insurance coverage & cashless medical support",
+      "Real-time instant wallet payouts with bank transfer support",
     ],
     accentColor: "#D97706",
     bgHeader: "bg-[#78350F]",
@@ -91,34 +69,34 @@ const CASE_STUDIES: PartnerCaseStudy[] = [
     name: "Apex Eco Laundromat (Noida Hub)",
     business: "Commercial Laundry & Dry Cleaner",
     location: "Sector 76, Noida",
-    category: "Franchise Partner",
+    category: "Store Partner",
     growth: "+185% Monthly Orders",
     monthlyRevenue: "₹3,40,000 / mo",
     quote:
-      "Opening the QuickPress Express Hub solved our customer acquisition completely. The mobile app routes orders directly to our POS counter every single morning without any local ad spend.",
-    duration: "Franchisee since 2024",
-  },
-  {
-    name: "NCR Master Processing Facility",
-    business: "Central Industrial Processing Hub",
-    location: "Sector 62, Noida / Ghaziabad Border",
-    category: "Master Processing Hub",
-    growth: "+220% Capacity Utilization",
-    monthlyRevenue: "₹8,20,000 / mo",
-    quote:
-      "The ₹25 Lakh Master Hub model allowed us to process bulk commercial linen and consumer garments simultaneously. The ROI was hit in just 13 months.",
-    duration: "Franchisee since 2024",
+      "Partnering with QuickPress solved our customer acquisition completely. The app routes orders directly to our store every single morning without any local ad spend.",
+    duration: "Partner since 2024",
   },
   {
     name: "Express Delivery Fleet Partner",
-    business: "Independent 2-Wheeler & Van Logistics",
-    location: "Noida / Greater Noida West",
+    business: "Independent 2-Wheeler & Logistics",
+    location: "Sector 62 & 75, Noida",
     category: "Fleet Logistics Partner",
     growth: "+140% Driver Utilization",
     monthlyRevenue: "₹1,85,000 / mo",
     quote:
       "QuickPress route batching software eliminated empty return trips for our riders. Our delivery team completes 40+ scheduled pickups daily with consistent weekly payouts.",
     duration: "Partner since 2025",
+  },
+  {
+    name: "Classic Steam Press & Dry Cleaners",
+    business: "Neighborhood Garment Care Store",
+    location: "Sector 50, Noida",
+    category: "Store Partner",
+    growth: "+210% New Monthly Customers",
+    monthlyRevenue: "₹2,20,000 / mo",
+    quote:
+      "The QuickPress Partner App is extremely easy to use. Clothes get picked up by captains on time and our machine capacity is now 100% utilized.",
+    duration: "Partner since 2024",
   },
 ];
 
@@ -129,8 +107,8 @@ export function PartnersPage({
   onNavigate: (page: PageType) => void;
   onOpenModal: (type: ModalType) => void;
 }) {
-  const [selectedFranchiseId, setSelectedFranchiseId] = useState<"15lakh" | "25lakh">("15lakh");
-  const selectedModel = FRANCHISE_MODELS.find((m) => m.id === selectedFranchiseId) || FRANCHISE_MODELS[0];
+  const [selectedPartnerId, setSelectedPartnerId] = useState<"store" | "fleet">("store");
+  const selectedModel = PARTNER_CATEGORIES.find((m) => m.id === selectedPartnerId) || PARTNER_CATEGORIES[0];
 
   // Partner Earnings Calculator State (in ₹)
   const [partnerType, setPartnerType] = useState<"laundromat" | "courier" | "specialist">("laundromat");
@@ -143,71 +121,71 @@ export function PartnersPage({
     <div className="pt-24 sm:pt-32 pb-24 space-y-24 bg-white">
       {/* ─── Hero ────────────────────────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-yellow-100 text-yellow-900 text-xs font-bold tracking-widest uppercase mb-4 border border-yellow-200">
-          QuickPress Franchise & Partner Network
+        <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold tracking-widest uppercase mb-4 border border-emerald-200">
+          QuickPress Partner Network
         </span>
         <h1 className="text-4xl sm:text-6xl font-black text-gray-950 leading-tight max-w-4xl mx-auto">
-          Own a high-return franchise powered by <br />
-          <span style={{ color: GREEN }}>automated digital demand.</span>
+          Grow your laundry or delivery business <br />
+          <span style={{ color: GREEN }}>with automated digital demand.</span>
         </h1>
         <p className="text-gray-600 text-base sm:text-xl max-w-3xl mx-auto mt-6 leading-relaxed">
-          Partner with India's fastest-growing on-demand laundry and express delivery platform. Choose between our <strong>₹15 Lakh Express Hub</strong> or <strong>₹25 Lakh Master Processing Hub</strong> franchise models.
+          Partner with India's fastest-growing on-demand laundry and express delivery ecosystem. Join as a <strong>Store Partner</strong> or <strong>Delivery Captain</strong> with zero upfront listing fees.
         </p>
 
         <div className="flex flex-wrap justify-center gap-4 mt-8">
           <button
             onClick={() => onOpenModal("partner")}
-            className="px-8 py-4 rounded-full font-black text-gray-950 text-sm shadow-xl hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
-            style={{ background: YELLOW }}
+            className="px-8 py-4 rounded-full font-black text-white text-sm shadow-xl hover:scale-105 transition-all cursor-pointer flex items-center gap-2"
+            style={{ background: GREEN }}
           >
-            <IconBriefcase className="w-4 h-4" />
-            <span>Apply for Franchise Ownership →</span>
+            <IconHandshake className="w-4 h-4" />
+            <span>Join as QuickPress Partner →</span>
           </button>
           <a
-            href="#franchise-models"
+            href="#partner-categories"
             className="px-7 py-4 rounded-full font-bold text-gray-800 text-sm bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer"
           >
-            Compare ₹15L & ₹25L Models
+            Explore Partner Programs
           </a>
         </div>
       </section>
 
-      {/* ─── Franchise Models Showcase (₹15 Lakh vs ₹25 Lakh) ──────────────────── */}
-      <section id="franchise-models" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ─── Partner Categories Showcase ────────────────────────────────────── */}
+      <section id="partner-categories" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <span className="text-xs font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-            Franchise Models
+            Partnership Programs
           </span>
           <h2 className="text-3xl sm:text-5xl font-black text-gray-950 mt-3">
-            Choose Your Investment Model
+            Choose How You Want to Grow
           </h2>
           <p className="text-gray-500 text-sm sm:text-base mt-2">
-            Turnkey operational setups with complete tech, machinery, training, and customer order pipeline.
+            Whether you own a neighborhood laundry store or a fleet of delivery riders, QuickPress powers your scale.
           </p>
 
           {/* Model Switcher Tabs */}
           <div className="flex justify-center gap-3 mt-8">
             <button
-              onClick={() => setSelectedFranchiseId("15lakh")}
+              onClick={() => setSelectedPartnerId("store")}
               className={`px-6 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
-                selectedFranchiseId === "15lakh"
+                selectedPartnerId === "store"
                   ? "bg-emerald-800 text-white shadow-lg scale-105"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
               <IconSparkle className="w-4 h-4 text-yellow-400" />
-              <span>₹15 Lakh Express Hub Model</span>
+              <span>Laundromat & Store Partner</span>
             </button>
             <button
-              onClick={() => setSelectedFranchiseId("25lakh")}
+              onClick={() => setSelectedPartnerId("fleet")}
               className={`px-6 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
-                selectedFranchiseId === "25lakh"
+                selectedPartnerId === "fleet"
                   ? "bg-amber-700 text-white shadow-lg scale-105"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <IconCpu className="w-4 h-4 text-yellow-300" />
-              <span>₹25 Lakh Master Processing Hub</span>
+              <IconVan className="w-4 h-4 text-yellow-300" />
+              <span>Rider & Fleet Logistics Partner</span>
             </button>
           </div>
         </div>
@@ -215,7 +193,7 @@ export function PartnersPage({
         {/* Selected Model Detailed View */}
         <div className="bg-white rounded-3xl border-2 border-gray-200/90 shadow-2xl overflow-hidden animate-fade-in">
           {/* Header Banner */}
-          <div className={`p-8 sm:p-12 text-white ${selectedFranchiseId === "15lakh" ? "bg-gradient-to-r from-emerald-950 via-emerald-900 to-[#0A2414]" : "bg-gradient-to-r from-[#78350F] via-amber-950 to-[#451A03]"} flex flex-col md:flex-row md:items-center justify-between gap-6`}>
+          <div className={`p-8 sm:p-12 text-white ${selectedPartnerId === "store" ? "bg-gradient-to-r from-emerald-950 via-emerald-900 to-[#0A2414]" : "bg-gradient-to-r from-[#78350F] via-amber-950 to-[#451A03]"} flex flex-col md:flex-row md:items-center justify-between gap-6`}>
             <div className="space-y-2">
               <span className="inline-block px-3 py-1 rounded-full text-xs font-black bg-yellow-400 text-gray-950 uppercase tracking-wider">
                 {selectedModel.badge}
@@ -228,13 +206,13 @@ export function PartnersPage({
 
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center shrink-0 min-w-[220px]">
               <span className="text-[10px] uppercase font-bold text-yellow-300 block">
-                Total Turnkey Investment
+                Upfront Joining Cost
               </span>
               <span className="text-3xl sm:text-4xl font-black text-white block mt-0.5">
-                {selectedModel.investment}
+                {selectedModel.commission}
               </span>
               <span className="text-[11px] text-emerald-200 font-semibold block mt-1">
-                ROI: {selectedModel.targetBreakEven}
+                Payout: {selectedModel.payoutCycle}
               </span>
             </div>
           </div>
@@ -242,63 +220,40 @@ export function PartnersPage({
           {/* Key Metrics Strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border-b border-gray-200">
             <div className="bg-white p-6 text-center">
-              <span className="text-[10px] uppercase font-bold text-gray-400 block">Space Required</span>
+              <span className="text-[10px] uppercase font-bold text-gray-400 block">Eligibility</span>
               <span className="text-lg font-black text-gray-900 block mt-1">{selectedModel.areaRequired}</span>
-              <span className="text-[10px] text-gray-500 block mt-0.5">{selectedModel.locationType}</span>
+              <span className="text-[10px] text-gray-500 block mt-0.5">Quick 24h verification</span>
             </div>
             <div className="bg-white p-6 text-center">
-              <span className="text-[10px] uppercase font-bold text-gray-400 block">Projected Monthly Revenue</span>
+              <span className="text-[10px] uppercase font-bold text-gray-400 block">Estimated Revenue</span>
               <span className="text-lg font-black text-emerald-700 block mt-1">{selectedModel.monthlyRevenue}</span>
-              <span className="text-[10px] text-gray-500 block mt-0.5">From app demand & retail walk-ins</span>
+              <span className="text-[10px] text-gray-500 block mt-0.5">Direct app order volume</span>
             </div>
             <div className="bg-white p-6 text-center">
-              <span className="text-[10px] uppercase font-bold text-gray-400 block">Estimated Net Profit</span>
-              <span className="text-lg font-black text-yellow-600 block mt-1">{selectedModel.monthlyNetProfit}</span>
-              <span className="text-[10px] text-gray-500 block mt-0.5">{selectedModel.netProfitMargin}</span>
+              <span className="text-[10px] uppercase font-bold text-gray-400 block">Settlement Cycle</span>
+              <span className="text-lg font-black text-yellow-600 block mt-1">{selectedModel.payoutCycle}</span>
+              <span className="text-[10px] text-gray-500 block mt-0.5">Direct to your bank account</span>
             </div>
             <div className="bg-white p-6 text-center">
-              <span className="text-[10px] uppercase font-bold text-gray-400 block">Break-even Period</span>
-              <span className="text-lg font-black text-gray-900 block mt-1">{selectedModel.targetBreakEven}</span>
-              <span className="text-[10px] text-gray-500 block mt-0.5">Fast payback timeline</span>
+              <span className="text-[10px] uppercase font-bold text-gray-400 block">Logistics Support</span>
+              <span className="text-lg font-black text-gray-900 block mt-1">100% Doorstep Fleet</span>
+              <span className="text-[10px] text-gray-500 block mt-0.5">Handled by QuickPress Captains</span>
             </div>
           </div>
 
-          {/* Capital Allocation & Franchise Inclusions Grid */}
-          <div className="p-8 sm:p-12 grid lg:grid-cols-12 gap-10">
-            {/* Capital Allocation Breakdown */}
-            <div className="lg:col-span-6 space-y-4">
+          {/* Inclusions & Support Grid */}
+          <div className="p-8 sm:p-12">
+            <div className="max-w-3xl mx-auto space-y-4">
               <h4 className="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                Capital Investment Breakdown ({selectedModel.investment})
+                What QuickPress Provides to You
               </h4>
               <p className="text-xs text-gray-500">
-                Transparent itemized allocation of your turnkey franchise setup budget:
+                Full technological, operational, and customer service support from Day 1:
               </p>
-              <div className="space-y-2.5 pt-2">
-                {selectedModel.capitalAllocation.map((cap) => (
-                  <div
-                    key={cap.item}
-                    className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-semibold text-gray-800">{cap.item}</span>
-                    <span className="font-black text-gray-950 shrink-0">{cap.amount}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Franchise Inclusions & QuickPress Support */}
-            <div className="lg:col-span-6 space-y-4">
-              <h4 className="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                What QuickPress Provides
-              </h4>
-              <p className="text-xs text-gray-500">
-                End-to-end operational, technological, and supply support from Day 1:
-              </p>
-              <ul className="space-y-3 pt-2">
+              <ul className="grid sm:grid-cols-2 gap-3 pt-2">
                 {selectedModel.inclusions.map((inc) => (
-                  <li key={inc} className="flex items-start gap-2.5 text-xs sm:text-sm text-gray-700">
+                  <li key={inc} className="flex items-start gap-2.5 text-xs sm:text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100">
                     <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
                       ✓
                     </span>
@@ -311,18 +266,18 @@ export function PartnersPage({
               <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                   <span className="text-xs font-black text-emerald-950 block">
-                    Ready to launch your {selectedModel.investment} Franchise?
+                    Ready to grow with QuickPress?
                   </span>
                   <span className="text-[11px] text-emerald-700 block">
-                    Territory lock available on first-come-first-serve basis.
+                    Onboard in under 24 hours with dedicated assistance.
                   </span>
                 </div>
                 <button
                   onClick={() => onOpenModal("partner")}
-                  className="w-full sm:w-auto px-6 py-3 rounded-full font-black text-gray-950 text-xs shadow-md hover:scale-105 transition-all cursor-pointer shrink-0"
-                  style={{ background: YELLOW }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-full font-black text-white text-xs shadow-md hover:scale-105 transition-all cursor-pointer shrink-0"
+                  style={{ background: GREEN }}
                 >
-                  Apply for {selectedModel.investment} Franchise →
+                  Join as Partner Now →
                 </button>
               </div>
             </div>
@@ -407,7 +362,7 @@ export function PartnersPage({
         <div className="bg-gradient-to-br from-emerald-950 via-[#0A2414] to-[#06180E] text-white rounded-3xl p-8 sm:p-14 border border-emerald-800/60 grid lg:grid-cols-12 gap-10 items-center shadow-xl">
           <div className="lg:col-span-6 space-y-6">
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-900/60 px-3 py-1 rounded-full border border-emerald-700">
-              Partner & Franchise ROI Estimator
+              Partner Earnings Estimator
             </span>
             <h2 className="text-3xl sm:text-4xl font-black">
               Calculate your projected monthly net revenue.
@@ -418,9 +373,9 @@ export function PartnersPage({
 
             <div className="flex flex-wrap gap-2">
               {[
-                { id: "laundromat", label: "Express Laundromat Hub" },
+                { id: "laundromat", label: "Laundromat Store Partner" },
                 { id: "courier", label: "Fleet Logistics Partner" },
-                { id: "specialist", label: "Master Processing Hub" },
+                { id: "specialist", label: "Commercial Laundry Facility" },
               ].map((type) => (
                 <button
                   key={type.id}
@@ -453,9 +408,9 @@ export function PartnersPage({
                 className="w-full accent-yellow-400 cursor-pointer"
               />
               <div className="flex justify-between text-[10px] text-emerald-400/60 mt-1">
-                <span>10 / day (Part-Time)</span>
-                <span>50 / day (₹15L Hub Target)</span>
-                <span>120+ / day (₹25L Master Hub)</span>
+                <span>10 / day (Starter Store)</span>
+                <span>50 / day (Active Store)</span>
+                <span>120+ / day (Large Facility)</span>
               </div>
             </div>
 
@@ -474,7 +429,7 @@ export function PartnersPage({
               className="w-full py-4 rounded-full font-black text-gray-950 text-sm shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
               style={{ background: YELLOW }}
             >
-              Start Franchise Application Now →
+              Join as QuickPress Partner →
             </button>
           </div>
         </div>

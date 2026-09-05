@@ -355,11 +355,10 @@ export function PartnerModal({
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm focus:outline-none focus:border-emerald-600 bg-white"
                 >
-                  <option>Franchise Partner (₹15 Lakhs Express Hub)</option>
-                  <option>Franchise Partner (₹25 Lakhs Master Processing Hub)</option>
-                  <option>Commercial Laundromat / Dry Cleaner Partner</option>
-                  <option>Courier & Independent Delivery Fleet Partner</option>
-                  <option>Local Specialty Repair & Artisan Partner</option>
+                  <option>Commercial Laundromat / Dry Cleaner Store Partner</option>
+                  <option>Independent Delivery Captain / Fleet Partner</option>
+                  <option>Shoe Spa & Leather Care Partner</option>
+                  <option>Commercial Bulk Linen Partner</option>
                   <option>Corporate Retail / Enterprise Logistics</option>
                 </select>
               </div>
@@ -459,8 +458,8 @@ export function ContactModal({
   onSuccess?: (msg?: string) => void;
 }) {
   const [inquiryType, setInquiryType] = useState<
-    "franchise" | "customer_help" | "partner" | "captain" | "corporate" | "general"
-  >("franchise");
+    "partner" | "customer_help" | "captain" | "corporate" | "general"
+  >("partner");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -473,12 +472,11 @@ export function ContactModal({
   if (!isOpen) return null;
 
   const INQUIRY_TYPES = [
-    { id: "franchise", label: "🏢 Franchise (₹15L / ₹25L)", desc: "Open a QuickPress Express or Master Processing Hub" },
+    { id: "partner", label: "🏪 Partner Store Onboarding", desc: "List your laundry, dry cleaner store or ironing shop" },
+    { id: "captain", label: "🛵 Captain / Rider Fleet", desc: "Join as a delivery captain or fleet logistics partner" },
     { id: "customer_help", label: "🧺 Customer & Order Help", desc: "Order tracking, pickup rescheduling or fabric care inquiry" },
-    { id: "partner", label: "🏪 Partner Facility Onboarding", desc: "Monetize your existing laundromat or dry cleaning plant" },
-    { id: "captain", label: "🛵 Captain / Rider Fleet", desc: "Join as a delivery captain or fleet rider partner" },
     { id: "corporate", label: "💼 B2B & Hotel Logistics", desc: "Bulk laundry contracts for hotels, salons & corporate staff" },
-    { id: "general", label: "💬 General & Media", desc: "General queries, feedback, or management consultation" },
+    { id: "general", label: "💬 General & Media", desc: "General queries, feedback, or business consultation" },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -619,32 +617,33 @@ export function ContactModal({
               </div>
 
               {/* Dynamic Field Based on Selected Category */}
-              {inquiryType === "franchise" && (
-                <div className="p-3.5 bg-yellow-50/70 rounded-2xl border border-yellow-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {inquiryType === "partner" && (
+                <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-yellow-950 uppercase mb-1">
-                      Preferred Franchise Model
+                    <label className="block text-[11px] font-bold text-emerald-950 uppercase mb-1">
+                      Business Facility Type
                     </label>
                     <select
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-yellow-300 text-xs font-bold text-gray-900 bg-white focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl border border-emerald-300 text-xs font-bold text-gray-900 bg-white focus:outline-none"
                     >
-                      <option value="₹15 Lakhs Express Hub">₹15 Lakhs Express Collection Hub (250–450 sq.ft)</option>
-                      <option value="₹25 Lakhs Master Processing Hub">₹25 Lakhs Master Processing Facility (600–1200 sq.ft)</option>
-                      <option value="Multiple Territory Lock">Multi-City / Master Territory</option>
+                      <option value="Laundromat / Wash & Fold Store">Laundromat / Wash & Fold Store</option>
+                      <option value="Dry Cleaner & Steam Press Plant">Dry Cleaner & Steam Press Facility</option>
+                      <option value="Shoe & Leather Care Spa">Shoe & Leather Care Spa</option>
+                      <option value="Independent Logistics Fleet">Independent Logistics Fleet</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-yellow-950 uppercase mb-1">
-                      Target Sector / Locality Pincode
+                    <label className="block text-[11px] font-bold text-emerald-950 uppercase mb-1">
+                      Target Noida Sector / Pincode
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Sector 90 Noida (201305)"
+                      placeholder="e.g. Sector 62 / 75 Noida (201301)"
                       value={pincode}
                       onChange={(e) => setPincode(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-yellow-300 text-xs text-gray-900 bg-white focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl border border-emerald-300 text-xs text-gray-900 bg-white focus:outline-none"
                     />
                   </div>
                 </div>
@@ -710,7 +709,7 @@ export function ContactModal({
                   className="w-full py-4 rounded-full font-black text-white text-sm shadow-xl hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2"
                   style={{ background: GREEN }}
                 >
-                  <span>Submit {inquiryType === "franchise" ? "Franchise Inquiry" : "Inquiry"} →</span>
+                  <span>Submit Inquiry →</span>
                 </button>
                 <p className="text-[11px] text-gray-500 text-center mt-2.5">
                   Your information will be used to respond to your request. See our{" "}

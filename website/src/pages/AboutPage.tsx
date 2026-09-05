@@ -104,22 +104,6 @@ export function AboutPage({
                     <strong>Rishab Baghel (Rishuuu)</strong> brought an execution-first entrepreneurial mindset, driving <strong>Business Development, Leadership & Actionable Execution</strong>.
                   </span>
                 </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">
-                    ✓
-                  </span>
-                  <span>
-                    <strong>Aryan Rana</strong> dove deep into software engineering, directing <strong>Technology, Development & Platform Operations</strong>.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">
-                    ✓
-                  </span>
-                  <span>
-                    And as QuickPress expanded, <strong>Ananya</strong> joined as <strong>Finance Head</strong>, bringing structured <strong>Financial Planning, Fiscal Management & Responsible Growth</strong>.
-                  </span>
-                </li>
               </ul>
             </div>
           </div>
@@ -236,84 +220,6 @@ export function AboutPage({
                 <p className="text-xs text-gray-600 mt-3 leading-relaxed">
                   Leading executive decision-making, strategic partnerships, daily business development, and driving company execution.
                 </p>
-              </div>
-            </div>
-
-            {/* Branching SVG Connector from Tier 2 to Tier 3 (Aryan Rana & Finance Head) */}
-            <div className="w-full max-w-2xl h-14 relative my-1">
-              <svg className="w-full h-full" viewBox="0 0 600 56" fill="none" preserveAspectRatio="none">
-                {/* Vertical stem from CEO */}
-                <line x1="300" y1="0" x2="300" y2="28" stroke="#F59E0B" strokeWidth="2" />
-                {/* Horizontal split bar */}
-                <line x1="150" y1="28" x2="450" y2="28" stroke="#1A7A3C" strokeWidth="2" />
-                {/* Left drop down to Aryan Rana */}
-                <line x1="150" y1="28" x2="150" y2="56" stroke="#1A7A3C" strokeWidth="2" markerEnd="url(#arrow)" />
-                {/* Right drop down to Finance Head */}
-                <line x1="450" y1="28" x2="450" y2="56" stroke="#1A7A3C" strokeWidth="2" markerEnd="url(#arrow)" />
-                <defs>
-                  <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1A7A3C" />
-                  </marker>
-                </defs>
-              </svg>
-            </div>
-          </div>
-
-          {/* ── TIER 3: PARALLEL BRANCHES (Aryan Rana & Finance Head) ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto pt-2">
-            {/* Branch 1: Aryan Rana */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-md hover:shadow-lg transition-all text-center relative flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full inline-block mx-auto mb-3">
-                Executive Leadership
-              </span>
-
-              <div>
-                <h3 className="text-xl font-black text-gray-900">Aryan Rana</h3>
-                <p className="text-xs font-bold text-blue-700 mb-2">Managing Director</p>
-
-                <div className="p-2 bg-blue-50/70 rounded-xl border border-blue-100 text-xs font-bold text-blue-900 mb-3">
-                  Technology, Development & Operations
-                </div>
-
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Directing software development, technical product management, dispatch system engineering, and daily logistics operations.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-gray-100 mt-4 flex items-center justify-between text-xs text-blue-700 font-semibold">
-                <span className="flex items-center gap-1">
-                  <IconCpu className="w-3.5 h-3.5" />
-                  Tech & Ops Lead
-                </span>
-                <IconCheck className="w-4 h-4" />
-              </div>
-            </div>
-
-            {/* Branch 2: Finance Head (Ananya) */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-md hover:shadow-lg transition-all text-center relative flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full inline-block mx-auto mb-3">
-                Executive Leadership
-              </span>
-
-              <div>
-                <h3 className="text-xl font-black text-gray-900">Ananya</h3>
-                <p className="text-xs font-bold text-purple-700 mb-2">Finance Head</p>
-
-                <div className="p-2 bg-purple-50/70 rounded-xl border border-purple-100 text-xs font-bold text-purple-900 mb-3">
-                  Finance, Planning & Financial Management
-                </div>
-
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Leading strategic financial management, investor relations, partner settlement accounting, and sustainable capital growth.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-gray-100 mt-4 flex items-center justify-between text-xs text-purple-700 font-semibold">
-                <span className="flex items-center gap-1">
-                  <IconBriefcase className="w-3.5 h-3.5" />
-                  Fiscal & Capital Lead
-                </span>
-                <IconCheck className="w-4 h-4" />
               </div>
             </div>
           </div>
