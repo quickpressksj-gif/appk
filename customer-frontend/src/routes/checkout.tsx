@@ -45,6 +45,7 @@ import {
   loadRazorpayCheckout,
   openRazorpayCheckout,
 } from "@/api/core/razorpay";
+import { playOrderPlacedSonicChime } from "@/lib/order-success-sound";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -181,8 +182,9 @@ export function CheckoutPage() {
       return;
     }
 
-    if (!selectedPickup) {
-      toast.error("Please select a pickup address.");
+    if (!selectedPickup || !selectedPickup.line || !selectedPickup.line.trim() || addresses.length === 0) {
+      toast.error("Please add a delivery address to place your order.");
+      setShowPickupPicker(true);
       return;
     }
 
@@ -237,7 +239,7 @@ export function CheckoutPage() {
       } else if (selectedPayment === "wallet") {
         if (walletBalance < grandTotal) {
           toast.error(
-            `Insufficient wallet balance (₹${walletBalance}). Please choose UPI, Card or Pay on Delivery.`
+            `Insufficient wallet balance: ₹${walletBalance} available, ₹${grandTotal} required. Please choose UPI, Card, or Pay on Delivery.`
           );
           setPlacingOrder(false);
           return;
@@ -254,7 +256,7 @@ export function CheckoutPage() {
           image: l.image || "",
           description: l.description || "",
         })),
-        addressId: selectedPickup?.id || "addr-default",
+        addressId: selectedPickup.id,
         address: selectedPickup,
         deliveryAddress: selectedDelivery,
         pickup: { day: "Today", slot: "15-30 mins", express: true },
@@ -264,6 +266,9 @@ export function CheckoutPage() {
         customerName: customerName.trim(),
         customerPhone: cleanPhone,
       });
+
+      // Play Rapido-style ascending celebration sound + tactile haptics
+      playOrderPlacedSonicChime();
 
       toast.success("Order Placed Successfully! 🎉");
       cart.clear();
@@ -275,8 +280,8 @@ export function CheckoutPage() {
         to: "/order-success/$orderId",
         params: { orderId: result.orderId || `ord-${Date.now()}` },
       });
-    } catch (err) {
-      toast.error("Failed to place order. Please try again.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to place order. Please try again.");
       setPlacingOrder(false);
     }
   };
@@ -329,7 +334,7 @@ export function CheckoutPage() {
             </button>
           </div>
 
-          {selectedPickup ? (
+          {selectedPickup && selectedPickup.line?.trim() ? (
             <div className="flex items-start gap-2.5 pt-1">
               <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-[#0c831f] shrink-0 mt-0.5">
                 <Home className="size-4" />
@@ -349,7 +354,18 @@ export function CheckoutPage() {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-zinc-500">No pickup address selected.</p>
+            <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/70 p-3.5 text-center space-y-2">
+              <p className="text-xs font-bold text-amber-900">No delivery address selected</p>
+              <p className="text-[11px] text-amber-700">Please add your address so our rider can pick up your clothes.</p>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/addresses" })}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2 text-xs font-black text-white active:scale-95 transition-transform cursor-pointer shadow-xs"
+              >
+                <Plus className="size-3.5 stroke-[3]" />
+                <span>Add Delivery Address</span>
+              </button>
+            </div>
           )}
         </section>
 
@@ -744,6 +760,10 @@ export function CheckoutPage() {
             setPickupAddressId(id);
             setShowPickupPicker(false);
           }}
+          onAddNew={() => {
+            setShowPickupPicker(false);
+            navigate({ to: "/addresses" });
+          }}
           onClose={() => setShowPickupPicker(false)}
         />
       ) : null}
@@ -758,6 +778,10 @@ export function CheckoutPage() {
             setDeliveryAddressId(id);
             setShowDeliveryPicker(false);
           }}
+          onAddNew={() => {
+            setShowDeliveryPicker(false);
+            navigate({ to: "/addresses" });
+          }}
           onClose={() => setShowDeliveryPicker(false)}
         />
       ) : null}
@@ -771,12 +795,14 @@ function AddressPickerModal({
   selectedId,
   onSelect,
   onClose,
+  onAddNew,
 }: {
   title: string;
   addresses: Address[];
   selectedId: string;
   onSelect: (id: string) => void;
   onClose: () => void;
+  onAddNew?: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -792,28 +818,57 @@ function AddressPickerModal({
           </button>
         </div>
 
-        <div className="space-y-2 max-h-60 overflow-y-auto">
-          {addresses.map((addr) => (
-            <div
-              key={addr.id}
-              onClick={() => onSelect(addr.id)}
-              className={`p-3 rounded-xl border flex items-start justify-between cursor-pointer transition-colors ${
-                addr.id === selectedId
-                  ? "border-[#0c831f] bg-emerald-50/50"
-                  : "border-zinc-200 hover:bg-zinc-50"
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-zinc-900">{addr.label}</p>
-                <p className="text-xs text-zinc-600 truncate">{addr.line}</p>
-                <p className="text-[11px] text-zinc-400">{addr.city}</p>
+        {addresses.length === 0 ? (
+          <div className="py-6 text-center space-y-3">
+            <p className="text-xs font-bold text-zinc-600">No saved addresses found.</p>
+            {onAddNew ? (
+              <button
+                type="button"
+                onClick={onAddNew}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2 text-xs font-black text-white active:scale-95 cursor-pointer shadow-xs"
+              >
+                <Plus className="size-3.5 stroke-[3]" />
+                <span>Add New Address</span>
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {addresses.map((addr) => (
+              <div
+                key={addr.id}
+                onClick={() => onSelect(addr.id)}
+                className={`p-3 rounded-xl border flex items-start justify-between cursor-pointer transition-colors ${
+                  addr.id === selectedId
+                    ? "border-[#0c831f] bg-emerald-50/50"
+                    : "border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-zinc-900">{addr.label}</p>
+                  <p className="text-xs text-zinc-600 truncate">{addr.line}</p>
+                  <p className="text-[11px] text-zinc-400">{addr.city}</p>
+                </div>
+                {addr.id === selectedId ? (
+                  <CheckCircle2 className="size-4 text-[#0c831f] shrink-0 mt-0.5" />
+                ) : null}
               </div>
-              {addr.id === selectedId ? (
-                <CheckCircle2 className="size-4 text-[#0c831f] shrink-0 mt-0.5" />
-              ) : null}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {addresses.length > 0 && onAddNew ? (
+          <div className="pt-2 border-t border-zinc-100">
+            <button
+              type="button"
+              onClick={onAddNew}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-zinc-300 text-xs font-bold text-[#0c831f] hover:bg-emerald-50 active:scale-98 transition-colors cursor-pointer"
+            >
+              <Plus className="size-3.5 stroke-[3]" />
+              <span>Add Another Address</span>
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

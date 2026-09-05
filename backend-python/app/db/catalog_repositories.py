@@ -73,12 +73,46 @@ class CatalogRepository:
 
 
     async def categories(self) -> List[CategoryResponse]:
-        docs = await database.find_many("categories", sort_key="sortOrder")
-        return [
-            CategoryResponse(id=d["_id"], **_without_id(d))
-            for d in docs
-            if d.get("status", "active") != "inactive"
-        ]
+        try:
+            docs = await database.find_many("categories", sort_key="sortOrder")
+        except Exception:
+            docs = []
+        if not docs:
+            docs = SEED.get("categories", [])
+
+        res: List[CategoryResponse] = []
+        for d in docs:
+            if d.get("status", "active") == "inactive":
+                continue
+            cat_id = str(d.get("_id") or d.get("id") or "")
+            if not cat_id:
+                continue
+            res.append(
+                CategoryResponse(
+                    id=cat_id,
+                    title=str(d.get("title") or d.get("name") or "Laundry Service"),
+                    description=str(d.get("description") or ""),
+                    icon=str(d.get("icon") or "sparkles"),
+                    image=str(d.get("image") or d.get("imageUrl") or ""),
+                    sortOrder=int(d.get("sortOrder") or 99),
+                    status=str(d.get("status") or "active"),
+                )
+            )
+
+        if not res:
+            res = [
+                CategoryResponse(
+                    id=str(c["_id"]),
+                    title=str(c.get("title") or "Laundry"),
+                    description=str(c.get("description") or ""),
+                    icon=str(c.get("icon") or "sparkles"),
+                    image=str(c.get("image") or ""),
+                    sortOrder=int(c.get("sortOrder") or 99),
+                    status="active",
+                )
+                for c in SEED.get("categories", [])
+            ]
+        return res
 
     async def services(
         self,

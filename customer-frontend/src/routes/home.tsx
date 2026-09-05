@@ -39,6 +39,16 @@ import { ServicesUnavailableView } from "@/components/common/ServicesUnavailable
 import { useHomeData } from "@/hooks/useHomeData";
 import { checkLocationAvailability } from "@/api/customer/services/partner-service";
 import type { SavedLocation } from "@/api/customer/services/location-service";
+import {
+  DEFAULT_CATEGORIES,
+  fetchCategories,
+  fetchHomeSections,
+  fetchOffers,
+  fetchPartners,
+  fetchPopularServices,
+  fetchRecentOrders,
+  refreshHomeSections,
+} from "@/api/customer/services/home-service";
 import { toast } from "sonner";
 import {
   readRecentSearches,
@@ -173,7 +183,9 @@ function HomeScreen() {
 
   const profile = sections.profile.data;
   const location = sections.location.data;
-  const categories = sections.categories.data ?? [];
+  const categories = (sections.categories.data && sections.categories.data.length > 0)
+    ? sections.categories.data
+    : DEFAULT_CATEGORIES;
   const popular = sections.popular.data ?? [];
   const offers = sections.offers.data ?? [];
   const recentOrders = sections.recentOrders.data ?? [];
@@ -462,12 +474,14 @@ function HomeScreen() {
                 {/* Categories — GET /api/categories */}
                 <section id="services" className="mt-8 scroll-mt-24">
                   <SectionHeading title="Services" action="View all" />
-                  <SectionStatus
-                    error={sections.categories.error}
-                    empty={!sections.categories.loading && (sections.categories.data?.length ?? 0) === 0}
-                    emptyLabel="No services available in your area yet."
-                    onRetry={() => void retry()}
-                  />
+                  {categories.length === 0 && (
+                    <SectionStatus
+                      error={sections.categories.error}
+                      empty={!sections.categories.loading && (sections.categories.data?.length ?? 0) === 0}
+                      emptyLabel="No services available in your area yet."
+                      onRetry={() => void retry()}
+                    />
+                  )}
                   <div className="stagger-children mt-4 grid grid-cols-3 gap-3">
                     {categories.map((category, index) => {
                       const Icon = ICONS[category.icon] ?? Sparkles;

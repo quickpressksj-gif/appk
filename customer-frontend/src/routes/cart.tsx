@@ -7,6 +7,7 @@ import {
   Plus,
   ShoppingBag,
   Sparkles,
+  Store,
   Tag,
   Trash2,
   Zap,
@@ -25,30 +26,38 @@ export const Route = createFileRoute("/cart")({
   component: CartPage,
 });
 
-// Add-on suggestions that user can 1-tap add to their cart
+// Fallback add-on suggestions
 const SUGGESTED_ADDONS = [
+  {
+    id: "s-iron-shirt",
+    name: "Shirt Steam Iron",
+    price: 15,
+    unit: "piece",
+    image: "/images/services/steam-iron.jpg",
+    description: "Crisp wrinkle-free hanger finish",
+  },
+  {
+    id: "s-wash-fold",
+    name: "Express Wash & Fold",
+    price: 49,
+    unit: "kg",
+    image: "/images/services/wash-fold.jpg",
+    description: "Anti-bacterial everyday wash and neat folding",
+  },
   {
     id: "addon-shoes",
     name: "Sneakers Deep Clean",
     price: 149,
     unit: "pair",
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=80",
+    image: "/images/services/shoe-cleaning.jpg",
     description: "Antibacterial steam cleaning & sole scrub",
-  },
-  {
-    id: "addon-steam",
-    name: "Express Steam Ironing",
-    price: 39,
-    unit: "piece",
-    image: "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=150&auto=format&fit=crop&q=80",
-    description: "Crease-free steam press with hanger pack",
   },
   {
     id: "addon-blanket",
     name: "Heavy Blanket Wash",
     price: 199,
     unit: "piece",
-    image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=150&auto=format&fit=crop&q=80",
+    image: "/images/services/blanket-cleaning.jpg",
     description: "Deep anti-mite wash and odor neutralizer",
   },
 ];
@@ -60,6 +69,44 @@ function CartPage() {
   const [couponInput, setCouponInput] = useState<string>("");
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(getCartState().couponCode || null);
   const [couponDiscount, setCouponDiscount] = useState<number>(getCartState().couponDiscount || 0);
+  const [dynamicAddons, setDynamicAddons] = useState<any[]>([]);
+
+  const primaryPartnerId = cart.lines[0]?.partnerId;
+  const primaryPartnerName =
+    cart.lines[0]?.partnerName ||
+    cart.store?.name ||
+    (getCartState().data?.store?.name !== "QuickPress Express Hub" ? getCartState().data?.store?.name : null);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadRealServices() {
+      if (primaryPartnerId) {
+        try {
+          const { fetchPartnerDetail } = await import("@/api/customer/partner-api");
+          const res = await fetchPartnerDetail(primaryPartnerId);
+          if (alive && res?.data?.services && res.data.services.length > 0) {
+            setDynamicAddons(res.data.services);
+            return;
+          }
+        } catch {
+          // fallback
+        }
+      }
+      try {
+        const { fetchPopularServices } = await import("@/api/customer/services/recommendation-service");
+        const res = await fetchPopularServices();
+        if (alive && Array.isArray(res) && res.length > 0) {
+          setDynamicAddons(res);
+        }
+      } catch {
+        // fallback
+      }
+    }
+    void loadRealServices();
+    return () => {
+      alive = false;
+    };
+  }, [primaryPartnerId]);
 
   // Sync instructions to store
   const handleInstructionChange = (text: string) => {
@@ -100,6 +147,29 @@ function CartPage() {
   const gst = Math.round(itemsSubtotal * 0.18);
   const grandTotal = Math.max(0, itemsSubtotal + deliveryFee + handlingFee + gst - couponDiscount);
   const savings = Math.max(0, totalMRP - itemsSubtotal) + couponDiscount;
+
+  const displayedAddons = (dynamicAddons.length > 0 ? dynamicAddons : SUGGESTED_ADDONS)
+    .filter((a) => !cart.lines.some((l) => l.id === (a.id || a._id || a.serviceId)))
+    .slice(0, 4)
+    .map((addon) => ({
+      id: addon.id || addon._id || addon.serviceId || `srv-${addon.name?.toLowerCase().replace(/\s+/g, "-")}`,
+      name: addon.name || addon.title || "Quick Service",
+      price: Number(addon.price || addon.basePrice || 49),
+      unit: addon.unit || "piece",
+      image: addon.image || "/images/services/steam-iron.jpg",
+      description: addon.description || "",
+      partnerId: primaryPartnerId || addon.partnerId || "partner-express-hub",
+      partnerName: primaryPartnerName || addon.partnerName || "QuickPress Partner",
+    }));
+
+  const addonsToShow =
+    displayedAddons.length > 0
+      ? displayedAddons
+      : SUGGESTED_ADDONS.map((a) => ({
+          ...a,
+          partnerId: primaryPartnerId || "partner-express-hub",
+          partnerName: primaryPartnerName || "QuickPress Partner",
+        }));
 
   if (cart.lines.length === 0) {
     return (
@@ -175,11 +245,21 @@ function CartPage() {
 
         {/* Selected Items Card */}
         <section aria-label="Cart Items" className="bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
-            <span className="text-xs font-black uppercase tracking-wider text-zinc-500">
-              Selected Items ({cart.count})
-            </span>
-            <span className="text-xs font-black text-[#0c831f]">
+          <div className="flex items-start justify-between border-b border-zinc-100 pb-2.5">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-black uppercase tracking-wider text-zinc-500">
+                Selected Items ({cart.count})
+              </span>
+              {primaryPartnerName ? (
+                <div className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200/80">
+                  <Store className="size-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">
+                    Fulfilled by: <strong className="text-zinc-900 font-extrabold">{primaryPartnerName}</strong>
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <span className="text-xs font-black text-[#0c831f] pt-0.5">
               ₹{itemsSubtotal}
             </span>
           </div>
@@ -198,25 +278,35 @@ function CartPage() {
 
         {/* Missed Something? Add-ons */}
         <section aria-label="Add-on Suggestions" className="bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-xs space-y-3">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="size-4 text-amber-500" />
-            <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-              Missed Something?
-            </h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="size-4 text-amber-500" />
+              <h2 className="text-xs font-black uppercase tracking-wider text-zinc-900">
+                Missed Something?
+              </h2>
+            </div>
+            {primaryPartnerName ? (
+              <span className="text-[10px] font-semibold text-zinc-500">
+                More from {primaryPartnerName}
+              </span>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 gap-2">
-            {SUGGESTED_ADDONS.map((addon) => {
+            {addonsToShow.map((addon) => {
               const inCart = cart.lines.find((l) => l.id === addon.id);
               return (
                 <div
                   key={addon.id}
-                  className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-zinc-100 bg-zinc-50/70"
+                  className="flex items-center justify-between gap-3 p-2.5 rounded-xl border border-zinc-100 bg-zinc-50/70 hover:bg-zinc-50 transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <img
                       src={addon.image}
                       alt={addon.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/images/services/steam-iron.jpg";
+                      }}
                       className="size-10 rounded-lg object-cover border border-zinc-200 shrink-0"
                     />
                     <div className="min-w-0">
@@ -232,7 +322,7 @@ function CartPage() {
                       <button
                         type="button"
                         onClick={() => cart.step(addon.id, -1)}
-                        className="size-5 flex items-center justify-center text-zinc-700 active:scale-90"
+                        className="size-5 flex items-center justify-center text-zinc-700 active:scale-90 cursor-pointer"
                       >
                         <Minus className="size-3" />
                       </button>
@@ -242,7 +332,7 @@ function CartPage() {
                       <button
                         type="button"
                         onClick={() => cart.step(addon.id, 1)}
-                        className="size-5 flex items-center justify-center bg-[#0c831f] text-white rounded active:scale-90"
+                        className="size-5 flex items-center justify-center bg-[#0c831f] text-white rounded active:scale-90 cursor-pointer"
                       >
                         <Plus className="size-3" />
                       </button>

@@ -24,6 +24,7 @@ import { OrderSuccessSkeleton } from "@/components/order/OrderSkeleton";
 import { fetchOrder, type OrderSummary } from "@/api/customer/order-api";
 import { fetchInvoiceForOrder } from "@/api/customer/invoice-api";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { playOrderPlacedSonicChime } from "@/lib/order-success-sound";
 
 
 export const Route = createFileRoute("/order-success/$orderId")({
@@ -76,6 +77,13 @@ function OrderSuccessScreen() {
 
   useEffect(() => {
     let alive = true;
+
+    // Play celebration chime sound
+    try {
+      playOrderPlacedSonicChime();
+    } catch {
+      // Audio context might require user interaction in rare circumstances
+    }
 
     // Fast-path: immediately check session storage or local storage
     try {

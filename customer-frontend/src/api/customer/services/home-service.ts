@@ -24,7 +24,7 @@ import type {
 } from "../home-api";
 import type { SavedLocation } from "../location";
 import { fetchBanners } from "./banner-service";
-import { fetchCategories } from "./category-service";
+import { DEFAULT_CATEGORIES, fetchCategories } from "./category-service";
 import { fetchLocation } from "./location-service";
 import { fetchUnreadNotificationCount } from "./notification-service";
 import { fetchOffers } from "./offer-service";
@@ -35,6 +35,21 @@ import {
   fetchRecentOrders,
   fetchRecommendations,
 } from "./recommendation-service";
+
+export {
+  DEFAULT_CATEGORIES,
+  fetchBanners,
+  fetchCategories,
+  fetchLocation,
+  fetchNearbyPartners,
+  fetchNearbyPartners as fetchPartners,
+  fetchOffers,
+  fetchPopularServices,
+  fetchProfile,
+  fetchRecentOrders,
+  fetchRecommendations,
+  fetchUnreadNotificationCount,
+};
 
 export type SectionKey =
   | "profile"
@@ -169,3 +184,6 @@ export async function loadHome(options: LoadHomeOptions): Promise<void> {
 export function invalidateHomeCache() {
   clearCache();
 }
+
+export const fetchHomeSections = loadHome;
+export const refreshHomeSections = loadHome;

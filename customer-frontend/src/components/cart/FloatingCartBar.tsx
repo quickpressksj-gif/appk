@@ -73,16 +73,20 @@ export function FloatingCartBar({
       <div className="mx-auto w-full max-w-md px-4">
         <Link
           to="/cart"
-          className="group pointer-events-auto flex items-center justify-between gap-3 rounded-2xl bg-[#0c831f] hover:bg-emerald-800 px-4 py-2.5 text-white shadow-xl shadow-emerald-950/25 transition-all duration-200 cursor-pointer active:scale-[0.98]"
+          className="group pointer-events-auto relative overflow-hidden flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-emerald-600/95 via-[#0c831f]/95 to-teal-700/95 dark:from-emerald-900/95 dark:via-emerald-950/95 dark:to-teal-950/95 backdrop-blur-xl border border-white/35 dark:border-emerald-400/30 px-4 py-2.5 text-white shadow-[0_14px_35px_-6px_rgba(12,131,31,0.45)] ring-1 ring-white/20 transition-all duration-300 cursor-pointer active:scale-[0.98] hover:brightness-105"
         >
+          {/* Glass reflection highlight overlay */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+          <div className="pointer-events-none absolute -right-6 -bottom-6 size-24 rounded-full bg-white/10 blur-xl" />
+
           {/* Left: Overlapping circular item thumbnails + View Cart text */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 z-10">
             {/* Overlapping circular product thumbnails */}
             <div className="flex items-center -space-x-3 shrink-0">
               {displayItems.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="size-9 rounded-full border-2 border-white bg-white overflow-hidden shadow-xs flex items-center justify-center shrink-0"
+                  className="size-9 rounded-full border-2 border-white/90 bg-white/95 overflow-hidden shadow-md flex items-center justify-center shrink-0 ring-1 ring-black/5"
                   style={{ zIndex: 10 - idx }}
                 >
                   {item.image ? (
@@ -102,21 +106,30 @@ export function FloatingCartBar({
 
             {/* View Cart & Item Count Text */}
             <div className="min-w-0">
-              <p className="text-sm font-black text-white leading-tight tracking-tight">
-                View cart
-              </p>
-              <p className="text-[11px] font-semibold text-white/90 leading-tight mt-0.5 truncate">
-                {count} {count === 1 ? "item" : "items"}
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-black text-white leading-tight tracking-tight drop-shadow-xs">
+                  View cart
+                </p>
+                <span className="inline-flex items-center justify-center rounded-full bg-white/25 px-1.5 py-0.2 text-[10px] font-black text-white backdrop-blur-xs">
+                  {count}
+                </span>
+              </div>
+              <p className="text-[11px] font-medium text-white/90 leading-tight mt-0.5 truncate">
+                {count === 1 ? "1 item added" : `${count} items in basket`}
               </p>
             </div>
           </div>
 
-          {/* Right: Subtotal & Chevron Right Arrow */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-sm font-black text-white tracking-tight">
-              ₹{total}
-            </span>
-            <ChevronRight className="size-5 text-white stroke-[2.5] transition-transform duration-200 group-hover:translate-x-0.5" />
+          {/* Right: Subtotal & Chevron Right Arrow with Pill */}
+          <div className="flex items-center gap-2 shrink-0 z-10">
+            <div className="rounded-xl bg-white/20 hover:bg-white/25 backdrop-blur-md px-2.5 py-1 border border-white/25 text-right">
+              <span className="text-xs font-black text-white tracking-tight">
+                ₹{total}
+              </span>
+            </div>
+            <div className="flex size-7 items-center justify-center rounded-full bg-white/20 backdrop-blur-xs text-white transition-transform duration-200 group-hover:translate-x-0.5 group-hover:bg-white/30">
+              <ChevronRight className="size-4 stroke-[3]" />
+            </div>
           </div>
         </Link>
       </div>

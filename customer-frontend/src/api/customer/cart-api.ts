@@ -370,19 +370,14 @@ export async function postOrder(payload: PostOrderPayload): Promise<{ ok: true; 
     fetchPaymentMethods().catch(() => ({ methods: [], savedCards: [] })),
   ]);
 
-  const fallbackAddress: Address = {
-    id: payload.addressId || "addr-default",
-    label: "Home",
-    line: "Main Road",
-    city: "Indore, MP",
-    phone: payload.customerPhone || "9876543210",
-  };
-
   const address =
     payload.address ??
     addresses.find((item) => item.id === payload.addressId) ??
-    addresses[0] ??
-    fallbackAddress;
+    addresses[0];
+
+  if (!address || !address.line?.trim()) {
+    throw new Error("No delivery address selected. Please add an address to place your order.");
+  }
 
   const methodKind = payload.paymentMethod || payload.paymentId || "upi";
   const isCod = methodKind === "cod";

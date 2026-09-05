@@ -294,17 +294,9 @@ class OrderRepository:
             from app.db.wallet_repositories import wallet_repository
             wallet_doc = await wallet_repository._wallet_document(user)
             available_balance = float(wallet_doc.get("balance", 0.0))
-            if available_balance < totals.grandTotal:
-                deficit = round(float(totals.grandTotal) - available_balance, 2)
-                # Auto-credit promotional balance to ensure seamless checkout experience
-                await wallet_repository.credit(
-                    user,
-                    deficit,
-                    kind="add-funds",
-                    title="Promotional Wallet Credit",
-                    description=f"Promotional top-up for Order #{code}",
-                    method="wallet",
-                    reference=f"topup-ord-{code}",
+            if available_balance < float(totals.grandTotal):
+                raise ValueError(
+                    f"Insufficient wallet balance (₹{available_balance:.2f} available, ₹{totals.grandTotal:.2f} required). Please add funds to your wallet or choose UPI / Pay on Delivery."
                 )
             await wallet_repository.debit(
                 user,
