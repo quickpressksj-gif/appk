@@ -104,6 +104,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
     ],
+    scripts: [
+      {
+        src: "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js",
+        defer: true,
+      },
+    ],
   }),
 
   shellComponent: RootShell,
@@ -135,6 +141,11 @@ function RootComponent() {
 
   // Applies the stored Light / Dark / System choice and follows the OS live.
   useEffect(() => initTheme(), []);
+
+  // OneSignal Push Notification Engine initialization
+  useEffect(() => {
+    import("@/api/core/onesignal").then((m) => m.initOneSignal()).catch(() => {});
+  }, []);
 
   // Google Translate runtime engine initialization for full app translation
   useEffect(() => {

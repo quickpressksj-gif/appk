@@ -73,8 +73,13 @@ class Settings(BaseSettings):
     delivery_radius_km: float = 8.0
 
 
-    # --- Admin Security --------------------------------------------------
-    admin_security_pin: str = "4502"
+    # --- Admin Security & Email Service (Resend & Gmail SMTP) -------------
+    admin_2fa_enabled: bool = True
+    resend_api_key: str = ""
+    resend_from_email: str = "QuickPress Security <onboarding@resend.dev>"
+    # --- OneSignal Push Notifications ------------------------------------
+    onesignal_app_id: str = "184bda82-7c5b-4319-a977-4fcffbcca270"
+    onesignal_rest_api_key: str = ""
 
     @property
     def cors_origin_list(self) -> List[str]:

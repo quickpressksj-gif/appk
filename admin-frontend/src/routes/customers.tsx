@@ -278,60 +278,93 @@ export function CustomersPage() {
             1. TOP METRIC CARDS (REAL SUPABASE STATS)
         ========================================================================= */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-          <KpiCard
-            kpi={{
-              id: "tot-cust",
-              label: "Total Customers",
-              value: (stats?.totalCustomers ?? allCustomers.length).toLocaleString("en-IN"),
-              hint: "Lifetime registered accounts",
-              positive: true,
+          <div
+            onClick={() => {
+              setStatusTab("all");
+              setSegment("all");
             }}
-          />
-          <KpiCard
-            kpi={{
-              id: "act-cust",
-              label: "Active Accounts",
-              value: (stats?.activeCustomers ?? allCustomers.filter((c) => c.status === "Active").length).toLocaleString("en-IN"),
-              hint: "Allowed to book orders",
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "vip-cust",
-              label: "VIP Members",
-              value: (stats?.vipCustomers ?? allCustomers.filter((c) => c.isVip).length).toLocaleString("en-IN"),
-              hint: "Active VIP & High Spenders",
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "repeat-cust",
-              label: "Repeat Buyers",
-              value: (stats?.repeatCustomers ?? allCustomers.filter((c) => c.orders >= 2).length).toLocaleString("en-IN"),
-              hint: "2+ booked orders",
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "tot-spend",
-              label: "Total Spend GMV",
-              value: `₹${(stats?.totalRevenue ?? 0).toLocaleString("en-IN")}`,
-              hint: `AOV: ₹${stats?.averageOrderValue ?? 0}`,
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "blocked-cust",
-              label: "Blocked Accounts",
-              value: (stats?.blockedCustomers ?? allCustomers.filter((c) => c.status === "Blocked").length).toLocaleString("en-IN"),
-              hint: "Restricted accounts",
-              positive: false,
-            }}
-          />
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "tot-cust",
+                label: "Total Customers",
+                value: (stats?.totalCustomers ?? allCustomers.length).toLocaleString("en-IN"),
+                hint: "Click to show all accounts",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setStatusTab("active")}
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "act-cust",
+                label: "Active Accounts",
+                value: (stats?.activeCustomers ?? allCustomers.filter((c) => c.status === "Active").length).toLocaleString("en-IN"),
+                hint: "Click to filter Active accounts",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setSegment("vip")}
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "vip-cust",
+                label: "VIP Members",
+                value: (stats?.vipCustomers ?? allCustomers.filter((c) => c.isVip).length).toLocaleString("en-IN"),
+                hint: "Click to filter VIP & High Spenders",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setSegment("repeat")}
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "repeat-cust",
+                label: "Repeat Buyers",
+                value: (stats?.repeatCustomers ?? allCustomers.filter((c) => c.orders >= 2).length).toLocaleString("en-IN"),
+                hint: "Click to filter 2+ booked orders",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setSortBy("spend")}
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "tot-spend",
+                label: "Total Spend GMV",
+                value: `₹${(stats?.totalRevenue ?? 0).toLocaleString("en-IN")}`,
+                hint: `Click to sort by Spend (AOV: ₹${stats?.averageOrderValue ?? 0})`,
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setStatusTab("blocked")}
+            className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-98"
+          >
+            <KpiCard
+              kpi={{
+                id: "blocked-cust",
+                label: "Blocked Accounts",
+                value: (stats?.blockedCustomers ?? allCustomers.filter((c) => c.status === "Blocked").length).toLocaleString("en-IN"),
+                hint: "Click to filter Blocked accounts",
+                positive: false,
+              }}
+            />
+          </div>
         </div>
 
         {/* =========================================================================
@@ -485,36 +518,7 @@ export function CustomersPage() {
                   </div>
                 ),
               },
-              {
-                key: "registration",
-                label: "First Registered / Login",
-                render: (r) => (
-                  <div>
-                    <span className="font-mono text-xs font-bold text-zinc-800 flex items-center gap-1">
-                      <Calendar className="size-3 text-zinc-400" />
-                      {r.registrationTimestamp ? formatTimestamp(r.registrationTimestamp) : r.joined}
-                    </span>
-                    <span className="text-[10px] text-zinc-400 font-medium">
-                      {formatRelativeTime(r.registrationTimestamp || r.joined)}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: "lastActive",
-                label: "Last Active / Login",
-                render: (r) => (
-                  <div>
-                    <span className="font-mono text-xs font-bold text-zinc-800 flex items-center gap-1">
-                      <Clock className="size-3 text-emerald-600" />
-                      {formatTimestamp(r.lastLoginTimestamp || r.lastActive)}
-                    </span>
-                    <span className="text-[10px] text-emerald-700 font-semibold">
-                      {formatRelativeTime(r.lastLoginTimestamp || r.lastActive)}
-                    </span>
-                  </div>
-                ),
-              },
+
               {
                 key: "orders",
                 label: "Bookings & Spend",
@@ -760,6 +764,57 @@ function Customer360Sheet({
             </div>
           </div>
 
+          {/* =========================================================================
+              360° FIRST REGISTERED & LAST ACTIVE SESSIONS HIGHLIGHT (User Focus)
+          ========================================================================= */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/90 via-sky-50/40 to-white p-3.5 shadow-2xs">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700 shadow-2xs shrink-0">
+                  <Calendar className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-sky-800">First Registered / Login</span>
+                    <span className="inline-flex items-center rounded-md bg-sky-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-sky-800">
+                      {formatRelativeTime(data?.overview?.firstLoginAt || customer?.registrationTimestamp || customer?.joined)}
+                    </span>
+                  </div>
+                  <p className="font-mono text-xs font-black text-zinc-900 mt-1">
+                    {formatTimestamp(data?.overview?.firstLoginAt || customer?.registrationTimestamp || customer?.joined)}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1 font-medium">
+                    <Smartphone className="size-3 text-zinc-400" />
+                    <span>Account Creation &amp; First OTP Session</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-white p-3.5 shadow-2xs">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-2xs shrink-0">
+                  <Clock className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Last Active / Login</span>
+                    <span className="inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-800">
+                      {formatRelativeTime(data?.overview?.lastLoginAt || customer?.lastLoginTimestamp || customer?.lastActive)}
+                    </span>
+                  </div>
+                  <p className="font-mono text-xs font-black text-zinc-900 mt-1">
+                    {formatTimestamp(data?.overview?.lastLoginAt || customer?.lastLoginTimestamp || customer?.lastActive)}
+                  </p>
+                  <p className="text-[10px] text-emerald-700 mt-0.5 flex items-center gap-1 font-medium">
+                    <Activity className="size-3 text-emerald-600" />
+                    <span>Live Authenticated Device Activity</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 9 Multi-Tab Customer 360 Workspace */}
           <Tabs defaultValue="overview">
             <TabsList className="flex flex-wrap h-auto p-1 bg-zinc-100/90 rounded-xl gap-1">
@@ -781,26 +836,38 @@ function Customer360Sheet({
                 <DetailRow
                   label="First Login / Registered At"
                   value={
-                    <span className="font-mono font-bold text-emerald-800 flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-emerald-600" />
-                      {formatTimestamp(data?.overview?.firstLoginAt || customer?.registrationTimestamp || customer?.joined)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-zinc-900 flex items-center gap-1.5">
+                        <Calendar className="size-3.5 text-sky-600" />
+                        {formatTimestamp(data?.overview?.firstLoginAt || customer?.registrationTimestamp || customer?.joined)}
+                      </span>
+                      <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 font-mono">
+                        {formatRelativeTime(data?.overview?.firstLoginAt || customer?.registrationTimestamp || customer?.joined)}
+                      </span>
+                    </div>
                   }
                 />
                 <DetailRow
                   label="Last Login / Last Active At"
                   value={
-                    <span className="font-mono font-bold text-zinc-900 flex items-center gap-1.5">
-                      <Clock className="size-3.5 text-emerald-600" />
-                      {formatTimestamp(data?.overview?.lastLoginAt || customer?.lastLoginTimestamp || customer?.lastActive)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-zinc-900 flex items-center gap-1.5">
+                        <Clock className="size-3.5 text-emerald-600" />
+                        {formatTimestamp(data?.overview?.lastLoginAt || customer?.lastLoginTimestamp || customer?.lastActive)}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono">
+                        {formatRelativeTime(data?.overview?.lastLoginAt || customer?.lastLoginTimestamp || customer?.lastActive)}
+                      </span>
+                    </div>
                   }
                 />
                 <DetailRow
                   label="First Order Placed"
                   value={
                     <span className="font-mono text-zinc-700">
-                      {data?.overview?.firstOrder ? formatTimestamp(data.overview.firstOrder) : "No orders placed yet"}
+                      {data?.overview?.firstOrder && data.overview.firstOrder !== "No orders yet"
+                        ? `${formatTimestamp(data.overview.firstOrder)} (${formatRelativeTime(data.overview.firstOrder)})`
+                        : "No orders placed yet"}
                     </span>
                   }
                 />
@@ -808,7 +875,9 @@ function Customer360Sheet({
                   label="Latest Order Placed"
                   value={
                     <span className="font-mono text-zinc-700">
-                      {data?.overview?.lastOrder ? formatTimestamp(data.overview.lastOrder) : "No orders placed yet"}
+                      {data?.overview?.lastOrder && data.overview.lastOrder !== "No orders yet"
+                        ? `${formatTimestamp(data.overview.lastOrder)} (${formatRelativeTime(data.overview.lastOrder)})`
+                        : "No orders placed yet"}
                     </span>
                   }
                 />
@@ -1022,17 +1091,17 @@ function Customer360Sheet({
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="text-xs font-black text-emerald-900">ACTIVE SUBSCRIPTION PLAN</h4>
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    {data?.membership?.status || (customer?.isVip ? "Active" : "Standard")}
+                    {data?.membership?.status || (customer?.isVip ? "Active" : "Not Subscribed")}
                   </span>
                 </div>
                 <DetailRow label="Current Plan" value={<span className="font-black text-zinc-900">{data?.membership?.plan || (customer?.isVip ? "Gold VIP Plan" : "Standard Free Plan")}</span>} />
-                <DetailRow label="Valid From" value={data?.membership?.startDate || "2026-01-01"} />
-                <DetailRow label="Expires On" value={data?.membership?.expiryDate || "2026-12-31"} />
+                <DetailRow label="Valid From" value={data?.membership?.startDate || (customer?.isVip ? "2026-01-01" : "—")} />
+                <DetailRow label="Expires On" value={data?.membership?.expiryDate || (customer?.isVip ? "2026-12-31" : "—")} />
               </div>
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <h5 className="text-xs font-black uppercase text-zinc-600 mb-2">ACTIVE MEMBER PERKS</h5>
                 <ul className="space-y-1.5 text-xs font-medium text-zinc-700">
-                  <li className="flex items-center gap-2">✓ 15% Instant Discount on all Wash &amp; Iron orders</li>
+                  <li className="flex items-center gap-2">✓ 15% Instant Discount on all Laundry &amp; Processing orders</li>
                   <li className="flex items-center gap-2">✓ Free Priority Pickup &amp; Express Delivery</li>
                   <li className="flex items-center gap-2">✓ 2x Loyalty Points on every booking</li>
                   <li className="flex items-center gap-2">✓ Dedicated 24/7 VIP Customer Support</li>
@@ -1043,23 +1112,45 @@ function Customer360Sheet({
             {/* TAB 6: SAVED ADDRESSES */}
             <TabsContent value="addresses" className="pt-4 space-y-3">
               <div className="space-y-2">
-                {(data?.addresses ?? []).map((addr) => (
-                  <div key={addr.id} className="rounded-2xl border border-zinc-200 bg-white p-4 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-zinc-900 flex items-center gap-1.5">
-                        <MapPin className="size-3.5 text-emerald-600" />
-                        {addr.type || "Address"}
-                      </span>
-                      {addr.isDefault && (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                          Default
+                {(data?.addresses ?? []).map((addr, idx) => {
+                  const addrLine =
+                    addr.fullAddress ||
+                    [
+                      (addr as any).houseNumber,
+                      (addr as any).building,
+                      (addr as any).street,
+                      (addr as any).area,
+                      addr.city,
+                    ]
+                      .filter(Boolean)
+                      .join(", ") ||
+                    customer?.primaryAddress ||
+                    "Kasganj, Uttar Pradesh";
+
+                  return (
+                    <div
+                      key={addr.id || (addr as any)._id || idx}
+                      className="rounded-2xl border border-zinc-200 bg-white p-4 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-zinc-900 flex items-center gap-1.5 capitalize">
+                          <MapPin className="size-3.5 text-emerald-600" />
+                          {(addr as any).label || addr.type || "Saved Address"}
                         </span>
-                      )}
+                        {addr.isDefault && (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-zinc-700 font-medium">{addrLine}</p>
+                      <p className="text-zinc-400 text-[11px]">
+                        {addr.city || "Kasganj"}, PIN: {addr.pincode || "207123"}{" "}
+                        {addr.landmark ? `· Landmark: ${addr.landmark}` : ""}
+                      </p>
                     </div>
-                    <p className="text-zinc-700 font-medium">{addr.fullAddress}</p>
-                    <p className="text-zinc-400 text-[11px]">{addr.city}, PIN: {addr.pincode} {addr.landmark ? `· Landmark: ${addr.landmark}` : ""}</p>
-                  </div>
-                ))}
+                  );
+                })}
                 {(!data?.addresses || data.addresses.length === 0) && (
                   <div className="p-8 text-center text-xs text-zinc-400 border border-zinc-200 rounded-2xl bg-white">
                     {customer?.primaryAddress || "No addresses saved yet."}
@@ -1132,17 +1223,27 @@ function Customer360Sheet({
                 <DetailRow
                   label="Registration Timestamp"
                   value={
-                    <span className="font-mono font-bold text-zinc-900">
-                      {formatTimestamp(data?.security?.registrationTimestamp || customer?.registrationTimestamp)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-zinc-900">
+                        {formatTimestamp(data?.security?.registrationTimestamp || customer?.registrationTimestamp)}
+                      </span>
+                      <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 font-mono">
+                        {formatRelativeTime(data?.security?.registrationTimestamp || customer?.registrationTimestamp)}
+                      </span>
+                    </div>
                   }
                 />
                 <DetailRow
                   label="Last Login Timestamp"
                   value={
-                    <span className="font-mono font-bold text-zinc-900">
-                      {formatTimestamp(data?.security?.lastLoginTimestamp || customer?.lastLoginTimestamp)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-zinc-900">
+                        {formatTimestamp(data?.security?.lastLoginTimestamp || customer?.lastLoginTimestamp)}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono">
+                        {formatRelativeTime(data?.security?.lastLoginTimestamp || customer?.lastLoginTimestamp)}
+                      </span>
+                    </div>
                   }
                 />
                 <DetailRow label="Device / Platform" value={<span className="font-bold text-zinc-800">{data?.security?.deviceInfo || customer?.deviceInfo || "Mobile App (Android/iOS)"}</span>} />
@@ -1162,9 +1263,15 @@ function Customer360Sheet({
                         <p className="font-bold text-zinc-900">{lh.action || "Login Session"}</p>
                         <p className="text-[10px] text-zinc-400 mt-0.5">{lh.device} · IP: {lh.ip} ({lh.location || "India"})</p>
                       </div>
-                      <span className="font-mono text-[10px] text-zinc-500">{formatTimestamp(lh.at)}</span>
+                      <div className="text-right">
+                        <span className="font-mono text-[10px] text-zinc-500">{formatTimestamp(lh.at)}</span>
+                        <p className="text-[10px] text-emerald-700 font-bold">{formatRelativeTime(lh.at)}</p>
+                      </div>
                     </li>
                   ))}
+                  {(!data?.security?.loginHistory || data.security.loginHistory.length === 0) && (
+                    <li className="p-4 text-center text-xs text-zinc-400">No previous sessions logged.</li>
+                  )}
                 </ul>
               </div>
 

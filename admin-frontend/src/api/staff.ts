@@ -1,10 +1,12 @@
 /**
  * Staff & Role-Based Access Control (RBAC) & Operations Audit Engine API Client
  *
- * GET/POST /api/admin/staff        — Team members directory & onboarding
- * PUT/DELETE /api/admin/staff/{id} — Update permissions, territory & status
- * GET /api/admin/staff/roles       — RBAC security tier matrices
- * GET /api/admin/staff/logs        — Complete immutable security audit trail
+ * GET/POST /api/admin/staff               — Team members directory & onboarding
+ * PUT/DELETE /api/admin/staff/{id}        — Update permissions, territory & status
+ * PUT /api/admin/staff/{id}/permissions   — Granular RBAC permission boundaries
+ * PUT /api/admin/staff/{id}/status        — Toggle Active/Suspended/Approved status
+ * GET /api/admin/staff/roles              — RBAC security tier matrices
+ * GET /api/admin/staff/logs               — Complete immutable security audit trail
  */
 import { apiGetJson, apiPostJson, apiPutJson, apiDeleteJson } from "@/api/core/transport";
 
@@ -17,7 +19,7 @@ export type StaffMember = {
   scope: string;
   permissions: string[];
   lastActive: string;
-  status: "Active" | "Invited" | "Suspended";
+  status: "Active" | "Pending Verification" | "Pending Approval" | "Suspended";
   createdAt?: string;
 };
 
@@ -31,6 +33,7 @@ export type StaffRole = {
 export type ActivityLog = {
   id: string;
   actor: string;
+  actorId?: string;
   action: string;
   target: string;
   at: string;
@@ -55,11 +58,11 @@ function toStaff(row: BackendStaff): StaffMember {
   return {
     id: row._id || row.id || "",
     name: row.name || "Staff Member",
-    email: row.email || "staff@quickpress.com",
+    email: row.email || "staff@quickpress.online",
     phone: row.phone || "+91 98719 62596",
     role: row.role || "Operations Admin",
-    scope: row.scope || "Kasganj Market Hub",
-    permissions: row.permissions || ["orders", "partners", "riders"],
+    scope: row.scope || "All India Hubs",
+    permissions: row.permissions || ["orders", "partners", "riders", "support"],
     lastActive: row.lastActive || "Recently",
     status: (row.status as StaffMember["status"]) || "Active",
     createdAt: (row.createdAt || "").slice(0, 10),
@@ -83,21 +86,37 @@ export async function fetchRoles(): Promise<StaffRole[]> {
   }
 }
 
-export async function fetchActivityLogs(actor?: string): Promise<ActivityLog[]> {
+export async function fetchActivityLogs(actor?: string, action?: string): Promise<ActivityLog[]> {
   try {
-    const url = actor && actor !== "all" ? `/api/admin/staff/logs?actor=${encodeURIComponent(actor)}` : "/api/admin/staff/logs";
-    return await apiGetJson<ActivityLog[]>(url);
+    const params = new URLSearchParams();
+    if (actor && actor !== "all") params.set("actor", actor);
+    if (action && action !== "all") params.set("action", action);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return await apiGetJson<ActivityLog[]>(`/api/admin/staff/logs${query}`);
   } catch {
     return [];
   }
 }
 
-export function inviteStaff(payload: Partial<StaffMember>) {
+export function inviteStaff(payload: Partial<StaffMember> & { password?: string }) {
   return apiPostJson<BackendStaff>("/api/admin/staff", payload);
 }
 
-export function updateStaff(id: string, payload: Partial<StaffMember>) {
+export function updateStaff(id: string, payload: Partial<StaffMember> & { password?: string }) {
   return apiPutJson<BackendStaff>(`/api/admin/staff/${id}`, payload);
+}
+
+export function updateStaffPermissions(id: string, permissions: string[]) {
+  return apiPutJson<{ ok: boolean; permissions: string[] }>(`/api/admin/staff/${id}/permissions`, {
+    permissions,
+  });
+}
+
+export function updateStaffStatus(id: string, status: string, reason?: string) {
+  return apiPutJson<{ ok: boolean; status: string }>(`/api/admin/staff/${id}/status`, {
+    status,
+    reason,
+  });
 }
 
 export function deleteStaff(id: string) {

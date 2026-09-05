@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  AlertCircle,
   Briefcase,
   Check,
   Crosshair,
@@ -9,9 +10,11 @@ import {
   MapPin,
   Pencil,
   Plus,
+  ShieldCheck,
   Star,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +24,10 @@ import { BottomNav } from "@/components/home/BottomNav";
 import { MapPicker, type PickedLocation } from "@/components/MapPicker";
 import { ScreenTopBar } from "@/components/rewards/ScreenTopBar";
 import { Toaster } from "@/shared/ui/sonner";
+import {
+  checkPincodeServiceability,
+  type PincodeServiceabilityResult,
+} from "@/api/core/maps-api";
 import {
   createAddress,
   deleteAddress,
@@ -95,6 +102,41 @@ function AddressesScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [checkingPincode, setCheckingPincode] = useState(false);
+  const [pincodeStatus, setPincodeStatus] = useState<PincodeServiceabilityResult | null>(null);
+
+  // Real-time Pincode Serviceability & Geofencing Territory check
+  useEffect(() => {
+    let alive = true;
+    const pin = (form.pincode || "").trim();
+    if (pin.length === 6 && /^\d{6}$/.test(pin)) {
+      setCheckingPincode(true);
+      checkPincodeServiceability(pin, form.city)
+        .then((res) => {
+          if (alive) {
+            setPincodeStatus(res);
+            if (res.city) {
+              setForm((prev) => ({
+                ...prev,
+                city: res.city,
+                state: res.state || prev.state,
+              }));
+            }
+          }
+        })
+        .catch(() => {
+          if (alive) setPincodeStatus(null);
+        })
+        .finally(() => {
+          if (alive) setCheckingPincode(false);
+        });
+    } else {
+      setPincodeStatus(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [form.pincode]);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -466,6 +508,38 @@ function AddressesScreen() {
                 </label>
               ))}
             </div>
+
+            {/* Real-time Pincode Geofencing Serviceability Banner */}
+            {form.pincode && form.pincode.length === 6 ? (
+              <div className="mt-3.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-3.5 space-y-1.5 transition-all">
+                {checkingPincode ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                    <Loader2 className="size-3.5 animate-spin text-emerald-600" />
+                    <span>Verifying express serviceability for PIN {form.pincode}...</span>
+                  </div>
+                ) : pincodeStatus?.serviceable ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-black text-emerald-950">
+                        <Zap className="size-3.5 text-emerald-600" />
+                        Instant Fast Delivery Available
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-300">
+                        PIN {form.pincode}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium text-emerald-800 leading-snug">
+                      {pincodeStatus.activePartnersCount} partner store(s) and {pincodeStatus.activeRidersCount} active captain(s) stationed in {pincodeStatus.city} ({pincodeStatus.state}) for express 30-min pickup.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                    <AlertCircle className="size-4 text-amber-600 shrink-0" />
+                    <span>Standard delivery available in PIN {form.pincode}. Express dispatch coming soon.</span>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <button
               type="button"

@@ -557,7 +557,7 @@ export function NotificationsPage() {
                   Firebase Cloud Messaging gateway for Android & iOS background wake-up notifications.
                 </p>
                 <span className="inline-block rounded-full bg-sky-200/60 px-2 py-0.5 text-[10px] font-black text-sky-900">
-                  ● Connected (4502 active)
+                  ● Connected (2FA active)
                 </span>
               </div>
 

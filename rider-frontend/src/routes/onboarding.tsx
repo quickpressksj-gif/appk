@@ -20,7 +20,8 @@ import { OnboardingStepper, type OnboardingStep } from "../components/Onboarding
 import { readSession, writeSession } from "../api/core/session-store";
 import { registerRider } from "../api/rider/rider-auth-api";
 import { useRiderContext } from "../context/RiderContext";
-import type { AuthSession } from "../shared/types/auth";
+import type { AuthSession } from "@/shared/types";
+import { fetchAllowedCities, checkPincodeServiceability, type AllowedCity, type PincodeServiceabilityResult } from "../api/core/maps-api";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -35,17 +36,11 @@ export const Route = createFileRoute("/onboarding")({
   component: CaptainOnboardingScreen,
 });
 
-const CITIES = [
-  "Kasganj",
-  "Aligarh",
-  "Agra",
-  "Mathura",
-  "Bareilly",
-  "Hathras",
-  "Etah",
-  "Badaun",
-  "Delhi NCR",
-];
+export type CityTerritoryEntry = {
+  state: string;
+  pincodes: string[];
+  hubs: string[];
+};
 
 const REGISTRATION_YEARS = Array.from({ length: 12 }, (_, i) => `${2026 - i}`);
 
@@ -74,13 +69,100 @@ export function CaptainOnboardingScreen() {
     }
   }, []);
 
-  // STEP 1: Personal Details
+  // Dynamic Territory Loader from Backend Database
+  const [cityTerritoryMap, setCityTerritoryMap] = useState<Record<string, CityTerritoryEntry>>({});
+  const [cities, setCities] = useState<string[]>([]);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeFeedback, setPincodeFeedback] = useState<string | null>(null);
+
+  // STEP 1: Personal Details & Territory Dispatch
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [dob, setDob] = useState("");
-  const [city, setCity] = useState("Kasganj");
+  const [city, setCity] = useState("");
+  const [operatingPincodes, setOperatingPincodes] = useState<string[]>([]);
+  const [selectedHub, setSelectedHub] = useState("");
+  const [customPinInput, setCustomPinInput] = useState("");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchAllowedCities().then((res) => {
+      if (!alive || !Array.isArray(res)) return;
+      const map: Record<string, CityTerritoryEntry> = {};
+      const names: string[] = [];
+      for (const c of res) {
+        const cName = c.name || c.city || c.id;
+        if (!cName) continue;
+        names.push(cName);
+        const pins = Array.isArray(c.pincodes) ? c.pincodes : [];
+        const hubList: string[] = [];
+        if (Array.isArray(c.zones)) {
+          for (const z of c.zones) {
+            if (z.name) hubList.push(z.name);
+            if (z.sector && !hubList.includes(z.sector)) hubList.push(z.sector);
+          }
+        }
+        if (Array.isArray(c.pincodeDetails)) {
+          for (const pd of c.pincodeDetails) {
+            if (pd.areaName && !hubList.includes(pd.areaName)) hubList.push(pd.areaName);
+          }
+        }
+        if (hubList.length === 0) {
+          hubList.push(`${cName} Central Hub`, `${cName} Sector 1`);
+        }
+        map[cName] = {
+          state: c.state || "Uttar Pradesh",
+          pincodes: pins,
+          hubs: hubList,
+        };
+      }
+      setCityTerritoryMap(map);
+      setCities(names);
+
+      if (names.length > 0 && names[0]) {
+        const defaultCity = names[0];
+        setCity((prev) => (names.includes(prev) ? prev : defaultCity));
+        const first = map[defaultCity];
+        if (first) {
+          setOperatingPincodes((prev) => (prev.length > 0 ? prev : first.pincodes));
+          setSelectedHub((prev) => prev || first.hubs[0] || "Central Hub");
+        }
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Automatic Pincode resolution: When typing 6 digits, auto-resolve City and State
+  useEffect(() => {
+    let alive = true;
+    const pin = customPinInput.trim();
+    if (pin.length === 6 && /^\d{6}$/.test(pin)) {
+      setPincodeLoading(true);
+      checkPincodeServiceability(pin)
+        .then((res) => {
+          if (!alive) return;
+          if (res.serviceable && res.city) {
+            setPincodeFeedback(`Matched ${res.city}, ${res.state}`);
+            setCity(res.city);
+            setOperatingPincodes((prev) => (prev.includes(pin) ? prev : [...prev, pin]));
+          } else {
+            setPincodeFeedback("Outside standard territory");
+          }
+        })
+        .finally(() => {
+          if (alive) setPincodeLoading(false);
+        });
+    } else {
+      setPincodeFeedback(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [customPinInput]);
 
   // STEP 2: Vehicle Details
   const [vehicleType, setVehicleType] = useState<"bike" | "scooter" | "ev" | "other">("bike");
@@ -175,6 +257,12 @@ export function CaptainOnboardingScreen() {
         fullName,
         email,
         city,
+        state: cityTerritoryMap[city]?.state || "",
+        pincode: operatingPincodes[0] || "",
+        operatingPincodes,
+        pincodes: operatingPincodes,
+        sectors: selectedHub ? [selectedHub] : [],
+        preferredArea: selectedHub || "",
         vehicleType,
         vehicleNumber,
         vehicleModel,
@@ -325,22 +413,154 @@ export function CaptainOnboardingScreen() {
                 </div>
               </div>
 
-              {/* City */}
+              {/* City & State */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Operating City
+                  </label>
+                  <select
+                    value={city}
+                    onChange={(e) => {
+                      const newCity = e.target.value;
+                      setCity(newCity);
+                      const matched = cityTerritoryMap[newCity];
+                      if (matched) {
+                        setOperatingPincodes(matched.pincodes);
+                        setSelectedHub(matched.hubs[0] || "Central Hub");
+                      }
+                    }}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-950 outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer"
+                  >
+                    {cities.length === 0 && <option value="">No active cities</option>}
+                    {cities.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={cityTerritoryMap[city]?.state || ""}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 shadow-2xs cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              {/* Operating Pincodes (Pincode & Geofencing Territory Engine) */}
+              <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1">
+                    <Zap className="size-3 text-emerald-600" />
+                    Operating Pincode Zones ({operatingPincodes.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allCityPins = cityTerritoryMap[city]?.pincodes || [];
+                      if (operatingPincodes.length === allCityPins.length) {
+                        setOperatingPincodes(allCityPins.length > 0 && allCityPins[0] ? [allCityPins[0]] : []);
+                      } else {
+                        setOperatingPincodes([...allCityPins]);
+                      }
+                    }}
+                    className="text-[10px] font-bold text-emerald-700 underline hover:text-emerald-800 cursor-pointer"
+                  >
+                    {operatingPincodes.length === (cityTerritoryMap[city]?.pincodes || []).length
+                      ? "Reset"
+                      : "Select All"}
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {(cityTerritoryMap[city]?.pincodes || []).map((pin) => {
+                    const isSelected = operatingPincodes.includes(pin);
+                    return (
+                      <button
+                        key={pin}
+                        type="button"
+                        onClick={() => {
+                          setOperatingPincodes((prev) =>
+                            prev.includes(pin)
+                              ? prev.length > 1
+                                ? prev.filter((p) => p !== pin)
+                                : prev
+                              : [...prev, pin]
+                          );
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-emerald-600 text-white shadow-2xs"
+                            : "bg-white text-slate-700 border border-slate-200 hover:border-emerald-300"
+                        }`}
+                      >
+                        {isSelected && <Check className="size-2.5 stroke-[3]" />}
+                        <span>PIN {pin}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Add Custom PIN */}
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={customPinInput}
+                    onChange={(e) => setCustomPinInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Add extra PIN..."
+                    className="flex-1 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal outline-none focus:border-emerald-600 shadow-2xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customPinInput.length === 6 && !operatingPincodes.includes(customPinInput)) {
+                        setOperatingPincodes((prev) => [...prev, customPinInput]);
+                        setCustomPinInput("");
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {pincodeFeedback && (
+                  <p className="text-[10px] font-bold text-emerald-700">
+                    {pincodeLoading ? "Resolving pin..." : pincodeFeedback}
+                  </p>
+                )}
+              </div>
+
+              {/* Primary Dispatch Hub / Sector */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  City
+                  Primary Dispatch Hub / Area
                 </label>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-950 outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer"
-                >
-                  {CITIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap gap-1.5">
+                  {(cityTerritoryMap[city]?.hubs || []).map((hub) => {
+                    const isSelected = selectedHub === hub;
+                    return (
+                      <button
+                        key={hub}
+                        type="button"
+                        onClick={() => setSelectedHub(hub)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-slate-900 text-white shadow-2xs"
+                            : "bg-white text-slate-700 border border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {hub}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Profile Photo Upload Box (Figma style) */}

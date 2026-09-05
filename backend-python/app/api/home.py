@@ -156,49 +156,111 @@ async def get_coupons() -> list[OfferResponse]:
 
 
 @router.post("/offers/{code}/apply")
-async def apply_offer(code: str) -> dict:
-    code_clean = (code or "").strip().upper()
+@router.post("/coupon/apply")
+async def apply_coupon_endpoint(
+    code: Optional[str] = None,
+    body: Optional[dict] = None,
+) -> dict:
+    code_target = (code or (body.get("code") or body.get("couponCode") if body else "") or "").strip().upper()
+    cart_total = float((body.get("cartTotal") or body.get("subtotal") or body.get("amount") or 0.0) if body else 0.0)
+    customer_city = str((body.get("city") or "") if body else "").strip().lower()
+    customer_pincode = str((body.get("pincode") or "") if body else "").strip()
+    user_id = str((body.get("userId") or body.get("customerId") or "") if body else "")
+
+    if not code_target:
+        return {"ok": False, "discount": 0, "message": "Please enter a valid coupon code."}
+
     admin_docs = await database.find_many("admin_coupons")
+    if not admin_docs:
+        admin_docs = await database.find_many("coupons")
+
     matched = next(
-        (c for c in admin_docs if str(c.get("code", "")).strip().upper() == code_clean),
+        (c for c in (admin_docs or []) if str(c.get("code", "")).strip().upper() == code_target),
         None,
     )
-    if matched:
-        if str(matched.get("status", "")).lower() in ("inactive", "disabled", "expired"):
-            return {"ok": False, "discount": 0, "message": "This coupon is inactive or expired"}
-        raw_discount = str(matched.get("discount") or 0)
-        digits = "".join(ch for ch in raw_discount if ch.isdigit())
-        discount_val = int(digits) if digits else 50
+
+    if not matched:
+        return {"ok": False, "discount": 0, "message": f"Coupon code '{code_target}' is invalid."}
+
+    # Status check
+    if str(matched.get("status", "Active")).lower() not in ("active", "live"):
+        return {"ok": False, "discount": 0, "message": f"Coupon '{code_target}' is currently inactive or expired."}
+
+    # Minimum order check
+    min_order = float(matched.get("minOrder") or 0.0)
+    if cart_total > 0 and cart_total < min_order:
         return {
-            "ok": True,
-            "discount": discount_val,
-            "code": code_clean,
-            "message": f"Coupon {code_clean} applied successfully",
+            "ok": False,
+            "discount": 0,
+            "message": f"Minimum order value for '{code_target}' is ₹{int(min_order)} (current cart: ₹{int(cart_total)}).",
         }
-    
-    # Built-in promotional vouchers
-    defaults = {
-        "WELCOME50": {"discount": 50, "message": "Welcome 50% OFF voucher applied!"},
-        "QUICK50": {"discount": 50, "message": "Flat ₹50 OFF applied!"},
-        "FESTIVE100": {"discount": 100, "message": "Festival ₹100 discount applied!"},
-        "EXPRESSFREE": {"discount": 40, "message": "Free express delivery coupon applied!"},
-        "PREMIUM25": {"discount": 75, "message": "25% OFF on Premium service applied!"},
+
+    # City-wise targeting check
+    coupon_cities = [str(c).strip().lower() for c in (matched.get("cities") or []) if str(c).strip()]
+    if coupon_cities and customer_city:
+        if customer_city not in coupon_cities:
+            city_names = ", ".join(c.capitalize() for c in (matched.get("cities") or []))
+            return {
+                "ok": False,
+                "discount": 0,
+                "message": f"Coupon '{code_target}' is exclusively available in {city_names}.",
+            }
+
+    # Pincode-wise targeting check
+    coupon_pincodes = [str(p).strip() for p in (matched.get("pincodes") or []) if str(p).strip()]
+    if coupon_pincodes and customer_pincode:
+        if customer_pincode not in coupon_pincodes:
+            return {
+                "ok": False,
+                "discount": 0,
+                "message": f"Coupon '{code_target}' is not serviceable in PIN {customer_pincode}.",
+            }
+
+    # Per-user limit check
+    per_user_limit = int(matched.get("perUserLimit") or 1)
+    if user_id:
+        user_redemptions = await database.count(
+            "coupon_redemptions",
+            {"$or": [{"couponCode": code_target}, {"couponId": matched.get("_id")}], "userId": user_id},
+        )
+        if user_redemptions >= per_user_limit:
+            return {
+                "ok": False,
+                "discount": 0,
+                "message": f"You have already reached the maximum limit ({per_user_limit}x) for coupon '{code_target}'.",
+            }
+
+    # Calculate accurate discount
+    c_type = str(matched.get("type", "percentage")).lower()
+    pct = float(matched.get("discountPct") or 0)
+    max_discount = float(matched.get("maxDiscount") or 0) if matched.get("maxDiscount") else None
+    flat_discount = float(matched.get("flatDiscount") or matched.get("maxDiscount") or 0)
+
+    calculated_discount = 0.0
+    if c_type == "percentage":
+        if cart_total > 0 and pct > 0:
+            calculated_discount = (cart_total * pct) / 100.0
+            if max_discount is not None and max_discount > 0:
+                calculated_discount = min(calculated_discount, max_discount)
+        else:
+            calculated_discount = max_discount or 50.0
+    elif c_type == "flat":
+        calculated_discount = flat_discount or 100.0
+    elif c_type == "free_delivery":
+        calculated_discount = float(matched.get("maxDiscount") or 40.0)
+    else:
+        calculated_discount = 50.0
+
+    return {
+        "ok": True,
+        "code": code_target,
+        "discount": round(calculated_discount, 2),
+        "discountType": c_type,
+        "type": c_type,
+        "couponId": str(matched.get("_id")),
+        "description": matched.get("description") or matched.get("value") or "",
+        "message": f"Coupon {code_target} applied! You save ₹{round(calculated_discount, 2)}.",
     }
-    if code_clean in defaults:
-        return {
-            "ok": True,
-            "discount": defaults[code_clean]["discount"],
-            "code": code_clean,
-            "message": defaults[code_clean]["message"],
-        }
-
-    return {"ok": False, "discount": 0, "message": "Invalid coupon code"}
-
-
-@router.post("/coupon/apply")
-async def apply_coupon_json(body: dict) -> dict:
-    code = body.get("code") or body.get("couponCode") or ""
-    return await apply_offer(code)
 
 
 @router.get("/app-meta")

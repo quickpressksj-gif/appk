@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -12,7 +13,6 @@ from app.api.addresses import router as addresses_router
 from app.api.health import router as health_router
 from app.api.admin import router as admin_router
 from app.api.admin_payments import router as admin_payments_router
-from app.api.admin_cms import router as admin_cms_router
 from app.api.public import router as public_router
 from app.api.availability import router as availability_router
 from app.api.auth import router as auth_router
@@ -71,21 +71,32 @@ async def lifespan(app: FastAPI):
     if report:
         logger.info("Identity index migrations complete: %s", report)
     await database.ensure_indexes()
-    await catalog.ensure_seed()
+    # Background Seeding Routine (Catalog, CMS, Super Admin & Complete Operational Data)
+    async def _run_startup_seeds() -> None:
+        try:
+            await catalog.ensure_seed()
+            for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
+                for name, documents in seed.items():
+                    count = await database.count(name)
+                    if count == 0:
+                        collection = database.collection(name)
+                        for document in documents:
+                            await collection.update_one(
+                                {"_id": document["_id"]},
+                                {"$set": {k: v for k, v in document.items() if k != "_id"}},
+                                upsert=True,
+                            )
+            await cms_repo.ensure_seed()
+            from app.core.admin_security import ensure_super_admin_seed
+            await ensure_super_admin_seed()
+            from app.db.admin_seed import ensure_admin_operational_seed
+            await ensure_admin_operational_seed()
+            logger.info("All startup and operational database seeds initialized successfully.")
+        except Exception as err:
+            logger.warning("Startup seed warning: %s", err)
 
-    # Editorial service definitions, availability zones and membership plans
-    for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
-        for name, documents in seed.items():
-            collection = database.collection(name)
-            for document in documents:
-                await collection.update_one(
-                    {"_id": document["_id"]},
-                    {"$set": {k: v for k, v in document.items() if k != "_id"}},
-                    upsert=True,
-                )
-    # Master administrative catalog (cities, categories, master services)
-    # QuickPress Website CMS initial seed (Legal documents, FAQs, settings)
-    await cms_repo.ensure_seed()
+    asyncio.create_task(_run_startup_seeds())
+
     yield
     await database.disconnect()
 
@@ -163,9 +174,8 @@ def create_app() -> FastAPI:
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
 
-    # QuickPress Public Website & Admin CMS routes.
+    # QuickPress Public Website routes.
     app.include_router(public_router, prefix=settings.api_prefix)
-    app.include_router(admin_cms_router, prefix=settings.api_prefix)
 
     # Health check + meta (countries list) mounted exactly once under /api.
     app.include_router(health_router, prefix=settings.api_prefix)  # → /api/health, /api/countries

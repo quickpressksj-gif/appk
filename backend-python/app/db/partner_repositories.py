@@ -134,16 +134,13 @@ class PartnerRepository:
             if candidate and await database.find_one(PROFILES, {"_id": str(candidate)}):
                 store_id = str(candidate)
 
-        # 5. If still none, generate a 6-digit random PRT-XXXXXX
+        # 5. If still none, reject unlinked partner
         if not store_id:
-            store_id = f"PRT-{random.randint(100000, 999999)}"
+            raise PartnerAccessError("No partner store profile found for this account. Please complete partner onboarding.")
 
         store_id_str = str(store_id)
         if user_id:
             _PARTNER_ID_CACHE[user_id] = store_id_str
-
-        # Cache/link the resolved store_id in background
-        await self.link_account(user_id, store_id_str)
 
         return store_id_str
 

@@ -6,7 +6,7 @@ The response shape mirrors the frontend `AuthSession` type in
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -57,6 +57,9 @@ class AccountResponse(BaseModel):
     isOnboarded: bool
     isVerified: bool
     linkedId: Optional[str] = None
+    permissions: Optional[List[str]] = None
+    departmentRole: Optional[str] = None
+    scope: Optional[str] = None
 
     @classmethod
     def from_user(cls, user: User) -> "AccountResponse":
@@ -73,6 +76,9 @@ class AccountResponse(BaseModel):
             isOnboarded=user.is_onboarded,
             isVerified=user.is_verified,
             linkedId=user.linked_id,
+            permissions=None,
+            departmentRole=None,
+            scope=None,
         )
 
 

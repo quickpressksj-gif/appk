@@ -8,6 +8,7 @@ import {
   Search,
   X,
   Building2,
+  Calendar,
   Download,
   Phone,
   MapPin,
@@ -316,121 +317,251 @@ export function PartnersPage() {
     toast.success(`Exported ${filteredRows.length} partners to CSV.`);
   };
 
+  const realGrossRevenue = useMemo(() => {
+    if (stats?.totalPartnerRevenue !== undefined && stats?.totalPartnerRevenue !== null) {
+      return stats.totalPartnerRevenue;
+    }
+    return allPartners.reduce((acc, p) => acc + (p.revenue || 0), 0);
+  }, [stats, allPartners]);
+
+  const realPartnerEarnings = useMemo(() => {
+    if (stats?.totalPartnerEarnings !== undefined && stats?.totalPartnerEarnings !== null) {
+      return stats.totalPartnerEarnings;
+    }
+    return allPartners.reduce((acc, p) => acc + (p.partnerEarnings || 0), 0);
+  }, [stats, allPartners]);
+
+  const realCommission = useMemo(() => {
+    if (stats?.totalCommission !== undefined && stats?.totalCommission !== null) {
+      return stats.totalCommission;
+    }
+    return allPartners.reduce((acc, p) => acc + (p.commission || 0), 0);
+  }, [stats, allPartners]);
+
+  const realAvgSla = useMemo(() => {
+    return stats?.averageProcessingTime || (allPartners.length > 0 ? "24h" : "—");
+  }, [stats, allPartners]);
+
+  const realAvgRating = useMemo(() => {
+    if (stats?.customerRating) return `${stats.customerRating.toFixed(1)} / 5.0`;
+    if (allPartners.length > 0) {
+      const avg = allPartners.reduce((acc, p) => acc + (p.rating || 5.0), 0) / allPartners.length;
+      return `${avg.toFixed(1)} / 5.0`;
+    }
+    return "5.0 / 5.0";
+  }, [stats, allPartners]);
+
+  const realComplaintRate = useMemo(() => {
+    if (stats?.complaintRate !== undefined && stats?.complaintRate !== null) {
+      return `${stats.complaintRate}%`;
+    }
+    return "0.0%";
+  }, [stats]);
+
   return (
     <AdminShell title="Partner Control Center & 360° Management">
       {/* =========================================================================
           TOP DASHBOARD KPI CARDS (OPERATIONAL, FINANCIAL, PERFORMANCE)
       ========================================================================= */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        <KpiCard
-          kpi={{
-            id: "tot-prt",
-            label: "Total Stores",
-            value: (stats?.totalPartners ?? allPartners.length).toString(),
-            hint: "Registered Partner Outlets",
-            positive: true,
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setStatusTab("all");
+            setCity("all");
+            setKycFilter("all");
+            setQuery("");
           }}
-        />
-        <KpiCard
-          kpi={{
-            id: "act-prt",
-            label: "Active Stores",
-            value: (stats?.activePartners ?? allPartners.filter((p) => p?.status === "ACTIVE").length).toString(),
-            hint: "Fully operational",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "pnd-prt",
-            label: "Pending Review",
-            value: (stats?.pendingApproval ?? allPartners.filter((p) => p?.status === "PENDING_APPROVAL").length).toString(),
-            hint: "Awaiting Onboarding KYC",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "sus-prt",
-            label: "Suspended",
-            value: (stats?.suspendedPartners ?? allPartners.filter((p) => p?.status === "TEMPORARILY_SUSPENDED").length).toString(),
-            hint: "Temporarily disabled",
-            positive: false,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "blk-prt",
-            label: "Blocked",
-            value: (stats?.permanentlyBlocked ?? allPartners.filter((p) => p?.status === "PERMANENTLY_BLOCKED").length).toString(),
-            hint: "Access terminated",
-            positive: false,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "onl-prt",
-            label: "Online Live",
-            value: (stats?.onlinePartners ?? allPartners.filter((p) => p?.isOnline).length).toString(),
-            hint: "Receiving Order Dispatch",
-            positive: true,
-          }}
-        />
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "tot-prt",
+              label: "Total Stores",
+              value: (stats?.totalPartners ?? allPartners.length).toString(),
+              hint: "Registered Partner Outlets",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStatusTab("ACTIVE")}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "act-prt",
+              label: "Active Stores",
+              value: (stats?.activePartners ?? allPartners.filter((p) => p?.status === "ACTIVE").length).toString(),
+              hint: "Fully operational",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStatusTab("PENDING_APPROVAL")}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "pnd-prt",
+              label: "Pending Review",
+              value: (stats?.pendingApproval ?? allPartners.filter((p) => p?.status === "PENDING_APPROVAL").length).toString(),
+              hint: "Awaiting Onboarding KYC",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStatusTab("TEMPORARILY_SUSPENDED")}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "sus-prt",
+              label: "Suspended",
+              value: (stats?.suspendedPartners ?? allPartners.filter((p) => p?.status === "TEMPORARILY_SUSPENDED").length).toString(),
+              hint: "Temporarily disabled",
+              positive: false,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStatusTab("PERMANENTLY_BLOCKED")}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "blk-prt",
+              label: "Blocked",
+              value: (stats?.permanentlyBlocked ?? allPartners.filter((p) => p?.status === "PERMANENTLY_BLOCKED").length).toString(),
+              hint: "Access terminated",
+              positive: false,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStatusTab("ACTIVE")}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "onl-prt",
+              label: "Online Live",
+              value: (stats?.onlinePartners ?? allPartners.filter((p) => p?.isOnline).length).toString(),
+              hint: "Receiving Order Dispatch",
+              positive: true,
+            }}
+          />
+        </div>
         
-        <KpiCard
-          kpi={{
-            id: "rev-prt",
-            label: "Gross Revenue",
-            value: `₹${(stats?.totalPartnerRevenue ?? 4920).toLocaleString("en-IN")}`,
-            hint: "Partner Processed Sales",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "earn-prt",
-            label: "Partner Earnings",
-            value: `₹${(stats?.totalPartnerEarnings ?? 4034.4).toLocaleString("en-IN")}`,
-            hint: "Net Merchant Payable",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "comm-prt",
-            label: "Commission (18%)",
-            value: `₹${(stats?.totalCommission ?? 885.6).toLocaleString("en-IN")}`,
-            hint: "Retained QuickPress Share",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "sla-prt",
-            label: "Avg SLA Time",
-            value: stats?.averageProcessingTime ?? "42 mins",
-            hint: "Wash to Iron Ready Time",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "rate-prt",
-            label: "Avg Rating",
-            value: `${stats?.customerRating ?? 4.8} / 5.0`,
-            hint: "Customer CSAT Score",
-            positive: true,
-          }}
-        />
-        <KpiCard
-          kpi={{
-            id: "cmpl-prt",
-            label: "Complaint Rate",
-            value: `${stats?.complaintRate ?? 1.2}%`,
-            hint: "Ticket Escalations",
-            positive: false,
-          }}
-        />
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Total Network GMV: ₹${realGrossRevenue.toLocaleString("en-IN")}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "rev-prt",
+              label: "Gross Revenue",
+              value: `₹${realGrossRevenue.toLocaleString("en-IN")}`,
+              hint: "Partner Processed Sales",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Net Merchant Earnings: ₹${realPartnerEarnings.toLocaleString("en-IN")}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "earn-prt",
+              label: "Partner Earnings",
+              value: `₹${realPartnerEarnings.toLocaleString("en-IN")}`,
+              hint: "Net Merchant Payable",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Platform Retained Share: ₹${realCommission.toLocaleString("en-IN")}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "comm-prt",
+              label: "Commission (18%)",
+              value: `₹${realCommission.toLocaleString("en-IN")}`,
+              hint: "Retained QuickPress Share",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Average SLA Processing Time: ${realAvgSla}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "sla-prt",
+              label: "Avg SLA Time",
+              value: realAvgSla,
+              hint: "Processing Turnaround",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Customer CSAT Score: ${realAvgRating}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "rate-prt",
+              label: "Avg Rating",
+              value: realAvgRating,
+              hint: "Customer CSAT Score",
+              positive: true,
+            }}
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toast.info(`Support Escalations: ${realComplaintRate}`)}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <KpiCard
+            kpi={{
+              id: "cmpl-prt",
+              label: "Complaint Rate",
+              value: realComplaintRate,
+              hint: "Ticket Escalations",
+              positive: false,
+            }}
+          />
+        </div>
       </div>
 
       {/* =========================================================================
@@ -541,7 +672,11 @@ export function PartnersPage() {
             </div>,
             <div key="city">
               <p className="font-medium text-zinc-800 text-xs">{r.city}</p>
-              <p className="text-[10px] text-zinc-400">{r.zone}</p>
+              <p className="text-[10px] text-emerald-700 font-semibold">
+                {(r as any).servicePincodes && (r as any).servicePincodes.length > 0
+                  ? `PIN: ${(r as any).servicePincodes.join(", ")}`
+                  : (r as any).pincode ? `PIN: ${(r as any).pincode}` : (r.zone || "All Zones")}
+              </p>
             </div>,
             <span key="orders" className="font-bold text-zinc-900 text-xs">{r.totalOrders}</span>,
             <span key="rev" className="font-bold text-zinc-900 text-xs">₹{(r.revenue || 0).toLocaleString("en-IN")}</span>,
@@ -580,34 +715,34 @@ export function PartnersPage() {
           ) : profile ? (
             <div className="flex flex-col h-full">
               {/* Header Banner */}
-              <div className="p-6 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white space-y-4 border-b border-zinc-800">
+              <div className="p-6 bg-white border-b border-zinc-200 text-zinc-900 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="size-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-black text-emerald-400 text-xl shadow-inner">
+                    <div className="size-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center font-black text-emerald-700 text-xl shadow-xs">
                       {(profile.header.businessName || "KP").substring(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-black text-white tracking-tight">{profile.header.businessName}</h2>
+                        <h2 className="text-xl font-black text-zinc-900 tracking-tight">{profile.header.businessName}</h2>
                         {profile.header.isOpen ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
-                            <span className="size-1.5 rounded-full bg-emerald-400"></span> STORE OPEN
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span> STORE OPEN
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                            <span className="size-1.5 rounded-full bg-rose-400"></span> CLOSED
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="size-1.5 rounded-full bg-rose-500"></span> CLOSED
                           </span>
                         )}
                         {profile.header.isLive && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-sky-700 border border-sky-200">
                             LIVE DISPATCH
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-300 mt-1 flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-emerald-400 font-bold">ID: {profile.header.id}</span>
+                      <p className="text-xs text-zinc-600 mt-1.5 flex flex-wrap items-center gap-2 font-medium">
+                        <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">ID: {profile.header.id}</span>
                         <span>•</span>
-                        <span>{profile.header.ownerName}</span>
+                        <span className="text-zinc-800 font-semibold">{profile.header.ownerName}</span>
                         <span>•</span>
                         <span>{profile.header.phone}</span>
                         <span>•</span>
@@ -616,47 +751,75 @@ export function PartnersPage() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${profile.header.status === "ACTIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-amber-500/20 text-amber-300 border border-amber-500/40"}`}>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${profile.header.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"}`}>
                       {profile.header.status}
                     </span>
-                    <span className="text-[10px] text-zinc-400">Turnaround: {profile.header.turnaroundHours ?? 24}h • Radius: {profile.header.deliveryRadiusKm ?? 10}km</span>
+                    <span className="text-[11px] text-zinc-500 font-medium">Turnaround: {profile.header.turnaroundHours ?? 24}h • Radius: {profile.header.deliveryRadiusKm ?? 10}km</span>
                   </div>
                 </div>
 
                 {/* Header Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-800">
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-100">
                   {profile.header.status !== "ACTIVE" && (
-                    <Button size="sm" onClick={() => selectedId && approveMutation.mutate(selectedId)} className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 rounded-lg">
+                    <Button size="sm" onClick={() => selectedId && approveMutation.mutate(selectedId)} className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 rounded-xl shadow-xs">
                       <Check className="size-3.5" /> Approve &amp; Activate
                     </Button>
                   )}
                   {profile.header.status === "ACTIVE" && (
-                    <Button size="sm" variant="outline" onClick={() => setSuspendModalOpen(true)} className="h-8 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 text-xs font-bold gap-1 rounded-lg">
+                    <Button size="sm" variant="outline" onClick={() => setSuspendModalOpen(true)} className="h-8 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-bold gap-1 rounded-xl shadow-xs">
                       <PauseCircle className="size-3.5" /> Suspend
                     </Button>
                   )}
                   {profile.header.status !== "PERMANENTLY_BLOCKED" && (
-                    <Button size="sm" variant="destructive" onClick={() => setBlockModalOpen(true)} className="h-8 text-xs font-bold gap-1 rounded-lg">
+                    <Button size="sm" variant="outline" onClick={() => setBlockModalOpen(true)} className="h-8 border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 text-xs font-bold gap-1 rounded-xl shadow-xs">
                       <Ban className="size-3.5" /> Block
                     </Button>
                   )}
                   {profile.header.status === "PERMANENTLY_BLOCKED" && (
-                    <Button size="sm" onClick={() => selectedId && unblockMutation.mutate(selectedId)} className="h-8 bg-emerald-600 text-white text-xs font-bold gap-1 rounded-lg">
+                    <Button size="sm" onClick={() => selectedId && unblockMutation.mutate(selectedId)} className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1 rounded-xl shadow-xs">
                       <PlayCircle className="size-3.5" /> Unblock
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => setKycModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <ShieldCheck className="size-3.5 text-emerald-400" /> KYC Status ({profile.kyc.status})
+                  <Button size="sm" variant="outline" onClick={() => setKycModalOpen(true)} className="h-8 border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 text-xs font-bold gap-1 rounded-xl shadow-xs">
+                    <ShieldCheck className="size-3.5 text-emerald-600" /> KYC Status ({profile.kyc.status})
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setCommissionModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <Percent className="size-3.5 text-emerald-400" /> Commission ({profile.commission.activeRate ?? profile.commission.currentRate}%)
+                  <Button size="sm" variant="outline" onClick={() => setCommissionModalOpen(true)} className="h-8 border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 text-xs font-bold gap-1 rounded-xl shadow-xs">
+                    <Percent className="size-3.5 text-emerald-600" /> Commission ({profile.commission.activeRate ?? profile.commission.currentRate}%)
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setWalletModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <Wallet className="size-3.5 text-emerald-400" /> Wallet Balance (₹{profile.wallet.balance ?? profile.wallet.currentBalance})
+                  <Button size="sm" variant="outline" onClick={() => setWalletModalOpen(true)} className="h-8 border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 text-xs font-bold gap-1 rounded-xl shadow-xs">
+                    <Wallet className="size-3.5 text-emerald-600" /> Wallet Balance (₹{profile.wallet.balance ?? profile.wallet.currentBalance})
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setNotifyModalOpen(true)} className="h-8 border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs font-bold gap-1 rounded-lg">
-                    <Send className="size-3.5 text-emerald-400" /> Push Notify
+                  <Button size="sm" variant="outline" onClick={() => setNotifyModalOpen(true)} className="h-8 border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 text-xs font-bold gap-1 rounded-xl shadow-xs">
+                    <Send className="size-3.5 text-emerald-600" /> Push Notify
                   </Button>
+                </div>
+              </div>
+
+              {/* Onboarding & Activity Timestamp Highlights */}
+              <div className="mx-6 mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
+                      <Calendar className="size-4" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Store Onboarded</div>
+                      <div className="text-xs font-bold text-zinc-900">{profile.header.joinedDate || "—"}</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Verified</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
+                      <Clock className="size-4" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Last Store Activity</div>
+                      <div className="text-xs font-bold text-zinc-900">{profile.header.lastActive || "—"}</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">Live Sync</span>
                 </div>
               </div>
 
@@ -884,32 +1047,47 @@ export function PartnersPage() {
 
                   {/* 7. SETTLEMENTS */}
                   <TabsContent value="settlements" className="space-y-3">
-                    <DataTable
-                      headers={["Settlement ID", "UTR Ref", "Orders", "Amount", "Status", "Date"]}
-                      rows={profile.settlements.map((s) => [
-                        <span key="id" className="font-mono text-xs font-bold">{s.id}</span>,
-                        <span key="utr" className="font-mono text-xs text-zinc-600">{s.utr}</span>,
-                        <span key="cnt" className="text-xs">{s.ordersCount}</span>,
-                        <span key="amt" className="font-bold text-emerald-700 text-xs">₹{s.amount}</span>,
-                        <span key="st" className="font-bold text-xs text-emerald-600">{s.status}</span>,
-                        <span key="dt" className="text-[10px] text-zinc-500">{s.createdAt}</span>,
-                      ])}
-                    />
+                    {profile.settlements.length === 0 ? (
+                      <div className="p-8 text-center bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-500 text-xs font-semibold">
+                        No settlement payouts generated yet for this partner.
+                      </div>
+                    ) : (
+                      <DataTable
+                        headers={["Settlement ID", "UTR Ref", "Orders", "Amount", "Status", "Date"]}
+                        rows={profile.settlements.map((s) => [
+                          <span key="id" className="font-mono text-xs font-bold">{s.id}</span>,
+                          <span key="utr" className="font-mono text-xs text-zinc-600">{s.utr}</span>,
+                          <span key="cnt" className="text-xs">{s.ordersCount}</span>,
+                          <span key="amt" className="font-bold text-emerald-700 text-xs">₹{s.amount}</span>,
+                          <span key="st" className="font-bold text-xs text-emerald-600">{s.status}</span>,
+                          <span key="dt" className="text-[10px] text-zinc-500">{s.createdAt}</span>,
+                        ])}
+                      />
+                    )}
                   </TabsContent>
 
                   {/* 8. INCENTIVES */}
                   <TabsContent value="incentives" className="space-y-3">
                     <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                       <p className="font-bold text-zinc-900 text-xs">Target: {profile.incentives.targetOrders} orders / month</p>
-                      <p className="text-xs text-zinc-600 mt-1">Current Progress: {profile.incentives.currentOrders} orders · Eligible Bonus: ₹{profile.incentives.eligibleBonus}</p>
+                      <p className="text-xs text-zinc-600 mt-1">Current Progress: {profile.incentives.currentOrders} orders · Eligible Bonus: ₹{profile.incentives.eligibleBonus || 0}</p>
                     </div>
                   </TabsContent>
 
                   {/* 9. PENALTIES */}
                   <TabsContent value="penalties" className="space-y-3">
-                    <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 text-rose-900">
-                      <p className="font-bold text-xs">Total Penalties: ₹{profile.penalties.totalPenalty}</p>
-                      <p className="text-xs mt-1">Late Rejection: {profile.penalties.lateRejectionCount} · SLA Breach: {profile.penalties.slaBreachCount}</p>
+                    <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-900">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-xs">Total Penalties: ₹{profile.penalties.totalPenalty}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">Late Rejections: {profile.penalties.lateRejectionCount} · SLA Breaches: {profile.penalties.slaBreachCount}</p>
+                        </div>
+                        {profile.penalties.totalPenalty === 0 && (
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Clean SLA Record ✓
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </TabsContent>
 
@@ -938,10 +1116,10 @@ export function PartnersPage() {
                   {/* 12. KYC */}
                   <TabsContent value="kyc" className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <DetailRow label="GSTIN" value={profile.kyc.gstin || "Unsubmitted"} />
-                      <DetailRow label="PAN Number" value={profile.kyc.pan || "Unsubmitted"} />
-                      <DetailRow label="Bank Account" value={profile.kyc.accountNumber || "Verified Bank"} />
-                      <DetailRow label="IFSC Code" value={profile.kyc.ifsc || "SBIN000123"} />
+                      <DetailRow label="GSTIN" value={profile.kyc.gstin || "Not Provided"} />
+                      <DetailRow label="PAN Number" value={profile.kyc.pan || "Not Provided"} />
+                      <DetailRow label="Bank Account" value={profile.kyc.accountNumber || "Pending Setup"} />
+                      <DetailRow label="IFSC Code" value={profile.kyc.ifsc || "—"} />
                     </div>
                   </TabsContent>
 
@@ -965,10 +1143,27 @@ export function PartnersPage() {
                     <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-center gap-3">
                       <Star className="size-6 text-amber-500 fill-amber-500" />
                       <div>
-                        <p className="font-black text-sm text-amber-900">{profile.ratings.score} / 5.0 Rating</p>
-                        <p className="text-xs text-amber-700">Based on {profile.ratings.totalReviews} verified customer reviews</p>
+                        <p className="font-black text-sm text-amber-900">{profile.ratings.score || 5.0} / 5.0 Rating</p>
+                        <p className="text-xs text-amber-700">Based on {profile.ratings.totalReviews || profile.overview.totalOrders || 0} verified customer reviews</p>
                       </div>
                     </div>
+                    {(!profile.ratings.reviews || profile.ratings.reviews.length === 0) ? (
+                      <div className="p-6 text-center bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-500 text-xs">
+                        No customer review text feedback submitted yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {profile.ratings.reviews.map((r, i) => (
+                          <div key={i} className="p-3 bg-white border border-zinc-200 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-zinc-900">{r.customer}</span>
+                              <span className="text-[10px] text-zinc-400">{r.date}</span>
+                            </div>
+                            <p className="text-xs text-zinc-600 mt-1">{r.comment}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </TabsContent>
 
                   {/* 15. COMPLAINTS */}
@@ -983,8 +1178,8 @@ export function PartnersPage() {
                   <TabsContent value="customers" className="space-y-3">
                     <div className="grid grid-cols-3 gap-3">
                       <DetailRow label="Unique Customers" value={profile.customers.uniqueCount} />
-                      <DetailRow label="Repeat Order Rate" value={`${profile.customers.repeatRate}%`} />
-                      <DetailRow label="Retention Rate" value="88.2%" />
+                      <DetailRow label="Repeat Order Rate" value={profile.customers.uniqueCount > 0 ? `${profile.customers.repeatRate}%` : "0.0%"} />
+                      <DetailRow label="Retention Score" value={profile.customers.uniqueCount > 0 ? "Active" : "New Merchant"} />
                     </div>
                   </TabsContent>
 
@@ -1004,8 +1199,8 @@ export function PartnersPage() {
                   {/* 19. SECURITY */}
                   <TabsContent value="security" className="space-y-3">
                     <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                      <p className="font-bold text-xs text-zinc-900">Last Active Session: {profile.security.lastActive}</p>
-                      <p className="text-xs text-zinc-600 mt-1">Device: {profile.security.deviceInfo} · IP: {profile.security.ip}</p>
+                      <p className="font-bold text-xs text-zinc-900">Last Active Session: {profile.security.lastActive || profile.header.lastActive || "Recently"}</p>
+                      <p className="text-xs text-zinc-600 mt-1">Client Interface: QuickPress Partner Platform · Sessions: Active</p>
                     </div>
                   </TabsContent>
 

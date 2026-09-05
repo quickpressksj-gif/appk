@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Bell,
   ChevronDown,
@@ -15,6 +15,11 @@ import {
   CheckCircle2,
   HelpCircle,
   ExternalLink,
+  ShieldAlert,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +39,8 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/shared/ui/sheet
 import { adminNavItems, adminRoutes } from "../navigation/admin-routes";
 import { useTheme } from "../hooks/use-theme";
 import { adminLogout } from "../api/auth";
+import { readSession, subscribeSession } from "../api/core/session-store";
+import type { Account, AuthSession } from "@/shared/types";
 
 const NAV_GROUPS = [
   {
@@ -50,17 +57,94 @@ const NAV_GROUPS = [
   },
   {
     title: "SYSTEM & GOVERNANCE",
-    items: ["website", "notifications", "support", "staff", "settings"],
+    items: ["notifications", "support", "staff", "settings"],
   },
 ];
 
-function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function isSuperAdminAccount(account?: Account | null): boolean {
+  if (!account) return false;
+  const role = String(account.role || "").toLowerCase();
+  const dept = String(account.departmentRole || "").toLowerCase();
+  const email = String(account.email || "").toLowerCase();
+  const perms = account.permissions || [];
+
+  if (
+    role === "super_admin" ||
+    dept.includes("super admin") ||
+    email === "himanshupalsingh6@gmail.com"
+  ) {
+    return true;
+  }
+  if (perms.includes("all") || perms.includes("*")) {
+    return true;
+  }
+  return false;
+}
+
+export function canAccessModule(moduleId: string, account?: Account | null): boolean {
+  // Operations Dashboard is always visible to any authenticated operator
+  if (moduleId === "dashboard") return true;
+  if (!account) return false;
+  if (isSuperAdminAccount(account)) return true;
+
+  const perms = account.permissions || [];
+  if (perms.includes("all") || perms.includes("*")) return true;
+  if (perms.includes(moduleId)) return true;
+
+  // Semantic permission alias mappings
+  const moduleAliases: Record<string, string[]> = {
+    wallet: ["finance", "payouts", "wallet"],
+    coupons: ["campaigns", "marketing", "coupons"],
+    memberships: ["growth", "memberships"],
+    analytics: ["reports", "analytics", "insights"],
+    services: ["catalog", "services"],
+    cities: ["locations", "zones", "cities", "territory"],
+    support: ["helpdesk", "support", "tickets"],
+    staff: ["staff", "rbac", "team", "security"],
+    settings: ["settings", "governance", "platform"],
+    orders: ["orders", "dispatch", "live"],
+    customers: ["customers", "users"],
+    partners: ["partners", "stores", "merchants"],
+    riders: ["riders", "fleet", "captains"],
+    notifications: ["notifications", "broadcasts"],
+  };
+
+  const aliases = moduleAliases[moduleId] || [];
+  return aliases.some((alias) => perms.includes(alias));
+}
+
+function getAvatarInitials(name?: string, email?: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  if (email && email.trim()) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return "QP";
+}
+
+function SidebarNav({
+  onNavigate,
+  account,
+}: {
+  onNavigate?: () => void;
+  account?: Account | null;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
     <nav className="flex-1 space-y-6 overflow-y-auto px-3.5 py-4 scrollbar-thin scrollbar-thumb-zinc-200">
       {NAV_GROUPS.map((group) => {
-        const groupItems = adminNavItems.filter((i) => group.items.includes(i.id));
+        // Filter items strictly by user's assigned permissions
+        const groupItems = adminNavItems.filter(
+          (i) => group.items.includes(i.id) && canAccessModule(i.id, account)
+        );
+
+        // If the entire group has 0 assigned permissions for this staff member, hide the group completely
         if (groupItems.length === 0) return null;
 
         return (
@@ -70,7 +154,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             </p>
             <div className="space-y-1">
               {groupItems.map((item) => {
-                const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(`${item.to}/`));
+                const active =
+                  pathname === item.to ||
+                  (item.to !== "/dashboard" && pathname.startsWith(`${item.to}/`));
                 const Icon = item.icon;
 
                 return (
@@ -111,7 +197,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function BrandBlock() {
+function BrandBlock({ account }: { account?: Account | null }) {
+  const isSuper = isSuperAdminAccount(account);
+  const deptTitle = account?.departmentRole || (isSuper ? "Super Admin Console" : "Staff Console");
+
   return (
     <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4.5 bg-white">
       <div className="flex items-center gap-2.5">
@@ -120,12 +209,22 @@ function BrandBlock() {
         </div>
         <div className="leading-tight">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-black tracking-tight text-[#111827]">Quick<span className="text-[#16A34A]">Press</span></span>
-            <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[9px] font-black text-amber-900 border border-amber-300">
-              OPS
+            <span className="text-sm font-black tracking-tight text-[#111827]">
+              Quick<span className="text-[#16A34A]">Press</span>
+            </span>
+            <span
+              className={`rounded px-1.5 py-0.2 text-[9px] font-black border ${
+                isSuper
+                  ? "bg-amber-100 text-amber-900 border-amber-300"
+                  : "bg-emerald-100 text-emerald-900 border-emerald-300"
+              }`}
+            >
+              {isSuper ? "SUPER" : "STAFF"}
             </span>
           </div>
-          <p className="text-[10px] font-medium text-zinc-400">Super Admin Console</p>
+          <p className="truncate text-[10px] font-medium text-zinc-400 max-w-[145px]">
+            {deptTitle}
+          </p>
         </div>
       </div>
     </div>
@@ -145,14 +244,42 @@ export function AdminShell({
 }) {
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Active Session and RBAC identity
+  const [session, setSession] = useState<AuthSession | null>(() => readSession("admin"));
+
+  useEffect(() => {
+    setSession(readSession("admin"));
+    const unsubscribe = subscribeSession(() => {
+      setSession(readSession("admin"));
+    });
+    return unsubscribe;
+  }, []);
+
+  const account = session?.account;
+  const isSuper = isSuperAdminAccount(account);
+  const staffName = account?.name || (isSuper ? "Super Administrator" : "Staff Member");
+  const staffEmail = account?.email || "himanshupalsingh6@gmail.com";
+  const staffRole = account?.departmentRole || (isSuper ? "Super Admin" : "Operations Staff");
+  const staffScope = account?.scope || "All India Hubs";
+  const avatarLetters = getAvatarInitials(staffName, staffEmail);
+
+  // Identify current module based on route
+  const currentNavEntry = adminNavItems.find(
+    (item) =>
+      pathname === item.to ||
+      (item.to !== "/dashboard" && pathname.startsWith(`${item.to}/`))
+  );
+  const currentModuleId = currentNavEntry?.id || (pathname === "/" || pathname === "/dashboard" ? "dashboard" : pathname.replace(/^\//, "").split("/")[0]);
+  const isModuleAllowed = canAccessModule(currentModuleId, account);
 
   // Global Search State
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any | null>(null);
-  const searchDropdownRef = useState<any>(null)[0];
 
   const handleSearchInput = async (val: string) => {
     setSearchQuery(val);
@@ -188,27 +315,29 @@ export function AdminShell({
     <div className="flex min-h-screen bg-[#F8FAFC] text-[#111827] font-sans antialiased selection:bg-emerald-500 selection:text-white">
       {/* Desktop Sticky Sidebar */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-200 bg-white lg:flex">
-        <BrandBlock />
-        <SidebarNav />
+        <BrandBlock account={account} />
+        <SidebarNav account={account} />
 
-        {/* Bottom Status Block */}
+        {/* Bottom Operator Identity Card */}
         <div className="border-t border-zinc-200 p-3.5 bg-zinc-50/70">
           <div className="flex items-center justify-between rounded-xl bg-white border border-zinc-200 p-2.5 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
-              </span>
-              <div className="text-[11px] leading-tight">
-                <p className="font-bold text-zinc-900">Cluster Online</p>
-                <p className="text-[9px] text-zinc-400">Production v2.4</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar className="size-6 rounded-md border border-emerald-500/40 shrink-0">
+                <AvatarFallback className="bg-emerald-600 text-white font-black text-[10px]">
+                  {avatarLetters}
+                </AvatarFallback>
+              </Avatar>
+              <div className="text-[11px] leading-tight min-w-0">
+                <p className="truncate font-bold text-zinc-900">{staffName}</p>
+                <p className="truncate text-[9px] text-emerald-700 font-semibold">{staffRole}</p>
               </div>
             </div>
             <button
-              onClick={() => toast.info("System Health: 99.98% uptime · All nodes active.")}
-              className="text-zinc-400 hover:text-zinc-700 p-1"
+              onClick={() => toast.info(`Assigned Territory: ${staffScope}`)}
+              className="text-zinc-400 hover:text-zinc-700 p-1 shrink-0"
+              title={`Scope: ${staffScope}`}
             >
-              <Zap className="size-3.5 text-amber-500" />
+              <ShieldCheck className="size-3.5 text-emerald-600" />
             </button>
           </div>
         </div>
@@ -232,22 +361,26 @@ export function AdminShell({
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0 bg-white text-zinc-900 border-zinc-200">
                 <SheetTitle className="sr-only">Admin Navigation</SheetTitle>
-                <BrandBlock />
-                <SidebarNav onNavigate={() => setMobileOpen(false)} />
+                <BrandBlock account={account} />
+                <SidebarNav account={account} onNavigate={() => setMobileOpen(false)} />
               </SheetContent>
             </Sheet>
 
             {/* Page Title & Subtitle */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-base sm:text-lg font-black tracking-tight text-zinc-900">{title}</h1>
+                <h1 className="truncate text-base sm:text-lg font-black tracking-tight text-zinc-900">
+                  {title}
+                </h1>
                 <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                   <CheckCircle2 className="size-3" />
                   <span>Realtime Sync</span>
                 </span>
               </div>
               {subtitle ? (
-                <p className="hidden truncate text-xs font-medium text-zinc-500 sm:block">{subtitle}</p>
+                <p className="hidden truncate text-xs font-medium text-zinc-500 sm:block">
+                  {subtitle}
+                </p>
               ) : null}
             </div>
 
@@ -257,7 +390,9 @@ export function AdminShell({
               <input
                 value={searchQuery}
                 onChange={(e) => handleSearchInput(e.target.value)}
-                onFocus={() => { if (searchQuery.trim()) setSearchOpen(true); }}
+                onFocus={() => {
+                  if (searchQuery.trim()) setSearchOpen(true);
+                }}
                 placeholder="Search orders, customers, partners, riders..."
                 className="h-9 w-72 rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 shadow-xs"
               />
@@ -267,10 +402,7 @@ export function AdminShell({
 
               {/* Global Search Results Dropdown */}
               {searchOpen && searchResults && (
-                <div
-                  ref={searchDropdownRef}
-                  className="absolute right-0 top-11 z-50 w-96 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl backdrop-blur-md"
-                >
+                <div className="absolute right-0 top-11 z-50 w-96 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl backdrop-blur-md">
                   <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
                     <span className="text-[11px] font-black uppercase tracking-wider text-zinc-500">
                       Search Results ({searchResults.total})
@@ -286,11 +418,11 @@ export function AdminShell({
 
                   <div className="mt-2 max-h-80 overflow-y-auto space-y-3 scrollbar-thin">
                     {/* Orders */}
-                    {searchResults.results.orders.length > 0 && (
+                    {searchResults.results.orders.length > 0 && canAccessModule("orders", account) && (
                       <div>
                         <p className="text-[10px] font-extrabold uppercase text-emerald-700">Orders</p>
                         <div className="mt-1 space-y-1">
-                          {searchResults.results.orders.map((ord) => (
+                          {searchResults.results.orders.map((ord: any) => (
                             <div
                               key={ord.id}
                               onClick={() => {
@@ -313,11 +445,11 @@ export function AdminShell({
                     )}
 
                     {/* Customers */}
-                    {searchResults.results.customers.length > 0 && (
+                    {searchResults.results.customers.length > 0 && canAccessModule("customers", account) && (
                       <div>
                         <p className="text-[10px] font-extrabold uppercase text-sky-700">Customers</p>
                         <div className="mt-1 space-y-1">
-                          {searchResults.results.customers.map((cust) => (
+                          {searchResults.results.customers.map((cust: any) => (
                             <div
                               key={cust.id}
                               onClick={() => {
@@ -335,11 +467,11 @@ export function AdminShell({
                     )}
 
                     {/* Partners */}
-                    {searchResults.results.partners.length > 0 && (
+                    {searchResults.results.partners.length > 0 && canAccessModule("partners", account) && (
                       <div>
                         <p className="text-[10px] font-extrabold uppercase text-amber-700">Partners</p>
                         <div className="mt-1 space-y-1">
-                          {searchResults.results.partners.map((prt) => (
+                          {searchResults.results.partners.map((prt: any) => (
                             <div
                               key={prt.id}
                               onClick={() => {
@@ -357,11 +489,11 @@ export function AdminShell({
                     )}
 
                     {/* Riders */}
-                    {searchResults.results.riders.length > 0 && (
+                    {searchResults.results.riders.length > 0 && canAccessModule("riders", account) && (
                       <div>
                         <p className="text-[10px] font-extrabold uppercase text-purple-700">Riders</p>
                         <div className="mt-1 space-y-1">
-                          {searchResults.results.riders.map((rdr) => (
+                          {searchResults.results.riders.map((rdr: any) => (
                             <div
                               key={rdr.id}
                               onClick={() => {
@@ -371,7 +503,11 @@ export function AdminShell({
                               className="flex items-center justify-between rounded-lg p-1.5 hover:bg-zinc-50 cursor-pointer text-xs"
                             >
                               <span className="font-bold text-zinc-900">{rdr.name}</span>
-                              <span className={`text-[10px] font-bold ${rdr.isOnline ? "text-emerald-600" : "text-zinc-400"}`}>
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  rdr.isOnline ? "text-emerald-600" : "text-zinc-400"
+                                }`}
+                              >
                                 {rdr.isOnline ? "● Online" : "Offline"}
                               </span>
                             </div>
@@ -388,17 +524,19 @@ export function AdminShell({
               )}
             </div>
 
-            {/* Notification Bell */}
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.notifications })}
-              className="relative flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 shadow-sm"
-            >
-              <Bell className="size-4" />
-              <span className="absolute top-2 right-2 size-2 rounded-full bg-emerald-600" />
-            </button>
+            {/* Notification Bell (Only if granted) */}
+            {canAccessModule("notifications", account) && (
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.notifications })}
+                className="relative flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 shadow-sm"
+              >
+                <Bell className="size-4" />
+                <span className="absolute top-2 right-2 size-2 rounded-full bg-emerald-600" />
+              </button>
+            )}
 
-            {/* Admin Avatar & Dropdown */}
+            {/* Admin / Staff Avatar & Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -407,36 +545,60 @@ export function AdminShell({
                 >
                   <Avatar className="size-7 rounded-lg border border-emerald-500/40">
                     <AvatarFallback className="bg-emerald-600 text-white font-black text-xs">
-                      QS
+                      {avatarLetters}
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden sm:block leading-none text-left">
-                    <p className="text-xs font-black text-zinc-900">Super Admin</p>
-                    <p className="text-[10px] text-emerald-700 font-semibold">4502 Master</p>
+                    <p className="truncate text-xs font-black text-zinc-900 max-w-[130px]">
+                      {staffName}
+                    </p>
+                    <p className="truncate text-[10px] text-emerald-700 font-semibold max-w-[130px]">
+                      {staffRole}
+                    </p>
                   </div>
-                  <ChevronDown className="size-3 text-zinc-400" />
+                  <ChevronDown className="size-3 text-zinc-400 shrink-0" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 rounded-2xl bg-white border-zinc-200 text-zinc-900 shadow-xl p-1.5">
-                <DropdownMenuLabel className="px-2.5 py-1.5">
-                  <p className="text-xs font-black text-zinc-900">Super Administrator</p>
-                  <p className="text-[10px] text-zinc-500">admin@quickpress.online</p>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-2xl bg-white border-zinc-200 text-zinc-900 shadow-xl p-1.5"
+              >
+                <DropdownMenuLabel className="px-2.5 py-2">
+                  <p className="text-xs font-black text-zinc-900">{staffName}</p>
+                  <p className="text-[10px] text-zinc-500 truncate">{staffEmail}</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                      {staffRole}
+                    </span>
+                    <span className="rounded bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 text-[9px] font-medium text-zinc-600">
+                      {staffScope}
+                    </span>
+                  </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-zinc-100" />
-                <DropdownMenuItem
-                  onClick={() => navigate({ to: adminRoutes.staff })}
-                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                >
-                  <UserCog className="mr-2 size-4 text-emerald-600" />
-                  <span>Staff & Roles</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate({ to: adminRoutes.settings })}
-                  className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                >
-                  <HelpCircle className="mr-2 size-4 text-amber-600" />
-                  <span>Platform Settings</span>
-                </DropdownMenuItem>
+
+                {/* Only display Staff & Roles if authorized */}
+                {canAccessModule("staff", account) && (
+                  <DropdownMenuItem
+                    onClick={() => navigate({ to: adminRoutes.staff })}
+                    className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                  >
+                    <UserCog className="mr-2 size-4 text-emerald-600" />
+                    <span>Staff & Roles</span>
+                  </DropdownMenuItem>
+                )}
+
+                {/* Only display Settings if authorized */}
+                {canAccessModule("settings", account) && (
+                  <DropdownMenuItem
+                    onClick={() => navigate({ to: adminRoutes.settings })}
+                    className="rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                  >
+                    <HelpCircle className="mr-2 size-4 text-amber-600" />
+                    <span>Platform Settings</span>
+                  </DropdownMenuItem>
+                )}
+
                 <DropdownMenuSeparator className="bg-zinc-100" />
                 <DropdownMenuItem
                   onClick={handleSignOut}
@@ -450,16 +612,63 @@ export function AdminShell({
           </div>
         </header>
 
-        {/* Content wrapper */}
+        {/* Content wrapper with strict RBAC permission check */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
-          {actions ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-zinc-200">
-              <div className="text-xs text-zinc-500 font-medium">QuickPress Operations Console</div>
-              <div className="flex items-center gap-2">{actions}</div>
-            </div>
-          ) : null}
+          {!isModuleAllowed ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
+              <div className="max-w-md w-full rounded-3xl border border-rose-200 bg-white p-8 shadow-xl">
+                <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 shadow-inner">
+                  <ShieldAlert className="size-7" />
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 border border-rose-200 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-rose-800">
+                  Module Not Assigned
+                </span>
+                <h2 className="mt-3 text-lg font-black text-zinc-900">
+                  Access Restricted
+                </h2>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
+                  The <strong>{currentNavEntry?.label || currentModuleId.toUpperCase()}</strong> module has not been assigned to your staff profile by the Administrator.
+                </p>
 
-          {children}
+                <div className="mt-5 rounded-2xl bg-zinc-50 border border-zinc-200 p-3.5 text-left space-y-2 text-xs">
+                  <div className="flex justify-between items-center text-zinc-600">
+                    <span className="font-medium">Operator Name:</span>
+                    <span className="font-bold text-zinc-900">{staffName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-600">
+                    <span className="font-medium">Assigned Role:</span>
+                    <span className="font-bold text-emerald-700">{staffRole}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-zinc-600">
+                    <span className="font-medium">Assigned Scope:</span>
+                    <span className="font-bold text-zinc-900">{staffScope}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row justify-center gap-2">
+                  <Button
+                    onClick={() => navigate({ to: adminRoutes.dashboard })}
+                    className="rounded-xl bg-emerald-600 px-5 text-xs font-bold text-white hover:bg-emerald-700"
+                  >
+                    Return to Dashboard
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {actions ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-zinc-200">
+                  <div className="text-xs text-zinc-500 font-medium">
+                    QuickPress Operations Console · {staffRole}
+                  </div>
+                  <div className="flex items-center gap-2">{actions}</div>
+                </div>
+              ) : null}
+
+              {children}
+            </>
+          )}
         </main>
       </div>
     </div>

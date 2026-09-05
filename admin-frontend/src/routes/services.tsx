@@ -37,6 +37,11 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Radio,
+  Zap,
+  CheckCircle,
+  ArrowRight,
+  Scale,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -71,7 +76,9 @@ import {
   fetchServiceCategories,
   fetchServicesIntelligence,
   fetchServiceStats,
+  syncMasterServiceToPartners,
   togglePartnerServiceStatus,
+  updatePartnerServiceRate,
   updateService,
   type LaundryService,
   type PartnerServiceRow,
@@ -95,20 +102,46 @@ export function ServicesPage() {
   const statsQuery = useQuery({ queryKey: ["admin", "services", "stats"], queryFn: fetchServiceStats });
   const categoriesQuery = useQuery({ queryKey: ["admin", "service-categories"], queryFn: fetchServiceCategories });
   const partnerServicesQuery = useQuery({ queryKey: ["admin", "partner-services"], queryFn: () => fetchPartnerServices() });
-  const partnersQuery = useQuery({ queryKey: ["admin", "partners"], queryFn: fetchPartners });
+  const partnersQuery = useQuery({ queryKey: ["admin", "partners"], queryFn: () => fetchPartners() });
 
   const [activeTab, setActiveTab] = useState<"services" | "riders_matrix" | "partner_rates" | "categories">("services");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [unitFilter, setUnitFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"revenue" | "orders" | "price" | "name">("revenue");
   const [selectedService, setSelectedService] = useState<ServiceIntelligence | null>(null);
+
+  // Partner rate cards tab states
+  const [partnerRateSearch, setPartnerRateSearch] = useState("");
+  const [partnerCityFilter, setPartnerCityFilter] = useState("all");
+  const [editingPartnerService, setEditingPartnerService] = useState<PartnerServiceRow | null>(null);
+  const [syncingServiceId, setSyncingServiceId] = useState<string | null>(null);
 
   const allIntelligence = intelQuery.data ?? [];
   const stats = statsQuery.data;
   const allCategories = categoriesQuery.data ?? [];
   const allPartnerServices = partnerServicesQuery.data ?? [];
-  const allPartners = partnersQuery.data ?? [];
+  const allPartners = Array.isArray(partnersQuery.data) ? partnersQuery.data : [];
+
+  // Calculate Market Average Price per Master Service from Partner Rate Cards
+  const marketPriceMap = useMemo(() => {
+    const map = new Map<string, { avgPrice: number; storeCount: number; minPrice: number; maxPrice: number }>();
+    for (const ps of allPartnerServices) {
+      const key = ps.masterServiceId || ps.name.toLowerCase();
+      const existing = map.get(key) || { avgPrice: 0, storeCount: 0, minPrice: Infinity, maxPrice: -Infinity };
+      const currentPrices = existing.avgPrice * existing.storeCount;
+      const newCount = existing.storeCount + 1;
+      const newAvg = (currentPrices + ps.price) / newCount;
+      map.set(key, {
+        avgPrice: newAvg,
+        storeCount: newCount,
+        minPrice: Math.min(existing.minPrice, ps.price),
+        maxPrice: Math.max(existing.maxPrice, ps.price),
+      });
+    }
+    return map;
+  }, [allPartnerServices]);
 
   const partnerStatusMutation = useMutation({
     mutationFn: ({ serviceId, action }: { serviceId: string; action: "activate" | "suspend" | "disable" | "enable" }) =>
@@ -120,6 +153,35 @@ export function ServicesPage() {
     },
     onError: () => {
       toast.error("Failed to update partner service status.");
+    },
+  });
+
+  const partnerRateEditMutation = useMutation({
+    mutationFn: ({ serviceId, payload }: { serviceId: string; payload: { price?: number; turnaroundHours?: number } }) =>
+      updatePartnerServiceRate(serviceId, payload),
+    onSuccess: () => {
+      toast.success("Store rate card updated successfully! 🎉");
+      setEditingPartnerService(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "partner-services"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
+    },
+    onError: () => {
+      toast.error("Failed to update store rate.");
+    },
+  });
+
+  const syncToPartnersMutation = useMutation({
+    mutationFn: ({ serviceId, overridePrice }: { serviceId: string; overridePrice: boolean }) =>
+      syncMasterServiceToPartners(serviceId, overridePrice),
+    onSuccess: (data) => {
+      toast.success(`Synced to ${data.totalPartners} partner stores! (${data.created} added, ${data.updated} updated) ⚡`);
+      setSyncingServiceId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "partner-services"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "services", "intelligence"] });
+    },
+    onError: () => {
+      toast.error("Failed to sync service to partner stores.");
+      setSyncingServiceId(null);
     },
   });
 
@@ -153,13 +215,14 @@ export function ServicesPage() {
     let filtered = allIntelligence.filter((s) => {
       const matchSearch =
         !q ||
-        [s.name, s.category, s.description, ...s.assignedRiders.map((r) => r.name)]
+        [s.name, s.category, s.description, ...s.assignedRiders.map((r: ServiceRider) => r.name)]
           .join(" ")
           .toLowerCase()
           .includes(q);
       const matchCat = categoryFilter === "all" || s.category.toLowerCase() === categoryFilter.toLowerCase() || s.categoryId === categoryFilter;
+      const matchUnit = unitFilter === "all" || s.unit.toLowerCase().includes(unitFilter.toLowerCase());
       const matchStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
-      return matchSearch && matchCat && matchStatus;
+      return matchSearch && matchCat && matchUnit && matchStatus;
     });
 
     if (sortBy === "revenue") {
@@ -172,7 +235,7 @@ export function ServicesPage() {
       filtered.sort((a, b) => a.name.localeCompare(b.name));
     }
     return filtered;
-  }, [allIntelligence, searchQuery, categoryFilter, statusFilter, sortBy]);
+  }, [allIntelligence, searchQuery, categoryFilter, unitFilter, statusFilter, sortBy]);
 
   // Unique list of all riders across services for Matrix view
   const riderMatrixList = useMemo(() => {
@@ -191,6 +254,24 @@ export function ServicesPage() {
     }
     return Array.from(ridersMap.values());
   }, [allIntelligence]);
+
+  // Filtered Partner Services
+  const filteredPartnerRates = useMemo(() => {
+    const q = partnerRateSearch.trim().toLowerCase();
+    return allPartnerServices.filter((ps) => {
+      const matchSearch = !q || [ps.name, ps.partnerName, ps.city, ps.category].join(" ").toLowerCase().includes(q);
+      const matchCity = partnerCityFilter === "all" || ps.city.toLowerCase() === partnerCityFilter.toLowerCase();
+      return matchSearch && matchCity;
+    });
+  }, [allPartnerServices, partnerRateSearch, partnerCityFilter]);
+
+  const uniqueCities = useMemo(() => {
+    const cities = new Set<string>();
+    for (const ps of allPartnerServices) {
+      if (ps.city && ps.city !== "—") cities.add(ps.city);
+    }
+    return Array.from(cities);
+  }, [allPartnerServices]);
 
   const handleExportCSV = () => {
     if (filteredServices.length === 0) {
@@ -215,7 +296,7 @@ export function ServicesPage() {
     ];
     const csvRows = [headers.join(",")];
     for (const s of filteredServices) {
-      const ridersStr = s.assignedRiders.map((r) => `${r.name} (${r.tripsForThisService} trips)`).join("; ");
+      const ridersStr = s.assignedRiders.map((r: ServiceRider) => `${r.name} (${r.tripsForThisService} trips)`).join("; ");
       csvRows.push(
         [
           `"${s.id}"`,
@@ -367,19 +448,25 @@ export function ServicesPage() {
 
             <div className="flex items-center gap-2 text-xs font-bold text-zinc-500">
               <Layers className="size-4 text-emerald-600" />
-              <span>Showing {filteredServices.length} Services</span>
+              <span>
+                {activeTab === "services"
+                  ? `Showing ${filteredServices.length} Services`
+                  : activeTab === "partner_rates"
+                  ? `Showing ${filteredPartnerRates.length} Store Rates`
+                  : `${allCategories.length} Categories`}
+              </span>
             </div>
           </div>
 
           {activeTab === "services" && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {/* Search */}
               <div className="relative lg:col-span-2">
                 <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search service name, category, or assigned rider name..."
+                  placeholder="Search service name, category, or assigned rider..."
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
@@ -399,6 +486,20 @@ export function ServicesPage() {
                 </SelectContent>
               </Select>
 
+              {/* Unit Filter */}
+              <Select value={unitFilter} onValueChange={setUnitFilter}>
+                <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                  <SelectValue placeholder="All Units" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Pricing Units</SelectItem>
+                  <SelectItem value="kg">⚖️ per kg (Weight)</SelectItem>
+                  <SelectItem value="item">👕 per item / piece</SelectItem>
+                  <SelectItem value="pair">👟 per pair (Shoes)</SelectItem>
+                  <SelectItem value="meter">📏 per meter (Curtains)</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Sort By */}
               <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
                 <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
@@ -413,6 +514,38 @@ export function ServicesPage() {
               </Select>
             </div>
           )}
+
+          {activeTab === "partner_rates" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="relative lg:col-span-2">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+                <input
+                  value={partnerRateSearch}
+                  onChange={(e) => setPartnerRateSearch(e.target.value)}
+                  placeholder="Search store name, city, or service..."
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              <Select value={partnerCityFilter} onValueChange={setPartnerCityFilter}>
+                <SelectTrigger className="h-10 rounded-xl bg-zinc-50 border-zinc-200 text-xs">
+                  <SelectValue placeholder="All Cities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Service Cities</SelectItem>
+                  {uniqueCities.map((city) => (
+                    <SelectItem key={city} value={city}>
+                      📍 {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center justify-end text-xs text-zinc-500 font-semibold">
+                <span>Total Store Offerings: <b>{filteredPartnerRates.length}</b></span>
+              </div>
+            </div>
+          )}
         </SectionCard>
 
         {/* =========================================================================
@@ -421,7 +554,7 @@ export function ServicesPage() {
         {activeTab === "services" && (
           <SectionCard
             title="Platform Master Services & Financial Intelligence"
-            description="Click or tap any service row to inspect the complete 360° Profile with live Revenue Breakdown, Assigned Delivery Riders, and Partner Stores."
+            description="Inspect the complete 360° Profile, live Market Price Variance across partner stores, and instant sync controls."
           >
             <DataTable
               loading={intelQuery.isLoading}
@@ -455,13 +588,54 @@ export function ServicesPage() {
                 },
                 {
                   key: "price",
-                  label: "Base Unit Rate",
+                  label: "Master Base Rate",
                   render: (s) => (
                     <div className="text-xs">
                       <p className="font-black text-zinc-900">₹{s.basePrice.toFixed(2)}</p>
                       <p className="text-[10px] text-zinc-400 font-medium">/{s.unit}</p>
                     </div>
                   ),
+                },
+                {
+                  key: "marketVariance",
+                  label: "Market Store Pricing",
+                  render: (s) => {
+                    const market = marketPriceMap.get(s.id) || marketPriceMap.get(s.name.toLowerCase());
+                    if (!market || market.storeCount === 0) {
+                      return (
+                        <div className="text-xs text-zinc-400 font-medium flex items-center gap-1">
+                          <Store className="size-3" />
+                          <span>Not adopted yet</span>
+                        </div>
+                      );
+                    }
+                    const diff = market.avgPrice - s.basePrice;
+                    const isHigher = diff > 0.5;
+                    const isLower = diff < -0.5;
+                    return (
+                      <div className="text-xs">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-zinc-900">₹{market.avgPrice.toFixed(0)}</span>
+                          <span className="text-[10px] text-zinc-400 font-medium">avg ({market.storeCount} stores)</span>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1 text-[10px] font-bold">
+                          {isHigher ? (
+                            <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                              +₹{diff.toFixed(0)} vs Base
+                            </span>
+                          ) : isLower ? (
+                            <span className="text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200">
+                              -₹{Math.abs(diff).toFixed(0)} vs Base
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                              ● At Par (Aligned)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  },
                 },
                 {
                   key: "orders",
@@ -502,19 +676,9 @@ export function ServicesPage() {
                         <span className="font-bold text-zinc-900">{s.assignedRiders.length} Riders Active</span>
                       </div>
                       <p className="text-[10px] text-zinc-500 truncate max-w-[150px]">
-                        {s.assignedRiders.slice(0, 2).map((r) => r.name).join(", ") || "Kasganj Fleet Pool"}
+                        {s.assignedRiders.slice(0, 2).map((r: ServiceRider) => r.name).join(", ") || "Kasganj Fleet Pool"}
                       </p>
                     </div>
-                  ),
-                },
-                {
-                  key: "partnerStores",
-                  label: "Partner Stores",
-                  render: (s) => (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
-                      <Store className="size-3 text-zinc-400" />
-                      {s.partnerStoresCount} Stores
-                    </span>
                   ),
                 },
                 {
@@ -524,17 +688,30 @@ export function ServicesPage() {
                 },
                 {
                   key: "actions",
-                  label: "",
+                  label: "Actions",
                   className: "text-right",
                   render: (s) => (
-                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl border-emerald-200 bg-emerald-50/50 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                        onClick={() => {
+                          setSyncingServiceId(s.id);
+                          syncToPartnersMutation.mutate({ serviceId: s.id, overridePrice: false });
+                        }}
+                        disabled={syncToPartnersMutation.isPending && syncingServiceId === s.id}
+                      >
+                        <Zap className="size-3 mr-1 text-emerald-600" />
+                        <span>{syncToPartnersMutation.isPending && syncingServiceId === s.id ? "Syncing..." : "Sync Stores"}</span>
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-emerald-700"
                         onClick={() => setSelectedService(s)}
                       >
-                        <Eye className="size-3.5 mr-1" /> 360° View
+                        <Eye className="size-3.5 mr-1" /> 360°
                       </Button>
                       <Button
                         size="sm"
@@ -618,11 +795,11 @@ export function ServicesPage() {
         {activeTab === "partner_rates" && (
           <SectionCard
             title="Partner Store Rate Cards & Custom Pricing"
-            description="Individual rates, turnaround times, and status controls for each laundry partner store."
+            description="Individual store rates, turnaround times, and status controls for each laundry partner store."
           >
             <DataTable
               loading={partnerServicesQuery.isLoading}
-              rows={allPartnerServices}
+              rows={filteredPartnerRates}
               emptyMessage="No partner service offerings configured yet."
               columns={[
                 {
@@ -650,7 +827,20 @@ export function ServicesPage() {
                 {
                   key: "price",
                   label: "Store Price",
-                  render: (p) => <span className="font-black text-xs text-zinc-900">₹{p.price} /{p.unit}</span>,
+                  render: (p) => (
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-zinc-900">₹{p.price} /{p.unit}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-6 p-0 text-zinc-400 hover:text-emerald-700"
+                        onClick={() => setEditingPartnerService(p)}
+                        title="Edit store rate"
+                      >
+                        <Pencil className="size-3" />
+                      </Button>
+                    </div>
+                  ),
                 },
                 {
                   key: "turnaroundHours",
@@ -659,6 +849,16 @@ export function ServicesPage() {
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
                       <Clock className="size-3 text-zinc-400" /> {p.turnaroundHours} hrs
                     </span>
+                  ),
+                },
+                {
+                  key: "orders",
+                  label: "Store Orders & GMV",
+                  render: (p) => (
+                    <div className="text-xs">
+                      <p className="font-bold text-zinc-900">{p.ordersCount} orders</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">₹{p.revenue.toFixed(0)}</p>
+                    </div>
                   ),
                 },
                 {
@@ -672,6 +872,14 @@ export function ServicesPage() {
                   className: "text-right",
                   render: (p) => (
                     <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl border-zinc-200 text-zinc-700 text-xs font-bold hover:bg-zinc-100"
+                        onClick={() => setEditingPartnerService(p)}
+                      >
+                        <Pencil className="size-3 mr-1" /> Edit Rate
+                      </Button>
                       {p.status === "Active" ? (
                         <Button
                           size="sm"
@@ -735,21 +943,117 @@ export function ServicesPage() {
       <Service360Sheet
         service={selectedService}
         onClose={() => setSelectedService(null)}
+        onSync={(override) => {
+          if (selectedService) {
+            syncToPartnersMutation.mutate({ serviceId: selectedService.id, overridePrice: override });
+          }
+        }}
       />
+
+      {/* =========================================================================
+          5. EDIT PARTNER RATE DIALOG
+      ========================================================================= */}
+      {editingPartnerService && (
+        <EditPartnerRateDialog
+          item={editingPartnerService}
+          onClose={() => setEditingPartnerService(null)}
+          onSave={(price, turnaroundHours) =>
+            partnerRateEditMutation.mutate({
+              serviceId: editingPartnerService.id,
+              payload: { price, turnaroundHours },
+            })
+          }
+          isSaving={partnerRateEditMutation.isPending}
+        />
+      )}
     </AdminShell>
   );
 }
 
 /* =========================================================================
-   5. SERVICE 360° DRAWER SHEET (5 TABS: REVENUE, RIDERS, PARTNERS, ORDERS, SPECS)
+   EDIT PARTNER RATE DIALOG
+========================================================================= */
+function EditPartnerRateDialog({
+  item,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  item: PartnerServiceRow;
+  onClose: () => void;
+  onSave: (price: number, turnaroundHours: number) => void;
+  isSaving: boolean;
+}) {
+  const [price, setPrice] = useState(String(item.price));
+  const [turnaroundHours, setTurnaroundHours] = useState(String(item.turnaroundHours));
+
+  return (
+    <Dialog open={Boolean(item)} onOpenChange={(open) => (!open ? onClose() : null)}>
+      <DialogContent className="sm:max-w-md bg-white text-zinc-900 border-zinc-200">
+        <DialogHeader>
+          <DialogTitle className="text-base font-black">Edit Store Custom Rate Card</DialogTitle>
+          <DialogDescription className="text-xs text-zinc-500">
+            Modify price or SLA turnaround for <b>{item.partnerName}</b> ({item.city}).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2 text-xs">
+          <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100 space-y-1">
+            <p className="font-bold text-zinc-900">{item.name}</p>
+            <p className="text-[11px] text-zinc-500">Category: {item.category} · Pricing Unit: {item.unit}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Store Price (₹)</Label>
+              <Input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="h-9 text-xs font-bold"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Turnaround SLA (Hours)</Label>
+              <Input
+                type="number"
+                value={turnaroundHours}
+                onChange={(e) => setTurnaroundHours(e.target.value)}
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl text-xs font-bold">
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onSave(parseFloat(price) || 0, parseInt(turnaroundHours) || 24)}
+            disabled={isSaving}
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white"
+          >
+            {isSaving ? "Saving..." : "Save Rate Card"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* =========================================================================
+   6. SERVICE 360° DRAWER SHEET (5 TABS: REVENUE, RIDERS, PARTNERS, ORDERS, SPECS)
 ========================================================================= */
 function Service360Sheet({
   service,
   onClose,
+  onSync,
 }: {
   service: ServiceIntelligence | null;
   onClose: () => void;
-  onAction?: () => void;
+  onSync?: (overridePrice: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("revenue");
@@ -801,6 +1105,15 @@ function Service360Sheet({
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold hover:bg-emerald-100"
+                onClick={() => onSync?.(false)}
+              >
+                <Zap className="size-3 mr-1 text-emerald-600" />
+                <span>Sync Stores</span>
+              </Button>
               <Button
                 size="sm"
                 variant={isEditing ? "default" : "outline"}
@@ -986,7 +1299,7 @@ function Service360Sheet({
                 </div>
 
                 <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
-                  {service.assignedRiders.map((r) => (
+                  {service.assignedRiders.map((r: ServiceRider) => (
                     <div key={r.name} className="p-3.5 flex items-center justify-between text-xs hover:bg-zinc-50 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="flex size-9 items-center justify-center rounded-xl bg-sky-100 text-sky-800 font-black text-xs">
@@ -1075,7 +1388,7 @@ function Service360Sheet({
 }
 
 /* =========================================================================
-   6. CREATE SERVICE & CREATE CATEGORY DIALOGS
+   7. CREATE SERVICE & CREATE CATEGORY DIALOGS
 ========================================================================= */
 function CreateServiceDialog({ categories }: { categories: ServiceCategory[] }) {
   const queryClient = useQueryClient();

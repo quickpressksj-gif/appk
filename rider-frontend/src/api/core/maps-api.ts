@@ -239,3 +239,55 @@ export function decodePolyline(encoded: string): LatLng[] {
 
   return points;
 }
+
+export type PincodeServiceabilityResult = {
+  serviceable: boolean;
+  pincode: string;
+  city: string;
+  state: string;
+  areaName: string;
+  baseDeliveryFee: number;
+  surgeMultiplier: number;
+  activePartnersCount: number;
+  activeRidersCount: number;
+  matchedPartners: Array<{ id: string; name: string }>;
+  stationedRiders: Array<{ riderId: string; name: string }>;
+  estimatedSlaMinutes: number;
+  message: string;
+};
+
+export async function checkPincodeServiceability(
+  pincode: string,
+  city?: string,
+): Promise<PincodeServiceabilityResult> {
+  return apiPostJson<PincodeServiceabilityResult>("/api/maps/pincode-serviceability", {
+    pincode,
+    city,
+  });
+}
+
+export type AllowedCity = {
+  _id?: string;
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  status: string;
+  tier?: string;
+  pickupRadius?: string;
+  deliveryRadiusKm?: number;
+  baseDeliveryFee?: number;
+  pincodes?: string[];
+  pincodeDetails?: Array<{ pincode: string; areaName?: string; baseFee?: number }>;
+  zones?: Array<{ zoneId: string; name: string; sector: string; pincodes?: string[] }>;
+};
+
+export async function fetchAllowedCities(): Promise<AllowedCity[]> {
+  try {
+    const res = await apiGetJson<AllowedCity[]>("/api/cities");
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+

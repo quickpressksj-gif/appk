@@ -25,6 +25,7 @@ class MembershipPlan(BaseModel):
     name: str
     tagline: str = ""
     monthlyPrice: int = 0
+    quarterlyPrice: int = 0
     yearlyPrice: int = 0
     yearlySavings: int = 0
     savingsLabel: str = ""
@@ -36,13 +37,16 @@ class MembershipPlan(BaseModel):
     color: str = "emerald"
     order: int = 0
     discountPercent: int = 0
+    cashbackPercent: int = 0
     freeDeliveryMinOrder: int = 0
     freePickup: bool = False
     priorityProcessing: bool = False
+    surgeWaiver: bool = False
     supportTier: str = "Standard"
     monthlyOrderLimit: int = 0
     monthlyWeightLimitKg: int = 0
     freeExpressCount: int = 0
+    description: str = ""
     benefits: List[MembershipBenefit] = Field(default_factory=list)
 
 
@@ -106,6 +110,8 @@ class MembershipResponse(BaseModel):
 
 class MembershipTransaction(BaseModel):
     id: str
+    userId: Optional[str] = None
+    userName: Optional[str] = None
     planId: str
     planName: str
     type: TransactionType = "subscribe"
@@ -153,6 +159,7 @@ class AdminPlanPayload(BaseModel):
     name: str
     tagline: str = ""
     monthlyPrice: int = 0
+    quarterlyPrice: int = 0
     yearlyPrice: int = 0
     validityDays: int = 30
     yearlyValidityDays: int = 365
@@ -162,10 +169,15 @@ class AdminPlanPayload(BaseModel):
     color: str = "emerald"
     order: int = 0
     discountPercent: int = 0
+    cashbackPercent: int = 0
     freeDeliveryMinOrder: int = 0
     freePickup: bool = False
     priorityProcessing: bool = False
+    surgeWaiver: bool = False
     supportTier: str = "Standard"
+    monthlyOrderLimit: int = 0
+    freeExpressCount: int = 0
+    description: str = ""
     benefits: List[MembershipBenefit] = Field(default_factory=list)
 
 
@@ -190,6 +202,9 @@ class MembershipSubscriberItem(BaseModel):
     expiresAt: Optional[str] = None
     autoRenew: bool = False
     remainingDays: int = 0
+    totalOrders: int = 0
+    totalSaved: float = 0.0
+    city: Optional[str] = None
 
 
 class MembershipSubscribersResponse(BaseModel):
@@ -204,4 +219,7 @@ class MembershipStatsResponse(BaseModel):
     annualRunRate: int = 0
     topPlanName: str = "Gold"
     expiringSoonCount: int = 0
+    totalSavingsGiven: float = 0.0
+    memberOrdersCount: int = 0
+    averageLtv: float = 0.0
     tierBreakdown: Dict[str, int] = Field(default_factory=dict)

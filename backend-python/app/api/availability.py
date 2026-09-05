@@ -167,19 +167,30 @@ async def service_areas() -> List[ServiceAreaResponse]:
 
 @router.get("/cities")
 async def allowed_cities():
-    """Returns only Admin-approved Live / Active cities."""
+    """Returns only Admin-approved Live / Active cities with full territory metadata."""
     cities = await database.find_sorted("admin_cities", sort=[("city", 1)])
     allowed = []
-    for c in cities:
-        status_val = str(c.get("status", "Coming Soon")).strip().lower()
-        if status_val in ["live", "active", "approved"]:
+    for c in (cities or []):
+        status_val = str(c.get("status", "Live")).strip().lower()
+        if status_val in ["live", "active", "approved", "pilot"]:
+            pins = [str(p).strip() for p in (c.get("pincodes") or []) if str(p).strip()]
             allowed.append({
+                "_id": str(c.get("_id") or c.get("id")),
                 "id": str(c.get("_id") or c.get("id")),
-                "name": c.get("city") or c.get("name"),
-                "city": c.get("city") or c.get("name"),
+                "name": c.get("city") or c.get("name") or "",
+                "city": c.get("city") or c.get("name") or "",
                 "state": c.get("state", "Uttar Pradesh"),
                 "status": c.get("status", "Live"),
-                "pickupRadius": c.get("pickupRadius", "8 km"),
+                "tier": c.get("tier", "Tier-2"),
+                "pickupRadius": c.get("pickupRadius", "15 km"),
+                "deliveryRadiusKm": float(c.get("deliveryRadiusKm") or 15.0),
+                "baseDeliveryFee": float(c.get("baseDeliveryFee", 20.0)),
+                "perKmFee": float(c.get("perKmFee", 5.0)),
+                "surgeMultiplier": float(c.get("surgeMultiplier", 1.0)),
+                "center": c.get("center") or {"lat": 27.8083, "lng": 78.6473},
+                "pincodes": pins,
+                "pincodeDetails": c.get("pincodeDetails") or [],
+                "zones": c.get("zones") or [],
             })
     return allowed
 

@@ -53,7 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { AdminShell } from "../components/AdminShell";
-import { AdminLiveMap } from "../components/AdminLiveMap";
+import { AdminLiveMap, AdminRiderLiveLocation } from "../components/AdminLiveMap";
 import { DataTable, DetailRow, SectionCard, StatusPill, KpiCard } from "../components/AdminUI";
 import {
   fetchRider,
@@ -70,6 +70,44 @@ import {
 } from "../api/riders";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
+
+function formatTimestamp(ts?: string): string {
+  if (!ts) return "—";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts);
+    return d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return String(ts);
+  }
+}
+
+function formatRelativeTime(ts?: string): string {
+  if (!ts) return "—";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    const diffMs = Date.now() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}d ago`;
+    const diffMonths = Math.floor(diffDays / 30);
+    return `${diffMonths}mo ago`;
+  } catch {
+    return "";
+  }
+}
 
 export const Route = createFileRoute("/riders")({
   beforeLoad: requireAdminSession,
@@ -258,60 +296,99 @@ export function RidersPage() {
             1. TOP KPI STATS SUMMARY BAR
         ========================================================================= */}
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-6">
-          <KpiCard
-            kpi={{
-              id: "tot-rdr",
-              label: "Total Fleet Strength",
-              value: metrics.total.toLocaleString("en-IN"),
-              hint: "Registered delivery partners",
-              positive: true,
+          <div
+            onClick={() => {
+              setActiveTab("all");
+              setCity("all");
+              setVehicleType("all");
+              setKycFilter("all");
+              setQuery("");
             }}
-          />
-          <KpiCard
-            kpi={{
-              id: "onl-rdr",
-              label: "Online Right Now",
-              value: metrics.online.toLocaleString("en-IN"),
-              hint: `${metrics.total ? Math.round((metrics.online / metrics.total) * 100) : 0}% fleet logged in`,
-              positive: true,
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "tot-rdr",
+                label: "Total Fleet Strength",
+                value: metrics.total.toLocaleString("en-IN"),
+                hint: "Registered delivery partners",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setActiveTab("online")}
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "onl-rdr",
+                label: "Online Right Now",
+                value: metrics.online.toLocaleString("en-IN"),
+                hint: `${metrics.total ? Math.round((metrics.online / metrics.total) * 100) : 0}% fleet logged in`,
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setActiveTab("delivery")}
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "busy-rdr",
+                label: "On Active Transit",
+                value: metrics.busy.toLocaleString("en-IN"),
+                hint: "Orders currently in delivery",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => setActiveTab("online")}
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "avail-rdr",
+                label: "Available For Dispatch",
+                value: metrics.available.toLocaleString("en-IN"),
+                hint: "Idle & ready for orders",
+                positive: metrics.available > 0,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => {
+              setActiveTab("all");
+              setKycFilter("Verified");
             }}
-          />
-          <KpiCard
-            kpi={{
-              id: "busy-rdr",
-              label: "On Active Transit",
-              value: metrics.busy.toLocaleString("en-IN"),
-              hint: "Orders currently in delivery",
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "avail-rdr",
-              label: "Available For Dispatch",
-              value: metrics.available.toLocaleString("en-IN"),
-              hint: "Idle & ready for orders",
-              positive: metrics.available > 0,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "kyc-rdr",
-              label: "KYC Verified Fleet",
-              value: metrics.kycVer.toLocaleString("en-IN"),
-              hint: "License & RC approved",
-              positive: true,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              id: "earn-rdr",
-              label: "Total Fleet Earnings",
-              value: `₹${metrics.totalPayouts.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
-              hint: "Dispatched partner ledger",
-              positive: true,
-            }}
-          />
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "kyc-rdr",
+                label: "KYC Verified Fleet",
+                value: metrics.kycVer.toLocaleString("en-IN"),
+                hint: "License & RC approved",
+                positive: true,
+              }}
+            />
+          </div>
+          <div
+            onClick={() => window.location.assign("/wallet")}
+            className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <KpiCard
+              kpi={{
+                id: "earn-rdr",
+                label: "Total Fleet Earnings",
+                value: `₹${metrics.totalPayouts.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+                hint: "Dispatched partner ledger →",
+                positive: true,
+              }}
+            />
+          </div>
         </div>
 
         {/* =========================================================================
@@ -321,7 +398,14 @@ export function RidersPage() {
           title="Live Fleet & Order GPS Telemetry"
           description="Real-time live positions of online riders and partner store pickup hubs in Kasganj"
         >
-          <AdminLiveMap />
+          <AdminLiveMap
+            onSelectRider={(riderId) => {
+              const found = allRiders.find(
+                (r) => r.id === riderId || r.name.toLowerCase() === riderId.toLowerCase(),
+              );
+              if (found) setSelectedRider(found);
+            }}
+          />
         </SectionCard>
 
         {/* =========================================================================
@@ -473,32 +557,22 @@ export function RidersPage() {
               },
               {
                 key: "city",
-                label: "City & Zone",
-                render: (r) => (
+                label: "City & Operating PIN",
+                render: (r: any) => (
                   <div className="text-xs">
                     <span className="inline-flex items-center gap-1 font-bold text-zinc-800">
                       <MapPin className="size-3 text-rose-500" />
                       {r.city}
                     </span>
-                    <p className="text-[10px] text-zinc-400">{r.zone}</p>
-                  </div>
-                ),
-              },
-              {
-                key: "vehicle",
-                label: "Vehicle & Plate",
-                render: (r) => (
-                  <div className="text-xs">
-                    <p className="font-bold text-zinc-900 flex items-center gap-1.5">
-                      <Bike className="size-3.5 text-zinc-500" />
-                      {r.vehicle}
+                    <p className="text-[10px] text-emerald-700 font-semibold">
+                      {r.operatingPincodes && r.operatingPincodes.length > 0
+                        ? `PIN: ${r.operatingPincodes.join(", ")}`
+                        : r.pincode ? `PIN: ${r.pincode}` : (r.zone || "Territory Hub")}
                     </p>
-                    <span className="font-mono text-[10px] bg-zinc-100 text-zinc-700 px-1.5 py-0.5 rounded font-bold border border-zinc-200">
-                      {r.plate}
-                    </span>
                   </div>
                 ),
               },
+
               {
                 key: "live",
                 label: "Duty State",
@@ -619,7 +693,13 @@ export function RidersPage() {
       <Rider360Sheet
         rider={selectedRider}
         onClose={() => setSelectedRider(null)}
-        onAction={(id, action, reason) => decideMutation.mutate({ id, action, reason })}
+        onAction={(id, action, reason) =>
+          decideMutation.mutate({
+            id,
+            action,
+            ...(reason ? { reason } : {}),
+          })
+        }
       />
     </AdminShell>
   );
@@ -640,7 +720,18 @@ function Rider360Sheet({
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  type RiderEditFormState = {
+    fullName: string;
+    phone: string;
+    email: string;
+    city: string;
+    vehicleType: string;
+    vehicleNumber: string;
+    bankName: string;
+    accountLast4: string;
+    ifsc: string;
+  };
+  const [editForm, setEditForm] = useState<Partial<RiderEditFormState>>({});
 
   // Wallet Adjust state
   const [walletAmount, setWalletAmount] = useState("");
@@ -786,8 +877,84 @@ function Rider360Sheet({
             </div>
           </div>
 
+          {/* Prominent Timestamps Highlight Banner */}
+          <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3 text-xs">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1">
+                <Calendar className="size-3" />
+                First Registered / Onboarded
+              </span>
+              <p className="font-mono text-xs font-black text-sky-950">
+                {formatTimestamp(rider.registrationTimestamp)}
+              </p>
+              <span className="inline-block text-[10px] font-bold text-sky-600 bg-sky-100/70 px-1.5 py-0.5 rounded">
+                {formatRelativeTime(rider.registrationTimestamp)}
+              </span>
+            </div>
+
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+                <Activity className="size-3 text-emerald-600" />
+                Last Active / Live Ping
+              </span>
+              <p className="font-mono text-xs font-black text-emerald-950">
+                {formatTimestamp(rider.lastLoginTimestamp)}
+              </p>
+              <span className="inline-block text-[10px] font-bold text-emerald-600 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                {formatRelativeTime(rider.lastLoginTimestamp)}
+              </span>
+            </div>
+          </div>
+
+          {/* Dedicated Vehicle & Registration Plate Card (360 View Exclusive) */}
+          <div className="mt-3 rounded-xl border border-zinc-200 bg-gradient-to-r from-amber-500/10 via-zinc-50 to-white p-3 text-xs shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-900 border border-amber-500/30 shadow-xs">
+                  <Bike className="size-5 text-amber-700" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-zinc-900 capitalize flex items-center gap-1.5">
+                      {rider.vehicle || "Motorbike (Two-Wheeler)"}
+                    </span>
+                    <span className="rounded-md bg-emerald-100/80 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">
+                      Active Asset
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500">
+                    {data360?.vehicle.vehicleModel && data360.vehicle.vehicleModel !== "—"
+                      ? data360.vehicle.vehicleModel
+                      : "Registered Fleet Delivery Two-Wheeler"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Authentic Indian Number Plate Badge */}
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400">
+                  REGISTRATION PLATE
+                </span>
+                {rider.plate && rider.plate !== "—" && !rider.plate.toLowerCase().includes("pending") ? (
+                  <div className="mt-0.5 flex items-center overflow-hidden rounded-md border-2 border-zinc-900 bg-amber-300 font-mono text-xs font-black tracking-wider text-zinc-950 shadow-xs">
+                    <span className="bg-blue-700 px-1.5 py-0.5 text-[9px] font-black text-white">
+                      IND
+                    </span>
+                    <span className="px-2 py-0.5 font-black">
+                      {rider.plate}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    Verification Pending
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Quick Metrics Bar */}
-          <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl bg-zinc-50 p-2.5 border border-zinc-100 text-center">
+          <div className="mt-3 grid grid-cols-4 gap-2 rounded-xl bg-zinc-50 p-2.5 border border-zinc-100 text-center">
             <div>
               <p className="text-[10px] font-bold text-zinc-400 uppercase">Trips Done</p>
               <p className="text-xs font-black text-zinc-900">{rider.trips} Orders</p>
@@ -1039,27 +1206,35 @@ function Rider360Sheet({
                   <span className="text-xs font-bold text-emerald-700">Status: {rider.kyc}</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {(data360?.kyc.documents || []).map((doc) => (
-                    <div key={doc.id} className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-xs">
-                      <div className="h-28 bg-zinc-100 relative group overflow-hidden">
-                        <img src={doc.documentUrl} alt={doc.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="text-white text-xs font-bold flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-lg">
-                            <ExternalLink className="size-3" /> Zoom
-                          </a>
+                {(!data360?.kyc.documents || data360.kyc.documents.length === 0) ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center space-y-2">
+                    <FileCheck className="size-8 mx-auto text-zinc-300" />
+                    <p className="text-xs font-bold text-zinc-700">No KYC Documents Uploaded</p>
+                    <p className="text-[11px] text-zinc-400">The delivery partner has not submitted verification documents yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {data360.kyc.documents.map((doc) => (
+                      <div key={doc.id} className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-xs">
+                        <div className="h-28 bg-zinc-100 relative group overflow-hidden">
+                          <img src={doc.documentUrl} alt={doc.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="text-white text-xs font-bold flex items-center gap-1 bg-black/60 px-2.5 py-1 rounded-lg">
+                              <ExternalLink className="size-3" /> Zoom
+                            </a>
+                          </div>
+                        </div>
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-zinc-900">{doc.type}</p>
+                            <StatusPill value={doc.status} />
+                          </div>
+                          <p className="font-mono text-[10px] text-zinc-500">{doc.name}</p>
                         </div>
                       </div>
-                      <div className="p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-zinc-900">{doc.type}</p>
-                          <StatusPill value={doc.status} />
-                        </div>
-                        <p className="font-mono text-[10px] text-zinc-500">{doc.name}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               {/* TAB 3: TRIPS & DELIVERIES */}
@@ -1167,22 +1342,26 @@ function Rider360Sheet({
                 <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4 space-y-1">
                   <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-2">BENEFICIARY BANK ACCOUNT</h4>
                   <DetailRow label="Bank Name" value={rider.bankName} />
-                  <DetailRow label="Account Number" value={`•••• •••• ${rider.accountLast4}`} />
+                  <DetailRow label="Account Number" value={rider.accountLast4 !== "—" ? `•••• •••• ${rider.accountLast4}` : "—"} />
                   <DetailRow label="IFSC Code" value={<span className="font-mono font-bold">{rider.ifsc}</span>} />
                   <DetailRow label="UPI ID" value={<span className="font-mono font-bold text-sky-700">{rider.upiId}</span>} />
                 </div>
 
                 <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Recent Payout Settlements</h4>
                 <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
-                  {(data360?.payouts.payoutHistory || []).map((p) => (
-                    <div key={p.id} className="p-3.5 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-zinc-900">₹{p.amount.toFixed(2)}</p>
-                        <p className="font-mono text-[10px] text-zinc-400">UTR: {p.utrNumber}</p>
+                  {(!data360?.payouts.payoutHistory || data360.payouts.payoutHistory.length === 0) ? (
+                    <div className="p-6 text-center text-xs text-zinc-400">No bank settlements recorded yet.</div>
+                  ) : (
+                    data360.payouts.payoutHistory.map((p) => (
+                      <div key={p.id} className="p-3.5 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-zinc-900">₹{p.amount.toFixed(2)}</p>
+                          <p className="font-mono text-[10px] text-zinc-400">UTR: {p.utrNumber}</p>
+                        </div>
+                        <StatusPill value={p.status} />
                       </div>
-                      <StatusPill value={p.status} />
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </TabsContent>
 
@@ -1190,19 +1369,23 @@ function Rider360Sheet({
               <TabsContent value="shifts" className="space-y-4 pt-4">
                 <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700">Duty Shift Logs</h4>
                 <div className="rounded-2xl border border-zinc-200 overflow-hidden divide-y divide-zinc-100">
-                  {(data360?.shifts || []).map((s) => (
-                    <div key={s.date} className="p-3.5 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-zinc-900">{s.date}</p>
-                        <p className="text-[10px] text-zinc-500">
-                          {s.loginAt} — {s.logoutAt} ({s.onlineHours} hrs)
-                        </p>
+                  {(!data360?.shifts || data360.shifts.length === 0) ? (
+                    <div className="p-6 text-center text-xs text-zinc-400">No duty shifts recorded yet.</div>
+                  ) : (
+                    data360.shifts.map((s, idx) => (
+                      <div key={idx} className="p-3.5 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-zinc-900">{s.date}</p>
+                          <p className="text-[10px] text-zinc-500">
+                            {s.loginAt} — {s.logoutAt} ({s.onlineHours} hrs)
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200">
+                          {s.ordersCompleted} Orders Completed
+                        </span>
                       </div>
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-bold border border-emerald-200">
-                        {s.ordersCompleted} Orders Completed
-                      </span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </TabsContent>
 
@@ -1215,6 +1398,13 @@ function Rider360Sheet({
                     <span>{data360?.overview.assignedHub || "QuickPress Kasganj Main Hub"}</span>
                   </p>
                   <p className="text-zinc-500">Service Coverage: {data360?.overview.serviceZone || "Kasganj City Center (0-12 km)"}</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-zinc-700 flex items-center gap-1.5">
+                    <Navigation className="size-4 text-sky-600" />
+                    <span>Real-Time Live GPS Fix</span>
+                  </h4>
+                  <AdminRiderLiveLocation riderId={rider.id} />
                 </div>
               </TabsContent>
 

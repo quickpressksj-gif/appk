@@ -234,6 +234,29 @@ export async function togglePartnerServiceStatus(serviceId: string, action: "act
   return await apiPatchJson<any>(`/api/admin/partner-services/${serviceId}/status`, { action });
 }
 
+export async function updatePartnerServiceRate(
+  serviceId: string,
+  payload: {
+    price?: number;
+    turnaroundHours?: number;
+    minQuantity?: number;
+    expressAvailable?: boolean;
+    enabled?: boolean;
+  },
+) {
+  return await apiPutJson<any>(`/api/admin/partner-services/${encodeURIComponent(serviceId)}`, payload);
+}
+
+export async function syncMasterServiceToPartners(
+  serviceId: string,
+  overridePrice: boolean = false,
+): Promise<{ ok: boolean; masterServiceId: string; serviceName: string; totalPartners: number; created: number; updated: number }> {
+  return await apiPostJson<{ ok: boolean; masterServiceId: string; serviceName: string; totalPartners: number; created: number; updated: number }>(
+    `/api/admin/services/${encodeURIComponent(serviceId)}/sync-to-partners`,
+    { overridePrice },
+  );
+}
+
 export async function createService(payload: {
   name: string;
   category: string;
@@ -255,7 +278,7 @@ export async function createService(payload: {
 
 export async function updateService(
   id: string,
-  payload: Partial<{ name: string; categoryId: string; price: number; unit: string; description: string; status: string }>,
+  payload: Partial<{ name: string; categoryId: string; price: number; unit: string; description: string; status: string; sla?: string }>,
 ) {
   return await apiPutJson<BackendService>(`/api/admin/services/${encodeURIComponent(id)}`, payload);
 }

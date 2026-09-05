@@ -132,22 +132,13 @@ export type ApprovedCityItem = {
 
 export async function fetchApprovedOperatingCities(): Promise<ApprovedCityItem[]> {
   try {
-    const data = await apiGetJson<ApprovedCityItem[]>("/api/public/cities");
-    if (Array.isArray(data) && data.length > 0) {
+    const data = await apiGetJson<ApprovedCityItem[]>("/api/cities");
+    if (Array.isArray(data)) {
       return data;
     }
   } catch (err) {
-    console.warn("Could not fetch approved cities from API, using default:", err);
+    console.warn("Could not fetch approved cities from API:", err);
   }
-  return [
-    {
-      id: "kasganj",
-      name: "Kasganj",
-      city: "Kasganj",
-      state: "Uttar Pradesh",
-      status: "Live",
-      areas: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
-    },
-  ];
+  return [];
 }
 

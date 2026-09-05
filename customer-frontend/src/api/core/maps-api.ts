@@ -22,6 +22,7 @@ export const MAPS_API_ENDPOINTS = {
   eta: "/api/maps/eta",
   distanceMatrix: "/api/maps/distance-matrix",
   deliveryArea: "/api/maps/delivery-area",
+  pincodeServiceability: "/api/maps/pincode-serviceability",
   liveRider: "/api/maps/live/rider",
   liveRiderById: (riderId: string) => `/api/maps/live/rider/${encodeURIComponent(riderId)}`,
   live: "/api/maps/live",
@@ -239,3 +240,41 @@ export function decodePolyline(encoded: string): LatLng[] {
 
   return points;
 }
+
+export type PincodeServiceabilityResult = {
+  serviceable: boolean;
+  pincode: string;
+  city: string;
+  state: string;
+  areaName?: string;
+  baseDeliveryFee: number;
+  surgeMultiplier: number;
+  activePartnersCount: number;
+  activeRidersCount: number;
+  matchedPartners: Array<{
+    id: string;
+    businessName: string;
+    city: string;
+    servicePincodes: string[];
+  }>;
+  stationedRiders: Array<{
+    id: string;
+    name: string;
+    city: string;
+    operatingPincodes: string[];
+  }>;
+  estimatedSlaMinutes: number;
+  message: string;
+};
+
+/** Checks real-time geofenced serviceability, matched stores, and stationed fleet for a pincode. */
+export async function checkPincodeServiceability(
+  pincode: string,
+  city?: string,
+): Promise<PincodeServiceabilityResult> {
+  return apiPostJson<PincodeServiceabilityResult>("/api/maps/pincode-serviceability", {
+    pincode,
+    city,
+  });
+}
+

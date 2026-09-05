@@ -39,6 +39,7 @@ import {
   UserRound,
   Volume2,
   Wind,
+  Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -97,6 +98,11 @@ import {
   type MasterCatalogItem,
   type ApprovedCityItem,
 } from "@/api/partner/partner-services-api";
+import {
+  checkPincodeServiceability,
+  fetchAllowedCities,
+  type PincodeServiceabilityResult,
+} from "@/api/core/maps-api";
 import type { BusinessCategory } from "@/shared/types/partner";
 
 /* ----------------------------- static data ----------------------------- */
@@ -199,30 +205,10 @@ function resolveServiceIcon(s: MasterCatalogItem) {
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const CITIES = [
-  "Kasganj",
-  "Aligarh",
-  "Noida",
-  "Mumbai",
-  "Pune",
-  "Bengaluru",
-  "Delhi NCR",
-  "Lucknow",
-  "Etah",
-  "Hyderabad",
-] as const;
-
-const AREAS: Record<string, string[]> = {
-  Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
-  Aligarh: ["Civil Lines", "Center Point", "Ramghat Road", "Medical College Road", "Marris Road"],
-  Noida: ["Sector 18", "Sector 62", "Sector 50", "Sector 137", "Greater Noida West"],
-  Mumbai: ["Bandra West", "Andheri East", "Powai", "Juhu", "Lower Parel"],
-  Pune: ["Kothrud", "Baner", "Viman Nagar", "Hinjewadi", "Koregaon Park"],
-  Bengaluru: ["Indiranagar", "Koramangala", "HSR Layout", "Whitefield", "Jayanagar"],
-  "Delhi NCR": ["Cyber Hub", "Saket", "Dwarka", "Indirapuram", "Connaught Place"],
-  Lucknow: ["Hazratganj", "Gomti Nagar", "Aliganj", "Indira Nagar", "Mahanagar"],
-  Etah: ["Civil Lines", "G.T. Road", "Shringar Nagar", "Railway Station Road"],
-  Hyderabad: ["Gachibowli", "Hitec City", "Madhapur", "Jubilee Hills", "Banjara Hills"],
+export type CityTerritoryEntry = {
+  state: string;
+  pincodes: string[];
+  sectors: string[];
 };
 
 type Uploads = {
@@ -254,8 +240,10 @@ export function BusinessRegistrationScreen() {
     openingTime: "08:00",
     closingTime: "21:00",
     emergencyClosing: "",
-    city: "Kasganj",
-    area: "City Center",
+    state: "",
+    city: "",
+    area: "",
+    pincode: "",
     pickupRadius: 5,
     deliveryRadius: 8,
     accountHolder: "",
@@ -263,6 +251,10 @@ export function BusinessRegistrationScreen() {
     accountNumber: "",
     ifsc: "",
   }));
+
+  const [selectedPincodes, setSelectedPincodes] = useState<string[]>([]);
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
+  const [customPincodeInput, setCustomPincodeInput] = useState<string>("");
 
   // Route protection
   useEffect(() => {
@@ -369,41 +361,100 @@ export function BusinessRegistrationScreen() {
   }, []);
 
   // Dynamic Approved Operating Cities & Zones from Admin Panel
-  const [approvedCities, setApprovedCities] = useState<string[]>(["Kasganj"]);
-  const [approvedAreas, setApprovedAreas] = useState<Record<string, string[]>>({
-    Kasganj: ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
-  });
+  const [cityTerritoryMap, setCityTerritoryMap] = useState<Record<string, CityTerritoryEntry>>({});
+  const [approvedCities, setApprovedCities] = useState<string[]>([]);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeServiceability, setPincodeServiceability] = useState<PincodeServiceabilityResult | null>(null);
 
   useEffect(() => {
     let alive = true;
-    fetchApprovedOperatingCities().then((cities) => {
-      if (alive && Array.isArray(cities) && cities.length > 0) {
-        const cityNames = cities.map((c) => c.name || c.city || c.id);
-        const map: Record<string, string[]> = {};
-        for (const c of cities) {
-          const name = c.name || c.city || c.id;
-          map[name] = Array.isArray(c.areas) && c.areas.length > 0 ? c.areas : ["City Center", "Main Market"];
-        }
-        setApprovedCities(cityNames);
-        setApprovedAreas(map);
-
-        setForm((prev) => {
-          if (!cityNames.includes(prev.city)) {
-            const firstCity = cityNames[0];
-            return {
-              ...prev,
-              city: firstCity,
-              area: map[firstCity]?.[0] || "",
-            };
+    fetchAllowedCities().then((cities) => {
+      if (!alive || !Array.isArray(cities)) return;
+      const map: Record<string, CityTerritoryEntry> = {};
+      const names: string[] = [];
+      for (const c of cities) {
+        const cName = c.name || c.city || c.id;
+        if (!cName) continue;
+        names.push(cName);
+        const pins = Array.isArray(c.pincodes) ? c.pincodes : [];
+        const secList: string[] = [];
+        if (Array.isArray(c.zones)) {
+          for (const z of c.zones) {
+            if (z.name) secList.push(z.name);
+            if (z.sector && !secList.includes(z.sector)) secList.push(z.sector);
           }
-          return prev;
+        }
+        if (Array.isArray(c.pincodeDetails)) {
+          for (const pd of c.pincodeDetails) {
+            if (pd.areaName && !secList.includes(pd.areaName)) secList.push(pd.areaName);
+          }
+        }
+        if (secList.length === 0) {
+          secList.push(`${cName} Center`, `${cName} Sector`);
+        }
+        map[cName] = {
+          state: c.state || "Uttar Pradesh",
+          pincodes: pins,
+          sectors: secList,
+        };
+      }
+      setCityTerritoryMap(map);
+      setApprovedCities(names);
+
+      if (names.length > 0 && names[0]) {
+        const defaultCity = names[0];
+        setForm((prev) => {
+          const activeCity = prev.city && names.includes(prev.city) ? prev.city : defaultCity;
+          const matched = map[activeCity];
+          return {
+            ...prev,
+            city: activeCity,
+            state: matched?.state || prev.state || "Uttar Pradesh",
+            area: prev.area || matched?.sectors[0] || "",
+            pincode: prev.pincode || matched?.pincodes[0] || "",
+          };
         });
+        const firstMatched = map[defaultCity];
+        if (firstMatched) {
+          setSelectedPincodes((prev) => (prev.length > 0 ? prev : firstMatched.pincodes));
+          setSelectedSectors((prev) => (prev.length > 0 ? prev : firstMatched.sectors));
+        }
       }
     });
     return () => {
       alive = false;
     };
   }, []);
+
+  // Real-time Pincode auto-fetch: automatically fetch City and State when typing pincode
+  useEffect(() => {
+    let alive = true;
+    const pin = (form.pincode || "").trim();
+    if (pin.length === 6 && /^\d{6}$/.test(pin)) {
+      setPincodeLoading(true);
+      checkPincodeServiceability(pin)
+        .then((res) => {
+          if (!alive) return;
+          setPincodeServiceability(res);
+          if (res.serviceable && res.city) {
+            setForm((prev) => ({
+              ...prev,
+              city: res.city,
+              state: res.state || prev.state,
+            }));
+            setSelectedPincodes((prev) => (prev.includes(pin) ? prev : [...prev, pin]));
+          }
+        })
+        .finally(() => {
+          if (alive) setPincodeLoading(false);
+        });
+    } else {
+      setPincodeServiceability(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [form.pincode]);
 
   const [agreementData, setAgreementData] = useState<AgreementSignatureData | null>(null);
 
@@ -442,7 +493,7 @@ export function BusinessRegistrationScreen() {
   const toggleDay = (day: string) =>
     setWeeklyOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
 
-  const areaOptions = useMemo(() => approvedAreas[form.city] ?? AREAS[form.city] ?? ["City Center", "Main Market"], [approvedAreas, form.city]);
+  const areaOptions = useMemo(() => cityTerritoryMap[form.city]?.sectors ?? ["City Center", "Main Market"], [cityTerritoryMap, form.city]);
 
   // Order Notification & Siren Permissions
   const [notifPermission, setNotifPermission] = useState<string>(() => {
@@ -552,7 +603,7 @@ export function BusinessRegistrationScreen() {
     set("ownerName", aadhaarKycData.fullName);
     if (!form.shopAddress) set("shopAddress", aadhaarKycData.address);
     if (aadhaarKycData.city) {
-      const match = (CITIES as readonly string[]).find((c) => c.toLowerCase() === aadhaarKycData.city.toLowerCase());
+      const match = approvedCities.find((c) => c.toLowerCase() === aadhaarKycData.city.toLowerCase());
       if (match) set("city", match);
     }
     setShowAadhaarModal(false);
@@ -658,7 +709,7 @@ export function BusinessRegistrationScreen() {
     setShopCoords({ latitude: picked.latitude, longitude: picked.longitude });
     set("shopAddress", picked.formattedAddress);
     if (picked.city) {
-      const matchedCity = (CITIES as readonly string[]).find(
+      const matchedCity = approvedCities.find(
         (c) => c.toLowerCase() === picked.city.toLowerCase(),
       );
       if (matchedCity) {
@@ -689,7 +740,7 @@ export function BusinessRegistrationScreen() {
           if (geo && geo.formattedAddress) {
             set("shopAddress", geo.formattedAddress);
             if (geo.city) {
-              const matchedCity = (CITIES as readonly string[]).find(
+              const matchedCity = approvedCities.find(
                 (c) => c.toLowerCase() === geo.city.toLowerCase(),
               );
               if (matchedCity) set("city", matchedCity);
@@ -827,8 +878,11 @@ export function BusinessRegistrationScreen() {
         experience: form.experience,
         address: form.shopAddress,
         city: form.city,
-        area: form.area,
-        pincode: form.shopAddress.match(/\b\d{6}\b/)?.[0] ?? "560001",
+        state: form.state || cityTerritoryMap[form.city]?.state || "",
+        area: form.area || selectedSectors[0] || "",
+        pincode: form.pincode || selectedPincodes[0] || "",
+        servicePincodes: selectedPincodes.length > 0 ? selectedPincodes : (form.pincode ? [form.pincode] : []),
+        sectors: selectedSectors.length > 0 ? selectedSectors : (form.area ? [form.area] : []),
         pickupRadiusKm: form.pickupRadius,
         deliveryRadiusKm: form.deliveryRadius,
         openingTime: form.openingTime,
@@ -1476,7 +1530,7 @@ export function BusinessRegistrationScreen() {
             ) : null}
 
             {step === 4 ? (
-              <SectionCard title="Service City & Delivery Area">
+              <SectionCard title="Service City & Territory Geofencing">
                 <div className="grid grid-cols-2 gap-4">
                   <SelectField
                     id="city"
@@ -1486,38 +1540,176 @@ export function BusinessRegistrationScreen() {
                     value={form.city}
                     onChange={(val) => {
                       set("city", val);
-                      set("area", approvedAreas[val]?.[0] ?? "");
+                      const matched = cityTerritoryMap[val];
+                      if (matched) {
+                        set("state", matched.state);
+                        set("area", matched.sectors[0] ?? "");
+                        setSelectedPincodes(matched.pincodes);
+                        setSelectedSectors(matched.sectors);
+                        set("pincode", matched.pincodes[0] ?? "");
+                      } else {
+                        set("area", "");
+                      }
                     }}
                     error={errors["city"]}
                   />
-                  <SelectField
-                    id="area"
-                    label="Locality / Hub *"
-                    icon={MapPin}
-                    options={areaOptions}
-                    value={form.area}
-                    onChange={(val) => set("area", val)}
-                    error={errors["area"]}
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">
+                      Operating State
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={form.state || cityTerritoryMap[form.city]?.state || ""}
+                      className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs font-bold text-zinc-800 shadow-2xs cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                {/* Covered Service Pincodes (Pincode & Geofencing Territory Engine) */}
+                <div className="mt-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+                        <Zap className="size-3.5 text-emerald-600" />
+                        Serviceable Delivery Pincodes ({selectedPincodes.length} selected)
+                      </span>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Customers in these pincodes will see your store and place instant pickup orders.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allCityPins = cityTerritoryMap[form.city]?.pincodes || [];
+                        if (selectedPincodes.length === allCityPins.length) {
+                          setSelectedPincodes(allCityPins.length > 0 && allCityPins[0] ? [allCityPins[0]] : []);
+                        } else {
+                          setSelectedPincodes([...allCityPins]);
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-700 underline hover:text-emerald-800"
+                    >
+                      {selectedPincodes.length === (cityTerritoryMap[form.city]?.pincodes || []).length
+                        ? "Reset"
+                        : "Select All"}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(cityTerritoryMap[form.city]?.pincodes || []).map((pin) => {
+                      const isSelected = selectedPincodes.includes(pin);
+                      return (
+                        <button
+                          key={pin}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPincodes((prev) =>
+                              prev.includes(pin)
+                                ? prev.length > 1
+                                  ? prev.filter((p) => p !== pin)
+                                  : prev
+                                : [...prev, pin]
+                            );
+                            set("pincode", pin);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                            isSelected
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-white text-zinc-700 border border-zinc-200 hover:border-emerald-300"
+                          }`}
+                        >
+                          {isSelected && <Check className="size-3 stroke-[3]" />}
+                          <span>PIN {pin}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add Custom Pincode */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={customPincodeInput}
+                      onChange={(e) => setCustomPincodeInput(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Add custom 6-digit PIN code..."
+                      className="flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal outline-none focus:border-emerald-600 shadow-2xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customPincodeInput.length === 6 && !selectedPincodes.includes(customPincodeInput)) {
+                          setSelectedPincodes((prev) => [...prev, customPincodeInput]);
+                          setCustomPincodeInput("");
+                          toast.success(`Pincode ${customPincodeInput} added to delivery zone! ✓`);
+                        } else if (customPincodeInput.length !== 6) {
+                          toast.error("Please enter a valid 6-digit pincode");
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 shadow-2xs active:scale-95 transition-all"
+                    >
+                      + Add PIN
+                    </button>
+                  </div>
+                </div>
+
+                {/* Serviceable Sectors / Localities */}
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                    <MapPin className="size-3.5 text-zinc-600" />
+                    Covered Sectors & Localities
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {(cityTerritoryMap[form.city]?.sectors || areaOptions).map((sector) => {
+                      const isSelected = selectedSectors.includes(sector);
+                      return (
+                        <button
+                          key={sector}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSectors((prev) =>
+                              prev.includes(sector)
+                                ? prev.length > 1
+                                  ? prev.filter((s) => s !== sector)
+                                  : prev
+                                : [...prev, sector]
+                            );
+                            set("area", sector);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            isSelected
+                              ? "bg-zinc-900 text-white shadow-xs"
+                              : "bg-white text-zinc-700 border border-zinc-200 hover:border-zinc-400"
+                          }`}
+                        >
+                          {sector}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <SliderField
+                    id="pickup-radius"
+                    label="Customer Pickup Radius"
+                    min={1}
+                    max={25}
+                    unit="km"
+                    value={form.pickupRadius}
+                    onChange={(val) => set("pickupRadius", val)}
+                  />
+                  <SliderField
+                    id="delivery-radius"
+                    label="Delivery Drop Radius"
+                    min={1}
+                    max={25}
+                    unit="km"
+                    value={form.deliveryRadius}
+                    onChange={(val) => set("deliveryRadius", val)}
                   />
                 </div>
-                <SliderField
-                  id="pickup-radius"
-                  label="Customer Pickup Radius"
-                  min={1}
-                  max={25}
-                  unit="km"
-                  value={form.pickupRadius}
-                  onChange={(val) => set("pickupRadius", val)}
-                />
-                <SliderField
-                  id="delivery-radius"
-                  label="Delivery Drop Radius"
-                  min={1}
-                  max={25}
-                  unit="km"
-                  value={form.deliveryRadius}
-                  onChange={(val) => set("deliveryRadius", val)}
-                />
               </SectionCard>
             ) : null}
 
@@ -1665,10 +1857,12 @@ export function BusinessRegistrationScreen() {
                   </div>
                 </SectionCard>
 
-                <SectionCard title="Operating City & Delivery Area" action={<EditButton onClick={() => editStep(4)} />}>
+                <SectionCard title="Operating City & Territory Geofencing" action={<EditButton onClick={() => editStep(4)} />}>
                   <div className="space-y-2">
+                    <ReviewRow label="State" value={form.state || cityTerritoryMap[form.city]?.state || "—"} />
                     <ReviewRow label="City" value={form.city} />
-                    <ReviewRow label="Area / Hub" value={form.area} />
+                    <ReviewRow label="Covered Service Pincodes" value={selectedPincodes.join(", ") || form.pincode} />
+                    <ReviewRow label="Covered Sectors" value={selectedSectors.join(", ") || form.area} />
                     <ReviewRow label="Customer Pickup Radius" value={`${form.pickupRadius} KM`} />
                     <ReviewRow label="Delivery Drop Radius" value={`${form.deliveryRadius} KM`} />
                   </div>

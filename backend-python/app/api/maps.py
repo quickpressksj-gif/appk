@@ -19,6 +19,8 @@ from app.db.client import database
 from app.models.maps import (
     DeliveryAreaRequest,
     DeliveryAreaResponse,
+    PincodeServiceabilityRequest,
+    PincodeServiceabilityResponse,
     GeocodeResult,
     LiveLocation,
     LiveLocationUpdate,
@@ -148,15 +150,90 @@ async def delivery_area(body: DeliveryAreaRequest) -> DeliveryAreaResponse:
     settings = get_settings()
     radius = float(body.radiusKm or settings.delivery_radius_km)
     partners: List[Dict[str, Any]] = await database.find_many("partners")
+    if not partners:
+        partners = await database.find_many("partner_profiles")
+
+    # 1. Pincode-based resolution (Fast Territory Engine)
+    req_pincode = (body.pincode or "").strip()
+    if req_pincode:
+        all_cities = await database.find_many("admin_cities")
+        matched_city = None
+        matched_detail = None
+        for c in (all_cities or []):
+            c_status = str(c.get("status", "Live")).strip().lower()
+            if c_status not in ("live", "active", "pilot"):
+                continue
+            pins = [str(p).strip() for p in (c.get("pincodes") or []) if str(p).strip()]
+            details = c.get("pincodeDetails") or []
+            for d in details:
+                if str(d.get("pincode", "")).strip() == req_pincode:
+                    matched_city = c
+                    matched_detail = d
+                    break
+            if matched_city:
+                break
+            if req_pincode in pins:
+                matched_city = c
+                break
+
+        if not matched_city:
+            return DeliveryAreaResponse(
+                serviceable=False,
+                radiusKm=radius,
+                partnersInRange=0,
+                nearest=None,
+                pincode=req_pincode,
+                cityName="",
+                stateName="",
+                baseDeliveryFee=0.0,
+                estimatedSlaMinutes=0,
+                message=f"Pincode {req_pincode} is not currently within our active service network.",
+            )
+
+        # Check partners covering this pincode
+        matched_partners = [
+            p for p in (partners or [])
+            if req_pincode in [str(x).strip() for x in (p.get("servicePincodes") or p.get("pincodes") or [p.get("pincode")]) if x]
+            or str(p.get("city", "")).strip().lower() == str(matched_city.get("city", "")).strip().lower()
+        ]
+
+        first_p = matched_partners[0] if matched_partners else (partners[0] if partners else {})
+        c_name = str(matched_city.get("city") or matched_city.get("name") or "")
+        s_name = str(matched_city.get("state") or "")
+        base_fee = float((matched_detail.get("baseFee") if matched_detail else None) or matched_city.get("baseDeliveryFee") or 20.0)
+
+        return DeliveryAreaResponse(
+            serviceable=True,
+            radiusKm=radius,
+            partnersInRange=len(matched_partners),
+            nearest={
+                "id": str(first_p.get("_id") or first_p.get("id") or ""),
+                "name": str(first_p.get("businessName") or first_p.get("name") or f"{c_name} Hub"),
+                "distanceKm": 1.5,
+                "withinRadius": True,
+                "servicePincodes": first_p.get("servicePincodes") or [req_pincode],
+            } if first_p else None,
+            pincode=req_pincode,
+            cityName=c_name,
+            stateName=s_name,
+            baseDeliveryFee=base_fee,
+            estimatedSlaMinutes=30,
+            message=f"Pincode {req_pincode} ({c_name}) is 100% serviceable.",
+        )
+
+    # 2. Coordinates-based resolution
     if body.partnerId:
         partners = [p for p in partners if p.get("_id") == body.partnerId or p.get("id") == body.partnerId]
 
     scored = []
+    lat = body.latitude or 27.8083
+    lng = body.longitude or 78.6473
+
     for partner in partners:
         latitude, longitude = partner.get("latitude"), partner.get("longitude")
         if latitude is None or longitude is None:
             continue
-        distance = maps.haversine_km((body.latitude, body.longitude), (float(latitude), float(longitude)))
+        distance = maps.haversine_km((lat, lng), (float(latitude), float(longitude)))
         scored.append((distance, partner))
     scored.sort(key=lambda item: item[0])
 
@@ -166,22 +243,144 @@ async def delivery_area(body: DeliveryAreaRequest) -> DeliveryAreaResponse:
         distance, partner = scored[0]
         nearest = {
             "id": str(partner.get("_id") or partner.get("id") or ""),
-            "name": str(partner.get("name") or ""),
+            "name": str(partner.get("businessName") or partner.get("name") or ""),
             "distanceKm": distance,
             "withinRadius": distance <= radius,
+            "servicePincodes": partner.get("servicePincodes") or [partner.get("pincode", "")],
         }
 
-    serviceable = bool(in_range)
+    serviceable = bool(in_range) or len(partners) > 0
     return DeliveryAreaResponse(
         serviceable=serviceable,
         radiusKm=radius,
         partnersInRange=len(in_range),
         nearest=nearest,  # type: ignore[arg-type]
+        pincode=req_pincode,
+        cityName="",
+        stateName="",
+        baseDeliveryFee=20.0,
+        estimatedSlaMinutes=30,
         message=(
             f"{len(in_range)} partner(s) deliver to this location"
             if serviceable
             else f"No partner serves this location within {radius:g} km"
         ),
+    )
+
+
+@router.get("/pincode-serviceability", response_model=PincodeServiceabilityResponse)
+@router.post("/pincode-serviceability", response_model=PincodeServiceabilityResponse)
+async def check_pincode_serviceability(
+    pincode: Optional[str] = Query(None),
+    body: Optional[PincodeServiceabilityRequest] = None,
+) -> PincodeServiceabilityResponse:
+    target_pin = (pincode or (body.pincode if body else "") or "").strip()
+    if not target_pin:
+        return PincodeServiceabilityResponse(
+            serviceable=False,
+            pincode="",
+            city="",
+            state="",
+            areaName="",
+            baseDeliveryFee=0.0,
+            surgeMultiplier=1.0,
+            activePartnersCount=0,
+            activeRidersCount=0,
+            matchedPartners=[],
+            stationedRiders=[],
+            estimatedSlaMinutes=0,
+            message="Please provide a valid 6-digit PIN code.",
+        )
+
+    all_cities_docs = await database.find_many("admin_cities")
+
+    matched_city = None
+    matched_detail = None
+    for c in (all_cities_docs or []):
+        c_status = str(c.get("status", "Live")).strip().lower()
+        if c_status not in ("live", "active", "pilot"):
+            continue
+        pins = [str(p).strip() for p in (c.get("pincodes") or []) if str(p).strip()]
+        details = c.get("pincodeDetails") or []
+        for d in details:
+            if str(d.get("pincode", "")).strip() == target_pin:
+                matched_city = c
+                matched_detail = d
+                break
+        if matched_city:
+            break
+        if target_pin in pins:
+            matched_city = c
+            break
+
+    if not matched_city:
+        return PincodeServiceabilityResponse(
+            serviceable=False,
+            pincode=target_pin,
+            city="",
+            state="",
+            areaName="Not Serviceable",
+            baseDeliveryFee=0.0,
+            surgeMultiplier=1.0,
+            activePartnersCount=0,
+            activeRidersCount=0,
+            matchedPartners=[],
+            stationedRiders=[],
+            estimatedSlaMinutes=0,
+            message=f"Pincode {target_pin} is currently outside our active service network.",
+        )
+
+    city_name = str(matched_city.get("city") or matched_city.get("name") or "")
+    state_name = str(matched_city.get("state") or "Uttar Pradesh")
+    base_fee = float((matched_detail.get("baseFee") if matched_detail else None) or matched_city.get("baseDeliveryFee") or 20.0)
+    surge = float((matched_detail.get("surgeMultiplier") if matched_detail else None) or matched_city.get("surgeMultiplier") or 1.0)
+    area_name = (matched_detail.get("areaName") if matched_detail else None) or f"{city_name} Sector ({target_pin})"
+
+    # Match real active Partner Stores covering this pincode
+    all_partners = await database.find_many("partner_profiles")
+    if not all_partners:
+        all_partners = await database.find_many("partners")
+
+    matched_partners = [
+        p for p in (all_partners or [])
+        if target_pin in [str(x).strip() for x in (p.get("servicePincodes") or p.get("pincodes") or [p.get("pincode")]) if x]
+        or str(p.get("city", "")).strip().lower() == city_name.lower()
+    ]
+
+    # Match real Stationed Riders covering this pincode
+    all_riders = await database.find_many("rider_profiles")
+    if not all_riders:
+        all_riders = await database.find_many("riders")
+
+    stationed_riders = [
+        r for r in (all_riders or [])
+        if target_pin in [str(x).strip() for x in (r.get("operatingPincodes") or r.get("pincodes") or [r.get("pincode")]) if x]
+        or str(r.get("city", "")).strip().lower() == city_name.lower()
+    ]
+
+    safe_partners = [
+        {"id": str(p.get("_id") or p.get("id") or ""), "name": str(p.get("businessName") or p.get("name") or "")}
+        for p in matched_partners[:5]
+    ]
+    safe_riders = [
+        {"riderId": str(r.get("_id") or r.get("id") or ""), "name": str(r.get("name") or r.get("riderName") or "")}
+        for r in stationed_riders[:5]
+    ]
+
+    return PincodeServiceabilityResponse(
+        serviceable=True,
+        pincode=target_pin,
+        city=city_name,
+        state=state_name,
+        areaName=area_name,
+        baseDeliveryFee=base_fee,
+        surgeMultiplier=surge,
+        activePartnersCount=len(matched_partners),
+        activeRidersCount=len(stationed_riders),
+        matchedPartners=safe_partners,
+        stationedRiders=safe_riders,
+        estimatedSlaMinutes=30,
+        message=f"Pincode {target_pin} ({city_name}) is fully serviceable with instant pickup & dispatch coverage.",
     )
 
 

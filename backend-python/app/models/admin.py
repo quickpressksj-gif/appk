@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AssignRiderPayload(BaseModel):
@@ -72,6 +72,11 @@ class UpdatePartnerCommissionPayload(BaseModel):
     serviceRates: Optional[Dict[str, float]] = None
 
 
+class AdjustPartnerWalletPayload(BaseModel):
+    amount: float
+    reason: str
+
+
 class AddPartnerNotePayload(BaseModel):
     note: str
 
@@ -89,13 +94,28 @@ class SendPartnerNotificationPayload(BaseModel):
 
 
 class CouponPayload(BaseModel):
+    model_config = {"extra": "allow"}
 
     code: Optional[str] = None
-
-    discount: Optional[str] = None
+    type: Optional[str] = "percentage"  # percentage | flat | free_delivery
+    value: Optional[str] = None
+    discountPct: Optional[float] = 0.0
+    maxDiscount: Optional[float] = None
+    flatDiscount: Optional[float] = 0.0
+    minOrder: Optional[float] = 0.0
     description: Optional[str] = None
+    cities: Optional[List[str]] = Field(default_factory=list)
+    pincodes: Optional[List[str]] = Field(default_factory=list)
+    audience: Optional[str] = "All Users"  # All Users | New Customers | Returning Customers | VIP Members
+    perUserLimit: Optional[int] = 1
+    limit: Optional[int] = 500
+    startDate: Optional[str] = None
     expiry: Optional[str] = None
-    minOrder: Optional[float] = None
+    validTill: Optional[str] = None
+    status: Optional[str] = "Active"  # Active | Paused | Expired | Scheduled
+    badge: Optional[str] = None
+    discount: Optional[str] = None
+
 class CreatePartnerPayload(BaseModel):
     businessName: str
     ownerName: str
@@ -178,18 +198,63 @@ class StaffPayload(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    password: Optional[str] = None
     role: Optional[str] = None
     scope: Optional[str] = None
     permissions: Optional[List[str]] = None
     status: Optional[str] = None
 
 
+class StaffPermissionsPayload(BaseModel):
+    permissions: List[str]
+
+
+class StaffStatusPayload(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
+class StaffRegisterPayload(BaseModel):
+    name: str = Field(..., min_length=2)
+    email: str = Field(..., min_length=5)
+    phone: Optional[str] = None
+    password: str = Field(..., min_length=6)
+    role: Optional[str] = "Operations Admin"
+    scope: Optional[str] = "All India Hubs"
+
+
+class StaffVerifyEmailPayload(BaseModel):
+    email: str
+    otp: str
+
+
+class AdminLoginPayload(BaseModel):
+    email: str
+    password: str
+
+
+class Admin2FAPayload(BaseModel):
+    challengeId: str
+    otp: str
+
+
+
 class CityPayload(BaseModel):
     city: Optional[str] = None
+    name: Optional[str] = None
     state: Optional[str] = None
+    country: Optional[str] = "India"
     areas: Optional[int] = None
     pickupRadius: Optional[str] = None
-    status: Optional[str] = None
+    deliveryRadiusKm: Optional[float] = None
+    baseDeliveryFee: Optional[float] = None
+    surgeMultiplier: Optional[float] = None
+    tier: Optional[str] = "Tier-2"
+    status: Optional[str] = "Live"
+    pincodes: Optional[List[str]] = None
+    zones: Optional[List[dict]] = None
+    model_config = {"extra": "allow"}
+
 
 
 class ServicePayload(BaseModel):
@@ -201,8 +266,39 @@ class ServicePayload(BaseModel):
     description: Optional[str] = None
 
 
+class CreateSupportTicketPayload(BaseModel):
+    subject: str
+    description: Optional[str] = None
+    role: Optional[str] = "Customer"
+    raisedBy: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    userId: Optional[str] = None
+    partnerId: Optional[str] = None
+    riderId: Optional[str] = None
+    priority: Optional[str] = "Medium"
+    category: Optional[str] = "General Issue"
+    refOrder: Optional[str] = None
+    city: Optional[str] = None
+    assignee: Optional[str] = "Himanshu (Lead Admin)"
+
+
 class SupportReplyPayload(BaseModel):
     body: Optional[str] = None
+    isInternal: Optional[bool] = False
+
+
+class SupportStatusPayload(BaseModel):
+    status: str
+
+
+class SupportAssignPayload(BaseModel):
+    assignee: str
+
+
+class SupportCompensatePayload(BaseModel):
+    amount: float
+    reason: Optional[str] = None
 
 
 class BroadcastPayload(BaseModel):

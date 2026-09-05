@@ -556,6 +556,27 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
     email = payload.get("email") or user.email or ""
     city = payload.get("city") or payload.get("preferredCity") or "Kasganj"
 
+    # Extract operating pincodes & territory
+    raw_operating_pins = payload.get("operatingPincodes") or payload.get("pincodes") or []
+    if isinstance(raw_operating_pins, str):
+        operating_pins = [p.strip() for p in raw_operating_pins.split(",") if p.strip()]
+    elif isinstance(raw_operating_pins, list):
+        operating_pins = [str(p).strip() for p in raw_operating_pins if str(p).strip()]
+    else:
+        operating_pins = []
+
+    primary_pin = str(payload.get("pincode") or (operating_pins[0] if operating_pins else "207123")).strip()
+    if not operating_pins:
+        operating_pins = [primary_pin]
+
+    raw_sectors = payload.get("sectors") or payload.get("preferredArea") or []
+    if isinstance(raw_sectors, str):
+        sectors = [s.strip() for s in raw_sectors.split(",") if s.strip()]
+    elif isinstance(raw_sectors, list):
+        sectors = [str(s).strip() for s in raw_sectors if str(s).strip()]
+    else:
+        sectors = ["Bilram Gate Hub"]
+
     profile_data = {
         "_id": rider_id_str,
         "riderId": rider_id_str,
@@ -567,13 +588,19 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         "dob": payload.get("dob", ""),
         "gender": payload.get("gender", "Male"),
         "emergencyContact": payload.get("emergencyContact", ""),
-        # Address
+        # Address & Geofencing Territory
         "address": payload.get("address", ""),
         "street": payload.get("street", payload.get("address", "")),
         "landmark": payload.get("landmark", ""),
         "city": city,
         "state": payload.get("state", "Uttar Pradesh"),
-        "pincode": payload.get("pincode", ""),
+        "pincode": primary_pin,
+        "primaryPincode": primary_pin,
+        "operatingPincodes": operating_pins,
+        "pincodes": operating_pins,
+        "servicePincodes": operating_pins,
+        "sectors": sectors,
+        "preferredArea": payload.get("preferredArea", sectors[0] if sectors else "City Center"),
         # Identity
         "aadhaar": payload.get("aadhaar", ""),
         "aadhaarFront": payload.get("aadhaarFront", ""),
@@ -624,7 +651,6 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         "bankVerified": bool(payload.get("bankVerified", True)),
         # Preferences
         "preferredCity": payload.get("preferredCity", city),
-        "preferredArea": payload.get("preferredArea", ""),
         "shift": payload.get("shift", "Morning"),
         "employmentType": payload.get("employmentType", "Full Time"),
         # Legal Agreement & Consent
@@ -647,6 +673,33 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         await database.insert("rider_profiles", profile_data)
     else:
         await database.update("rider_profiles", {"_id": rider_id_str}, profile_data)
+
+    # Sync to admin_riders repository table
+    admin_rider_doc = {
+        "id": rider_id_str,
+        "_id": rider_id_str,
+        "riderId": rider_id_str,
+        "name": full_name,
+        "phone": phone,
+        "email": email,
+        "city": city,
+        "state": payload.get("state", "Uttar Pradesh"),
+        "pincode": primary_pin,
+        "operatingPincodes": operating_pins,
+        "sectors": sectors,
+        "vehicleType": payload.get("vehicleType", "bike"),
+        "vehicleNumber": payload.get("vehicleNumber", ""),
+        "status": "pending",
+        "kycStatus": "verified" if payload.get("aadhaarVerified") else "pending",
+        "liveState": "offline",
+        "rating": 5.0,
+        "completedDeliveries": 0,
+        "walletBalance": 0.0,
+        "cashInHand": 0.0,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await database.update("admin_riders", {"_id": rider_id_str}, admin_rider_doc, upsert=True)
 
     # 3. Initialize wallet if not present
     existing_wallet = await database.find_one("rider_wallets", {"_id": rider_id_str})

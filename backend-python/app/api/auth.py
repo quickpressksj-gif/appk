@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime, timezone
 import logging
 import uuid
@@ -13,6 +14,7 @@ _log = logging.getLogger(__name__)
 from app.core.deps import current_user
 from app.core.firebase import revoke_refresh_tokens, verify_id_token
 from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.db.client import database
 from app.db.repositories import otp_attempts, refresh_tokens, users
 from app.models.auth import (
     AccountResponse,
@@ -24,7 +26,7 @@ from app.models.auth import (
     SocialLoginRequest,
     VerifyPhoneRequest,
 )
-from app.models.user import Role, User
+from app.models.user import Role, User, UserStatus
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -44,11 +46,35 @@ async def _issue_session(user: User) -> AuthSessionResponse:
 
     asyncio.create_task(_persist_session_background())
 
+    account = AccountResponse.from_user(user)
+
+    # Attach Staff RBAC Permissions & Department Profile
+    if user.role in (Role.admin, Role.super_admin, Role.operations, Role.support, Role.finance):
+        staff_doc = None
+        if user.email:
+            staff_doc = await database.find_one("admin_staff", {"email": user.email.lower()})
+        if not staff_doc and user.id:
+            staff_doc = await database.find_one("admin_staff", {"_id": user.id})
+
+        if staff_doc:
+            account.name = staff_doc.get("name") or account.name
+            account.departmentRole = staff_doc.get("role") or "Operations Staff"
+            account.permissions = staff_doc.get("permissions") or []
+            account.scope = staff_doc.get("scope") or "All India Hubs"
+        else:
+            account.permissions = [
+                "all", "orders", "customers", "partners", "riders", "services",
+                "finance", "wallet", "cities", "coupons", "memberships",
+                "analytics", "notifications", "support", "staff", "settings"
+            ]
+            account.departmentRole = "Super Administrator"
+            account.scope = "All India Hubs"
+
     return AuthSessionResponse(
         token=access_token,
         refreshToken=refresh_token,
         expiresAt=access_expires.isoformat(),
-        account=AccountResponse.from_user(user),
+        account=account,
     )
 
 
@@ -252,55 +278,309 @@ async def refresh(payload: RefreshRequest) -> AuthSessionResponse:
     return await _issue_session(user)
 
 
-@router.post("/admin/pin", response_model=AuthSessionResponse)
-async def admin_pin_login(payload: dict, request: Request) -> AuthSessionResponse:
+# =========================================================================
+#  8. Enterprise Super Admin & Staff Authentication (Email + Password + 2FA)
+# =========================================================================
+
+@router.post("/admin/login")
+async def admin_login(payload: dict, request: Request) -> dict:
+    """
+    Step 1 of Super Admin / Staff Authentication.
+    Validates Email and Password, then issues a 2FA OTP Challenge.
+    """
     from app.core.admin_security import (
         check_admin_rate_limit,
-        constant_time_compare,
+        create_admin_2fa_challenge,
+        hash_password,
         record_failed_attempt,
+        verify_password,
+    )
+    from app.db.client import database
+
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    user_agent = request.headers.get("user-agent", "")
+
+    # 1. Rate limiting & Lockout guard
+    await check_admin_rate_limit(client_ip)
+
+    email = str(payload.get("email", "")).strip().lower()
+    password = str(payload.get("password", ""))
+
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email and password are required.",
+        )
+
+    # 2. Lookup Admin / Staff user by email
+    staff_doc = await database.find_one("admin_staff", {"email": email})
+
+    user = await users.by_email(email, Role.admin)
+    if not user:
+        user = await users.by_email(email, Role.super_admin)
+    if not user:
+        user = await users.by_email(email, Role.operations)
+    if not user:
+        user = await users.by_email(email, Role.support)
+    if not user:
+        user = await users.by_email(email, Role.finance)
+
+    # Ensure Super Admin exists in database if logging in as himanshupalsingh6@gmail.com
+    if not staff_doc and email == "himanshupalsingh6@gmail.com":
+        from app.core.admin_security import ensure_super_admin_seed
+        staff_doc = await ensure_super_admin_seed()
+        user = await users.by_email(email, Role.admin)
+
+    # If email does NOT exist in staff directory or admin collection -> Deny login immediately
+    if not staff_doc and not user:
+        failed_count = await record_failed_attempt(client_ip, email, user_agent)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Denied: This email is not registered in the Staff Directory. Only authorized QuickPress staff members can log in.",
+        )
+
+    # If found in admin_staff but user record missing, sync user
+    if not user and staff_doc:
+        user = await users.create(
+            User(
+                id=staff_doc.get("_id") or f"usr-staff-{uuid.uuid4().hex[:8]}",
+                phone=staff_doc.get("phone", "+919999999999"),
+                email=email,
+                display_name=staff_doc.get("name", "Staff Member"),
+                role=Role.admin,
+                status=UserStatus.active if str(staff_doc.get("status", "")).lower() == "active" else UserStatus.pending_verification,
+                is_verified=staff_doc.get("isVerified", True),
+                is_onboarded=True,
+            )
+        )
+
+    # 3. Check if staff account is active
+    staff_status = str(staff_doc.get("status") if staff_doc else user.status.value if hasattr(user.status, "value") else user.status).lower()
+    if staff_status in ("suspended", "blocked", "inactive"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Denied: Your staff account is suspended or inactive. Please contact Super Admin.",
+        )
+
+    # 4. Strictly Verify Password against stored PBKDF2 database hash
+    stored_hash = (staff_doc.get("passwordHash") if staff_doc else None) or (user.model_dump().get("password_hash") if hasattr(user, "model_dump") else None)
+    valid_password = verify_password(password, stored_hash) if stored_hash else False
+
+    if not valid_password:
+        failed_count = await record_failed_attempt(client_ip, email, user_agent)
+        remaining = max(0, 5 - failed_count)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid password. {remaining} attempt{'s' if remaining != 1 else ''} remaining before lockout.",
+        )
+
+    # 5. Issue 2FA Challenge
+    challenge = await create_admin_2fa_challenge(user.id, user.email or email, user.role.value if hasattr(user.role, "value") else str(user.role))
+    return {
+        "twoFactorRequired": True,
+        "challengeId": challenge["challengeId"],
+        "emailMasked": challenge["emailMasked"],
+        "expiresInSeconds": challenge["expiresInSeconds"],
+        "message": f"2FA OTP code has been dispatched to {challenge['emailMasked']}.",
+        "debugOtp": challenge.get("debugOtp"),
+    }
+
+
+@router.post("/admin/2fa", response_model=AuthSessionResponse)
+async def admin_2fa_verify(payload: dict, request: Request) -> AuthSessionResponse:
+    """
+    Step 2 of Super Admin / Staff Authentication.
+    Verifies 2FA OTP code and issues JWT access token.
+    """
+    from app.core.admin_security import (
+        check_admin_rate_limit,
         record_successful_login,
+        verify_admin_2fa_challenge,
     )
 
     client_ip = request.client.host if request.client else "127.0.0.1"
     user_agent = request.headers.get("user-agent", "")
 
-    # 1. Enforce brute-force & lockout protection
     await check_admin_rate_limit(client_ip)
 
-    settings = get_settings()
-    pin = str(payload.get("pin", "")).strip()
-    expected_pin = settings.admin_security_pin.strip()
+    challenge_id = str(payload.get("challengeId", "")).strip()
+    otp = str(payload.get("otp", "")).strip()
 
-    # 2. Constant-time comparison
-    if not pin or not constant_time_compare(pin, expected_pin):
-        failed_count = await record_failed_attempt(client_ip, user_agent)
-        remaining = max(0, 5 - failed_count)
+    if not challenge_id or not otp:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Incorrect Admin Passcode. {remaining} attempt{'s' if remaining != 1 else ''} remaining before temporary lockout.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Challenge ID and 2FA OTP code are required.",
         )
 
-    admin_user = await users.by_phone("+910000004502", Role.admin)
-    if admin_user is None:
-        admin_user = await users.create_phone_user(phone="+910000004502", role=Role.admin)
-        await users.update(
-            admin_user.id,
-            {
-                "email": "admin@quickpress.online",
-                "display_name": "QuickPress Super Admin",
-                "status": "active",
-                "is_verified": True,
-                "is_onboarded": True,
-            },
-        )
-        admin_user.email = "admin@quickpress.online"
-        admin_user.display_name = "QuickPress Super Admin"
-        admin_user.is_verified = True
-        admin_user.is_onboarded = True
+    # Verify 2FA challenge
+    challenge_doc = await verify_admin_2fa_challenge(challenge_id, otp)
+    user_id = challenge_doc["userId"]
+    email = challenge_doc["email"]
 
-    # 3. Log successful authentication & reset rate limiter
-    await record_successful_login(admin_user.id, client_ip, user_agent)
-    return await _issue_session(admin_user)
+    user = await users.by_id(user_id)
+    if not user:
+        user = await users.by_email(email, Role.admin)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    await record_successful_login(user.id, email, client_ip, user_agent)
+    return await _issue_session(user)
+
+
+@router.post("/staff/register")
+async def staff_register(payload: dict, request: Request) -> dict:
+    """
+    Onboard a new Staff member with Corporate Business Email validation & Email OTP.
+    """
+    from app.core.admin_security import (
+        check_email_otp_limits,
+        create_email_otp,
+        hash_password,
+        is_business_email,
+    )
+    from app.db.client import database
+
+    email = str(payload.get("email", "")).strip().lower()
+    name = str(payload.get("name", "")).strip()
+    phone = str(payload.get("phone", "+91 98719 62596")).strip()
+    password = str(payload.get("password", ""))
+    role_name = str(payload.get("role", "Operations Admin")).strip()
+    scope = str(payload.get("scope", "All India Hubs")).strip()
+
+    if not name or len(name) < 2:
+        raise HTTPException(status_code=400, detail="Please enter your full name.")
+    if not password or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
+
+    # 1. Validate Corporate / Business Email format and domains
+    is_valid, reason = is_business_email(email)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+
+    await check_email_otp_limits(email)
+
+    # 2. Check if email already registered
+    existing_user = await users.by_email(email, Role.admin)
+    if existing_user and getattr(existing_user, "is_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A staff account with this email address already exists. Please log in.",
+        )
+
+    # 3. Hash password and persist pending staff member
+    pwd_hash = hash_password(password)
+    staff_id = existing_user.id if existing_user else f"stf_{uuid.uuid4().hex[:10]}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    staff_data = {
+        "_id": staff_id,
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "role": role_name,
+        "scope": scope,
+        "passwordHash": pwd_hash,
+        "permissions": ["orders", "partners", "riders", "support", "cities"],
+        "status": "Pending Verification",
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    await database.update_one("admin_staff", {"_id": staff_id}, {"$set": staff_data}, upsert=True)
+
+    # Also register in users collection
+    if not existing_user:
+        await users.create(
+            User(
+                id=staff_id,
+                phone=phone,
+                email=email,
+                display_name=name,
+                role=Role.admin,
+                status=UserStatus.pending_verification,
+                is_verified=False,
+                is_onboarded=True,
+            )
+        )
+
+    # 4. Generate Email OTP
+    otp = await create_email_otp(email, "staff_verification")
+
+    # Audit log
+    await database.insert_one(
+        "admin_audit_logs",
+        {
+            "_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "actor": email,
+            "actorId": staff_id,
+            "action": "staff.registered_pending_otp",
+            "target": name,
+            "meta": {"email": email, "role": role_name},
+            "createdAt": now,
+            "at": now,
+        },
+    )
+
+    return {
+        "ok": True,
+        "email": email,
+        "message": f"Verification OTP has been sent to your business email ({email}).",
+        "debugOtp": otp if os.getenv("APP_ENV") != "production" else None,
+    }
+
+
+@router.post("/staff/verify-email")
+async def staff_verify_email(payload: dict) -> dict:
+    """
+    Verify Staff Business Email with OTP code.
+    """
+    from app.core.admin_security import verify_email_otp
+    from app.db.client import database
+
+    email = str(payload.get("email", "")).strip().lower()
+    otp = str(payload.get("otp", "")).strip()
+
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Email and OTP code are required.")
+
+    is_verified = await verify_email_otp(email, otp, "staff_verification")
+    if not is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect or expired verification code. Please try again.",
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Mark staff as active & verified
+    await database.update_many(
+        "admin_staff",
+        {"email": email},
+        {"status": "Active", "isVerified": True, "verifiedAt": now},
+    )
+    await database.update_many(
+        "users",
+        {"email": email},
+        {"status": "active", "is_verified": True, "updated_at": now},
+    )
+
+    # Audit log
+    await database.insert_one(
+        "admin_audit_logs",
+        {
+            "_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "actor": email,
+            "action": "staff.email_verified",
+            "target": email,
+            "meta": {"status": "Active"},
+            "createdAt": now,
+            "at": now,
+        },
+    )
+
+    return {
+        "ok": True,
+        "verified": True,
+        "message": "Business email verified successfully! Your account is now Active. You can sign in.",
+    }
 
 
 

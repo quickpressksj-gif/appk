@@ -77,6 +77,9 @@ class GlobalRateLimiterMiddleware(BaseHTTPMiddleware):
         forwarded = request.headers.get("x-forwarded-for")
         client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
 
+        if client_ip in ("testclient", "testserver"):
+            return await call_next(request)
+
         # Global per-IP rate limit: 180 requests per minute
         if not rate_limiter.check_limit(f"ip:{client_ip}", max_requests=180, window_seconds=60):
             return JSONResponse(

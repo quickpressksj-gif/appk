@@ -77,19 +77,33 @@ async function httpRequest<T>(
       signal: controller.signal,
     });
 
-    if (response.status === 401) {
-      if (typeof window !== "undefined") {
-        clearSession(activeSessionRole());
-        clearSession("admin");
-        if (!window.location.pathname.startsWith("/auth")) {
-          window.location.href = "/auth";
-        }
-      }
-      throw new ApiError("unauthorized", "Session expired", 401);
-    }
-    if (response.status === 404) throw new ApiError("not-found", `${path} not found`, 404);
     if (!response.ok) {
-      throw new ApiError("http", `${method} ${path} failed with ${response.status}`, response.status);
+      let errorDetail = `${method} ${path} failed with ${response.status}`;
+      try {
+        const errJson = await response.json();
+        if (errJson && typeof errJson === "object") {
+          errorDetail = errJson.detail || errJson.message || errorDetail;
+        }
+      } catch {
+        /* ignore json parse error */
+      }
+
+      if (response.status === 401 && !options.anonymous) {
+        if (typeof window !== "undefined") {
+          clearSession(activeSessionRole());
+          clearSession("admin");
+          if (!window.location.pathname.startsWith("/auth")) {
+            window.location.href = "/auth";
+          }
+        }
+        throw new ApiError("unauthorized", errorDetail || "Session expired", 401);
+      }
+
+      if (response.status === 404) {
+        throw new ApiError("not-found", errorDetail || `${path} not found`, 404);
+      }
+
+      throw new ApiError("http", errorDetail, response.status);
     }
     if (response.status === 204) return undefined as T;
 

@@ -33,39 +33,35 @@ function readString(key: string): string {
 
 export function apiBaseUrl(): string {
   const custom = readString("VITE_API_BASE_URL").replace(/\/+$/, "");
-  if (custom) return custom;
 
   if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const port = window.location.port;
+
+    // Desktop browser local development (Vite dev server)
+    if (host === "localhost" || host === "127.0.0.1") {
+      if (custom && !custom.includes("railway.app")) return custom;
+      return "http://localhost:8000";
+    }
+
+    if (custom) return custom;
+
     // Detect Capacitor native mobile app (Android / iOS APK)
     const isCapacitor = Boolean(
       (window as any).Capacitor?.isNativePlatform?.() ||
       window.location.protocol === "capacitor:" ||
-      window.location.protocol === "file:" ||
-      (window.location.hostname === "localhost" && (!window.location.port || window.location.port === "80" || window.location.port === "443")) ||
-      (window.location.hostname === "127.0.0.1" && (!window.location.port || window.location.port === "80" || window.location.port === "443"))
+      window.location.protocol === "file:"
     );
     if (isCapacitor) {
       return "https://quickpress-api-production-3292.up.railway.app";
     }
 
-    const host = window.location.hostname;
-    const port = window.location.port;
-
-    // Desktop browser local development (e.g. Vite dev server on port 5173)
-    if ((host === "localhost" || host === "127.0.0.1") && port && port !== "80" && port !== "443") {
-      return "http://localhost:8000";
-    }
-
     if (host.includes("vercel.app") || host.includes("quickpress.online") || host.includes("onrender.com") || host.includes("railway.app")) {
       return "https://quickpress-api-production-3292.up.railway.app";
     }
-
-    if (host && host !== "localhost" && host !== "127.0.0.1") {
-      return `http://${host}:8000`;
-    }
   }
 
-  return "https://quickpress-api-production-3292.up.railway.app";
+  return custom || "http://localhost:8000";
 }
 
 export function appEnvironment(): AppEnvironment {

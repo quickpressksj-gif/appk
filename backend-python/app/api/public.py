@@ -161,18 +161,7 @@ async def get_public_cities() -> List[Dict[str, Any]]:
     ]
     
     if not active_cities:
-        active_cities = [
-            {
-                "_id": "kasganj",
-                "city": "Kasganj",
-                "name": "Kasganj",
-                "state": "Uttar Pradesh",
-                "status": "Live",
-                "areas": ["City Center", "Railway Road", "Soron Gate", "Bilram Gate", "Awas Vikas", "Main Market"],
-                "pickupRadius": "5 km",
-                "deliveryRadiusKm": 8,
-            }
-        ]
+        return []
 
     # Fetch any granular sub-zones from admin_areas collection
     admin_areas = await database.find_many("admin_areas")

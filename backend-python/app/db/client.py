@@ -93,6 +93,16 @@ def _apply_update(target: Dict[str, Any], update: Dict[str, Any]) -> None:
             if k not in target or not isinstance(target[k], list):
                 target[k] = []
             target[k].append(v)
+    if "$pull" in update:
+        for k, v in update["$pull"].items():
+            if k in target and isinstance(target[k], list):
+                target[k] = [item for item in target[k] if item != v]
+    if "$inc" in update:
+        for k, v in update["$inc"].items():
+            target[k] = target.get(k, 0) + v
+    if "$unset" in update:
+        for k in update["$unset"]:
+            target.pop(k, None)
     for k, v in update.items():
         if not k.startswith("$"):
             target[k] = v
@@ -240,17 +250,20 @@ class Database:
             try:
                 from app.db.supabase_client import SupabaseDatabase
                 sb_db = SupabaseDatabase(db_url)
-                await sb_db.connect()
+                await asyncio.wait_for(sb_db.connect(), timeout=30.0)
                 self._supabase = sb_db
                 self._engine = "supabase-postgresql"
                 self._fallback_in_memory = False
                 logging.getLogger(__name__).info("Connected to Supabase PostgreSQL successfully.")
                 return
             except Exception as err:
-                logging.getLogger(__name__).warning("Supabase PostgreSQL connection failed: %s", err)
+                logging.getLogger(__name__).warning("Supabase PostgreSQL connection failed: %s", repr(err))
                 if is_prod:
                     raise RuntimeError(f"FATAL: Production database connection to Supabase failed: {err}") from err
                 self._supabase = None
+
+        if is_prod:
+            raise RuntimeError("FATAL: Production database connection URL not configured")
 
         self._fallback_in_memory = True
         self._engine = "in-memory"
@@ -272,6 +285,8 @@ class Database:
     def collection(self, name: str) -> Any:
         if self._supabase is not None:
             return self._supabase.collection(name)
+        if getattr(self, "_db", None) is not None:
+            return self._db[name]
         return self._memory.setdefault(name, InMemoryCollection())
 
 
@@ -281,6 +296,7 @@ class Database:
         query: Optional[Dict[str, Any]] = None,
         *,
         sort_key: Optional[str] = None,
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """List documents from a collection — works for Motor and the memory store."""
         collection = self.collection(name)
@@ -289,9 +305,12 @@ class Database:
             docs = await collection.find_many(query)  # type: ignore[attr-defined]
         else:
             cursor = collection.find(query)  # type: ignore[attr-defined]
-            docs = await cursor.to_list(length=500)
+            length = limit if limit is not None else 500
+            docs = await cursor.to_list(length=length)
         if sort_key:
             docs.sort(key=lambda doc: _sort_key(doc.get(sort_key)))
+        if limit is not None:
+            docs = docs[:limit]
         return docs
 
     # ------------------------------------------------------------------
@@ -379,7 +398,8 @@ class Database:
         *,
         upsert: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        await self.collection(name).update_one(query, {"$set": changes}, upsert=upsert)
+        update_doc = changes if any(str(k).startswith("$") for k in changes.keys()) else {"$set": changes}
+        await self.collection(name).update_one(query, update_doc, upsert=upsert)
         return await self.find_one(name, query)
 
     async def update_one(
@@ -391,6 +411,19 @@ class Database:
         upsert: bool = False,
     ) -> Optional[Dict[str, Any]]:
         return await self.update(name, query, changes, upsert=upsert)
+
+    async def update_many(
+        self,
+        name: str,
+        query: Dict[str, Any],
+        changes: Dict[str, Any],
+        *,
+        upsert: bool = False,
+    ) -> int:
+        update_doc = changes if any(str(k).startswith("$") for k in changes.keys()) else {"$set": changes}
+        collection = self.collection(name)
+        result = await collection.update_many(query, update_doc, upsert=upsert)
+        return result if isinstance(result, int) else int(getattr(result, "modified_count", 0))
 
     async def insert_one(self, name: str, document: Dict[str, Any]) -> Dict[str, Any]:
         return await self.insert(name, document)

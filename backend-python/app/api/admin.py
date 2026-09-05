@@ -9,31 +9,60 @@ blank even against a brand new database.
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 
 from app.core.deps import current_user, require_roles
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 from app.models.admin import (
+    AddCustomerNotePayload,
+    AddPartnerNotePayload,
+    AddRiderNotePayload,
+    AdjustCustomerLoyaltyPayload,
+    AdjustCustomerWalletPayload,
+    AdjustPartnerWalletPayload,
+    AdjustRiderWalletPayload,
+    Admin2FAPayload,
+    AdminLoginPayload,
     AdminPartnerUpdatePayload,
     AdminRiderUpdatePayload,
     AssignRiderPayload,
+    BlockPartnerPayload,
     BroadcastPayload,
     CancelOrderPayload,
-    UpdateOrderStatusPayload,
-    AdjustCustomerWalletPayload,
-    AdjustCustomerLoyaltyPayload,
-    AddCustomerNotePayload,
-    UpdateCustomerTagsPayload,
-    SendCustomerNotificationPayload,
     CityPayload,
     CouponPayload,
+    CreatePartnerPayload,
+    CreateSupportTicketPayload,
+    SendCustomerNotificationPayload,
+    SendPartnerNotificationPayload,
+    SendRiderNotificationPayload,
     ServicePayload,
     SettingsUpdatePayload,
     StaffPayload,
+    StaffPermissionsPayload,
+    StaffRegisterPayload,
+    StaffStatusPayload,
+    StaffVerifyEmailPayload,
+    SupportAssignPayload,
+    SupportCompensatePayload,
     SupportReplyPayload,
+    SupportStatusPayload,
+    SuspendPartnerPayload,
+    UpdateCustomerTagsPayload,
+    UpdateOrderStatusPayload,
+    UpdatePartnerCommissionPayload,
+    UpdatePartnerKycPayload,
+    UpdatePartnerTagsPayload,
+    VerifyRiderDocumentPayload,
 )
 from app.models.user import Role, User
 from app.db.admin_repositories import (
@@ -586,8 +615,28 @@ async def reject_rider(rider_id: str, user: User = Depends(current_user)):
 
 # ----------------------------------------------------------------- analytics
 @router.get("/analytics")
-async def analytics(user: User = Depends(current_user)):
-    return await analytics_repository.summary()
+async def analytics(
+    range: str = Query(default="all"),
+    city: Optional[str] = Query(default=None),
+    user: User = Depends(current_user),
+):
+    """GET /api/admin/analytics — Live nationwide GMV, dynamic growth velocity, category economics, and city metrics."""
+    return await analytics_repository.summary(time_range=range, city=city)
+
+
+@router.get("/analytics/export")
+async def export_analytics_report(
+    type: str = Query(default="financial_pl"),
+    city: Optional[str] = Query(default=None),
+    user: User = Depends(current_user),
+):
+    """GET /api/admin/analytics/export — Downloadable dynamic CSV report from real MongoDB database."""
+    csv_data, filename = await analytics_repository.export_report_csv(report_type=type, city=city)
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --------------------------------------------------------------------- cities
@@ -632,19 +681,125 @@ async def add_city_zone(city_id: str, payload: dict, user: User = Depends(curren
     return city
 
 
+@router.put("/cities/{city_id}/zones/{zone_id}")
+async def update_city_zone(city_id: str, zone_id: str, payload: dict, user: User = Depends(current_user)):
+    city = await city_repository.update_zone(city_id, zone_id, payload)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City or Zone not found")
+    await audit_repository.log(await _actor(user), "city.update_zone", f"{city_id}:{zone_id}", payload)
+    return city
+
+
+@router.delete("/cities/{city_id}/zones/{zone_id}")
+async def delete_city_zone(city_id: str, zone_id: str, user: User = Depends(current_user)):
+    city = await city_repository.delete_zone(city_id, zone_id)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.delete_zone", f"{city_id}:{zone_id}")
+    return city
+
+
+@router.post("/partners/{partner_id}/assign-zone")
+async def assign_partner_territory(partner_id: str, payload: dict, user: User = Depends(current_user)):
+    partner = await city_repository.assign_partner_territory(
+        partner_id=partner_id,
+        state=payload.get("state"),
+        city=payload.get("city"),
+        sector=payload.get("sector"),
+        zone_id=payload.get("zoneId"),
+        lat=payload.get("latitude") or payload.get("lat"),
+        lng=payload.get("longitude") or payload.get("lng"),
+        service_radius_km=payload.get("serviceRadiusKm") or payload.get("radiusKm"),
+    )
+    if partner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+    await audit_repository.log(await _actor(user), "partner.assign_territory", partner_id, payload)
+    return partner
+
+
+@router.get("/cities/{city_id}/pincodes-intelligence")
+async def city_pincodes_intelligence(city_id: str, user: User = Depends(current_user)):
+    return await city_repository.get_city_pincodes_intelligence(city_id)
+
+
+@router.post("/cities/{city_id}/pincodes")
+async def add_city_pincode(city_id: str, payload: dict, user: User = Depends(current_user)):
+    city = await city_repository.add_pincode(city_id, payload)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.add_pincode", city_id, payload)
+    return city
+
+
+@router.put("/cities/{city_id}/pincodes/{pincode}")
+async def update_city_pincode(city_id: str, pincode: str, payload: dict, user: User = Depends(current_user)):
+    city = await city_repository.update_pincode(city_id, pincode, payload)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.update_pincode", f"{city_id}:{pincode}", payload)
+    return city
+
+
+@router.delete("/cities/{city_id}/pincodes/{pincode}")
+async def delete_city_pincode(city_id: str, pincode: str, user: User = Depends(current_user)):
+    city = await city_repository.delete_pincode(city_id, pincode)
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.delete_pincode", f"{city_id}:{pincode}")
+    return city
+
+
+@router.post("/partners/{partner_id}/assign-pincodes")
+async def assign_partner_pincodes(partner_id: str, payload: dict, user: User = Depends(current_user)):
+    pincodes = payload.get("servicePincodes") or payload.get("pincodes") or []
+    if isinstance(pincodes, str):
+        pincodes = [p.strip() for p in pincodes.split(",") if p.strip()]
+    partner = await city_repository.assign_partner_pincodes(
+        partner_id=partner_id,
+        pincodes=pincodes,
+        primary_pincode=payload.get("pincode") or payload.get("primaryPincode") or (pincodes[0] if pincodes else None),
+        city=payload.get("city"),
+        state=payload.get("state"),
+    )
+    if partner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner not found")
+    await audit_repository.log(await _actor(user), "partner.assign_pincodes", partner_id, payload)
+    return partner
+
+
+@router.post("/riders/{rider_id}/assign-pincodes")
+async def assign_rider_pincodes(rider_id: str, payload: dict, user: User = Depends(current_user)):
+    pincodes = payload.get("operatingPincodes") or payload.get("pincodes") or []
+    if isinstance(pincodes, str):
+        pincodes = [p.strip() for p in pincodes.split(",") if p.strip()]
+    rider = await city_repository.assign_rider_pincodes(
+        rider_id=rider_id,
+        pincodes=pincodes,
+        primary_pincode=payload.get("pincode") or payload.get("primaryPincode") or (pincodes[0] if pincodes else None),
+        city=payload.get("city"),
+        state=payload.get("state"),
+    )
+    if rider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rider not found")
+    await audit_repository.log(await _actor(user), "rider.assign_pincodes", rider_id, payload)
+    return rider
+
+
 @router.post("/cities", status_code=status.HTTP_201_CREATED)
 async def create_city(payload: CityPayload, user: User = Depends(current_user)):
-    city = await city_repository.create(
-        {
-            "city": payload.city or "New City",
-            "state": payload.state or "",
-            "areas": payload.areas or 0,
-            "partners": 0,
-            "riders": 0,
-            "pickupRadius": payload.pickupRadius or "5 km",
-            "status": payload.status or "Pilot",
-        }
-    )
+    data = payload.model_dump(exclude_unset=True)
+    city_name = data.get("city") or data.get("name") or "New City"
+    data["city"] = city_name
+    data["name"] = city_name
+    data.setdefault("state", payload.state or "Uttar Pradesh")
+    data.setdefault("country", payload.country or "India")
+    data.setdefault("tier", payload.tier or "Tier-2")
+    data.setdefault("status", payload.status or "Live")
+    data.setdefault("deliveryRadiusKm", payload.deliveryRadiusKm or 15.0)
+    data.setdefault("baseDeliveryFee", payload.baseDeliveryFee or 20.0)
+    data.setdefault("surgeMultiplier", payload.surgeMultiplier or 1.0)
+    data.setdefault("pincodes", payload.pincodes or [])
+    city = await city_repository.create(data)
     await audit_repository.log(await _actor(user), "city.create", city["_id"])
     return city
 
@@ -666,6 +821,15 @@ async def toggle_city_status(city_id: str, payload: dict, user: User = Depends(c
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
     await audit_repository.log(await _actor(user), f"city.status_{new_status.lower()}", city_id)
     return city
+
+
+@router.delete("/cities/{city_id}")
+async def delete_city(city_id: str, user: User = Depends(current_user)):
+    removed = await city_repository.delete(city_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found")
+    await audit_repository.log(await _actor(user), "city.delete", city_id)
+    return {"deleted": True, "cityId": city_id}
 
 
 @router.get("/areas")
@@ -715,14 +879,45 @@ async def list_states(user: User = Depends(current_user)):
             "liveCities": 0,
         })
         entry["citiesCount"] += 1
-        entry["partners"] += c.get("partners", 0)
-        entry["riders"] += c.get("riders", 0)
-        entry["customers"] += c.get("customers", 0)
-        entry["orders"] += c.get("orders", 0)
-        entry["sales"] += c.get("sales", 0)
+        entry["partners"] += c.get("totalPartners", c.get("partners", 0))
+        entry["riders"] += c.get("totalRiders", c.get("riders", 0))
+        entry["customers"] += c.get("totalCustomers", c.get("customers", 0))
+        financials = c.get("financials") or {}
+        entry["orders"] += financials.get("totalOrders", c.get("orders", 0))
+        entry["sales"] += financials.get("grossRevenue", c.get("sales", 0))
         if c.get("status") == "Live":
             entry["liveCities"] += 1
     return list(state_map.values())
+
+
+@router.post("/states")
+async def create_state(payload: Dict[str, Any], user: User = Depends(current_user)):
+    state_name = payload.get("state") or payload.get("name")
+    if not state_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="State name is required")
+    # Save a placeholder hub or register state
+    city_name = payload.get("capital") or payload.get("city") or f"{state_name} Central"
+    new_city = await city_repository.create({
+        "city": city_name,
+        "name": city_name,
+        "state": state_name,
+        "tier": payload.get("tier", "Tier-2"),
+        "status": payload.get("status", "Live"),
+        "deliveryRadiusKm": 15.0,
+        "baseDeliveryFee": 25.0,
+    })
+    await audit_repository.log(await _actor(user), "state.create", state_name)
+    return {
+        "state": state_name,
+        "citiesCount": 1,
+        "liveCities": 1,
+        "partners": 0,
+        "riders": 0,
+        "customers": 0,
+        "orders": 0,
+        "sales": 0,
+        "city": new_city,
+    }
 
 
 # ------------------------------------------------------------------- services
@@ -846,6 +1041,44 @@ async def toggle_partner_service_status(
     return updated
 
 
+@router.put("/partner-services/{service_id}")
+async def update_partner_service_rate(
+    service_id: str,
+    payload: dict,
+    user: User = Depends(current_user),
+):
+    updated = await admin_partner_service_repository.update_rate(
+        service_id=service_id,
+        price=payload.get("price"),
+        turnaround_hours=payload.get("turnaroundHours"),
+        min_quantity=payload.get("minQuantity"),
+        express_available=payload.get("expressAvailable"),
+        enabled=payload.get("enabled"),
+    )
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner service not found")
+    await audit_repository.log(await _actor(user), "partner_service.rate_update", service_id)
+    return updated
+
+
+@router.post("/services/{service_id}/sync-to-partners")
+async def sync_master_service_to_partners(
+    service_id: str,
+    payload: Optional[dict] = None,
+    user: User = Depends(current_user),
+):
+    override_price = bool((payload or {}).get("overridePrice", False))
+    try:
+        result = await admin_partner_service_repository.sync_master_to_partners(
+            master_service_id=service_id,
+            override_price=override_price,
+        )
+        await audit_repository.log(await _actor(user), "service.sync_to_partners", service_id)
+        return result
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
 # -------------------------------------------------------------------- coupons
 @router.get("/coupons/stats")
 async def coupon_stats(user: User = Depends(current_user)):
@@ -868,27 +1101,19 @@ async def list_coupon_referrals(user: User = Depends(current_user)):
 
 
 @router.get("/coupons")
-async def list_coupons(user: User = Depends(current_user)):
-    return await coupon_repository.list()
+async def list_coupons(city: Optional[str] = Query(None), user: User = Depends(current_user)):
+    return await coupon_repository.list(city=city)
+
+
+@router.get("/coupons/{coupon_id}/redemptions")
+async def get_coupon_redemptions(coupon_id: str, user: User = Depends(current_user)):
+    return await coupon_repository.get_redemptions(coupon_id)
 
 
 @router.post("/coupons", status_code=status.HTTP_201_CREATED)
 async def create_coupon(payload: CouponPayload, user: User = Depends(current_user)):
-    coupon = await coupon_repository.create(
-        {
-            "code": payload.code or "NEWCODE",
-            "type": getattr(payload, "type", "percentage"),
-            "value": payload.discount or "10% OFF",
-            "discountPct": int(getattr(payload, "discountPct", 10)),
-            "maxDiscount": int(getattr(payload, "maxDiscount", 100)),
-            "minOrder": payload.minOrder or 0,
-            "description": payload.description or "",
-            "validTill": payload.expiry or "2026-12-31",
-            "audience": getattr(payload, "audience", "All Users"),
-            "limit": int(getattr(payload, "limit", 100)),
-            "status": payload.status or "Active",
-        }
-    )
+    data = payload.model_dump(exclude_unset=True)
+    coupon = await coupon_repository.create(data)
     await audit_repository.log(await _actor(user), "coupon.create", coupon["_id"])
     return coupon
 
@@ -899,6 +1124,16 @@ async def update_coupon(coupon_id: str, payload: CouponPayload, user: User = Dep
     if coupon is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
     await audit_repository.log(await _actor(user), "coupon.update", coupon_id)
+    return coupon
+
+
+@router.patch("/coupons/{coupon_id}/status")
+async def update_coupon_status(coupon_id: str, payload: dict, user: User = Depends(current_user)):
+    status_val = payload.get("status", "Active")
+    coupon = await coupon_repository.update(coupon_id, {"status": status_val})
+    if coupon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    await audit_repository.log(await _actor(user), "coupon.status", coupon_id, {"status": status_val})
     return coupon
 
 
@@ -942,64 +1177,216 @@ async def delete_banner(banner_id: str, user: User = Depends(current_user)):
     return {"ok": True}
 
 
-# ---------------------------------------------------------------------- staff
+# ---------------------------------------------------------------------- staff & RBAC
 @router.get("/staff")
 async def list_staff(user: User = Depends(current_user)):
-    return await staff_repository.list()
+    from app.db.client import database
+    members = await database.find_many("admin_staff")
+    if not members:
+        from app.core.admin_security import ensure_super_admin_seed
+        super_admin_doc = await ensure_super_admin_seed()
+        members = [super_admin_doc]
+
+    # Mask password hashes from output
+    clean_members = []
+    for m in members:
+        doc = dict(m)
+        doc.pop("passwordHash", None)
+        doc.pop("password_hash", None)
+        doc["id"] = str(doc.get("_id") or doc.get("id"))
+        clean_members.append(doc)
+    return clean_members
 
 
 @router.post("/staff", status_code=status.HTTP_201_CREATED)
 async def create_staff(payload: StaffPayload, user: User = Depends(current_user)):
-    member = await staff_repository.create(
+    import re
+    from app.core.admin_security import hash_password
+    from app.db.client import database
+
+    email = str(payload.email or "").strip().lower()
+    name = str(payload.name or "New Staff Member").strip()
+
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email address is required.")
+
+    email_regex = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    if not re.match(email_regex, email):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please enter a valid email address.")
+
+    # Check for duplicate email in admin_staff
+    existing = await database.find_one("admin_staff", {"email": email})
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A staff administrator with email '{email}' already exists in the directory.",
+        )
+
+    staff_id = f"stf_{uuid.uuid4().hex[:10]}"
+    raw_password = payload.password if (payload.password and len(payload.password) >= 6) else "Staff@2026"
+    pwd_hash = hash_password(raw_password)
+    now = now_iso()
+
+    member_doc = {
+        "_id": staff_id,
+        "name": name,
+        "email": email,
+        "phone": payload.phone or "+91 98719 62596",
+        "role": payload.role or "Operations Admin",
+        "scope": payload.scope or "All India Hubs",
+        "permissions": payload.permissions or ["orders", "partners", "riders", "support"],
+        "passwordHash": pwd_hash,
+        "lastActive": "Just now",
+        "status": payload.status or "Active",
+        "isVerified": True,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    await database.update_one("admin_staff", {"_id": staff_id}, {"$set": member_doc}, upsert=True)
+
+    # Sync to users collection
+    await database.update_one(
+        "users",
+        {"email": email},
         {
-            "name": payload.name or "New Staff Member",
-            "email": payload.email or "",
-            "phone": payload.phone or "+91 98719 62596",
-            "role": payload.role or "Operations Admin",
-            "scope": payload.scope or "Kasganj Market Hub",
-            "permissions": payload.permissions or ["orders", "partners", "riders"],
-            "lastActive": "Just now",
-            "status": payload.status or "Active",
-            "createdAt": now_iso(),
-        }
+            "$set": {
+                "_id": staff_id,
+                "phone": member_doc["phone"],
+                "email": email,
+                "display_name": name,
+                "role": Role.admin.value,
+                "password_hash": pwd_hash,
+                "status": "active" if member_doc["status"] == "Active" else "suspended",
+                "is_verified": True,
+                "is_onboarded": True,
+                "updated_at": now,
+            }
+        },
+        upsert=True,
     )
-    await audit_repository.log(await _actor(user), "staff.create", member["_id"], meta={"name": payload.name, "role": payload.role})
-    return member
+
+    await audit_repository.log(await _actor(user), "staff.create", staff_id, meta={"name": name, "email": email, "role": payload.role})
+    response_doc = dict(member_doc)
+    response_doc.pop("passwordHash", None)
+    response_doc["id"] = staff_id
+    return response_doc
 
 
 @router.put("/staff/{staff_id}")
 async def update_staff(staff_id: str, payload: StaffPayload, user: User = Depends(current_user)):
-    member = await staff_repository.update(staff_id, payload.model_dump(exclude_unset=True))
-    if member is None:
+    from app.core.admin_security import hash_password
+    from app.db.client import database
+
+    existing = await database.find_one("admin_staff", {"_id": staff_id})
+    if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
-    await audit_repository.log(await _actor(user), "staff.update", staff_id, meta=payload.model_dump(exclude_unset=True))
-    return member
+
+    update_dict = payload.model_dump(exclude_unset=True)
+    if "password" in update_dict and update_dict["password"]:
+        update_dict["passwordHash"] = hash_password(update_dict.pop("password"))
+    update_dict["updatedAt"] = now_iso()
+
+    await database.update_one("admin_staff", {"_id": staff_id}, {"$set": update_dict})
+    updated = await database.find_one("admin_staff", {"_id": staff_id})
+
+    # Sync status and name to users collection if updated
+    sync_user: dict = {}
+    if "name" in update_dict:
+        sync_user["display_name"] = update_dict["name"]
+    if "status" in update_dict:
+        sync_user["status"] = "active" if update_dict["status"] == "Active" else "suspended"
+    if sync_user:
+        sync_user["updated_at"] = now_iso()
+        await database.update_one("users", {"_id": staff_id}, {"$set": sync_user})
+
+    await audit_repository.log(await _actor(user), "staff.update", staff_id, meta=update_dict)
+    clean_res = dict(updated or {})
+    clean_res.pop("passwordHash", None)
+    clean_res["id"] = staff_id
+    return clean_res
+
+
+@router.put("/staff/{staff_id}/permissions")
+async def update_staff_permissions(staff_id: str, payload: StaffPermissionsPayload, user: User = Depends(current_user)):
+    from app.db.client import database
+
+    existing = await database.find_one("admin_staff", {"_id": staff_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
+
+    now = now_iso()
+    await database.update_one(
+        "admin_staff",
+        {"_id": staff_id},
+        {"$set": {"permissions": payload.permissions, "updatedAt": now}},
+    )
+    await audit_repository.log(
+        await _actor(user),
+        "staff.update_permissions",
+        staff_id,
+        meta={"permissions": payload.permissions, "staffName": existing.get("name")},
+    )
+    return {"ok": True, "permissions": payload.permissions}
+
+
+@router.put("/staff/{staff_id}/status")
+async def update_staff_status(staff_id: str, payload: StaffStatusPayload, user: User = Depends(current_user)):
+    from app.db.client import database
+
+    existing = await database.find_one("admin_staff", {"_id": staff_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
+
+    now = now_iso()
+    new_status = payload.status
+    await database.update_one(
+        "admin_staff",
+        {"_id": staff_id},
+        {"$set": {"status": new_status, "updatedAt": now}},
+    )
+    # Sync status to users collection
+    user_status = "active" if new_status.lower() in ("active", "approved") else "suspended"
+    await database.update_one("users", {"_id": staff_id}, {"$set": {"status": user_status, "updated_at": now}})
+
+    await audit_repository.log(
+        await _actor(user),
+        "staff.status_change",
+        staff_id,
+        meta={"status": new_status, "reason": payload.reason, "staffName": existing.get("name")},
+    )
+    return {"ok": True, "status": new_status}
 
 
 @router.delete("/staff/{staff_id}")
 async def delete_staff(staff_id: str, user: User = Depends(current_user)):
-    success = await staff_repository.delete(staff_id)
-    if not success:
+    from app.db.client import database
+
+    existing = await database.find_one("admin_staff", {"_id": staff_id})
+    if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found")
-    await audit_repository.log(await _actor(user), "staff.delete", staff_id)
+
+    await database.delete_many("admin_staff", {"_id": staff_id})
+    await database.update_one("users", {"_id": staff_id}, {"$set": {"status": "blocked"}})
+    await audit_repository.log(await _actor(user), "staff.delete", staff_id, meta={"staffName": existing.get("name"), "email": existing.get("email")})
     return {"ok": True}
 
 
 @router.get("/staff/roles")
 async def staff_roles(user: User = Depends(current_user)):
-    members = await staff_repository.list()
+    from app.db.client import database
+    members = await database.find_many("admin_staff")
     role_defs = [
         {
             "id": "RO-1",
             "name": "Super Admin",
             "members": sum(1 for m in members if m.get("role") == "Super Admin"),
-            "permissions": ["all", "orders", "partners", "riders", "services", "finance", "cities", "campaigns", "staff", "settings"],
+            "permissions": ["all", "orders", "customers", "partners", "riders", "services", "finance", "cities", "coupons", "memberships", "support", "staff", "settings"],
         },
         {
             "id": "RO-2",
             "name": "Operations Admin",
             "members": sum(1 for m in members if m.get("role") == "Operations Admin"),
-            "permissions": ["orders", "partners", "riders", "support", "cities"],
+            "permissions": ["orders", "customers", "partners", "riders", "support", "cities"],
         },
         {
             "id": "RO-3",
@@ -1011,31 +1398,41 @@ async def staff_roles(user: User = Depends(current_user)):
             "id": "RO-4",
             "name": "Support Lead",
             "members": sum(1 for m in members if m.get("role") == "Support Lead"),
-            "permissions": ["support", "orders", "campaigns"],
+            "permissions": ["support", "orders", "customers"],
         },
         {
             "id": "RO-5",
             "name": "Finance & Settlements Lead",
             "members": sum(1 for m in members if m.get("role") == "Finance & Settlements Lead"),
-            "permissions": ["finance", "wallets", "payouts", "orders"],
+            "permissions": ["finance", "orders", "memberships"],
         },
     ]
     return role_defs
 
 
 @router.get("/staff/logs")
-async def staff_logs(actor: Optional[str] = None, user: User = Depends(current_user)):
+async def staff_logs(
+    actor: Optional[str] = None,
+    action: Optional[str] = None,
+    user: User = Depends(current_user),
+):
     from app.db.client import database
 
     query = {}
     if actor and actor != "all":
-        query["actor"] = {"$regex": actor, "$options": "i"}
+        query["$or"] = [
+            {"actor": {"$regex": actor, "$options": "i"}},
+            {"actorId": {"$regex": actor, "$options": "i"}},
+        ]
+    if action and action != "all":
+        query["action"] = {"$regex": action, "$options": "i"}
 
-    logs = await database.find_sorted("admin_audit_logs", query, sort=[("createdAt", -1)], limit=200)
+    logs = await database.find_sorted("admin_audit_logs", query, sort=[("createdAt", -1), ("at", -1)], limit=300)
     return [
         {
-            "id": log["_id"],
+            "id": str(log.get("_id")),
             "actor": log.get("actor") or "QuickPress Super Admin",
+            "actorId": log.get("actorId") or "admin",
             "action": log.get("action") or "system.action",
             "target": log.get("target") or "—",
             "meta": log.get("meta") or {},
@@ -1047,12 +1444,35 @@ async def staff_logs(actor: Optional[str] = None, user: User = Depends(current_u
 
 # -------------------------------------------------------------------- support
 @router.get("/support")
-async def list_support(user: User = Depends(current_user)):
-    return await support_repository.list()
+async def list_support(
+    role: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    priority: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    q: Optional[str] = Query(default=None),
+    user: User = Depends(current_user),
+):
+    """GET /api/admin/support — Omnichannel helpdesk ticket directory."""
+    return await support_repository.list(role=role, status=status, priority=priority, category=category, q=q)
+
+
+@router.get("/support/stats")
+async def support_stats(user: User = Depends(current_user)):
+    """GET /api/admin/support/stats — Real-time Helpdesk KPIs and SLA metrics."""
+    return await support_repository.get_stats()
+
+
+@router.post("/support")
+async def create_support_ticket(payload: CreateSupportTicketPayload, user: User = Depends(current_user)):
+    """POST /api/admin/support — Manually log a new ticket from phone / email / walk-in."""
+    ticket = await support_repository.create(payload, user)
+    await audit_repository.log(await _actor(user), "support.create_ticket", ticket["id"], payload.model_dump())
+    return ticket
 
 
 @router.get("/support/{ticket_id}")
 async def get_support(ticket_id: str, user: User = Depends(current_user)):
+    """GET /api/admin/support/{ticket_id} — Conversation thread, user 360, and linked order."""
     ticket = await support_repository.get(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
@@ -1061,15 +1481,55 @@ async def get_support(ticket_id: str, user: User = Depends(current_user)):
 
 @router.post("/support/{ticket_id}/reply")
 async def reply_support(ticket_id: str, payload: SupportReplyPayload, user: User = Depends(current_user)):
-    result = await support_repository.reply(ticket_id, payload.body or "")
+    """POST /api/admin/support/{ticket_id}/reply — Send official reply or private internal note."""
+    result = await support_repository.reply(
+        ticket_id,
+        payload.body or "",
+        is_internal=bool(payload.isInternal),
+        admin_user=user,
+    )
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    await audit_repository.log(await _actor(user), "support.reply", ticket_id)
+    await audit_repository.log(await _actor(user), "support.reply", ticket_id, {"isInternal": payload.isInternal})
     return result
+
+
+@router.post("/support/{ticket_id}/status")
+async def update_support_status(ticket_id: str, payload: SupportStatusPayload, user: User = Depends(current_user)):
+    """POST /api/admin/support/{ticket_id}/status — Update ticket lifecycle status."""
+    result = await support_repository.update_status(ticket_id, payload.status, user)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    await audit_repository.log(await _actor(user), "support.update_status", ticket_id, {"status": payload.status})
+    return result
+
+
+@router.post("/support/{ticket_id}/assign")
+async def assign_support_ticket(ticket_id: str, payload: SupportAssignPayload, user: User = Depends(current_user)):
+    """POST /api/admin/support/{ticket_id}/assign — Assign ticket to ops agent."""
+    result = await support_repository.assign(ticket_id, payload.assignee, user)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    await audit_repository.log(await _actor(user), "support.assign", ticket_id, {"assignee": payload.assignee})
+    return result
+
+
+@router.post("/support/{ticket_id}/compensate")
+async def compensate_support_ticket(ticket_id: str, payload: SupportCompensatePayload, user: User = Depends(current_user)):
+    """POST /api/admin/support/{ticket_id}/compensate — Instant wallet compensation credit for customer."""
+    try:
+        result = await support_repository.compensate(ticket_id, payload.amount, payload.reason, user)
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+        await audit_repository.log(await _actor(user), "support.compensate", ticket_id, {"amount": payload.amount, "reason": payload.reason})
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/support/{ticket_id}/close")
 async def close_support(ticket_id: str, user: User = Depends(current_user)):
+    """POST /api/admin/support/{ticket_id}/close — Mark ticket resolved and closed."""
     ticket = await support_repository.close(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
@@ -1116,6 +1576,16 @@ async def wallet(user: User = Depends(current_user)):
 @router.get("/wallet/kpis")
 async def wallet_kpis(user: User = Depends(current_user)):
     return await admin_wallet_repository.kpis()
+
+
+@router.get("/wallet/all-wallets")
+async def wallet_all_wallets(user: User = Depends(current_user)):
+    return await admin_wallet_repository.all_wallets()
+
+
+@router.get("/wallet/accounts")
+async def wallet_accounts(user: User = Depends(current_user)):
+    return await admin_wallet_repository.all_wallets()
 
 
 @router.get("/wallet/revenue-split")
@@ -1480,13 +1950,15 @@ async def change_admin_pin(
 # ----------------------------------------------------------- Global Server-Side Search
 @router.get("/search")
 async def global_search(
-    q: str = Query(..., min_length=1, max_length=100),
+    q: str = Query(default="", max_length=100),
     limit: int = Query(default=10, ge=1, le=50),
     user: User = Depends(current_user),
 ) -> dict:
     """GET /api/admin/search — Unified server-side search across Orders, Customers, Partners, Riders."""
     from app.db.client import database
     query_str = q.strip().lower()
+    if not query_str:
+        return {"orders": [], "customers": [], "partners": [], "riders": []}
     
     results = {
         "orders": [],

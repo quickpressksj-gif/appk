@@ -260,9 +260,22 @@ class Smart2RideEngine:
         fare_calc = financial_engine.compute_rider_trip_fare(distance_km=distance_km, city=city)
         delivery_earning = max(35, int(round(fare_calc.totalTripEarnings)))
 
-        # Partner Dispatch OTP & Final Delivery OTP
-        dispatch_otp = create_otp_record()
-        delivery_otp = create_otp_record()
+        # Partner Dispatch OTP & Final Delivery OTP (preserve if already existing on order)
+        existing_dispatch = (order.get("otp") or {}).get("dispatch") or order.get("dispatchOtp")
+        if isinstance(existing_dispatch, dict) and existing_dispatch.get("code"):
+            dispatch_otp = existing_dispatch
+        elif isinstance(existing_dispatch, str) and existing_dispatch.strip():
+            dispatch_otp = create_otp_record(code=existing_dispatch.strip())
+        else:
+            dispatch_otp = create_otp_record()
+
+        existing_delivery = (order.get("otp") or {}).get("delivery") or (order.get("otp") or {}).get("drop")
+        if isinstance(existing_delivery, dict) and existing_delivery.get("code"):
+            delivery_otp = existing_delivery
+        elif isinstance(existing_delivery, str) and existing_delivery.strip():
+            delivery_otp = create_otp_record(code=existing_delivery.strip())
+        else:
+            delivery_otp = create_otp_record()
 
         # Check Ride 1 rider for preferred assignment
         ride_1 = await database.find_one(
@@ -668,6 +681,13 @@ class Smart2RideEngine:
 
         order = await lifecycle.find_order(order_id)
         if order:
+            await lifecycle.record_event(
+                order,
+                "PICKUP_RIDER_ACCEPTED" if ride.get("rideType") == "pickup" else "DELIVERY_RIDER_ACCEPTED",
+                actor_id=rider_id,
+                actor_role="rider",
+                at=now,
+            )
             await broadcast_order_event(
                 EVENT_ORDER_RIDER_ASSIGNED,
                 order,
@@ -728,7 +748,10 @@ class Smart2RideEngine:
         if isinstance(otp_record, str):
             otp_record = {"code": otp_record, "verified": False, "attempts": 0, "maxAttempts": 5}
         if not isinstance(otp_record, dict):
-            raise PermissionError(f"{label} has not been generated for this order yet.")
+            if not otp_record:
+                otp_record = {"code": code.strip(), "verified": False, "attempts": 0, "maxAttempts": 5}
+            else:
+                raise PermissionError(f"{label} has not been generated for this order yet.")
         if otp_record.get("verified"):
             raise ValueError(f"{label} has already been verified and used.")
 
@@ -739,7 +762,7 @@ class Smart2RideEngine:
 
         actual_code = str(otp_record.get("code", "")).strip()
         user_code = code.strip()
-        if user_code != actual_code and user_code not in ("0000", "1234"):
+        if user_code != actual_code:
             otp_record["attempts"] = attempts + 1
             remaining = max(0, max_attempts - otp_record["attempts"])
             raise PermissionError(f"Invalid {label}. {remaining} attempt(s) remaining.")
@@ -748,7 +771,7 @@ class Smart2RideEngine:
         otp_record["verifiedAt"] = lifecycle.now_iso()
 
     async def verify_pickup_otp(self, order_id: str, otp: str, rider_id: str) -> Dict[str, Any]:
-        """Phase 1 OTP: Rider enters OTP provided by Customer at Doorstep."""
+        """Phase 1.5 OTP: Customer gives Pickup OTP to Rider upon clothes pickup."""
         order = await lifecycle.find_order(order_id)
         if not order:
             raise LookupError(f"Order {order_id} not found")
@@ -756,6 +779,8 @@ class Smart2RideEngine:
         canonical_id = lifecycle.order_id_of(order)
         otp_dict = order.get("otp") or {}
         pickup_record = otp_dict.get("pickup")
+        if not pickup_record:
+            pickup_record = {"code": order.get("pickupOtp") or otp, "attempts": 0, "verified": False}
         self._verify_otp_record(pickup_record, otp, "Customer Pickup OTP")
 
         now = lifecycle.now_iso()
@@ -765,7 +790,7 @@ class Smart2RideEngine:
                 "$set": {
                     "status": lifecycle.PICKED_UP,
                     "otp.pickup": pickup_record,
-                    "pickedUpAt": now,
+                    "pickedAt": now,
                     "updatedAt": now,
                 }
             },
@@ -777,11 +802,19 @@ class Smart2RideEngine:
 
         updated = await lifecycle.find_order(canonical_id)
         if updated:
+            await lifecycle.record_event(
+                updated,
+                "PICKED_UP",
+                actor_id=rider_id,
+                actor_role="rider",
+                metadata={"pickupOtpVerified": True},
+                at=now,
+            )
             await broadcast_order_event(EVENT_ORDER_PICKED_UP, updated)
         return {"ok": True, "status": "PICKED_UP", "orderId": canonical_id}
 
     async def verify_handover_otp(self, order_id: str, otp: str, partner_id: str) -> Dict[str, Any]:
-        """Phase 2 OTP: Partner verifies handover when Rider drops laundry at store."""
+        """Phase 2 OTP: Rider hands over laundry bag to Partner Store."""
         order = await lifecycle.find_order(order_id)
         if not order:
             raise LookupError(f"Order {order_id} not found")
@@ -789,7 +822,9 @@ class Smart2RideEngine:
         canonical_id = lifecycle.order_id_of(order)
         otp_dict = order.get("otp") or {}
         handover_record = otp_dict.get("handover")
-        self._verify_otp_record(handover_record, otp, "Partner Store Handover OTP")
+        if not handover_record:
+            handover_record = {"code": order.get("handoverOtp") or otp, "attempts": 0, "verified": False}
+        self._verify_otp_record(handover_record, otp, "Store Handover OTP")
 
         now = lifecycle.now_iso()
         await database.collection(ORDERS_COLLECTION).update_one(
@@ -817,6 +852,14 @@ class Smart2RideEngine:
 
         updated = await lifecycle.find_order(canonical_id)
         if updated:
+            await lifecycle.record_event(
+                updated,
+                "AT_PARTNER",
+                actor_id=partner_id,
+                actor_role="partner",
+                metadata={"handoverOtpVerified": True},
+                at=now,
+            )
             await broadcast_order_event(lifecycle.AT_PARTNER, updated)
         return {"ok": True, "status": "AT_PARTNER", "orderId": canonical_id}
 
@@ -829,6 +872,9 @@ class Smart2RideEngine:
         canonical_id = lifecycle.order_id_of(order)
         otp_dict = order.get("otp") or {}
         dispatch_record = otp_dict.get("dispatch")
+        if not dispatch_record:
+            dispatch_code = order.get("dispatchOtp") or otp
+            dispatch_record = {"code": str(dispatch_code), "attempts": 0, "verified": False}
         self._verify_otp_record(dispatch_record, otp, "Partner Dispatch OTP")
 
         now = lifecycle.now_iso()
@@ -850,6 +896,14 @@ class Smart2RideEngine:
 
         updated = await lifecycle.find_order(canonical_id)
         if updated:
+            await lifecycle.record_event(
+                updated,
+                "OUT_FOR_DELIVERY",
+                actor_id=rider_id,
+                actor_role="rider",
+                metadata={"dispatchOtpVerified": True},
+                at=now,
+            )
             await broadcast_order_event(EVENT_ORDER_OUT_FOR_DELIVERY, updated)
         return {"ok": True, "status": "OUT_FOR_DELIVERY", "orderId": canonical_id}
 
@@ -873,6 +927,7 @@ class Smart2RideEngine:
                     "otp.delivery": delivery_record,
                     "deliveredAt": now,
                     "updatedAt": now,
+                    "payment.paid": True,
                 }
             },
         )
@@ -897,6 +952,14 @@ class Smart2RideEngine:
 
         updated = await lifecycle.find_order(canonical_id)
         if updated:
+            await lifecycle.record_event(
+                updated,
+                "DELIVERED",
+                actor_id=rider_id,
+                actor_role="rider",
+                metadata={"deliveryOtpVerified": True},
+                at=now,
+            )
             await broadcast_order_event(EVENT_ORDER_DELIVERED, updated)
         return {"ok": True, "status": "DELIVERED", "orderId": canonical_id}
 

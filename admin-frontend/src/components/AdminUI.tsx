@@ -119,7 +119,7 @@ const POSITIVE = new Set([
   "active", "delivered", "live", "verified", "approved", "online", "settled", "resolved", "ready", "paid",
 ]);
 const WARNING = new Set([
-  "pending", "pilot", "in wash", "picked up", "out for delivery", "processing", "in progress", "scheduled",
+  "pending", "pilot", "in processing", "picked up", "out for delivery", "processing", "in progress", "scheduled",
   "beta", "invited", "on delivery", "draft", "sending", "queued", "cod", "paused", "hidden", "medium",
 ]);
 const DANGER = new Set([

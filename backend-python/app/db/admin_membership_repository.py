@@ -57,12 +57,15 @@ def _admin_actor_name(user: User) -> str:
 
 class AdminMembershipRepository:
     async def get_stats(self) -> MembershipStatsResponse:
-        """Aggregate total subscribers, MRR, tier distribution, and expiring soon."""
+        """Aggregate total subscribers, MRR, tier distribution, member savings, and expiring soon."""
         now = utcnow()
         memberships = await database.find_many(MEMBERSHIPS)
+        orders = await database.find_many("customer_orders")
+        if not orders:
+            orders = await database.find_many("orders")
 
         active_count = 0
-        total_count = len(memberships)
+        total_count = 0
         mrr = 0
         expiring_soon = 0
         tier_counts: Dict[str, int] = {}
@@ -70,21 +73,29 @@ class AdminMembershipRepository:
         plans = await database.find_many(PLANS)
         plan_names = {str(p["_id"]): p.get("name", str(p["_id"]).title()) for p in plans}
 
-        for m in memberships:
-            plan_id = str(m.get("plan_id") or "free")
-            if plan_id == "free":
+        active_user_ids = set()
+        for m in (memberships or []):
+            plan_id = str(m.get("plan_id") or "")
+            if not plan_id or plan_id == "free":
                 continue
 
+            total_count += 1
             status = str(m.get("status") or "none")
             expires_at = _parse_iso(m.get("expires_at"))
 
             is_active = status == "active" and (expires_at is None or expires_at > now)
             if is_active:
                 active_count += 1
+                uid = str(m.get("user_id") or "")
+                if uid:
+                    active_user_ids.add(uid)
+
                 cycle = str(m.get("billing_cycle") or "monthly")
                 amount = int(m.get("amount_paid") or 0)
                 if cycle == "yearly":
                     mrr += round(amount / 12)
+                elif cycle == "quarterly":
+                    mrr += round(amount / 3)
                 else:
                     mrr += amount
 
@@ -93,6 +104,18 @@ class AdminMembershipRepository:
 
                 if expires_at and (expires_at - now).total_seconds() <= 7 * 86400:
                     expiring_soon += 1
+
+        # Calculate member orders and total savings
+        member_orders = 0
+        total_savings = 0.0
+        for o in (orders or []):
+            ouid = str(o.get("userId") or o.get("user_id") or (o.get("customer") or {}).get("id") or "")
+            if ouid in active_user_ids or o.get("isMember") or o.get("membershipDiscount", 0) > 0:
+                member_orders += 1
+                discount = float(o.get("membershipDiscount") or o.get("discount") or o.get("couponDiscount") or 0.0)
+                total_savings += discount
+
+        avg_ltv = (mrr * 12 / max(1, active_count)) if active_count > 0 else 0.0
 
         top_plan = "Gold"
         if tier_counts:
@@ -105,6 +128,9 @@ class AdminMembershipRepository:
             annualRunRate=mrr * 12,
             topPlanName=top_plan,
             expiringSoonCount=expiring_soon,
+            totalSavingsGiven=round(total_savings, 2),
+            memberOrdersCount=member_orders,
+            averageLtv=round(avg_ltv, 2),
             tierBreakdown=tier_counts,
         )
 
@@ -112,9 +138,25 @@ class AdminMembershipRepository:
         """List all membership plans sorted by order."""
         query = {} if include_inactive else {"status": "Active"}
         docs = await database.find_many(PLANS, query)
+        if not docs and (not query or query == {"status": "Active"}):
+            from app.db.membership_repositories import PLAN_SEED, BENEFIT_SEED
+            for b in BENEFIT_SEED:
+                await database.update_one(BENEFITS, {"_id": b["_id"]}, {"$setOnInsert": dict(b)}, upsert=True)
+            for p in PLAN_SEED:
+                if str(p.get("_id")) != "free":
+                    await database.update_one(PLANS, {"_id": p["_id"]}, {"$setOnInsert": dict(p)}, upsert=True)
+            docs = await database.find_many(PLANS, query)
+            if not docs:
+                docs = [dict(item) for item in PLAN_SEED]
+        
+        # Filter out legacy free plan if present
+        docs = [d for d in (docs or []) if str(d.get("_id")) != "free"]
         docs.sort(key=lambda d: (int(d.get("order") or 99), d.get("name") or ""))
 
         all_benefits = await database.find_many(BENEFITS)
+        if not all_benefits:
+            from app.db.membership_repositories import BENEFIT_SEED
+            all_benefits = BENEFIT_SEED
         benefits_map = {str(b["_id"]): b for b in all_benefits}
 
         plans_list: List[MembershipPlan] = []
@@ -136,7 +178,8 @@ class AdminMembershipRepository:
                     )
 
             m_price = int(d.get("monthly_price") or 0)
-            y_price = int(d.get("yearly_price") or 0)
+            q_price = int(d.get("quarterly_price") or (m_price * 3 - 30 if m_price else 0))
+            y_price = int(d.get("yearly_price") or (m_price * 10 if m_price else 0))
             y_savings = max(0, (m_price * 12) - y_price) if y_price and m_price else 0
             savings_lbl = f"Save ₹{y_savings}/yr" if y_savings > 0 else ""
 
@@ -146,6 +189,7 @@ class AdminMembershipRepository:
                     name=d.get("name") or plan_id.title(),
                     tagline=d.get("tagline") or "",
                     monthlyPrice=m_price,
+                    quarterlyPrice=q_price,
                     yearlyPrice=y_price,
                     yearlySavings=y_savings,
                     savingsLabel=savings_lbl,
@@ -157,10 +201,16 @@ class AdminMembershipRepository:
                     color=d.get("color", "emerald"),
                     order=int(d.get("order") or 0),
                     discountPercent=int(d.get("discount_percent") or 0),
+                    cashbackPercent=int(d.get("cashback_percent") or 0),
                     freeDeliveryMinOrder=int(d.get("free_delivery_min_order") or 0),
-                    freePickup=bool(d.get("free_pickup", False)),
+                    freePickup=bool(d.get("free_pickup", True)),
                     priorityProcessing=bool(d.get("priority_processing", False)),
-                    supportTier=d.get("support_tier", "Standard"),
+                    surgeWaiver=bool(d.get("surge_waiver", False)),
+                    supportTier=d.get("support_tier", "Standard Support"),
+                    monthlyOrderLimit=int(d.get("monthly_order_limit") or 0),
+                    monthlyWeightLimitKg=int(d.get("monthly_weight_limit_kg") or 0),
+                    freeExpressCount=int(d.get("free_express_count") or 0),
+                    description=d.get("description", ""),
                     benefits=plan_benefits,
                 )
             )
@@ -169,7 +219,7 @@ class AdminMembershipRepository:
     async def get_plan(self, plan_id: str) -> Optional[MembershipPlan]:
         plans = await self.list_plans(include_inactive=True)
         for p in plans:
-            if p.id == plan_id:
+            if p.id == plan_id or p.id.lower() == plan_id.lower():
                 return p
         return None
 
@@ -207,7 +257,8 @@ class AdminMembershipRepository:
             "name": payload.name,
             "tagline": payload.tagline,
             "monthly_price": payload.monthlyPrice,
-            "yearly_price": payload.yearlyPrice,
+            "quarterly_price": payload.quarterlyPrice or round(payload.monthlyPrice * 2.8),
+            "yearly_price": payload.yearlyPrice or round(payload.monthlyPrice * 10),
             "validity_days": payload.validityDays or 30,
             "yearly_validity_days": payload.yearlyValidityDays or 365,
             "benefit_ids": benefit_ids,
@@ -217,10 +268,15 @@ class AdminMembershipRepository:
             "badge": payload.badge or "",
             "color": payload.color or "emerald",
             "discount_percent": payload.discountPercent,
+            "cashback_percent": payload.cashbackPercent,
             "free_delivery_min_order": payload.freeDeliveryMinOrder,
             "free_pickup": payload.freePickup,
             "priority_processing": payload.priorityProcessing,
+            "surge_waiver": payload.surgeWaiver,
             "support_tier": payload.supportTier,
+            "monthly_order_limit": payload.monthlyOrderLimit,
+            "free_express_count": payload.freeExpressCount,
+            "description": payload.description,
             "created_at": _iso(now),
             "updated_at": _iso(now),
         }
@@ -265,6 +321,7 @@ class AdminMembershipRepository:
             "name": payload.name,
             "tagline": payload.tagline,
             "monthly_price": payload.monthlyPrice,
+            "quarterly_price": payload.quarterlyPrice,
             "yearly_price": payload.yearlyPrice,
             "validity_days": payload.validityDays,
             "yearly_validity_days": payload.yearlyValidityDays,
@@ -275,10 +332,15 @@ class AdminMembershipRepository:
             "badge": payload.badge,
             "color": payload.color,
             "discount_percent": payload.discountPercent,
+            "cashback_percent": payload.cashbackPercent,
             "free_delivery_min_order": payload.freeDeliveryMinOrder,
             "free_pickup": payload.freePickup,
             "priority_processing": payload.priorityProcessing,
+            "surge_waiver": payload.surgeWaiver,
             "support_tier": payload.supportTier,
+            "monthly_order_limit": payload.monthlyOrderLimit,
+            "free_express_count": payload.freeExpressCount,
+            "description": payload.description,
             "updated_at": _iso(utcnow()),
         }
 
@@ -322,20 +384,35 @@ class AdminMembershipRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> MembershipSubscribersResponse:
-        """Paginated list of all customer memberships with user profiles."""
+        """Paginated list of all customer memberships with user profiles, order stats & savings."""
         now = utcnow()
         memberships = await database.find_many(MEMBERSHIPS)
 
         plans = await database.find_many(PLANS)
         plan_names = {str(p["_id"]): p.get("name", str(p["_id"]).title()) for p in plans}
-        plan_names["free"] = "Free"
 
         users = await database.find_many(USERS)
         users_map = {str(u["_id"]): u for u in users}
 
+        orders = await database.find_many("customer_orders")
+        if not orders:
+            orders = await database.find_many("orders")
+
+        user_order_stats: Dict[str, Dict[str, Any]] = {}
+        for o in (orders or []):
+            ouid = str(o.get("userId") or o.get("user_id") or (o.get("customer") or {}).get("id") or "")
+            if ouid:
+                st = user_order_stats.setdefault(ouid, {"orders": 0, "savings": 0.0, "city": o.get("city")})
+                st["orders"] += 1
+                discount = float(o.get("membershipDiscount") or o.get("discount") or o.get("couponDiscount") or 0.0)
+                st["savings"] += discount
+
         items: List[MembershipSubscriberItem] = []
-        for m in memberships:
-            pid = str(m.get("plan_id") or "free")
+        for m in (memberships or []):
+            pid = str(m.get("plan_id") or "")
+            if not pid or pid == "free":
+                continue
+
             m_status = str(m.get("status") or "none")
             exp_at = _parse_iso(m.get("expires_at"))
 
@@ -345,14 +422,15 @@ class AdminMembershipRepository:
 
             if status and status.lower() != "all" and m_status != status.lower():
                 continue
-            if plan_id and plan_id.lower() != "all" and pid != plan_id:
+            if plan_id and plan_id.lower() != "all" and pid.lower() != plan_id.lower():
                 continue
 
             uid = str(m.get("user_id") or "")
             uinfo = users_map.get(uid, {})
-            uname = uinfo.get("name") or "QuickPress Customer"
+            uname = uinfo.get("name") or uinfo.get("display_name") or "QuickPress Member"
             uphone = uinfo.get("phone") or ""
             uemail = uinfo.get("email") or ""
+            ucity = uinfo.get("city") or (user_order_stats.get(uid, {}).get("city")) or "Kasganj"
 
             if q:
                 needle = q.strip().lower()
@@ -366,6 +444,7 @@ class AdminMembershipRepository:
                     continue
 
             remaining_days = max(0, (exp_at - now).days) if (exp_at and exp_at > now) else 0
+            u_stats = user_order_stats.get(uid, {"orders": 0, "savings": 0.0})
 
             items.append(
                 MembershipSubscriberItem(
@@ -382,6 +461,9 @@ class AdminMembershipRepository:
                     expiresAt=str(m.get("expires_at") or ""),
                     autoRenew=bool(m.get("auto_renew", False)),
                     remainingDays=remaining_days,
+                    totalOrders=u_stats["orders"],
+                    totalSaved=round(u_stats["savings"], 2),
+                    city=ucity,
                 )
             )
 
@@ -521,11 +603,19 @@ class AdminMembershipRepository:
         docs = await database.find_many(TRANSACTIONS)
         docs.sort(key=lambda d: str(d.get("subscribed_at") or ""), reverse=True)
 
+        users = await database.find_many(USERS)
+        users_map = {str(u["_id"]): u for u in users}
+
         items: List[MembershipTransaction] = []
         for d in docs:
+            uid = str(d.get("user_id") or "")
+            udoc = users_map.get(uid, {})
+            uname = udoc.get("name") or udoc.get("display_name") or udoc.get("phone") or uid
             items.append(
                 MembershipTransaction(
                     id=str(d["_id"]),
+                    userId=uid or None,
+                    userName=uname if uid else None,
                     planId=str(d.get("plan_id") or "free"),
                     planName=str(d.get("plan_name") or "Free"),
                     type=d.get("type", "subscribe"),

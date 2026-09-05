@@ -14,7 +14,7 @@ from app.db.client import database
 logger = logging.getLogger(__name__)
 
 
-async def register_fcm_token(user_id: str, fcm_token: str, device_type: str = "android") -> None:
+async def register_fcm_token(user_id: str, fcm_token: str, device_type: str = "web") -> None:
     """Register or update an FCM token for a user."""
     if not user_id or not fcm_token:
         return
@@ -35,6 +35,35 @@ async def register_fcm_token(user_id: str, fcm_token: str, device_type: str = "a
         logger.warning("Failed to register FCM token for user %s: %s", user_id, e)
 
 
+async def unregister_fcm_token(user_id: str, fcm_token: Optional[str] = None) -> None:
+    """Unregister an FCM token on user logout."""
+    if not user_id:
+        return
+    try:
+        if fcm_token:
+            user = await database.find_one("users", {"_id": user_id})
+            if user:
+                tokens = [t for t in (user.get("fcm_tokens") or []) if t != fcm_token]
+                single_token = user.get("fcm_token")
+                if single_token == fcm_token:
+                    single_token = tokens[-1] if tokens else None
+                await database.collection("users").update_one(
+                    {"_id": user_id},
+                    {
+                        "$set": {"fcm_tokens": tokens, "fcm_token": single_token},
+                        "$pull": {"fcm_tokens": fcm_token},
+                    }
+                )
+        else:
+            # Clear all tokens for this user
+            await database.collection("users").update_one(
+                {"_id": user_id},
+                {"$set": {"fcm_tokens": [], "fcm_token": None}}
+            )
+    except Exception as e:
+        logger.warning("Failed to unregister FCM token for user %s: %s", user_id, e)
+
+
 async def send_fcm_push(
     user_id_or_ids: Union[str, List[str]],
     *,
@@ -42,6 +71,7 @@ async def send_fcm_push(
     body: str,
     data: Optional[Dict[str, str]] = None,
     badge: Optional[int] = None,
+    icon: Optional[str] = None,
 ) -> int:
     """Send FCM push notification to one or multiple users.
     
@@ -49,7 +79,7 @@ async def send_fcm_push(
     """
     app = _firebase_app()
     if not app:
-        logger.debug("Firebase App not initialized; skipping FCM push.")
+        logger.debug("Firebase App not initialized; skipping live FCM push.")
         return 0
 
     try:
@@ -65,8 +95,15 @@ async def send_fcm_push(
     # Collect all FCM tokens for these users
     tokens: List[str] = []
     for uid in user_ids:
+        if not uid:
+            continue
         try:
-            u = await database.find_one("users", {"_id": uid})
+            u = (
+                await database.find_one("users", {"_id": uid})
+                or await database.find_one("users", {"linked_id": uid})
+                or await database.find_one("users", {"linked_partner_id": uid})
+                or await database.find_one("users", {"firebase_uid": uid})
+            )
             if u:
                 for t in (u.get("fcm_tokens") or []):
                     if t and t not in tokens:
@@ -88,15 +125,19 @@ async def send_fcm_push(
                 clean_data[str(k)] = str(v)
 
     # Ensure click_action / deep link URL is present
+    click_url = clean_data.get("url") or "/"
     if "url" in clean_data and "click_action" not in clean_data:
         clean_data["click_action"] = clean_data["url"]
 
-    notification = messaging.Notification(title=title, body=body)
+    notification_icon = icon or "/favicon.png"
+    notification = messaging.Notification(title=title, body=body, image=icon)
     android_config = messaging.AndroidConfig(
         priority="high",
         notification=messaging.AndroidNotification(
             channel_id="quickpress_orders",
             sound="default",
+            icon="ic_notification",
+            color="#2563eb",
             click_action=clean_data.get("url") or "FLUTTER_NOTIFICATION_CLICK",
         ),
     )
@@ -109,6 +150,17 @@ async def send_fcm_push(
             )
         )
     )
+    webpush_config = messaging.WebpushConfig(
+        notification=messaging.WebpushNotification(
+            title=title,
+            body=body,
+            icon=notification_icon,
+            badge="/favicon.png",
+            require_interaction=True,
+            data={"url": click_url, **clean_data},
+        ),
+        fcm_options=messaging.WebpushFCMOptions(link=click_url),
+    )
 
     sent_count = 0
     # Send individually or multicast
@@ -120,6 +172,7 @@ async def send_fcm_push(
                 data=clean_data,
                 android=android_config,
                 apns=apns_config,
+                webpush=webpush_config,
             )
             messaging.send(msg)
             sent_count += 1
@@ -133,6 +186,7 @@ async def send_fcm_push(
                 data=clean_data,
                 android=android_config,
                 apns=apns_config,
+                webpush=webpush_config,
             )
             response = messaging.send_each_for_multicast(multicast)
             sent_count = response.success_count
@@ -140,3 +194,42 @@ async def send_fcm_push(
             logger.debug("Failed sending multicast FCM: %s", err)
 
     return sent_count
+
+
+async def send_topic_push(
+    topic: str,
+    *,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, str]] = None,
+    icon: Optional[str] = None,
+) -> bool:
+    """Send push notification to a subscribed topic (e.g. 'all_riders_kasganj', 'partners_kasganj')."""
+    app = _firebase_app()
+    if not app:
+        return False
+
+    try:
+        from firebase_admin import messaging
+    except ImportError:
+        return False
+
+    clean_data: Dict[str, str] = {str(k): str(v) for k, v in (data or {}).items() if v is not None}
+    click_url = clean_data.get("url") or "/"
+
+    notification = messaging.Notification(title=title, body=body, image=icon)
+    msg = messaging.Message(
+        topic=topic,
+        notification=notification,
+        data=clean_data,
+        webpush=messaging.WebpushConfig(
+            fcm_options=messaging.WebpushFCMOptions(link=click_url)
+        ),
+    )
+    try:
+        messaging.send(msg)
+        return True
+    except Exception as err:
+        logger.warning("Failed sending topic push to %s: %s", topic, err)
+        return False
+

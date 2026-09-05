@@ -20,7 +20,7 @@ import { ApiError } from "../core/errors";
 import { CACHE_KEYS, readCache, readStaleCache, writeCache } from "./api/cache";
 import { isOnline } from "./api/network";
 
-export type MembershipPlanId = "free" | "silver" | "gold" | "premium";
+export type MembershipPlanId = "silver" | "gold" | "platinum" | "elite" | string;
 export type BillingCycle = "monthly" | "yearly";
 export type MembershipStatus = "active" | "expired" | "cancelled" | "none";
 export type MembershipPaymentStatus = "paid" | "pending" | "failed" | "free" | "refunded";

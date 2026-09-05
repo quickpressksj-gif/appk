@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -27,6 +28,14 @@ class UserRepository:
 
     async def by_id(self, user_id: str) -> Optional[User]:
         doc = await self._c.find_one({"_id": user_id})
+        return User.from_document(doc) if doc else None
+
+    async def by_email(self, email: str, role: Optional[Role] = None) -> Optional[User]:
+        clean = email.strip().lower()
+        query: Dict[str, Any] = {"email": {"$regex": f"^{re.escape(clean)}$", "$options": "i"}}
+        if role is not None:
+            query["role"] = role.value
+        doc = await self._c.find_one(query)
         return User.from_document(doc) if doc else None
 
     async def by_phone(self, phone: str, role: Optional[Role] = None) -> Optional[User]:

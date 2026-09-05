@@ -20,6 +20,9 @@ export type Account = {
   isVerified: boolean;
   /** Partner store id / rider profile id this login owns (partner & rider roles). */
   linkedId?: string;
+  permissions?: string[];
+  departmentRole?: string;
+  scope?: string;
 };
 
 export type AuthSession = {

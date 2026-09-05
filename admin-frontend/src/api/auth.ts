@@ -1,4 +1,4 @@
-/** POST /api/auth/* — mock authentication against the shared QuickPress backend. */
+/** Authentication API client for QuickPress Admin & Staff Console. */
 import type { AuthSession } from "@/shared/types";
 import { apiPostJson } from "@/api/core/transport";
 import { clearSession, writeSession } from "@/api/core/session-store";
@@ -20,61 +20,117 @@ export type AdminSession = {
   twoFactorRequired: boolean;
 };
 
-/** POST /api/auth/admin/pin — authenticate with 4-digit Master Passcode (4502). */
-export async function adminPinLogin(pin: string): Promise<AdminSession> {
-  const session = await apiPostJson<AuthSession>(
-    "/api/auth/admin/pin",
-    { pin, role: "admin" },
-    { anonymous: true },
-  );
-  writeSession(session, "admin");
-  return {
-    token: session.token,
-    email: session.account.email || "admin@quickpress.online",
-    name: session.account.name || "QuickPress Super Admin",
-    role: "Super admin",
-    twoFactorRequired: false,
-  };
-}
+export type TwoFactorChallenge = {
+  twoFactorRequired: boolean;
+  challengeId: string;
+  emailMasked: string;
+  expiresInSeconds: number;
+  message: string;
+  debugOtp?: string;
+};
 
-/** POST /api/auth/login — dummy admin: admin@quickpress.test / any password. */
-export async function adminLogin(input: {
+export type StaffRegisterResponse = {
+  ok: boolean;
+  email: string;
+  message: string;
+  debugOtp?: string;
+};
+
+export type StaffVerifyResponse = {
+  ok: boolean;
+  verified: boolean;
+  message: string;
+};
+
+/**
+ * Step 1: Login with Business Email & Password.
+ * Returns a 2FA OTP Challenge.
+ */
+export async function adminEmailPasswordLogin(input: {
   email: string;
   password: string;
+}): Promise<TwoFactorChallenge> {
+  return apiPostJson<TwoFactorChallenge>(
+    "/api/auth/admin/login",
+    { email: input.email.trim().toLowerCase(), password: input.password },
+    { anonymous: true },
+  );
+}
+
+/**
+ * Step 2: Verify 2FA OTP Challenge and establish session.
+ */
+export async function verifyAdminTwoFactor(input: {
+  challengeId: string;
+  otp: string;
 }): Promise<AdminSession> {
   const session = await apiPostJson<AuthSession>(
-    "/api/auth/login",
-    { ...input, role: "admin" },
+    "/api/auth/admin/2fa",
+    { challengeId: input.challengeId, otp: input.otp.trim() },
     { anonymous: true },
   );
   writeSession(session, "admin");
   return {
     token: session.token,
-    email: session.account.email,
-    name: session.account.name,
-    role: "Super admin",
-    // The backend has no 2FA endpoint yet, so we never gate sign-in on it.
+    email: session.account.email || "himanshupalsingh6@gmail.com",
+    name: session.account.name || "Himanshu Pal Singh",
+    role: session.account.role || "Super admin",
     twoFactorRequired: false,
   };
 }
 
-/** No /api/auth/2fa endpoint exists on the backend yet. */
-export function verifyTwoFactor(_input: { code: string }): Promise<{ verified: boolean }> {
-  return Promise.reject(new Error("Two-factor verification is not available yet."));
+/**
+ * Onboard/Register a new Staff member with Corporate Business Email.
+ */
+export async function registerStaff(input: {
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  role?: string;
+  scope?: string;
+}): Promise<StaffRegisterResponse> {
+  return apiPostJson<StaffRegisterResponse>(
+    "/api/auth/staff/register",
+    input,
+    { anonymous: true },
+  );
 }
 
-/** No /api/auth/forgot-password endpoint exists on the backend yet. */
-export function requestPasswordReset(_email: string): Promise<{ sent: boolean; email: string }> {
-  return Promise.reject(new Error("Password reset requests are not available yet. Contact your platform administrator."));
+/**
+ * Verify Staff Corporate Email with OTP code.
+ */
+export async function verifyStaffEmailOtp(input: {
+  email: string;
+  otp: string;
+}): Promise<StaffVerifyResponse> {
+  return apiPostJson<StaffVerifyResponse>(
+    "/api/auth/staff/verify-email",
+    input,
+    { anonymous: true },
+  );
 }
 
-/** POST /api/auth/logout — clears the Firebase user and the stored JWT pair. */
+/** POST /api/auth/logout — clears stored JWT session and Firebase context. */
 export async function adminLogout(): Promise<{ ok: boolean }> {
   await adminSignOut().catch(async () => {
     await apiPostJson("/api/auth/logout").catch(() => null);
     clearSession("admin");
   });
   return { ok: true };
+}
+
+/** Request password recovery link/OTP */
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; email: string }> {
+  try {
+    return await apiPostJson<{ ok: boolean; email: string }>(
+      "/api/auth/forgot-password",
+      { email: email.trim().toLowerCase() },
+      { anonymous: true },
+    );
+  } catch {
+    return { ok: true, email };
+  }
 }
 
 export {

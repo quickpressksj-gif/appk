@@ -164,9 +164,9 @@ function toAdminRider(row: any): AdminRider {
   const city = row.city || "Kasganj";
   const zone = row.zone || "Central Kasganj Zone";
   const vehicle = row.vehicle || row.vehicleType || "Motorbike";
-  const plate = row.plate || row.vehicleNumber || "UP-87-AK-4402";
+  const plate = row.plate || row.vehicleNumber || "—";
   const trips = typeof row.trips === "number" ? row.trips : Number(row.trips ?? 0);
-  const rating = (Number(row.rating ?? 4.9)).toFixed(1);
+  const rating = (Number(row.rating ?? 5.0)).toFixed(1);
   const isOnline = Boolean(row.isOnline || row.is_available || row.live === "Online" || row.live === "On delivery");
 
   let status: AdminRider["status"] = "Active";
@@ -187,10 +187,10 @@ function toAdminRider(row: any): AdminRider {
     kyc = "Rejected";
   }
 
-  const walletNum = typeof row.walletRaw === "number" ? row.walletRaw : (typeof row.wallet === "number" ? row.wallet : 1450.0);
-  const codNum = typeof row.codCashRaw === "number" ? row.codCashRaw : (typeof row.codCash === "number" ? row.codCash : 320.0);
+  const walletNum = typeof row.walletRaw === "number" ? row.walletRaw : (typeof row.wallet === "number" ? row.wallet : 0.0);
+  const codNum = typeof row.codCashRaw === "number" ? row.codCashRaw : (typeof row.codCash === "number" ? row.codCash : 0.0);
 
-  const regTs = row.registrationTimestamp || row.created_at || row.createdAt || "2026-08-30T04:50:28Z";
+  const regTs = row.registrationTimestamp || row.created_at || row.createdAt || new Date().toISOString();
   const lastLoginTs = row.lastLoginTimestamp || row.updated_at || row.last_login_at || regTs;
 
   let liveState: AdminRider["live"] = "Offline";
@@ -215,10 +215,10 @@ function toAdminRider(row: any): AdminRider {
     walletRaw: walletNum,
     codCash: `₹${codNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
     codCashRaw: codNum,
-    bankName: row.bankName || "HDFC Bank",
-    accountLast4: row.accountLast4 || "9821",
-    ifsc: row.ifsc || "HDFC0001824",
-    upiId: row.upiId || `${phone.replace(/[^0-9]/g, "").slice(-10)}@paytm`,
+    bankName: row.bankName || "—",
+    accountLast4: row.accountLast4 || "—",
+    ifsc: row.ifsc || "—",
+    upiId: row.upiId || "—",
     joinedOn: strSafeDate(regTs),
     registrationTimestamp: String(regTs),
     lastActive: strSafeDate(lastLoginTs),
@@ -231,7 +231,7 @@ function toAdminRider(row: any): AdminRider {
 }
 
 function strSafeDate(val: any): string {
-  if (!val) return "2026-08-30";
+  if (!val) return new Date().toISOString().slice(0, 10);
   return String(val).slice(0, 10);
 }
 

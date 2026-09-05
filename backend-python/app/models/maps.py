@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -82,8 +82,9 @@ class MatrixElement(BaseModel):
 
 
 class DeliveryAreaRequest(BaseModel):
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    pincode: Optional[str] = None
     radiusKm: Optional[float] = None
     partnerId: Optional[str] = None
 
@@ -93,6 +94,7 @@ class NearestPartner(BaseModel):
     name: str = ""
     distanceKm: float = 0.0
     withinRadius: bool = False
+    servicePincodes: List[str] = Field(default_factory=list)
 
 
 class DeliveryAreaResponse(BaseModel):
@@ -101,6 +103,33 @@ class DeliveryAreaResponse(BaseModel):
     message: str
     nearest: Optional[NearestPartner] = None
     partnersInRange: int = 0
+    pincode: Optional[str] = None
+    cityName: Optional[str] = None
+    stateName: Optional[str] = None
+    baseDeliveryFee: Optional[float] = 20.0
+    estimatedSlaMinutes: Optional[int] = 30
+
+
+class PincodeServiceabilityRequest(BaseModel):
+    pincode: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+
+
+class PincodeServiceabilityResponse(BaseModel):
+    serviceable: bool
+    pincode: str
+    city: str
+    state: str
+    areaName: str
+    baseDeliveryFee: float
+    surgeMultiplier: float
+    activePartnersCount: int
+    activeRidersCount: int
+    matchedPartners: List[Dict[str, Any]] = Field(default_factory=list)
+    stationedRiders: List[Dict[str, Any]] = Field(default_factory=list)
+    estimatedSlaMinutes: int = 30
+    message: str = "Pincode is fully serviceable"
 
 
 class LiveLocationUpdate(BaseModel):

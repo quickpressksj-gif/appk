@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   Award,
   Check,
   CheckCircle2,
@@ -11,6 +10,7 @@ import {
   Copy,
   CreditCard,
   Crown,
+  Download,
   Edit2,
   Gift,
   Headphones,
@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  TrendingUp,
   Truck,
   UserCheck,
   UserPlus,
@@ -68,27 +69,38 @@ import {
   type MembershipPlan,
   type MembershipSubscriberItem,
 } from "../api/memberships";
+import { adminHead } from "../lib/head";
+import { requireAdminSession } from "../lib/require-admin-session";
 
 export const Route = createFileRoute("/memberships")({
+  beforeLoad: requireAdminSession,
+  head: () =>
+    adminHead(
+      "VIP Memberships & Subscriptions Engine",
+      "Manage Silver, Gold, Platinum, and Elite VIP membership tiers, custom offers, subscriber tracking, and billing ledger."
+    ),
   component: MembershipsScreen,
 });
 
 const COLOR_OPTIONS = [
-  { value: "emerald", label: "Emerald Green", bg: "bg-emerald-500" },
-  { value: "amber", label: "Amber Gold", bg: "bg-amber-500" },
-  { value: "indigo", label: "Indigo Blue", bg: "bg-indigo-500" },
-  { value: "purple", label: "Royal Purple", bg: "bg-purple-500" },
-  { value: "rose", label: "Rose Crimson", bg: "bg-rose-500" },
-  { value: "sky", label: "Sky Cyan", bg: "bg-sky-500" },
+  { value: "slate", label: "Silver Slate", border: "border-slate-300", badge: "bg-slate-100 text-slate-800" },
+  { value: "amber", label: "Gold Amber", border: "border-amber-400", badge: "bg-amber-100 text-amber-900" },
+  { value: "indigo", label: "Platinum Indigo", border: "border-indigo-400", badge: "bg-indigo-100 text-indigo-900" },
+  { value: "purple", label: "Elite Purple", border: "border-purple-400", badge: "bg-purple-100 text-purple-900" },
+  { value: "emerald", label: "Emerald Green", border: "border-emerald-400", badge: "bg-emerald-100 text-emerald-900" },
+  { value: "rose", label: "Rose Crimson", border: "border-rose-400", badge: "bg-rose-100 text-rose-900" },
 ];
 
 const BENEFIT_TEMPLATES: { id: string; title: string; description: string; icon: string }[] = [
-  { id: "free-delivery", title: "Free Delivery", description: "Zero delivery fee on qualifying orders", icon: "truck" },
-  { id: "free-pickup", title: "Free Doorstep Pickup", description: "Free doorstep pickup on all orders", icon: "package" },
-  { id: "extra-discount", title: "Extra Member Discount", description: "Flat % off on all laundry services", icon: "percent" },
-  { id: "priority-processing", title: "Priority Processing", description: "Express 4-8 hr order turnaround", icon: "zap" },
-  { id: "dedicated-support", title: "24x7 Dedicated VIP Support", description: "Direct VIP hotline & support line", icon: "headphones" },
-  { id: "exclusive-rewards", title: "Exclusive Member Coupons", description: "Access to private reward drops & offers", icon: "gift" },
+  { id: "free-delivery", title: "Free Delivery Quota", description: "Zero delivery fee on qualifying orders", icon: "truck" },
+  { id: "free-pickup", title: "Free Doorstep Pickup", description: "Doorstep pickup at ₹0 on all orders", icon: "package" },
+  { id: "extra-discount", title: "Extra Member Discount", description: "Flat % off on all laundry & dry clean orders", icon: "percent" },
+  { id: "free-express", title: "Express Turnaround Pass", description: "Complimentary 4-8 hr priority processing", icon: "zap" },
+  { id: "priority-processing", title: "Priority Queue Processing", description: "Fast-track processing at laundry hub", icon: "sparkles" },
+  { id: "surge-waiver", title: "100% Surge & Rain Waiver", description: "Zero peak surge or rainy day charges", icon: "shield-check" },
+  { id: "priority-support", title: "24x7 Dedicated VIP Support", description: "Direct VIP hotline and priority chat", icon: "headphones" },
+  { id: "concierge-support", title: "Personal Concierge Manager", description: "Dedicated relationship manager for custom care", icon: "crown" },
+  { id: "exclusive-rewards", title: "Private Elite Flash Drops", description: "Early access to secret discounts and vouchers", icon: "gift" },
 ];
 
 function MembershipsScreen() {
@@ -102,19 +114,25 @@ function MembershipsScreen() {
     name: "",
     tagline: "",
     monthlyPrice: 199,
+    quarterlyPrice: 549,
     yearlyPrice: 1990,
     validityDays: 30,
     yearlyValidityDays: 365,
     popular: false,
     status: "Active",
     badge: "",
-    color: "emerald",
+    color: "amber",
     order: 1,
-    discountPercent: 10,
-    freeDeliveryMinOrder: 0,
+    discountPercent: 15,
+    cashbackPercent: 5,
+    freeDeliveryMinOrder: 99,
     freePickup: true,
-    priorityProcessing: false,
-    supportTier: "Standard",
+    priorityProcessing: true,
+    surgeWaiver: false,
+    supportTier: "Priority Chat & Phone",
+    monthlyOrderLimit: 15,
+    freeExpressCount: 3,
+    description: "",
     benefits: [],
   });
 
@@ -125,7 +143,7 @@ function MembershipsScreen() {
     planId: "gold",
     cycle: "monthly",
     days: 30,
-    reason: "Promotional Grant",
+    reason: "Promotional VIP Membership Grant",
   });
 
   // Subscribers filter state
@@ -134,89 +152,120 @@ function MembershipsScreen() {
   const [tierFilter, setTierFilter] = useState("all");
 
   // Queries
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const statsQuery = useQuery({
     queryKey: ["admin", "memberships", "stats"],
     queryFn: fetchMembershipStats,
-    refetchInterval: 30000,
   });
 
-  const { data: plans = [], isLoading: plansLoading } = useQuery({
+  const plansQuery = useQuery({
     queryKey: ["admin", "memberships", "plans"],
     queryFn: () => fetchAdminMembershipPlans(true),
   });
 
-  const { data: subscribersData, isLoading: subscribersLoading } = useQuery({
+  const subscribersQuery = useQuery({
     queryKey: ["admin", "memberships", "subscribers", searchQuery, statusFilter, tierFilter],
     queryFn: () =>
       fetchMembershipSubscribers({
-        q: searchQuery,
+        q: searchQuery || undefined,
         status: statusFilter !== "all" ? statusFilter : undefined,
         planId: tierFilter !== "all" ? tierFilter : undefined,
       }),
   });
 
-  const { data: transactionsData, isLoading: transactionsLoading } = useQuery({
+  const transactionsQuery = useQuery({
     queryKey: ["admin", "memberships", "transactions"],
     queryFn: () => fetchMembershipTransactions({ limit: 100 }),
   });
 
+  const stats = statsQuery.data;
+  const plans = (plansQuery.data || []).filter((p) => p.id !== "free");
+  const subscribers = subscribersQuery.data?.items || [];
+  const transactions = transactionsQuery.data?.items || [];
+
   // Mutations
   const savePlanMutation = useMutation({
-    mutationFn: async (payload: AdminPlanPayload) => {
+    mutationFn: (payload: AdminPlanPayload) => {
       if (editingPlanId) {
         return updateMembershipPlan(editingPlanId, payload);
       }
       return createMembershipPlan(payload);
     },
-    onSuccess: (saved) => {
-      toast.success(editingPlanId ? `Plan '${saved.name}' updated!` : `Plan '${saved.name}' created!`);
-      queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
+    onSuccess: () => {
+      toast.success(editingPlanId ? "Membership plan updated!" : "New membership tier created!");
       setPlanModalOpen(false);
-      setEditingPlanId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to save membership plan");
+    onError: () => {
+      toast.error("Failed to save membership plan.");
     },
   });
 
   const deletePlanMutation = useMutation({
     mutationFn: (planId: string) => deleteMembershipPlan(planId),
     onSuccess: () => {
-      toast.success("Membership plan archived/deleted");
+      toast.success("Membership plan removed / archived.");
       queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to delete plan");
+    onError: () => {
+      toast.error("Failed to archive plan.");
     },
   });
 
   const grantMutation = useMutation({
-    mutationFn: ({ userId, payload }: { userId: string; payload: AdminGrantPayload }) =>
-      grantCustomerMembership(userId, payload),
-    onSuccess: (sub) => {
-      toast.success(`Granted '${sub.planName}' to ${sub.userName}!`);
-      queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
+    mutationFn: (data: { userId: string; payload: AdminGrantPayload }) =>
+      grantCustomerMembership(data.userId, data.payload),
+    onSuccess: () => {
+      toast.success("VIP Membership granted to customer successfully!");
       setGrantModalOpen(false);
-      setGrantForm({ userId: "", planId: "gold", cycle: "monthly", days: 30, reason: "" });
+      queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to grant membership");
+    onError: () => {
+      toast.error("Failed to grant membership. Verify User ID.");
     },
   });
 
   const revokeMutation = useMutation({
-    mutationFn: ({ userId, reason }: { userId: string; reason?: string }) =>
-      revokeCustomerMembership(userId, reason),
+    mutationFn: (data: { userId: string; reason: string }) =>
+      revokeCustomerMembership(data.userId, data.reason),
     onSuccess: () => {
-      toast.success("Membership revoked successfully");
+      toast.success("Membership cancelled / revoked.");
       queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] });
     },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to revoke membership");
+    onError: () => {
+      toast.error("Failed to revoke membership.");
     },
   });
 
-  // Open Edit Modal
+  const handleOpenCreate = () => {
+    setEditingPlanId(null);
+    setPlanForm({
+      name: "",
+      tagline: "",
+      monthlyPrice: 199,
+      quarterlyPrice: 549,
+      yearlyPrice: 1990,
+      validityDays: 30,
+      yearlyValidityDays: 365,
+      popular: false,
+      status: "Active",
+      badge: "NEW",
+      color: "emerald",
+      order: plans.length + 1,
+      discountPercent: 15,
+      cashbackPercent: 5,
+      freeDeliveryMinOrder: 99,
+      freePickup: true,
+      priorityProcessing: true,
+      surgeWaiver: false,
+      supportTier: "Priority Support",
+      monthlyOrderLimit: 15,
+      freeExpressCount: 3,
+      description: "",
+      benefits: BENEFIT_TEMPLATES.slice(0, 4),
+    });
+    setPlanModalOpen(true);
+  };
+
   const handleOpenEdit = (plan: MembershipPlan) => {
     setEditingPlanId(plan.id);
     setPlanForm({
@@ -224,48 +273,26 @@ function MembershipsScreen() {
       name: plan.name,
       tagline: plan.tagline,
       monthlyPrice: plan.monthlyPrice,
+      quarterlyPrice: plan.quarterlyPrice || roundNum(plan.monthlyPrice * 2.8),
       yearlyPrice: plan.yearlyPrice,
       validityDays: plan.validityDays,
       yearlyValidityDays: plan.yearlyValidityDays,
       popular: plan.popular,
-      status: plan.status === "Archived" ? "Inactive" : plan.status,
+      status: plan.status as any,
       badge: plan.badge,
-      color: plan.color || "emerald",
+      color: plan.color,
       order: plan.order,
       discountPercent: plan.discountPercent,
+      cashbackPercent: plan.cashbackPercent || 0,
       freeDeliveryMinOrder: plan.freeDeliveryMinOrder,
       freePickup: plan.freePickup,
       priorityProcessing: plan.priorityProcessing,
+      surgeWaiver: Boolean(plan.surgeWaiver),
       supportTier: plan.supportTier,
+      monthlyOrderLimit: plan.monthlyOrderLimit || 0,
+      freeExpressCount: plan.freeExpressCount || 0,
+      description: plan.description || "",
       benefits: plan.benefits || [],
-    });
-    setPlanModalOpen(true);
-  };
-
-  // Open Create Modal
-  const handleOpenCreate = () => {
-    setEditingPlanId(null);
-    setPlanForm({
-      name: "",
-      tagline: "",
-      monthlyPrice: 199,
-      yearlyPrice: 1990,
-      validityDays: 30,
-      yearlyValidityDays: 365,
-      popular: false,
-      status: "Active",
-      badge: "POPULAR",
-      color: "emerald",
-      order: plans.length + 1,
-      discountPercent: 10,
-      freeDeliveryMinOrder: 0,
-      freePickup: true,
-      priorityProcessing: false,
-      supportTier: "Priority Chat",
-      benefits: [
-        { id: "free-delivery", title: "Free Delivery", description: "Zero delivery fees on all orders", icon: "truck" },
-        { id: "free-pickup", title: "Free Doorstep Pickup", description: "No pickup charge", icon: "package" },
-      ],
     });
     setPlanModalOpen(true);
   };
@@ -288,149 +315,212 @@ function MembershipsScreen() {
     }
   };
 
-  const subscribers = subscribersData?.items || [];
-  const transactions = transactionsData?.items || [];
+  const handleExportTransactionsCSV = () => {
+    if (transactions.length === 0) {
+      toast.error("No transactions available to export.");
+      return;
+    }
+    const headers = ["Transaction ID", "Customer User ID", "Tier Plan", "Event Type", "Billing Cycle", "Amount (INR)", "Payment Status", "Reference", "Date"];
+    const rows = transactions.map((t) => [
+      t.id,
+      (t as any).userId || "N/A",
+      t.planName,
+      t.type,
+      t.billingCycle,
+      t.amount,
+      t.paymentStatus,
+      t.paymentReference || "",
+      t.subscribedAt || "",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.map((cell) => `"${cell}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `membership_transactions_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Transactions CSV exported successfully!");
+  };
 
   return (
     <AdminShell
-      title="Memberships & Subscription Engine"
-      description="Configure membership tiers, pricing, delivery/pickup perks, and manage active customer subscriptions."
+      title="VIP Memberships & Subscription Engine"
+      subtitle="Exclusive Silver, Gold, Platinum, and Elite VIP tiers with custom discounts, free delivery quotas, and real-time subscriber tracking."
       actions={
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setGrantModalOpen(true)}
-            className="border-zinc-300 font-bold hover:bg-zinc-100"
+            className="h-8 rounded-xl border-zinc-300 px-3 text-xs font-bold text-zinc-800 hover:bg-zinc-100"
           >
-            <UserPlus className="mr-1.5 size-4 text-emerald-600" />
-            Grant Membership
+            <UserPlus className="mr-1.5 size-3.5 text-emerald-600" />
+            <span>Grant VIP Access</span>
           </Button>
+
           <Button
             size="sm"
             onClick={handleOpenCreate}
-            className="bg-emerald-600 font-bold hover:bg-emerald-700 text-white shadow-sm"
+            className="h-8 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
           >
-            <Plus className="mr-1.5 size-4" />
-            Create New Plan
+            <Plus className="mr-1.5 size-3.5" />
+            <span>+ Create Custom Tier</span>
           </Button>
         </div>
       }
     >
       <div className="space-y-6">
-        {/* KPI Metrics */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* =========================================================================
+            1. TOP KPI SUMMARY (6 ADVANCED METRICS)
+        ========================================================================= */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <KpiCard
             kpi={{
-              label: "Active Subscribers",
-              value: statsLoading ? "..." : String(stats?.activeMembers || 0),
-              delta: `${stats?.totalSubscribers || 0} Total ever`,
-              hint: `${stats?.expiringSoonCount || 0} expiring this week`,
-            }}
-          />
-          <KpiCard
-            kpi={{
-              label: "Monthly Recurring (MRR)",
-              value: statsLoading ? "..." : `₹${(stats?.monthlyRecurringRevenue || 0).toLocaleString("en-IN")}`,
-              delta: "+18.4% MoM",
+              id: "kpi-active-subs",
+              label: "Active VIP Members",
+              value: statsQuery.isLoading ? "..." : String(stats?.activeMembers || 0),
+              hint: `${stats?.totalSubscribers || 0} Total Lifetime`,
               positive: true,
-              hint: "Recurring base",
             }}
           />
           <KpiCard
             kpi={{
+              id: "kpi-mrr",
+              label: "Monthly Recurring (MRR)",
+              value: statsQuery.isLoading ? "..." : `₹${(stats?.monthlyRecurringRevenue || 0).toLocaleString("en-IN")}`,
+              hint: "Recurring revenue stream",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "kpi-arr",
               label: "Annual Run Rate (ARR)",
-              value: statsLoading ? "..." : `₹${(stats?.annualRunRate || 0).toLocaleString("en-IN")}`,
-              delta: "Projected",
-              hint: "12-month value",
+              value: statsQuery.isLoading ? "..." : `₹${(stats?.annualRunRate || 0).toLocaleString("en-IN")}`,
+              hint: "12-month projection",
             }}
           />
           <KpiCard
             kpi={{
-              label: "Top Plan Tier",
-              value: statsLoading ? "..." : stats?.topPlanName || "Gold",
-              hint: `${Object.values(stats?.tierBreakdown || {}).reduce((a, b) => a + b, 0)} paid tiers`,
+              id: "kpi-savings",
+              label: "Total Member Savings",
+              value: statsQuery.isLoading ? "..." : `₹${(stats?.totalSavingsGiven || 0).toLocaleString("en-IN")}`,
+              hint: "Subsidies & perks given",
+              positive: true,
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "kpi-orders",
+              label: "VIP Orders Placed",
+              value: statsQuery.isLoading ? "..." : String(stats?.memberOrdersCount || 0),
+              hint: "Orders via VIP status",
+            }}
+          />
+          <KpiCard
+            kpi={{
+              id: "kpi-top-tier",
+              label: "Top VIP Tier",
+              value: statsQuery.isLoading ? "..." : stats?.topPlanName || "Gold",
+              hint: `${stats?.expiringSoonCount || 0} renewals this week`,
             }}
           />
         </div>
 
-        {/* Tabs Control */}
+        {/* =========================================================================
+            2. TABS NAVIGATION
+        ========================================================================= */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
-            <TabsList className="bg-zinc-100/80 p-1">
-              <TabsTrigger value="plans" className="gap-2 font-bold">
-                <Crown className="size-4 text-amber-500" />
-                Plans Management ({plans.length})
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-3">
+            <TabsList className="bg-zinc-100 p-1 rounded-xl">
+              <TabsTrigger value="plans" className="gap-2 font-bold text-xs">
+                <Crown className="size-3.5 text-amber-500" />
+                <span>Membership Tiers ({plans.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="subscribers" className="gap-2 font-bold">
-                <Users className="size-4 text-emerald-600" />
-                Subscribers Directory ({subscribersData?.total || subscribers.length})
+              <TabsTrigger value="subscribers" className="gap-2 font-bold text-xs">
+                <Users className="size-3.5 text-emerald-600" />
+                <span>Subscribers Directory ({subscribersQuery.data?.total || subscribers.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="transactions" className="gap-2 font-bold">
-                <Coins className="size-4 text-indigo-600" />
-                Revenue Ledger ({transactionsData?.total || transactions.length})
+              <TabsTrigger value="transactions" className="gap-2 font-bold text-xs">
+                <Coins className="size-3.5 text-indigo-600" />
+                <span>Billing Ledger ({transactionsQuery.data?.total || transactions.length})</span>
               </TabsTrigger>
             </TabsList>
 
-            {activeTab === "plans" && (
+            <div className="flex items-center gap-2">
+              {activeTab === "transactions" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportTransactionsCSV}
+                  className="h-8 rounded-xl border-zinc-200 text-xs font-bold hover:bg-zinc-100"
+                >
+                  <Download className="mr-1.5 size-3.5" />
+                  <span>Export CSV</span>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "memberships"] })}
-                className="border-zinc-200 text-xs font-bold"
+                className="h-8 rounded-xl border-zinc-200 text-xs font-bold hover:bg-zinc-100"
               >
-                <RefreshCw className="mr-1 size-3.5" />
-                Refresh
+                <RefreshCw className={`mr-1.5 size-3.5 ${plansQuery.isRefetching ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
               </Button>
-            )}
+            </div>
           </div>
 
-          {/* ---------------------------------------------------- TAB 1: PLANS */}
+          {/* =========================================================================
+              3. TAB 1: MEMBERSHIP TIERS (SILVER, GOLD, PLATINUM, ELITE)
+          ========================================================================= */}
           <TabsContent value="plans" className="mt-6 space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
               {plans.map((plan) => {
                 const isActive = plan.status === "Active";
-                const isFree = plan.id === "free" || (plan.monthlyPrice === 0 && plan.yearlyPrice === 0);
+                const tierStyle = getTierTheme(plan.id, plan.color);
 
                 return (
                   <div
                     key={plan.id}
-                    className={`relative flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm transition-all duration-200 hover:shadow-md ${
+                    className={`relative flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-xs transition-all duration-200 hover:shadow-md ${
                       plan.popular ? "border-amber-400 ring-2 ring-amber-400/20" : "border-zinc-200"
                     }`}
                   >
-                    {/* Badges row */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide ${
-                            isActive
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : "bg-zinc-100 text-zinc-600 border border-zinc-200"
-                          }`}
-                        >
-                          <span className={`size-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-zinc-400"}`} />
-                          {plan.status}
-                        </span>
-
-                        {plan.badge && (
-                          <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700 border border-amber-300">
-                            {plan.badge}
+                    {/* Top Badges & Actions */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide border ${
+                              isActive
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-zinc-100 text-zinc-600 border-zinc-200"
+                            }`}
+                          >
+                            <span className={`size-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"}`} />
+                            {plan.status}
                           </span>
-                        )}
-                      </div>
 
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenEdit(plan)}
-                          className="size-8 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-                          title="Edit plan"
-                        >
-                          <Edit2 className="size-4" />
-                        </Button>
-                        {!isFree && (
+                          {plan.badge && (
+                            <span className={`rounded-md px-2 py-0.5 text-[10px] font-black uppercase border ${tierStyle.badge}`}>
+                              {plan.badge}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenEdit(plan)}
+                            className="size-7 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                            title="Edit Tier & Perks"
+                          >
+                            <Edit2 className="size-3.5" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -439,104 +529,107 @@ function MembershipsScreen() {
                                 deletePlanMutation.mutate(plan.id);
                               }
                             }}
-                            className="size-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-                            title="Delete or Archive"
+                            className="size-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                            title="Archive Plan"
                           >
-                            <Trash2 className="size-4" />
+                            <Trash2 className="size-3.5" />
                           </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Plan Header */}
-                    <div className="mt-4">
-                      <div className="flex items-center gap-2">
-                        <Crown
-                          className={`size-6 ${
-                            plan.color === "amber"
-                              ? "text-amber-500"
-                              : plan.color === "indigo"
-                              ? "text-indigo-600"
-                              : plan.color === "purple"
-                              ? "text-purple-600"
-                              : "text-emerald-600"
-                          }`}
-                        />
-                        <h3 className="text-xl font-black text-zinc-900">{plan.name}</h3>
-                      </div>
-                      <p className="mt-1 text-xs text-zinc-500 min-h-[32px]">{plan.tagline || "Standard plan privileges"}</p>
-                    </div>
-
-                    {/* Pricing Block */}
-                    <div className="mt-4 rounded-xl bg-zinc-50 p-4 border border-zinc-100">
-                      <div className="flex items-baseline justify-between">
-                        <div>
-                          <span className="text-3xl font-black text-zinc-900">
-                            {isFree ? "Free" : `₹${plan.monthlyPrice}`}
-                          </span>
-                          {!isFree && <span className="text-xs font-bold text-zinc-500"> / month</span>}
                         </div>
-                        {!isFree && plan.yearlyPrice > 0 && (
-                          <div className="text-right">
-                            <span className="text-sm font-extrabold text-zinc-700">₹{plan.yearlyPrice}</span>
-                            <span className="text-[10px] text-zinc-500"> / year</span>
+                      </div>
+
+                      {/* Tier Title */}
+                      <div className="mt-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className={`flex size-8 items-center justify-center rounded-xl shadow-2xs ${tierStyle.iconBox}`}>
+                            <Crown className="size-4.5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-black text-zinc-900">{plan.name}</h3>
+                            <span className="text-[10px] font-mono text-zinc-400 uppercase">Tier ID: {plan.id}</span>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-zinc-600 min-h-[34px] leading-snug">{plan.tagline || "Exclusive membership perks and savings"}</p>
+                      </div>
+
+                      {/* Pricing Card */}
+                      <div className="mt-3.5 rounded-xl bg-zinc-50 p-3.5 border border-zinc-100">
+                        <div className="flex items-baseline justify-between">
+                          <div>
+                            <span className="text-2xl font-black text-zinc-900">₹{plan.monthlyPrice}</span>
+                            <span className="text-xs font-bold text-zinc-500"> / mo</span>
+                          </div>
+                          {plan.yearlyPrice > 0 && (
+                            <div className="text-right">
+                              <span className="text-xs font-black text-zinc-800">₹{plan.yearlyPrice}</span>
+                              <span className="text-[10px] text-zinc-400"> / yr</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {plan.yearlySavings > 0 && (
+                          <div className="mt-2 flex items-center gap-1 rounded-md bg-emerald-100/70 px-2 py-0.5 text-[10px] font-black text-emerald-900 border border-emerald-200">
+                            <Sparkles className="size-2.5 text-emerald-700" />
+                            <span>Save ₹{plan.yearlySavings} on Annual Billing</span>
                           </div>
                         )}
                       </div>
 
-                      {!isFree && plan.yearlySavings > 0 && (
-                        <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-emerald-100/70 px-2 py-1 text-[11px] font-black text-emerald-900 border border-emerald-200">
-                          <Sparkles className="size-3 text-emerald-700" />
-                          Save ₹{plan.yearlySavings} on Annual Billing
-                        </div>
-                      )}
-                    </div>
+                      {/* Custom Offers & Engine Perks */}
+                      <div className="mt-4 space-y-2 border-t border-zinc-100 pt-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Custom Offers & Rules</p>
 
-                    {/* Feature Highlights Grid */}
-                    <div className="mt-5 space-y-2.5 border-t border-zinc-100 pt-4 flex-1">
-                      <p className="text-[11px] font-black uppercase tracking-wider text-zinc-400">Core Engine Perks</p>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center gap-1.5 text-zinc-700 font-bold">
-                          <Percent className="size-3.5 text-emerald-600" />
-                          <span>{plan.discountPercent}% Extra Off</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-zinc-700 font-bold">
-                          <Truck className="size-3.5 text-emerald-600" />
-                          <span>{plan.freeDeliveryMinOrder === 0 ? "Free Delivery" : `Free > ₹${plan.freeDeliveryMinOrder}`}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-zinc-700 font-bold">
-                          <Package className="size-3.5 text-emerald-600" />
-                          <span>{plan.freePickup ? "Free Pickup" : "Standard Pickup"}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-zinc-700 font-bold">
-                          <Zap className="size-3.5 text-amber-500" />
-                          <span>{plan.priorityProcessing ? "Priority Slot" : "Standard Slot"}</span>
-                        </div>
-                      </div>
-
-                      {/* Benefits Checklist */}
-                      {plan.benefits && plan.benefits.length > 0 && (
-                        <div className="mt-3 space-y-1.5 pt-2 border-t border-zinc-100">
-                          {plan.benefits.slice(0, 4).map((b) => (
-                            <div key={b.id} className="flex items-center gap-2 text-xs text-zinc-600 font-medium">
-                              <Check className="size-3.5 text-emerald-600 shrink-0 font-bold" />
-                              <span className="truncate">{b.title}</span>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+                            <Percent className="size-3 text-emerald-600 shrink-0" />
+                            <span>{plan.discountPercent}% Extra Off</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+                            <Truck className="size-3 text-emerald-600 shrink-0" />
+                            <span>{plan.freeDeliveryMinOrder === 0 ? "Free Delivery" : `Free > ₹${plan.freeDeliveryMinOrder}`}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+                            <Package className="size-3 text-emerald-600 shrink-0" />
+                            <span>{plan.freePickup ? "Free Pickup" : "Standard Pickup"}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+                            <Zap className="size-3 text-amber-500 shrink-0" />
+                            <span>{plan.freeExpressCount ? `${plan.freeExpressCount} Express` : "Standard Speed"}</span>
+                          </div>
+                          {plan.surgeWaiver && (
+                            <div className="flex items-center gap-1.5 font-bold text-indigo-700 col-span-2">
+                              <ShieldCheck className="size-3 text-indigo-600 shrink-0" />
+                              <span>100% Surge & Rain Fee Waiver</span>
                             </div>
-                          ))}
-                          {plan.benefits.length > 4 && (
-                            <p className="text-[10px] font-bold text-zinc-400 pl-5">
-                              +{plan.benefits.length - 4} more benefits included
-                            </p>
                           )}
                         </div>
-                      )}
+
+                        {/* Checklist */}
+                        {plan.benefits && plan.benefits.length > 0 && (
+                          <div className="mt-3 space-y-1 pt-2 border-t border-zinc-100">
+                            {plan.benefits.slice(0, 4).map((b) => (
+                              <div key={b.id} className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+                                <Check className="size-3 text-emerald-600 font-bold shrink-0" />
+                                <span className="truncate">{b.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Bottom Order & ID */}
-                    <div className="mt-5 flex items-center justify-between border-t border-zinc-100 pt-3 text-[11px] text-zinc-400 font-mono">
-                      <span>ID: {plan.id}</span>
-                      <span>Order: #{plan.order}</span>
+                    {/* Bottom Action Footer */}
+                    <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-zinc-500">
+                        {stats?.tierBreakdown?.[plan.name] || 0} active members
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenEdit(plan)}
+                        className="h-7 text-xs font-bold rounded-lg border-zinc-200 hover:bg-zinc-100"
+                      >
+                        Customize Offer
+                      </Button>
                     </div>
                   </div>
                 );
@@ -544,106 +637,156 @@ function MembershipsScreen() {
             </div>
           </TabsContent>
 
-          {/* ------------------------------------------------ TAB 2: SUBSCRIBERS */}
+          {/* =========================================================================
+              4. TAB 2: LIVE SUBSCRIBERS DIRECTORY
+          ========================================================================= */}
           <TabsContent value="subscribers" className="mt-6 space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-xl border border-zinc-200">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-2.5 size-4 text-zinc-400" />
-                <Input
-                  placeholder="Search by customer name, phone, email, or user ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 text-xs"
-                />
+            <SectionCard
+              title={`Active VIP Subscribers (${subscribersQuery.data?.total || subscribers.length})`}
+              description="Live audit trail of registered customers with active or past membership plans, member order counts, and total savings."
+              actions={
+                <Button
+                  size="sm"
+                  onClick={() => setGrantModalOpen(true)}
+                  className="h-8 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
+                >
+                  <UserPlus className="size-3.5 mr-1.5" />
+                  <span>Grant VIP Membership</span>
+                </Button>
+              }
+            >
+              {/* Filter Bar */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 size-4 text-zinc-400" />
+                  <Input
+                    placeholder="Search by customer name, phone, email, or user ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 text-xs h-9"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[140px] text-xs font-bold h-9">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={tierFilter} onValueChange={setTierFilter}>
+                    <SelectTrigger className="w-[140px] text-xs font-bold h-9">
+                      <SelectValue placeholder="VIP Tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All VIP Tiers</SelectItem>
+                      {plans.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[140px] text-xs font-bold">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={tierFilter} onValueChange={setTierFilter}>
-                  <SelectTrigger className="w-[140px] text-xs font-bold">
-                    <SelectValue placeholder="Tier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tiers</SelectItem>
-                    {plans.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Subscribers Table */}
-            <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-sm">
+              {/* Subscribers Table */}
               <DataTable
+                loading={subscribersQuery.isLoading}
+                rows={subscribers}
+                emptyMessage="No VIP subscribers found. Click 'Grant VIP Access' to assign a tier to any customer."
                 columns={[
                   {
-                    header: "Customer",
-                    cell: (row: MembershipSubscriberItem) => (
+                    key: "customer",
+                    label: "Customer & Contact",
+                    render: (row: MembershipSubscriberItem) => (
                       <div>
-                        <p className="font-extrabold text-zinc-900">{row.userName}</p>
-                        <p className="text-xs text-zinc-500 font-mono">{row.userPhone || row.userEmail || row.userId}</p>
-                      </div>
-                    ),
-                  },
-                  {
-                    header: "Current Tier",
-                    cell: (row: MembershipSubscriberItem) => (
-                      <div className="flex items-center gap-1.5">
-                        <Crown className="size-4 text-amber-500" />
-                        <span className="font-black text-xs text-zinc-800">{row.planName}</span>
-                        <span className="text-[10px] uppercase font-bold text-zinc-400">({row.billingCycle})</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    header: "Validity & Expiry",
-                    cell: (row: MembershipSubscriberItem) => (
-                      <div>
-                        <p className="text-xs font-bold text-zinc-800">
-                          {row.expiresAt ? new Date(row.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Lifetime"}
-                        </p>
-                        {row.status === "active" && (
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            {row.remainingDays} days remaining
+                        <p className="font-extrabold text-xs text-zinc-900">{row.userName}</p>
+                        <p className="text-[11px] text-zinc-500 font-mono">{row.userPhone || row.userEmail || row.userId}</p>
+                        {row.city && (
+                          <span className="inline-block mt-0.5 text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 rounded border border-emerald-200">
+                            📍 {row.city}
                           </span>
                         )}
                       </div>
                     ),
                   },
                   {
-                    header: "Status",
-                    cell: (row: MembershipSubscriberItem) => (
-                      <StatusPill
-                        status={
-                          row.status === "active"
-                            ? "Active"
-                            : row.status === "expired"
-                            ? "Expired"
-                            : row.status === "cancelled"
-                            ? "Cancelled"
-                            : "Draft"
-                        }
-                      />
+                    key: "plan",
+                    label: "VIP Tier",
+                    render: (row: MembershipSubscriberItem) => {
+                      const tierStyle = getTierTheme(row.planId);
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <Crown className="size-4 text-amber-500" />
+                          <div>
+                            <span className="font-black text-xs text-zinc-900">{row.planName}</span>
+                            <p className="text-[10px] uppercase font-bold text-zinc-400">{row.billingCycle} cycle</p>
+                          </div>
+                        </div>
+                      );
+                    },
+                  },
+                  {
+                    key: "validity",
+                    label: "Validity & Remaining",
+                    render: (row: MembershipSubscriberItem) => (
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-bold text-zinc-800">
+                          {row.expiresAt ? new Date(row.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Lifetime"}
+                        </p>
+                        {row.status === "active" ? (
+                          <span className="inline-block text-[10px] font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            {row.remainingDays} days left
+                          </span>
+                        ) : (
+                          <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                            Expired
+                          </span>
+                        )}
+                      </div>
                     ),
                   },
                   {
-                    header: "Actions",
-                    cell: (row: MembershipSubscriberItem) => (
-                      <div className="flex items-center gap-2">
+                    key: "orders",
+                    label: "Orders & Savings",
+                    render: (row: MembershipSubscriberItem) => (
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-zinc-800">{row.totalOrders || 0} Orders placed</p>
+                        <p className="text-[11px] font-black text-emerald-700">₹{(row.totalSaved || 0).toFixed(0)} saved</p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (row: MembershipSubscriberItem) => {
+                      const isActive = row.status === "active";
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                            isActive
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : "bg-zinc-100 text-zinc-600 border-zinc-200"
+                          }`}
+                        >
+                          <span className={`size-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"}`} />
+                          {row.status.toUpperCase()}
+                        </span>
+                      );
+                    },
+                  },
+                  {
+                    key: "actions",
+                    label: "Actions",
+                    render: (row: MembershipSubscriberItem) => (
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
@@ -657,21 +800,21 @@ function MembershipsScreen() {
                             });
                             setGrantModalOpen(true);
                           }}
-                          className="h-7 text-xs font-bold border-zinc-200 hover:bg-zinc-50"
+                          className="h-7 text-[11px] font-bold rounded-lg border-zinc-200 hover:bg-zinc-100"
                         >
-                          Extend / Change
+                          Extend / Upgrade
                         </Button>
-                        {row.status === "active" && row.planId !== "free" && (
+                        {row.status === "active" && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => {
-                              const reason = prompt("Enter reason for revocation:");
+                              const reason = prompt("Enter reason for revoking membership:");
                               if (reason !== null) {
                                 revokeMutation.mutate({ userId: row.userId, reason });
                               }
                             }}
-                            className="h-7 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                            className="h-7 text-[11px] font-bold rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50"
                           >
                             Revoke
                           </Button>
@@ -680,21 +823,38 @@ function MembershipsScreen() {
                     ),
                   },
                 ]}
-                data={subscribers}
-                emptyTitle="No membership subscribers found"
-                emptyDescription="Subscribers will appear here once customers purchase plans or when granted by Admin."
               />
-            </div>
+            </SectionCard>
           </TabsContent>
 
-          {/* ------------------------------------------------ TAB 3: TRANSACTIONS */}
+          {/* =========================================================================
+              5. TAB 3: BILLING & TRANSACTIONS REVENUE LEDGER
+          ========================================================================= */}
           <TabsContent value="transactions" className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-sm">
+            <SectionCard
+              title={`Membership Revenue & Billing Ledger (${transactionsQuery.data?.total || transactions.length})`}
+              description="Append-only immutable audit trail of subscription activations, renewals, upgrades, admin grants, and refunds."
+              actions={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportTransactionsCSV}
+                  className="h-8 rounded-xl border-zinc-200 text-xs font-bold hover:bg-zinc-100"
+                >
+                  <Download className="mr-1.5 size-3.5" />
+                  <span>Export CSV</span>
+                </Button>
+              }
+            >
               <DataTable
+                loading={transactionsQuery.isLoading}
+                rows={transactions}
+                emptyMessage="No subscription billing transactions recorded yet."
                 columns={[
                   {
-                    header: "Transaction ID",
-                    cell: (row: any) => (
+                    key: "id",
+                    label: "Transaction ID & Ref",
+                    render: (row: any) => (
                       <div>
                         <span className="font-mono text-xs font-bold text-zinc-900">{row.id}</span>
                         {row.paymentReference && (
@@ -704,8 +864,9 @@ function MembershipsScreen() {
                     ),
                   },
                   {
-                    header: "Plan & Event",
-                    cell: (row: any) => (
+                    key: "plan",
+                    label: "Tier & Event",
+                    render: (row: any) => (
                       <div>
                         <p className="font-extrabold text-xs text-zinc-900">{row.planName}</p>
                         <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
@@ -715,109 +876,123 @@ function MembershipsScreen() {
                     ),
                   },
                   {
-                    header: "Billing Cycle",
-                    cell: (row: any) => (
+                    key: "billingCycle",
+                    label: "Cycle",
+                    render: (row: any) => (
                       <span className="text-xs font-bold capitalize text-zinc-700">{row.billingCycle}</span>
                     ),
                   },
                   {
-                    header: "Amount",
-                    cell: (row: any) => (
-                      <span className="text-sm font-black text-zinc-900">
-                        {row.amount === 0 ? "Free / Grant" : `₹${row.amount}`}
+                    key: "amount",
+                    label: "Amount Paid",
+                    render: (row: any) => (
+                      <span className="text-xs font-black text-zinc-900">
+                        {row.amount === 0 ? "Free / Promo Grant" : `₹${row.amount}`}
                       </span>
                     ),
                   },
                   {
-                    header: "Payment Status",
-                    cell: (row: any) => (
-                      <StatusPill
-                        status={
-                          row.paymentStatus === "paid"
-                            ? "Active"
-                            : row.paymentStatus === "free"
-                            ? "Active"
-                            : row.paymentStatus === "refunded"
-                            ? "Cancelled"
-                            : "Draft"
-                        }
-                      />
-                    ),
+                    key: "paymentStatus",
+                    label: "Payment Status",
+                    render: (row: any) => {
+                      const isSuccess = row.paymentStatus === "paid" || row.paymentStatus === "free";
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                            isSuccess
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : "bg-rose-50 text-rose-800 border-rose-200"
+                          }`}
+                        >
+                          {row.paymentStatus.toUpperCase()}
+                        </span>
+                      );
+                    },
                   },
                   {
-                    header: "Date & Time",
-                    cell: (row: any) => (
+                    key: "date",
+                    label: "Date & Time",
+                    render: (row: any) => (
                       <span className="text-xs font-medium text-zinc-500">
                         {row.subscribedAt ? new Date(row.subscribedAt).toLocaleString("en-IN") : "—"}
                       </span>
                     ),
                   },
                 ]}
-                data={transactions}
-                emptyTitle="No membership transactions found"
-                emptyDescription="All subscription events, renewals, and payments will be logged here in real-time."
               />
-            </div>
+            </SectionCard>
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* ---------------------------------------------------- CREATE / EDIT MODAL */}
+      {/* =========================================================================
+          6. MODAL: CREATE / EDIT CUSTOM MEMBERSHIP TIER
+      ========================================================================= */}
       <Dialog open={planModalOpen} onOpenChange={setPlanModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white text-zinc-900 border-zinc-200">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-black text-zinc-900">
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-zinc-900">
               <Crown className="size-5 text-amber-500" />
-              {editingPlanId ? "Edit Membership Plan" : "Create New Membership Plan"}
+              <span>{editingPlanId ? `Configure Tier: ${planForm.name}` : "Create New VIP Membership Tier"}</span>
             </DialogTitle>
-            <DialogDescription>
-              Configure plan pricing, validity, discounts, and customer perks. Active plans will appear in customer app instantly.
+            <DialogDescription className="text-xs text-zinc-500">
+              Configure custom discounts, free delivery thresholds, express turnarounds, and pricing perks for this membership tier.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-3">
-            {/* Name and Tagline */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Plan Name *</Label>
+          <div className="space-y-4 py-2 text-xs">
+            {/* Name, Tagline & Badge */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-xs font-bold">Tier Plan Name *</Label>
                 <Input
-                  placeholder="e.g. VIP Platinum, Gold Club"
+                  placeholder="e.g. Silver, Gold, Platinum, Elite VIP"
                   value={planForm.name}
                   onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
-                  className="text-xs"
+                  className="h-9 text-xs font-bold"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Badge Text (Optional)</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Badge Tag</Label>
                 <Input
-                  placeholder="e.g. BEST VALUE, MOST POPULAR"
+                  placeholder="e.g. POPULAR, 50% OFF"
                   value={planForm.badge}
                   onChange={(e) => setPlanForm({ ...planForm, badge: e.target.value })}
-                  className="text-xs uppercase"
+                  className="h-9 text-xs uppercase"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Tagline</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Tagline (Shown in App)</Label>
               <Input
-                placeholder="e.g. Unlimited express laundry with free doorstep pickup"
+                placeholder="e.g. 15 Free deliveries/mo + 15% discount & priority queue"
                 value={planForm.tagline}
                 onChange={(e) => setPlanForm({ ...planForm, tagline: e.target.value })}
-                className="text-xs"
+                className="h-9 text-xs"
               />
             </div>
 
-            {/* Pricing Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+            {/* Pricing Matrix */}
+            <div className="grid grid-cols-3 gap-3 bg-zinc-50 p-3.5 rounded-xl border border-zinc-200">
               <div className="space-y-1">
                 <Label className="text-[11px] font-bold">Monthly Price (₹) *</Label>
                 <Input
                   type="number"
                   value={planForm.monthlyPrice}
                   onChange={(e) => setPlanForm({ ...planForm, monthlyPrice: Number(e.target.value) })}
-                  className="text-xs font-black"
+                  className="h-9 text-xs font-black bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] font-bold">Quarterly Price (₹)</Label>
+                <Input
+                  type="number"
+                  value={planForm.quarterlyPrice || 0}
+                  onChange={(e) => setPlanForm({ ...planForm, quarterlyPrice: Number(e.target.value) })}
+                  className="h-9 text-xs font-black bg-white"
                 />
               </div>
 
@@ -827,310 +1002,255 @@ function MembershipsScreen() {
                   type="number"
                   value={planForm.yearlyPrice}
                   onChange={(e) => setPlanForm({ ...planForm, yearlyPrice: Number(e.target.value) })}
-                  className="text-xs font-black"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold">Monthly Days</Label>
-                <Input
-                  type="number"
-                  value={planForm.validityDays}
-                  onChange={(e) => setPlanForm({ ...planForm, validityDays: Number(e.target.value) })}
-                  className="text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-bold">Yearly Days</Label>
-                <Input
-                  type="number"
-                  value={planForm.yearlyValidityDays}
-                  onChange={(e) => setPlanForm({ ...planForm, yearlyValidityDays: Number(e.target.value) })}
-                  className="text-xs"
+                  className="h-9 text-xs font-black bg-white"
                 />
               </div>
             </div>
 
-            {/* Core Engine Perks */}
-            <div className="space-y-3">
-              <Label className="text-xs font-black uppercase tracking-wider text-zinc-600">
-                Cart & Checkout Engine Perks
+            {/* Core Offer Mechanics */}
+            <div className="rounded-xl border border-zinc-200 bg-white p-3.5 space-y-3">
+              <Label className="text-xs font-black uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                <Percent className="size-3.5 text-emerald-600" />
+                <span>Custom Offer Discounts & Quotas</span>
               </Label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5 p-3 rounded-xl border border-zinc-200 bg-white">
-                  <Label className="text-xs font-bold flex items-center gap-1.5">
-                    <Percent className="size-3.5 text-emerald-600" />
-                    Extra Member Discount (%)
-                  </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold">Extra Discount (%)</Label>
                   <Input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="e.g. 10"
                     value={planForm.discountPercent}
                     onChange={(e) => setPlanForm({ ...planForm, discountPercent: Number(e.target.value) })}
-                    className="text-xs font-bold"
+                    className="h-9 text-xs font-bold"
                   />
-                  <p className="text-[10px] text-zinc-400">Waives % on items total at checkout</p>
                 </div>
 
-                <div className="space-y-1.5 p-3 rounded-xl border border-zinc-200 bg-white">
-                  <Label className="text-xs font-bold flex items-center gap-1.5">
-                    <Truck className="size-3.5 text-emerald-600" />
-                    Free Delivery Min Order (₹)
-                  </Label>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold">Free Deliveries / Mo</Label>
                   <Input
                     type="number"
                     min="0"
-                    placeholder="0 = Unlimited free delivery"
+                    placeholder="999 = Unlimited"
+                    value={planForm.monthlyOrderLimit || 0}
+                    onChange={(e) => setPlanForm({ ...planForm, monthlyOrderLimit: Number(e.target.value) })}
+                    className="h-9 text-xs font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold">Free Express Passes</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={planForm.freeExpressCount || 0}
+                    onChange={(e) => setPlanForm({ ...planForm, freeExpressCount: Number(e.target.value) })}
+                    className="h-9 text-xs font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold">Min Order for Free Del (₹)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0 = No Min"
                     value={planForm.freeDeliveryMinOrder}
                     onChange={(e) => setPlanForm({ ...planForm, freeDeliveryMinOrder: Number(e.target.value) })}
-                    className="text-xs font-bold"
+                    className="h-9 text-xs font-bold"
                   />
-                  <p className="text-[10px] text-zinc-400">Set 0 for free delivery on every order</p>
                 </div>
               </div>
 
-              {/* Toggles */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                <label className="flex items-center gap-2 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-50">
+              {/* Checkbox Perks */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg border border-zinc-200 cursor-pointer hover:bg-zinc-50">
                   <input
                     type="checkbox"
                     checked={planForm.freePickup}
                     onChange={(e) => setPlanForm({ ...planForm, freePickup: e.target.checked })}
                     className="size-4 accent-emerald-600 rounded"
                   />
-                  <div>
-                    <p className="text-xs font-bold text-zinc-800">Free Doorstep Pickup</p>
-                    <p className="text-[10px] text-zinc-400">Waive pickup fee</p>
-                  </div>
+                  <span className="text-xs font-bold text-zinc-800">Free Pickup (₹0)</span>
                 </label>
 
-                <label className="flex items-center gap-2 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-50">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg border border-zinc-200 cursor-pointer hover:bg-zinc-50">
                   <input
                     type="checkbox"
                     checked={planForm.priorityProcessing}
                     onChange={(e) => setPlanForm({ ...planForm, priorityProcessing: e.target.checked })}
                     className="size-4 accent-amber-500 rounded"
                   />
-                  <div>
-                    <p className="text-xs font-bold text-zinc-800">Priority Processing</p>
-                    <p className="text-[10px] text-zinc-400">Express slot badge</p>
-                  </div>
+                  <span className="text-xs font-bold text-zinc-800">Priority Processing</span>
                 </label>
 
-                <label className="flex items-center gap-2 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-50">
+                <label className="flex items-center gap-2 p-2.5 rounded-lg border border-zinc-200 cursor-pointer hover:bg-zinc-50">
                   <input
                     type="checkbox"
-                    checked={planForm.popular}
-                    onChange={(e) => setPlanForm({ ...planForm, popular: e.target.checked })}
-                    className="size-4 accent-amber-500 rounded"
+                    checked={planForm.surgeWaiver || false}
+                    onChange={(e) => setPlanForm({ ...planForm, surgeWaiver: e.target.checked })}
+                    className="size-4 accent-indigo-600 rounded"
                   />
-                  <div>
-                    <p className="text-xs font-bold text-zinc-800">Popular Highlight</p>
-                    <p className="text-[10px] text-zinc-400">Highlight in app</p>
-                  </div>
+                  <span className="text-xs font-bold text-zinc-800">100% Surge Waiver</span>
                 </label>
               </div>
             </div>
 
-            {/* Benefits Checklist */}
-            <div className="space-y-2 border-t border-zinc-100 pt-4">
-              <Label className="text-xs font-black uppercase tracking-wider text-zinc-600">
-                Customer Benefits Checklist
+            {/* Benefits Selection */}
+            <div className="space-y-2 border-t border-zinc-100 pt-3">
+              <Label className="text-xs font-black uppercase tracking-wider text-zinc-900">
+                Customer Benefits Comparison Badges
               </Label>
-              <p className="text-xs text-zinc-400">Select perks shown in the customer comparison table:</p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                 {BENEFIT_TEMPLATES.map((tpl) => {
-                  const selected = planForm.benefits.some((b) => b.id === tpl.id || b.title === tpl.title);
+                  const isSelected = planForm.benefits.some((b) => b.id === tpl.id || b.title === tpl.title);
                   return (
                     <button
-                      type="button"
                       key={tpl.id}
+                      type="button"
                       onClick={() => toggleBenefit(tpl)}
-                      className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
-                        selected
-                          ? "bg-emerald-50/80 border-emerald-300 text-emerald-950"
-                          : "bg-zinc-50/50 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                      className={`flex items-start gap-2 p-2.5 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-50/60 shadow-2xs"
+                          : "border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
                       <div
-                        className={`size-4 rounded flex items-center justify-center mt-0.5 ${
-                          selected ? "bg-emerald-600 text-white" : "border border-zinc-300 bg-white"
+                        className={`flex size-5 items-center justify-center rounded-md border mt-0.5 shrink-0 ${
+                          isSelected ? "bg-emerald-600 border-emerald-600 text-white" : "border-zinc-300 bg-white"
                         }`}
                       >
-                        {selected && <Check className="size-3 stroke-[3]" />}
+                        {isSelected && <Check className="size-3" />}
                       </div>
                       <div>
-                        <p className="text-xs font-bold">{tpl.title}</p>
-                        <p className="text-[10px] text-zinc-400">{tpl.description}</p>
+                        <p className="text-xs font-bold text-zinc-900">{tpl.title}</p>
+                        <p className="text-[10px] text-zinc-500 leading-tight">{tpl.description}</p>
                       </div>
                     </button>
                   );
                 })}
               </div>
             </div>
-
-            {/* Status & Color */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-zinc-100 pt-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Plan Status</Label>
-                <Select
-                  value={planForm.status}
-                  onValueChange={(val: any) => setPlanForm({ ...planForm, status: val })}
-                >
-                  <SelectTrigger className="text-xs font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active (Visible in App)</SelectItem>
-                    <SelectItem value="Inactive">Inactive (Hidden)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Display Color Theme</Label>
-                <Select
-                  value={planForm.color}
-                  onValueChange={(val: any) => setPlanForm({ ...planForm, color: val })}
-                >
-                  <SelectTrigger className="text-xs font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLOR_OPTIONS.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        <div className="flex items-center gap-2">
-                          <span className={`size-3 rounded-full ${c.bg}`} />
-                          <span>{c.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
           </div>
 
-          <DialogFooter className="border-t border-zinc-100 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setPlanModalOpen(false)}>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPlanModalOpen(false)}
+              className="rounded-xl text-xs font-bold border-zinc-200 hover:bg-zinc-100"
+            >
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => {
-                if (!planForm.name.trim()) {
-                  toast.error("Please enter a plan name");
-                  return;
-                }
-                savePlanMutation.mutate(planForm);
-              }}
+              onClick={() => savePlanMutation.mutate(planForm)}
               disabled={savePlanMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-xs"
             >
-              {savePlanMutation.isPending ? "Saving..." : editingPlanId ? "Update Plan" : "Create Plan"}
+              {savePlanMutation.isPending ? "Saving Tier..." : "Save Membership Tier"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ---------------------------------------------------- GRANT MEMBERSHIP MODAL */}
+      {/* =========================================================================
+          7. MODAL: GRANT VIP MEMBERSHIP MANUALLY
+      ========================================================================= */}
       <Dialog open={grantModalOpen} onOpenChange={setGrantModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md bg-white text-zinc-900 border-zinc-200">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-black text-zinc-900">
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-zinc-900">
               <UserPlus className="size-5 text-emerald-600" />
-              Grant Membership to Customer
+              <span>Grant VIP Membership to Customer</span>
             </DialogTitle>
-            <DialogDescription>
-              Assign a membership plan directly to a customer account with custom validity.
+            <DialogDescription className="text-xs text-zinc-500">
+              Directly assign or gift a Silver, Gold, Platinum, or Elite membership to any customer account.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Customer User ID *</Label>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Customer User ID or Phone *</Label>
               <Input
-                placeholder="e.g. usr-12345 or search ID"
+                placeholder="Enter customer user ID (e.g. usr-...) or phone number"
                 value={grantForm.userId}
                 onChange={(e) => setGrantForm({ ...grantForm, userId: e.target.value })}
-                className="text-xs font-mono"
+                className="h-9 text-xs font-mono"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Membership Plan Tier</Label>
-              <Select
-                value={grantForm.planId}
-                onValueChange={(val) => setGrantForm({ ...grantForm, planId: val })}
-              >
-                <SelectTrigger className="text-xs font-bold">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Choose VIP Tier *</Label>
+              <Select value={grantForm.planId} onValueChange={(v) => setGrantForm({ ...grantForm, planId: v })}>
+                <SelectTrigger className="h-9 text-xs font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {plans
-                    .filter((p) => p.id !== "free")
-                    .map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} (₹{p.monthlyPrice}/mo)
-                      </SelectItem>
-                    ))}
+                  {plans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      👑 {p.name} ({p.discountPercent}% Off, {p.freeDeliveryMinOrder === 0 ? "Free Delivery" : `Free > ₹${p.freeDeliveryMinOrder}`})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label className="text-xs font-bold">Billing Cycle</Label>
                 <Select
                   value={grantForm.cycle}
-                  onValueChange={(val: any) => setGrantForm({ ...grantForm, cycle: val })}
+                  onValueChange={(v: any) => setGrantForm({ ...grantForm, cycle: v })}
                 >
-                  <SelectTrigger className="text-xs font-bold">
+                  <SelectTrigger className="h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="yearly">Yearly</SelectItem>
+                    <SelectItem value="monthly">Monthly (30 Days)</SelectItem>
+                    <SelectItem value="yearly">Annual (365 Days)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Validity (Days)</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Custom Validity (Days)</Label>
                 <Input
                   type="number"
                   value={grantForm.days}
                   onChange={(e) => setGrantForm({ ...grantForm, days: Number(e.target.value) })}
-                  className="text-xs font-bold"
+                  className="h-9 text-xs font-bold"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Reason / Audit Note</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Reason / Internal Note</Label>
               <Input
-                placeholder="e.g. VIP Customer Promo, CS Compensation"
+                placeholder="e.g. VIP Customer Reward, Founder Gift"
                 value={grantForm.reason}
                 onChange={(e) => setGrantForm({ ...grantForm, reason: e.target.value })}
-                className="text-xs"
+                className="h-9 text-xs"
               />
             </div>
           </div>
 
-          <DialogFooter className="border-t border-zinc-100 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setGrantModalOpen(false)}>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setGrantModalOpen(false)}
+              className="rounded-xl text-xs font-bold border-zinc-200 hover:bg-zinc-100"
+            >
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={() => {
                 if (!grantForm.userId.trim()) {
-                  toast.error("Please enter a customer user ID");
+                  toast.error("Please enter a valid Customer ID or Phone.");
                   return;
                 }
                 grantMutation.mutate({
@@ -1144,13 +1264,54 @@ function MembershipsScreen() {
                 });
               }}
               disabled={grantMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-xs"
             >
-              {grantMutation.isPending ? "Granting..." : "Grant Membership"}
+              {grantMutation.isPending ? "Granting..." : "Confirm & Grant VIP"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminShell>
   );
+}
+
+function roundNum(n: number) {
+  return Math.round(n);
+}
+
+function getTierTheme(planId: string, color?: string) {
+  const id = planId.toLowerCase();
+  if (id.includes("silver") || color === "slate") {
+    return {
+      border: "border-slate-300",
+      badge: "bg-slate-100 text-slate-800 border-slate-300",
+      iconBox: "bg-slate-100 text-slate-700",
+    };
+  }
+  if (id.includes("gold") || color === "amber") {
+    return {
+      border: "border-amber-400",
+      badge: "bg-amber-100 text-amber-900 border-amber-300",
+      iconBox: "bg-amber-100 text-amber-800",
+    };
+  }
+  if (id.includes("platinum") || color === "indigo") {
+    return {
+      border: "border-indigo-400",
+      badge: "bg-indigo-100 text-indigo-900 border-indigo-300",
+      iconBox: "bg-indigo-100 text-indigo-800",
+    };
+  }
+  if (id.includes("elite") || color === "purple") {
+    return {
+      border: "border-purple-400",
+      badge: "bg-purple-100 text-purple-900 border-purple-300",
+      iconBox: "bg-purple-100 text-purple-800",
+    };
+  }
+  return {
+    border: "border-emerald-400",
+    badge: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    iconBox: "bg-emerald-100 text-emerald-800",
+  };
 }

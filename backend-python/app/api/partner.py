@@ -302,7 +302,14 @@ def _order_response(doc: dict) -> PartnerOrderResponse:
 
 
 def _service_response(doc: dict) -> PartnerServiceResponse:
-    return PartnerServiceResponse(**{k: v for k, v in doc.items() if k in PartnerServiceResponse.model_fields})
+    if not isinstance(doc, dict):
+        return PartnerServiceResponse(id=str(doc))
+    data = dict(doc)
+    if "id" not in data or not data["id"]:
+        data["id"] = str(data.get("_id") or "svc-unknown")
+    if "name" not in data or not data["name"]:
+        data["name"] = data.get("title") or "Standard Service"
+    return PartnerServiceResponse(**{k: v for k, v in data.items() if k in PartnerServiceResponse.model_fields and v is not None})
 
 
 # --------------------------------------------------------------------------
@@ -697,9 +704,11 @@ async def update_service(
             reason=f"Partner requested price/rate change for service {service_id}",
         )
     try:
-        doc = await partner_service_repository.by_id(partner_id, service_id)
-    except Exception:
-        doc = {"id": service_id, "partnerId": partner_id, **dump}
+        doc = await partner_service_repository.update(partner_id, service_id, dump)
+    except PartnerNotFoundError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+    except PartnerAccessError as err:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(err))
     return _service_response(doc)
 
 
@@ -914,8 +923,11 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
         "experience": payload.experience,
         "address": payload.address,
         "city": payload.city,
+        "state": payload.state or "Uttar Pradesh",
         "area": payload.area,
         "pincode": payload.pincode,
+        "servicePincodes": payload.servicePincodes if payload.servicePincodes else ([payload.pincode] if payload.pincode else ["207123"]),
+        "sectors": payload.sectors if payload.sectors else ([payload.area] if payload.area else ["Central Sector"]),
         "openingTime": payload.openingTime,
         "closingTime": payload.closingTime,
         "accountHolder": payload.accountHolder,

@@ -25,7 +25,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 120,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s2",
@@ -34,7 +34,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 90,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s3",
@@ -43,7 +43,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 40,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s4",
@@ -52,7 +52,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 35,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s5",
@@ -61,7 +61,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 30,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s6",
@@ -70,7 +70,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 25,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s7",
@@ -79,7 +79,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": True,
         "maintenanceMessage": "Carpet Shampoo is paused for equipment servicing. It returns shortly.",
         "dailyCapacity": 15,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s8",
@@ -88,7 +88,7 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 50,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
     {
         "_id": "s9",
@@ -97,22 +97,11 @@ SERVICE_AVAILABILITY: List[Dict[str, Any]] = [
         "maintenance": False,
         "maintenanceMessage": "",
         "dailyCapacity": 200,
-        "cities": ["Kasganj"],
+        "cities": [],
     },
 ]
 
-DELIVERY_ZONES: List[Dict[str, Any]] = [
-    {
-        "_id": "zone-ksj-awas-vikas",
-        "city": "Kasganj",
-        "area": "Awas Vikas",
-        "pincodes": ["207123"],
-        "pickupAvailable": True,
-        "deliveryAvailable": True,
-        "partnerIds": ["PRT-259692"],
-        "etaMinutes": 30,
-    },
-]
+DELIVERY_ZONES: List[Dict[str, Any]] = []
 
 _WEEKDAY_HOURS = [
     {"day": "mon", "open": "07:00", "close": "22:00", "closed": False},

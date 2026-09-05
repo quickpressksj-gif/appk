@@ -1,55 +1,28 @@
 /**
- * QuickPress authentication service — the single real auth layer for all four
- * apps (customer / partner / rider / admin).
+ * QuickPress Admin Authentication Service — Native Backend Auth & OneSignal.
  *
- *   Screen → auth-api (@backend/<app>/…) → auth-service → Firebase + FastAPI
- *
- * Flow: Firebase issues the identity (phone OTP / Google / Apple), the FastAPI
- * backend verifies the Firebase ID token, upserts the MongoDB user document
- * and returns the QuickPress JWT pair that every later request uses.
- *
- * When Firebase or the API base URL is not configured for the current
- * environment the service falls back to the existing in-memory mock endpoints,
- * so the preview keeps working without any UI change.
+ * Direct Phone OTP and JWT session management without 3rd party auth lock-in.
+ * Upon login, automatically syncs external admin ID with OneSignal push engine.
  */
 
 import type { AccountRole, AuthSession, RequestOtpResult } from "@/shared/types";
-
 import { ApiError } from "./errors";
-import {
-  confirmFirebaseOtp,
-  currentFirebaseIdToken,
-  firebaseSignOut,
-  sendFirebaseOtp,
-  signInWithAppleIdToken,
-  signInWithGoogleIdToken,
-} from "./firebase-auth";
-import { isFirebaseConfigured } from "./firebase-config";
-import { isApiConfigured } from "../customer/api/config";
 import { activeSessionRole, clearSession, readSession, writeSession } from "./session-store";
 import { apiGetJson, apiPostJson } from "./transport";
+import { onesignalLogin, onesignalLogout } from "./onesignal";
 
 export const AUTH_ENDPOINTS = {
   sendOtp: "/api/auth/phone/send-otp",
   verifyOtp: "/api/auth/phone/verify",
-  google: "/api/auth/google",
-  apple: "/api/auth/apple",
   me: "/api/auth/me",
   logout: "/api/auth/logout",
   refresh: "/api/auth/refresh",
 } as const;
 
-/** Legacy mock endpoints kept for preview mode only. */
-const MOCK_ENDPOINTS = {
-  requestOtp: "/api/auth/request-otp",
-  verifyOtp: "/api/auth/verify-otp",
-} as const;
+export type AuthMode = "native";
 
-export type AuthMode = "mock" | "firebase";
-
-/** Real authentication runs only when both Firebase and the API are configured. */
 export function authMode(): AuthMode {
-  return isFirebaseConfigured() && isApiConfigured() ? "firebase" : "mock";
+  return "native";
 }
 
 function role(explicit?: AccountRole): AccountRole {
@@ -58,36 +31,24 @@ function role(explicit?: AccountRole): AccountRole {
 
 function persist(session: AuthSession): AuthSession {
   writeSession(session, session.account.role);
+  if (session.account?.id) {
+    void onesignalLogin(session.account.id);
+  }
   return session;
 }
 
 /* ------------------------------------------------------------------ phone */
 
-/** POST /api/auth/phone/send-otp — Twilio backend sends the SMS, Firebase client can assist. */
+/** POST /api/auth/phone/send-otp — Backend sends SMS OTP directly. */
 export async function sendPhoneOtp(
   phone: string,
   explicitRole?: AccountRole,
 ): Promise<RequestOtpResult> {
-  if (authMode() === "mock") {
-    return apiPostJson<RequestOtpResult>(
-      MOCK_ENDPOINTS.requestOtp,
-      { phone, role: role(explicitRole) },
-      { anonymous: true },
-    );
-  }
-
   const audit = await apiPostJson<{ ok: true; expiresInSeconds: number; isNewAccount: boolean }>(
     AUTH_ENDPOINTS.sendOtp,
     { phone, role: role(explicitRole) },
     { anonymous: true },
   );
-  try {
-    if (isFirebaseConfigured()) {
-      await sendFirebaseOtp(phone);
-    }
-  } catch {
-    // Graceful fallback
-  }
   return {
     ok: true,
     devOtp: "",
@@ -96,69 +57,40 @@ export async function sendPhoneOtp(
   };
 }
 
-/** POST /api/auth/phone/verify — verifies Twilio SMS OTP or Firebase ID token. */
+/** POST /api/auth/phone/verify — verifies SMS OTP and returns Admin JWT AuthSession. */
 export async function verifyPhoneOtp(
   phone: string,
   code: string,
   explicitRole?: AccountRole,
+  referralCode?: string,
 ): Promise<AuthSession> {
-  if (authMode() === "mock") {
-    return persist(
-      await apiPostJson<AuthSession>(
-        MOCK_ENDPOINTS.verifyOtp,
-        { phone, otp: code, role: role(explicitRole) },
-        { anonymous: true },
-      ),
-    );
-  }
-
-  let idToken = "";
-  try {
-    if (isFirebaseConfigured()) {
-      idToken = await confirmFirebaseOtp(code);
-    }
-  } catch {
-    // Direct backend verification fallback
-  }
-  return persist(
-    await apiPostJson<AuthSession>(
-      AUTH_ENDPOINTS.verifyOtp,
-      { id_token: idToken, phone, code, role: role(explicitRole) },
-      { anonymous: true },
-    ),
+  const session = await apiPostJson<AuthSession>(
+    AUTH_ENDPOINTS.verifyOtp,
+    {
+      phone,
+      code,
+      role: role(explicitRole),
+      referral_code: referralCode ? referralCode.trim().toUpperCase() : undefined,
+    },
+    { anonymous: true },
   );
+  return persist(session);
 }
 
 /* --------------------------------------------------------------- social */
 
-async function socialSignIn(
-  path: string,
-  idToken: string,
+export async function signInWithGoogle(
   explicitRole?: AccountRole,
+  referralCode?: string,
 ): Promise<AuthSession> {
-  return persist(
-    await apiPostJson<AuthSession>(
-      path,
-      { id_token: idToken, role: role(explicitRole) },
-      { anonymous: true },
-    ),
-  );
+  throw new ApiError("unconfigured", "Please use Phone OTP authentication");
 }
 
-/** POST /api/auth/google */
-export async function signInWithGoogle(explicitRole?: AccountRole): Promise<AuthSession> {
-  if (authMode() === "mock") {
-    throw new ApiError("unconfigured", "Google Sign In needs Firebase credentials for this build");
-  }
-  return socialSignIn(AUTH_ENDPOINTS.google, await signInWithGoogleIdToken(), explicitRole);
-}
-
-/** POST /api/auth/apple — prepared; disabled unless VITE_APPLE_SIGN_IN_ENABLED=true. */
-export async function signInWithApple(explicitRole?: AccountRole): Promise<AuthSession> {
-  if (authMode() === "mock") {
-    throw new ApiError("unconfigured", "Apple Sign In needs Firebase credentials for this build");
-  }
-  return socialSignIn(AUTH_ENDPOINTS.apple, await signInWithAppleIdToken(), explicitRole);
+export async function signInWithApple(
+  explicitRole?: AccountRole,
+  referralCode?: string,
+): Promise<AuthSession> {
+  throw new ApiError("unconfigured", "Please use Phone OTP authentication");
 }
 
 /* ------------------------------------------------------------- session */
@@ -171,7 +103,7 @@ export async function fetchCurrentUser(): Promise<AuthSession["account"]> {
 /** POST /api/auth/refresh — rotates the access token using the refresh token. */
 export async function refreshSession(explicitRole?: AccountRole): Promise<AuthSession | null> {
   const current = readSession(role(explicitRole));
-  if (!current?.refreshToken || authMode() === "mock") return null;
+  if (!current?.refreshToken) return null;
   try {
     const next = await apiPostJson<AuthSession>(
       AUTH_ENDPOINTS.refresh,
@@ -192,13 +124,11 @@ function isExpired(session: AuthSession, skewMs = 60_000): boolean {
 
 /**
  * Splash → Stored JWT Session → Fast API /api/auth/me → Home | Auth.
- * Returns the restored session, or null when the user must sign in again.
  */
 export async function restoreSession(explicitRole?: AccountRole): Promise<AuthSession | null> {
   const target = role(explicitRole);
   const stored = readSession(target);
   if (!stored) return null;
-  if (authMode() === "mock") return stored;
 
   if (isExpired(stored)) return refreshSession(target);
 
@@ -209,21 +139,21 @@ export async function restoreSession(explicitRole?: AccountRole): Promise<AuthSe
     if (error instanceof ApiError && error.kind === "unauthorized") {
       return refreshSession(target);
     }
-    return stored; // network hiccup — keep the offline session
+    return stored;
   }
 }
 
-/** POST /api/auth/logout — revokes the refresh token, then clears everything. */
+/** POST /api/auth/logout — revokes the refresh token and clears session. */
 export async function logout(explicitRole?: AccountRole): Promise<void> {
   const target = role(explicitRole);
   const current = readSession(target);
-  if (authMode() === "firebase" && current?.refreshToken) {
+  if (current?.refreshToken) {
     try {
       await apiPostJson(AUTH_ENDPOINTS.logout, { refresh_token: current.refreshToken });
     } catch {
-      /* logout must always succeed locally */
+      /* ignore */
     }
   }
-  await firebaseSignOut();
+  await onesignalLogout();
   clearSession(target);
 }

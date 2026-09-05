@@ -135,6 +135,8 @@ export type Address = {
   label: "Home" | "Office" | "Other";
   line: string;
   city: string;
+  pincode?: string;
+  state?: string;
   phone: string;
 };
 
@@ -258,6 +260,8 @@ function toAddress(entity: AddressEntity): Address {
     label: ADDRESS_LABELS[entity.type],
     line: [entity.houseNumber, entity.building, entity.street].filter(Boolean).join(", "),
     city: `${entity.area}, ${entity.city} ${entity.pincode}`.trim(),
+    pincode: entity.pincode,
+    state: entity.state,
     phone: entity.phone,
   };
 }

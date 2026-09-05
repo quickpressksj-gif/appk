@@ -23,8 +23,11 @@ export type BusinessRegistrationPayload = {
   gstin?: string;
   address: string;
   city: string;
+  state?: string;
   area?: string;
   pincode: string;
+  servicePincodes?: string[];
+  sectors?: string[];
   openingTime: string;
   closingTime: string;
   email?: string;

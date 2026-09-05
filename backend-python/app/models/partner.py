@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 PartnerOrderStatus = Literal[
     "new", "accepted", "picked", "processing", "ready", "delivered", "cancelled"
@@ -144,9 +144,9 @@ class BusinessSettingsUpdate(BaseModel):
 
 class PartnerServiceResponse(BaseModel):
     id: str
-    name: str
-    unit: str
-    price: int
+    name: str = "Standard Service"
+    unit: str = "kg"
+    price: int = 0
     turnaroundHours: int = 24
     enabled: bool = True
     category: str = "laundry"
@@ -251,8 +251,11 @@ class OnboardingPayload(BaseModel):
     gstin: str = ""
     address: str = ""
     city: str = ""
+    state: str = "Uttar Pradesh"
     area: str = ""
     pincode: str = ""
+    servicePincodes: List[str] = Field(default_factory=list)
+    sectors: List[str] = Field(default_factory=list)
     openingTime: str = "08:00"
     closingTime: str = "21:00"
     weeklyOff: str = "None"

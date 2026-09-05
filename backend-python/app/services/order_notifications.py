@@ -50,11 +50,23 @@ async def send_customer_notification(
     }
     await database.collection("notifications").insert_one(doc)
 
-    # Real FCM push dispatch with deep link
+    # Real OneSignal & Native WebPush dispatch with deep link
+    deep_link = f"/track/{order_id}" if order_id else "/history"
     try:
-        from app.core.fcm import send_fcm_push
-        deep_link = f"/track/{order_id}" if order_id else "/history"
-        await send_fcm_push(
+        from app.core.onesignal import send_onesignal_notification
+        await send_onesignal_notification(
+            user_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "kind": kind},
+            url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.webpush import send_native_webpush
+        await send_native_webpush(
             user_id,
             title=title,
             body=description,
@@ -98,10 +110,22 @@ async def send_partner_notification(
     }
     await database.collection("notifications").insert_one(doc)
 
+    deep_link = f"/orders/{order_id}" if order_id else "/orders"
     try:
-        from app.core.fcm import send_fcm_push
-        deep_link = f"/orders/{order_id}" if order_id else "/orders"
-        await send_fcm_push(
+        from app.core.onesignal import send_onesignal_notification
+        await send_onesignal_notification(
+            partner_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "role": "partner", "kind": kind},
+            url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.webpush import send_native_webpush
+        await send_native_webpush(
             partner_id,
             title=title,
             body=description,
@@ -153,10 +177,22 @@ async def send_rider_notification(
         }
     )
 
+    deep_link = f"/deliveries/{order_id}" if order_id else "/deliveries"
     try:
-        from app.core.fcm import send_fcm_push
-        deep_link = f"/deliveries/{order_id}" if order_id else "/deliveries"
-        await send_fcm_push(
+        from app.core.onesignal import send_onesignal_notification
+        await send_onesignal_notification(
+            rider_id,
+            title=title,
+            body=message,
+            data={"orderId": str(order_id or ""), "url": deep_link, "role": "rider", "kind": "rider-assigned"},
+            url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.webpush import send_native_webpush
+        await send_native_webpush(
             rider_id,
             title=title,
             body=message,

@@ -27,7 +27,6 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StaffRouteImport } from './routes/staff'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as WalletRouteImport } from './routes/wallet'
-import { Route as WebsiteRouteImport } from './routes/website'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -119,11 +118,6 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WebsiteRoute = WebsiteRouteImport.update({
-  id: '/website',
-  path: '/website',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -144,7 +138,6 @@ export interface FileRoutesByFullPath {
   '/staff': typeof StaffRoute
   '/support': typeof SupportRoute
   '/wallet': typeof WalletRoute
-  '/website': typeof WebsiteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -165,7 +158,6 @@ export interface FileRoutesByTo {
   '/staff': typeof StaffRoute
   '/support': typeof SupportRoute
   '/wallet': typeof WalletRoute
-  '/website': typeof WebsiteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,7 +179,6 @@ export interface FileRoutesById {
   '/staff': typeof StaffRoute
   '/support': typeof SupportRoute
   '/wallet': typeof WalletRoute
-  '/website': typeof WebsiteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -210,7 +201,6 @@ export interface FileRouteTypes {
     | '/staff'
     | '/support'
     | '/wallet'
-    | '/website'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -231,7 +221,6 @@ export interface FileRouteTypes {
     | '/staff'
     | '/support'
     | '/wallet'
-    | '/website'
   id:
     | '__root__'
     | '/'
@@ -252,7 +241,6 @@ export interface FileRouteTypes {
     | '/staff'
     | '/support'
     | '/wallet'
-    | '/website'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -274,7 +262,6 @@ export interface RootRouteChildren {
   StaffRoute: typeof StaffRoute
   SupportRoute: typeof SupportRoute
   WalletRoute: typeof WalletRoute
-  WebsiteRoute: typeof WebsiteRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -405,13 +392,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/website': {
-      id: '/website'
-      path: '/website'
-      fullPath: '/website'
-      preLoaderRoute: typeof WebsiteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -434,7 +414,6 @@ const rootRouteChildren: RootRouteChildren = {
   StaffRoute: StaffRoute,
   SupportRoute: SupportRoute,
   WalletRoute: WalletRoute,
-  WebsiteRoute: WebsiteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

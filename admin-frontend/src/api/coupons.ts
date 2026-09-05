@@ -11,7 +11,7 @@
  * GET /api/admin/referrals/stats        — Referral KPIs
  * GET /api/admin/referrals/list         — Referred users list
  */
-import { apiDeleteJson, apiGetJson, apiPostJson, apiPutJson } from "@/api/core/transport";
+import { apiDeleteJson, apiGetJson, apiPatchJson, apiPostJson, apiPutJson } from "@/api/core/transport";
 
 export type Coupon = {
   id: string;
@@ -20,14 +20,46 @@ export type Coupon = {
   value: string;
   discountPct?: number;
   maxDiscount?: number;
+  flatDiscount?: number;
   minOrder: number;
   minOrderLabel?: string;
   audience: string;
+  cities?: string[];
+  pincodes?: string[];
+  perUserLimit?: number;
   used: number;
   limit: number;
+  uniqueUsers?: number;
+  totalDiscountGiven?: number;
+  totalOrderRevenue?: number;
+  startDate?: string;
   validTill: string;
   status: "Active" | "Scheduled" | "Expired" | "Paused";
+  badge?: string;
   description?: string;
+};
+
+export type CouponRedemption = {
+  id: string;
+  couponId: string;
+  couponCode: string;
+  orderId: string;
+  userId: string;
+  userName: string;
+  userPhone: string;
+  city: string;
+  pincode: string;
+  orderAmount: number;
+  discountAmount: number;
+  redeemedAt: string;
+};
+
+export type CityCouponStat = {
+  city: string;
+  totalCoupons: number;
+  activeCoupons: number;
+  redemptions: number;
+  discountDisbursed: number;
 };
 
 export type CouponStats = {
@@ -35,6 +67,7 @@ export type CouponStats = {
   activeCoupons: number;
   totalRedemptions: number;
   totalDiscountDisbursed: number;
+  cityBreakdown?: CityCouponStat[];
   referralConversions: number;
   referralRevenue: number;
 };
@@ -91,33 +124,45 @@ export async function fetchCouponStats(): Promise<CouponStats> {
     return await apiGetJson<CouponStats>("/api/admin/coupons/stats");
   } catch {
     return {
-      totalCoupons: 4,
-      activeCoupons: 4,
-      totalRedemptions: 86,
-      totalDiscountDisbursed: 3870,
-      referralConversions: 14,
-      referralRevenue: 2450.0,
+      totalCoupons: 0,
+      activeCoupons: 0,
+      totalRedemptions: 0,
+      totalDiscountDisbursed: 0,
+      cityBreakdown: [],
+      referralConversions: 0,
+      referralRevenue: 0,
     };
   }
 }
 
-export async function fetchCoupons(): Promise<Coupon[]> {
+export async function fetchCoupons(city?: string): Promise<Coupon[]> {
   try {
-    const rows = await apiGetJson<any[]>("/api/admin/coupons");
+    const rows = await apiGetJson<any[]>("/api/admin/coupons", {
+      params: city && city !== "All Cities" ? { city } : undefined,
+    });
     return (rows || []).map((r) => ({
       id: r._id || r.id,
       code: r.code || "PROMO",
       type: r.type || (r.discountPct ? "percentage" : "flat"),
       value: r.value || r.discount || "20% OFF",
-      discountPct: r.discountPct || 20,
-      maxDiscount: r.maxDiscount || 100,
-      minOrder: Number(r.minOrder ?? 199),
-      minOrderLabel: `₹${Number(r.minOrder ?? 199).toLocaleString("en-IN")}`,
-      audience: r.audience || r.description || "All Customers",
+      discountPct: r.discountPct ? Number(r.discountPct) : undefined,
+      maxDiscount: r.maxDiscount ? Number(r.maxDiscount) : undefined,
+      flatDiscount: r.flatDiscount ? Number(r.flatDiscount) : undefined,
+      minOrder: Number(r.minOrder ?? 0),
+      minOrderLabel: `₹${Number(r.minOrder ?? 0).toLocaleString("en-IN")}`,
+      audience: r.audience || "All Users",
+      cities: Array.isArray(r.cities) ? r.cities : [],
+      pincodes: Array.isArray(r.pincodes) ? r.pincodes : [],
+      perUserLimit: Number(r.perUserLimit ?? 1),
       used: Number(r.used ?? 0),
-      limit: Number(r.limit ?? 100),
+      limit: Number(r.limit ?? 500),
+      uniqueUsers: Number(r.uniqueUsers ?? 0),
+      totalDiscountGiven: Number(r.totalDiscountGiven ?? 0),
+      totalOrderRevenue: Number(r.totalOrderRevenue ?? 0),
+      startDate: (r.startDate || "").slice(0, 10),
       validTill: (r.validTill || r.expiry || "2026-12-31").slice(0, 10),
       status: (r.status as any) || "Active",
+      badge: r.badge || "",
       description: r.description || "",
     }));
   } catch {
@@ -125,18 +170,39 @@ export async function fetchCoupons(): Promise<Coupon[]> {
   }
 }
 
+export async function fetchCouponRedemptions(couponId: string): Promise<CouponRedemption[]> {
+  try {
+    const res = await apiGetJson<CouponRedemption[]>(`/api/admin/coupons/${couponId}/redemptions`);
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function toggleCouponStatus(couponId: string, status: "Active" | "Paused" | "Expired") {
+  return await apiPatchJson<any>(`/api/admin/coupons/${couponId}/status`, { status });
+}
+
 export async function createCoupon(payload: {
   code: string;
   type?: string;
+  value?: string;
   discount?: string;
   discountPct?: number;
   maxDiscount?: number;
+  flatDiscount?: number;
   minOrder?: number;
+  cities?: string[];
+  pincodes?: string[];
   audience?: string;
+  perUserLimit?: number;
   limit?: number;
+  startDate?: string;
   expiry?: string;
+  validTill?: string;
   description?: string;
   status?: string;
+  badge?: string;
 }) {
   return await apiPostJson<any>("/api/admin/coupons", payload);
 }
@@ -179,11 +245,11 @@ export async function fetchReferralStats(): Promise<AdminReferralStats> {
     return await apiGetJson<AdminReferralStats>("/api/admin/referrals/stats");
   } catch {
     return {
-      totalInvites: 34,
-      totalRegisteredReferrals: 19,
-      convertedFirstOrders: 14,
-      totalDiscountGiven: 680,
-      totalRewardsPaid: 1400,
+      totalInvites: 0,
+      totalRegisteredReferrals: 0,
+      convertedFirstOrders: 0,
+      totalDiscountGiven: 0,
+      totalRewardsPaid: 0,
       activeSettings: {
         id: "referrals",
         enabled: true,
@@ -202,27 +268,14 @@ export async function fetchReferralStats(): Promise<AdminReferralStats> {
 
 export async function fetchReferralsList(): Promise<AdminReferralListResponse> {
   try {
-    return await apiGetJson<AdminReferralListResponse>("/api/admin/referrals/list");
+    const res = await apiGetJson<AdminReferralListResponse>("/api/admin/coupons/referral-list");
+    if (res && Array.isArray(res.items)) return res;
+    const directRes = await apiGetJson<any>("/api/admin/referrals/list");
+    return directRes && Array.isArray(directRes.items) ? directRes : { items: [], total: 0 };
   } catch {
     return {
-      items: [
-        {
-          id: "ref-1",
-          referrerId: "u-1",
-          referrerName: "Rahul Sharma",
-          referrerPhone: "+91 98719 62596",
-          refereeId: "u-2",
-          refereeName: "Aman Verma",
-          refereePhone: "+91 98765 43210",
-          code: "RAHUL20",
-          status: "Converted",
-          rewardAmount: 100,
-          discountApplied: 48,
-          firstOrderId: "QP-918231",
-          createdAt: "2026-08-15",
-        },
-      ],
-      total: 1,
+      items: [],
+      total: 0,
     };
   }
 }

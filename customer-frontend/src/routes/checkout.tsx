@@ -337,7 +337,15 @@ export function CheckoutPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-black text-zinc-900">{selectedPickup.label}</p>
                 <p className="text-xs text-zinc-600 leading-relaxed truncate">{selectedPickup.line}</p>
-                <p className="text-[11px] text-zinc-400">{selectedPickup.city}</p>
+                <p className="text-[11px] text-zinc-400">
+                  {selectedPickup.city} {selectedPickup.pincode ? `• PIN ${selectedPickup.pincode}` : ""}
+                </p>
+                <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800">
+                  <span className="flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    <Zap className="size-3 text-emerald-600" />
+                    Express Fast Dispatch Available
+                  </span>
+                </div>
               </div>
             </div>
           ) : (

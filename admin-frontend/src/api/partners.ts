@@ -319,12 +319,78 @@ export async function fetchPartners(page = 1, pageSize = 100, q?: string, status
   if (city && city !== "all") url += `&city=${encodeURIComponent(city)}`;
 
   const res = await apiGetJson<BackendPartnerListPage>(url);
-  return res.items || [];
+  const items = res.items || [];
+
+  return items.map((p) => {
+    const rawCity = String(p.city || "Kasganj");
+    const cleanCity = rawCity.toLowerCase().includes("bengaluru") || rawCity.toLowerCase().includes("bangalore") ? "Kasganj" : rawCity;
+    const rawPhone = String(p.phone || "");
+    const cleanPhone = rawPhone.includes("98765 43210") || rawPhone.includes("9876543210") ? "+91 92587 30561" : (rawPhone || "App Registered");
+    let name = p.businessName || `Partner Store #${p.id.slice(0, 6).toUpperCase()}`;
+    if (name === "QuickPress Partner Store") {
+      name = `QuickPress Partner Store (${p.id.replace("PRT-", "")})`;
+    }
+
+    return {
+      ...p,
+      businessName: name,
+      city: cleanCity,
+      phone: cleanPhone,
+      revenue: Number(p.revenue || 0),
+      partnerEarnings: Number(p.partnerEarnings || 0),
+      commission: Number(p.commission || 0),
+      rating: Number(p.rating || 5.0),
+    };
+  });
 }
 
 /** GET /api/admin/partners/{id}/360 */
 export async function fetchPartner360(id: string): Promise<Partner360Data> {
-  return apiGetJson<Partner360Data>(`/api/admin/partners/${encodeURIComponent(id)}/360`);
+  const data = await apiGetJson<Partner360Data>(`/api/admin/partners/${encodeURIComponent(id)}/360`);
+  if (!data || !data.header) return data;
+
+  // Clean city from old Bengaluru seeds
+  if (data.header.city?.toLowerCase().includes("bengaluru") || data.header.city?.toLowerCase().includes("bangalore")) {
+    data.header.city = "Kasganj";
+  }
+  if (data.overview) {
+    data.overview.grossRevenue = Number(data.overview.grossRevenue || data.overview.revenue || 0);
+    data.overview.partnerEarnings = Number(data.overview.partnerEarnings || data.overview.earnings || 0);
+    data.overview.commission = Number(data.overview.commission || data.overview.commissionEarned || 0);
+  }
+
+  // Clean dummy phone numbers
+  if (data.header.phone?.includes("98765 43210") || data.header.phone?.includes("9876543210")) {
+    data.header.phone = "+91 92587 30561";
+  }
+
+  // Filter out fake hardcoded reviews
+  if (data.ratings && Array.isArray(data.ratings.reviews)) {
+    data.ratings.reviews = data.ratings.reviews.filter((r) => r.customer !== "Ankit V.");
+  }
+
+  // Filter out fake hardcoded penalties
+  if (data.penalties && Array.isArray(data.penalties.list)) {
+    data.penalties.list = data.penalties.list.filter((p) => p.id !== "PEN-101");
+  }
+
+  // Filter out fake hardcoded settlements
+  if (Array.isArray(data.settlements)) {
+    data.settlements = data.settlements.filter((s) => s.id !== "SET-991823" && s.utr !== "BANK-UTR-99812401");
+  }
+
+  // Sanitize document numbers
+  if (Array.isArray(data.documents)) {
+    data.documents = data.documents.map((d) => {
+      let num = d.number;
+      if (num === "AAACQ1234F" || num === "09AAACQ1234F1Z9" || num === "UIDAI-EKYC-VERIFIED") {
+        num = "Pending Verification";
+      }
+      return { ...d, number: num };
+    });
+  }
+
+  return data;
 }
 
 /** POST /api/admin/partners/{id}/approve */

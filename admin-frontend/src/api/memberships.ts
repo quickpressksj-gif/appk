@@ -13,6 +13,7 @@ export interface MembershipPlan {
   name: string;
   tagline: string;
   monthlyPrice: number;
+  quarterlyPrice?: number;
   yearlyPrice: number;
   yearlySavings: number;
   savingsLabel: string;
@@ -24,10 +25,16 @@ export interface MembershipPlan {
   color: string;
   order: number;
   discountPercent: number;
+  cashbackPercent?: number;
   freeDeliveryMinOrder: number;
   freePickup: boolean;
   priorityProcessing: boolean;
+  surgeWaiver?: boolean;
   supportTier: string;
+  monthlyOrderLimit?: number;
+  monthlyWeightLimitKg?: number;
+  freeExpressCount?: number;
+  description?: string;
   benefits: MembershipBenefit[];
 }
 
@@ -36,6 +43,7 @@ export interface AdminPlanPayload {
   name: string;
   tagline: string;
   monthlyPrice: number;
+  quarterlyPrice?: number;
   yearlyPrice: number;
   validityDays: number;
   yearlyValidityDays: number;
@@ -45,14 +53,20 @@ export interface AdminPlanPayload {
   color: string;
   order: number;
   discountPercent: number;
+  cashbackPercent?: number;
   freeDeliveryMinOrder: number;
   freePickup: boolean;
   priorityProcessing: boolean;
+  surgeWaiver?: boolean;
   supportTier: string;
+  monthlyOrderLimit?: number;
+  freeExpressCount?: number;
+  description?: string;
   benefits: MembershipBenefit[];
 }
 
 export interface MembershipSubscriberItem {
+  id?: string;
   userId: string;
   userName: string;
   userPhone: string;
@@ -66,6 +80,9 @@ export interface MembershipSubscriberItem {
   expiresAt?: string;
   autoRenew: boolean;
   remainingDays: number;
+  totalOrders?: number;
+  totalSaved?: number;
+  city?: string;
 }
 
 export interface MembershipSubscribersResponse {
@@ -80,6 +97,9 @@ export interface MembershipStatsResponse {
   annualRunRate: number;
   topPlanName: string;
   expiringSoonCount: number;
+  totalSavingsGiven?: number;
+  memberOrdersCount?: number;
+  averageLtv?: number;
   tierBreakdown: Record<string, number>;
 }
 
@@ -132,11 +152,11 @@ export async function deleteMembershipPlan(planId: string): Promise<{ ok: boolea
 }
 
 export async function fetchMembershipSubscribers(params?: {
-  q?: string;
-  status?: string;
-  planId?: string;
-  limit?: number;
-  offset?: number;
+  q?: string | undefined;
+  status?: string | undefined;
+  planId?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
 }): Promise<MembershipSubscribersResponse> {
   const query = new URLSearchParams();
   if (params?.q) query.set("q", params.q);

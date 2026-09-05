@@ -535,11 +535,8 @@ async def reject_refund(refund_id: str, reason: str) -> Dict[str, Any]:
 # --------------------------------------------------------------------- seed
 
 async def _seed_settlements_if_needed(user: User) -> None:
-    if user.role not in (Role.partner, Role.rider):
-        return
-    existing = await database.count(SETTLEMENTS, {"accountId": user.id})
-    if existing:
-        return
+    # No-op in production / live real-data mode: only real order deliveries create settlements.
+    return
     role = user.role.value
     seeded_at = datetime.now(timezone.utc)
     gross_base = 12_400 if role == "partner" else 6_200

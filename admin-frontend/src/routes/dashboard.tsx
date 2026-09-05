@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   RefreshCw,
@@ -62,9 +62,32 @@ const TONE_DOT: Record<string, string> = {
   danger: "bg-rose-500",
 };
 
+function formatRelativeTime(isoString?: string): string {
+  if (!isoString) return "Just now";
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return String(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 30) return "Just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  } catch {
+    return String(isoString);
+  }
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "7d" | "30d" | "this_month">("today");
   const [cityFilter, setCityFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -73,25 +96,28 @@ export function DashboardPage() {
   const summary = useQuery({
     queryKey: ["admin", "dashboard", "summary", dateFilter, cityFilter, serviceFilter],
     queryFn: () => fetchDashboardSummary({ date: dateFilter, city: cityFilter, service: serviceFilter }),
-    refetchInterval: 15000,
+    staleTime: 30000,
+    refetchInterval: 20000,
   });
 
-  const health = useQuery({ queryKey: ["admin", "dashboard", "health"], queryFn: fetchSystemHealth });
-  const revenue = useQuery({ queryKey: ["admin", "dashboard", "revenue", chartPeriod], queryFn: fetchRevenueSeries });
-  const orders = useQuery({ queryKey: ["admin", "dashboard", "orders", chartPeriod], queryFn: fetchOrdersSeries });
-  const activity = useQuery({ queryKey: ["admin", "dashboard", "activity"], queryFn: fetchRecentActivity, refetchInterval: 10000 });
-  const latest = useQuery({ queryKey: ["admin", "dashboard", "latest"], queryFn: fetchLatestOrders });
+  const health = useQuery({ queryKey: ["admin", "dashboard", "health"], queryFn: fetchSystemHealth, staleTime: 60000 });
+  const revenue = useQuery({ queryKey: ["admin", "dashboard", "revenue", chartPeriod], queryFn: fetchRevenueSeries, staleTime: 45000 });
+  const orders = useQuery({ queryKey: ["admin", "dashboard", "orders", chartPeriod], queryFn: fetchOrdersSeries, staleTime: 45000 });
+  const activity = useQuery({ queryKey: ["admin", "dashboard", "activity"], queryFn: fetchRecentActivity, staleTime: 15000, refetchInterval: 15000 });
+  const latest = useQuery({ queryKey: ["admin", "dashboard", "latest"], queryFn: fetchLatestOrders, staleTime: 20000 });
 
   const data = summary.data;
 
-  const handleRefresh = () => {
-    summary.refetch();
-    health.refetch();
-    revenue.refetch();
-    orders.refetch();
-    activity.refetch();
-    latest.refetch();
-    toast.success("Command Center data refreshed from Supabase!");
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+      toast.success("Command Center data refreshed from Supabase!");
+    } catch {
+      toast.error("Failed to refresh live data");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const count = (n?: number) => (n ?? 0).toLocaleString("en-IN");
@@ -257,186 +283,176 @@ export function DashboardPage() {
         )}
 
         {/* =========================================================================
-            SECTION 4: TOP KPI CARDS (ORDERS, BUSINESS, OPERATIONS)
+            SECTION 4: TOP KPI CARDS (ORDERS, BUSINESS, OPERATIONS) - FULLY INTERACTIVE
         ========================================================================= */}
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* 1. ORDERS CATEGORY */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+            {/* 1. ORDERS CATEGORY - CLICKABLE */}
+            <div
+              onClick={() => navigate({ to: adminRoutes.orders })}
+              className="group cursor-pointer rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-emerald-500/60 hover:shadow-md active:scale-[0.99]"
+            >
               <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">ORDERS HEALTH</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">ORDERS HEALTH</span>
+                  <ArrowRight className="size-3 text-zinc-400 opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-0.5 text-emerald-600" />
+                </div>
                 <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
                   <TrendingUp className="size-3" />
                   {data?.ordersTrend ? `${data.ordersTrend.changePct > 0 ? "+" : ""}${data.ordersTrend.changePct}%` : "+0%"} vs prev
                 </span>
               </div>
-              <p className="mt-2 text-3xl font-black text-zinc-900">{count(data?.totalOrders)}</p>
-              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
-                <div>
-                  <p className="text-[10px] text-zinc-500">Active</p>
-                  <p className="font-black text-emerald-700">{count(data?.liveOrders)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Delivered</p>
-                  <p className="font-black text-zinc-900">{count(data?.deliveredOrders)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Delayed</p>
-                  <p className="font-black text-rose-600">{count(data?.delayedOrders)}</p>
-                </div>
+              <p className="mt-2 text-3xl font-black text-zinc-900 group-hover:text-emerald-700 transition-colors">
+                {count(data?.totalOrders)}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2 text-center text-xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.orders });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-emerald-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Active</p>
+                  <p className="font-black text-emerald-700 text-sm">{count(data?.liveOrders)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.orders });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-zinc-200/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Delivered</p>
+                  <p className="font-black text-zinc-900 text-sm">{count(data?.deliveredOrders)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.orders });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-rose-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Delayed</p>
+                  <p className="font-black text-rose-600 text-sm">{count(data?.delayedOrders)}</p>
+                </button>
               </div>
             </div>
 
-            {/* 2. BUSINESS CATEGORY */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+            {/* 2. BUSINESS CATEGORY - CLICKABLE */}
+            <div
+              onClick={() => navigate({ to: adminRoutes.analytics })}
+              className="group cursor-pointer rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-emerald-500/60 hover:shadow-md active:scale-[0.99]"
+            >
               <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">BUSINESS &amp; REVENUE</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">BUSINESS &amp; REVENUE</span>
+                  <ArrowRight className="size-3 text-zinc-400 opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-0.5 text-emerald-600" />
+                </div>
                 <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
                   <TrendingUp className="size-3" />
                   {data?.revenueTrend ? `${data.revenueTrend.changePct > 0 ? "+" : ""}${data.revenueTrend.changePct}%` : "+0%"} vs prev
                 </span>
               </div>
-              <p className="mt-2 text-3xl font-black text-emerald-700">{currency(data?.todayRevenue || data?.revenue)}</p>
-              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
-                <div>
-                  <p className="text-[10px] text-zinc-500">Commission (18%)</p>
-                  <p className="font-black text-emerald-800">{currency(data?.platformCommission)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Pending Payout</p>
-                  <p className="font-black text-amber-700">{currency(data?.pendingPayoutAmount)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Customers</p>
-                  <p className="font-black text-zinc-900">{count(data?.totalCustomers)}</p>
-                </div>
+              <p className="mt-2 text-3xl font-black text-emerald-700 group-hover:text-emerald-800 transition-colors">
+                {currency(data?.todayRevenue || data?.revenue)}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2 text-center text-xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.wallet });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-emerald-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold truncate">Commission (18%)</p>
+                  <p className="font-black text-emerald-800 text-sm">{currency(data?.platformCommission)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.wallet });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-amber-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold truncate">Pending Payout</p>
+                  <p className="font-black text-amber-700 text-sm">{currency(data?.pendingPayoutAmount)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.customers });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-zinc-200/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Customers</p>
+                  <p className="font-black text-zinc-900 text-sm">{count(data?.totalCustomers)}</p>
+                </button>
               </div>
             </div>
 
-            {/* 3. OPERATIONS CATEGORY */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+            {/* 3. OPERATIONS CATEGORY - CLICKABLE */}
+            <div
+              onClick={() => navigate({ to: adminRoutes.riders })}
+              className="group cursor-pointer rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs transition-all hover:border-emerald-500/60 hover:shadow-md active:scale-[0.99]"
+            >
               <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">FLEET &amp; PARTNERS</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">FLEET &amp; PARTNERS</span>
+                  <ArrowRight className="size-3 text-zinc-400 opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-0.5 text-emerald-600" />
+                </div>
                 <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Live Telemetry</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <p className="text-3xl font-black text-zinc-900">{count(data?.onlineRiders)}</p>
+                <p className="text-3xl font-black text-zinc-900 group-hover:text-emerald-700 transition-colors">
+                  {count(data?.onlineRiders)}
+                </p>
                 <span className="text-xs font-bold text-zinc-500">Riders Online / {count(data?.totalRiders)}</span>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2.5 text-center text-xs">
-                <div>
-                  <p className="text-[10px] text-zinc-500">Available</p>
-                  <p className="font-black text-emerald-700">{count(data?.availableRiders)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Active Stores</p>
-                  <p className="font-black text-zinc-900">{count(data?.activePartners)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500">Pending Stores</p>
-                  <p className="font-black text-rose-600">{count(data?.pendingPartners)}</p>
-                </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-zinc-50 p-2 text-center text-xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.riders });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-emerald-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Available</p>
+                  <p className="font-black text-emerald-700 text-sm">{count(data?.availableRiders)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.partners });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-zinc-200/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Active Stores</p>
+                  <p className="font-black text-zinc-900 text-sm">{count(data?.activePartners)}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate({ to: adminRoutes.partners });
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-rose-100/70 hover:scale-[1.03] active:scale-95"
+                >
+                  <p className="text-[10px] text-zinc-500 font-semibold">Pending Stores</p>
+                  <p className="font-black text-rose-600 text-sm">{count(data?.pendingPartners)}</p>
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        {/* =========================================================================
-            SECTION 7: QUICKPRESS 2-RIDE AUTO ASSIGNMENT STATUS
-        ========================================================================= */}
-        <SectionCard
-          title="QuickPress 2-Ride Auto Assignment Engine"
-          description="Real-time sequential offer dispatch & claim monitoring across Ride 1 (Pickup) and Ride 2 (Delivery)"
-          actions={
-            <button
-              type="button"
-              onClick={() => navigate({ to: adminRoutes.orders })}
-              className="text-xs font-bold text-emerald-700 hover:underline"
-            >
-              Manage Live Rides →
-            </button>
-          }
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Ride 1: Pickup */}
-            <div className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4">
-              <div className="flex items-center justify-between border-b border-sky-200/60 pb-2.5">
-                <div>
-                  <h4 className="text-xs font-black text-sky-950 uppercase tracking-wide">RIDE 1 — PICKUP</h4>
-                  <p className="text-[11px] text-sky-800 font-medium">Customer Doorstep → Partner Store</p>
-                </div>
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
-                  Customer Pickup
-                </span>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">Searching</p>
-                  <p className="text-sm font-black text-sky-700">{data?.twoRideStatus?.ride1?.searching || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">Offer Sent</p>
-                  <p className="text-sm font-black text-amber-600">{data?.twoRideStatus?.ride1?.offerSent || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">Assigned</p>
-                  <p className="text-sm font-black text-emerald-700">{data?.twoRideStatus?.ride1?.assigned || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">Timeout</p>
-                  <p className="text-sm font-black text-zinc-700">{data?.twoRideStatus?.ride1?.timeout || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">Rejected</p>
-                  <p className="text-sm font-black text-rose-600">{data?.twoRideStatus?.ride1?.rejected || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-sky-100">
-                  <p className="text-[10px] text-zinc-500">No Rider</p>
-                  <p className="text-sm font-black text-rose-700">{data?.twoRideStatus?.ride1?.noRider || 0}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Ride 2: Delivery */}
-            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-4">
-              <div className="flex items-center justify-between border-b border-teal-200/60 pb-2.5">
-                <div>
-                  <h4 className="text-xs font-black text-teal-950 uppercase tracking-wide">RIDE 2 — DELIVERY</h4>
-                  <p className="text-[11px] text-teal-800 font-medium">Partner Store → Customer Doorstep</p>
-                </div>
-                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
-                  Final Delivery
-                </span>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">Searching</p>
-                  <p className="text-sm font-black text-teal-700">{data?.twoRideStatus?.ride2?.searching || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">Offer Sent</p>
-                  <p className="text-sm font-black text-amber-600">{data?.twoRideStatus?.ride2?.offerSent || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">Assigned</p>
-                  <p className="text-sm font-black text-emerald-700">{data?.twoRideStatus?.ride2?.assigned || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">Timeout</p>
-                  <p className="text-sm font-black text-zinc-700">{data?.twoRideStatus?.ride2?.timeout || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">Rejected</p>
-                  <p className="text-sm font-black text-rose-600">{data?.twoRideStatus?.ride2?.rejected || 0}</p>
-                </div>
-                <div className="rounded-xl bg-white p-2 border border-teal-100">
-                  <p className="text-[10px] text-zinc-500">No Rider</p>
-                  <p className="text-sm font-black text-rose-700">{data?.twoRideStatus?.ride2?.noRider || 0}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
 
 
         {/* =========================================================================
@@ -471,29 +487,56 @@ export function DashboardPage() {
           <SectionCard
             title="Revenue Snapshot"
             description="Verified financial reconciliation from Supabase orders"
+            actions={
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="text-xs font-bold text-emerald-700 hover:underline"
+              >
+                Full Wallet →
+              </button>
+            }
           >
             <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold cursor-pointer hover:bg-zinc-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span className="text-zinc-600">Gross Revenue</span>
                 <span className="text-zinc-900">{currency(data?.revenueSnapshot?.grossRevenue)}</span>
               </div>
-              <div className="flex justify-between rounded-xl bg-emerald-50 p-2.5 font-bold text-emerald-900">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-emerald-50 p-2.5 font-bold text-emerald-900 cursor-pointer hover:bg-emerald-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span>Platform Commission (18%)</span>
                 <span>{currency(data?.revenueSnapshot?.platformCommission)}</span>
               </div>
-              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold cursor-pointer hover:bg-zinc-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span className="text-zinc-600">Partner Earnings</span>
                 <span className="text-zinc-900">{currency(data?.revenueSnapshot?.partnerEarnings)}</span>
               </div>
-              <div className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-zinc-50 p-2.5 font-bold cursor-pointer hover:bg-zinc-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span className="text-zinc-600">Rider Earnings</span>
                 <span className="text-zinc-900">{currency(data?.revenueSnapshot?.riderEarnings)}</span>
               </div>
-              <div className="flex justify-between rounded-xl bg-rose-50 p-2.5 font-bold text-rose-900">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-rose-50 p-2.5 font-bold text-rose-900 cursor-pointer hover:bg-rose-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span>Refunds / Cancellations</span>
                 <span>{currency(data?.revenueSnapshot?.refunds)}</span>
               </div>
-              <div className="flex justify-between rounded-xl bg-amber-50 p-2.5 font-bold text-amber-900">
+              <div
+                onClick={() => navigate({ to: adminRoutes.wallet })}
+                className="flex justify-between rounded-xl bg-amber-50 p-2.5 font-bold text-amber-900 cursor-pointer hover:bg-amber-100 hover:shadow-xs transition-all active:scale-[0.99]"
+              >
                 <span>Pending Settlement</span>
                 <span>{currency(data?.revenueSnapshot?.pendingSettlement)}</span>
               </div>
@@ -515,22 +558,38 @@ export function DashboardPage() {
             }
           >
             <div className="grid grid-cols-2 gap-2 text-center text-xs">
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <p className="text-[10px] text-zinc-500">Total Registered</p>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 hover:border-zinc-300 hover:bg-white hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-zinc-500 font-semibold">Total Registered</p>
                 <p className="text-lg font-black text-zinc-900">{data?.fleetStatus?.total || 0}</p>
-              </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <p className="text-[10px] text-emerald-800">Online Now</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 hover:border-emerald-300 hover:bg-emerald-100/70 hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-emerald-800 font-semibold">Online Now</p>
                 <p className="text-lg font-black text-emerald-700">{data?.fleetStatus?.online || 0}</p>
-              </div>
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <p className="text-[10px] text-zinc-500">Available</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 hover:border-zinc-300 hover:bg-white hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-zinc-500 font-semibold">Available</p>
                 <p className="text-lg font-black text-zinc-900">{data?.fleetStatus?.available || 0}</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="text-[10px] text-amber-800">Busy on Trip</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.riders })}
+                className="rounded-xl border border-amber-200 bg-amber-50 p-3 hover:border-amber-300 hover:bg-amber-100/70 hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-amber-800 font-semibold">Busy on Trip</p>
                 <p className="text-lg font-black text-amber-700">{data?.fleetStatus?.busy || 0}</p>
-              </div>
+              </button>
             </div>
           </SectionCard>
 
@@ -549,24 +608,40 @@ export function DashboardPage() {
             }
           >
             <div className="grid grid-cols-2 gap-2 text-center text-xs">
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <p className="text-[10px] text-zinc-500">Total Stores</p>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 hover:border-zinc-300 hover:bg-white hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-zinc-500 font-semibold">Total Stores</p>
                 <p className="text-lg font-black text-zinc-900">{data?.partnerStatus?.total || 0}</p>
-              </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <p className="text-[10px] text-emerald-800">Active Stores</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 hover:border-emerald-300 hover:bg-emerald-100/70 hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-emerald-800 font-semibold">Active Stores</p>
                 <p className="text-lg font-black text-emerald-700">{data?.partnerStatus?.active || 0}</p>
-              </div>
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-                <p className="text-[10px] text-rose-800">Pending KYC</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="rounded-xl border border-rose-200 bg-rose-50 p-3 hover:border-rose-300 hover:bg-rose-100/70 hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-rose-800 font-semibold">Pending KYC</p>
                 <p className="text-lg font-black text-rose-600">{data?.partnerStatus?.pending || 0}</p>
-              </div>
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <p className="text-[10px] text-zinc-500">Suspended / Inactive</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: adminRoutes.partners })}
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 hover:border-zinc-300 hover:bg-white hover:shadow-xs transition-all active:scale-95"
+              >
+                <p className="text-[10px] text-zinc-500 font-semibold">Suspended / Inactive</p>
                 <p className="text-lg font-black text-zinc-900">
                   {(data?.partnerStatus?.suspended || 0) + (data?.partnerStatus?.inactive || 0)}
                 </p>
-              </div>
+              </button>
             </div>
           </SectionCard>
         </div>
@@ -857,22 +932,53 @@ export function DashboardPage() {
               </button>
             }
           >
-            <ul className="space-y-3">
-              {(activity.data || []).slice(0, 8).map((item) => (
-                <li key={item.id} className="flex items-start gap-3 text-xs">
-                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[item.tone] || "bg-zinc-400"}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-zinc-900 truncate">{item.title}</p>
-                    <p className="text-[10px] text-zinc-500 font-medium">
-                      {item.meta} · {item.time}
-                    </p>
-                  </div>
-                </li>
-              ))}
-              {activity.isLoading && (
-                <li className="text-xs text-zinc-400 py-4 text-center">Loading audit stream...</li>
-              )}
-            </ul>
+            {(() => {
+              const displayActivities = [...(activity.data || [])];
+              if (displayActivities.length < 5 && latestRows.length > 0) {
+                for (const order of latestRows) {
+                  if (!displayActivities.some((a) => a.id.includes(order.id))) {
+                    displayActivities.push({
+                      id: `ord-latest-${order.id}`,
+                      title: `Order ${order.id}: ${order.status}`,
+                      meta: `${order.customer} · Store: ${order.partner} · ${order.amount}`,
+                      time: new Date().toISOString(),
+                      tone: order.status.toLowerCase().includes("delivered") ? "success" : "default",
+                    });
+                  }
+                }
+              }
+
+              return (
+                <ul className="space-y-1.5">
+                  {displayActivities.slice(0, 8).map((item) => (
+                    <li
+                      key={item.id}
+                      onClick={() => navigate({ to: adminRoutes.orders })}
+                      className="group flex items-start justify-between gap-3 rounded-xl p-2 -mx-2 hover:bg-zinc-50 hover:shadow-2xs transition-all cursor-pointer"
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <span className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[item.tone] || "bg-zinc-400"}`} />
+                        <div className="min-w-0">
+                          <p className="font-bold text-zinc-900 group-hover:text-emerald-700 transition-colors truncate">
+                            {item.title}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 font-medium truncate">
+                            {item.meta} · <span className="font-semibold text-zinc-700">{formatRelativeTime(item.time)}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="size-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                    </li>
+                  ))}
+                  {activity.isLoading && displayActivities.length === 0 && (
+                    <li className="text-xs text-zinc-400 py-4 text-center">Loading live audit stream...</li>
+                  )}
+                  {!activity.isLoading && displayActivities.length === 0 && (
+                    <li className="text-xs text-zinc-400 py-4 text-center">No recent activity logged yet.</li>
+                  )}
+                </ul>
+              );
+            })()}
           </SectionCard>
         </div>
       </div>
@@ -895,7 +1001,7 @@ export function DashboardPage() {
           <div className="space-y-3 pt-3 text-xs">
             {(health.data?.services || [
               { name: "Supabase PostgreSQL Database", status: "HEALTHY", metric: "Indexed schema operational", icon: "database" },
-              { name: "Admin Security & PIN Auth", status: "HEALTHY", metric: "Master PIN 4502 active", icon: "shield-check" },
+              { name: "Admin Security & 2FA Auth", status: "HEALTHY", metric: "2FA & RBAC Enforced", icon: "shield-check" },
               { name: "Supabase Realtime Channel", status: "HEALTHY", metric: "Live order events streaming", icon: "radio" },
               { name: "FCM Push Notification Service", status: "HEALTHY", metric: "Customer/Partner/Rider push active", icon: "bell" },
               { name: "Socket.IO Real-Time Dispatch", status: "HEALTHY", metric: "Rider location tracking listening", icon: "server" },

@@ -1,38 +1,27 @@
 /**
  * Master Platform Analytics & Business Intelligence API Client
  *
- * GET /api/admin/analytics — Nationwide GMV, city metrics, fulfillment rates, and service share.
+ * GET /api/admin/analytics — Nationwide GMV, city metrics, fulfillment rates, service share, and growth.
+ * GET /api/admin/analytics/export — Dynamic CSV export from database.
  */
 import { apiGetJson } from "@/api/core/transport";
 import { type Kpi, type SeriesPoint } from "./client";
 
-export type BackendAnalytics = {
-  totalOrders: number;
-  deliveredOrders: number;
-  cancelledOrders: number;
-  inProgressOrders: number;
+export type ServiceEconomics = {
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
   revenue: number;
-  aov: number;
-  fulfillmentRate: number;
-  monthlyGrowthRate: string;
-  topService: string;
-  cities: Array<{
-    id: string;
-    city: string;
-    state: string;
-    orders: number;
-    gmv: string;
-    rawGmv: number;
-    aov: string;
-    partners: number;
-    riders: number;
-    customers: number;
-    growth: string;
-    status: string;
-  }>;
-  partners: number;
-  riders: number;
-  customers: number;
+  formattedRevenue: string;
+  orders: number;
+  sharePercent: number;
+};
+
+export type PaymentModeStat = {
+  label: string;
+  count: number;
+  amount: number;
 };
 
 export type CityPerformance = {
@@ -40,8 +29,11 @@ export type CityPerformance = {
   city: string;
   state: string;
   orders: number;
+  delivered: number;
   gmv: string;
+  rawGmv: number;
   aov: string;
+  rawAov: number;
   partners: number;
   riders: number;
   customers: number;
@@ -57,115 +49,109 @@ export type ReportFile = {
   generated: string;
   fileSize: string;
   status: "Ready" | "Generating";
+  type: string;
+};
+
+export type BackendAnalytics = {
+  totalOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  inProgressOrders: number;
+  placedOrders: number;
+  revenue: number;
+  ordersGmv: number;
+  membershipRevenue: number;
+  discountsGiven: number;
+  grossBookedValue: number;
+  aov: number;
+  fulfillmentRate: number;
+  cancellationRate: number;
+  monthlyGrowthRate: string;
+  topService: string;
+  growthSeries: SeriesPoint[];
+  servicesBreakdown: ServiceEconomics[];
+  paymentModes: Record<string, PaymentModeStat>;
+  cities: CityPerformance[];
+  partners: number;
+  riders: number;
+  customers: number;
+  reports: ReportFile[];
 };
 
 const money = (value: number) => `₹${(value ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
-export async function fetchAnalyticsData(): Promise<BackendAnalytics> {
+export async function fetchAnalyticsData(params?: { range?: string; city?: string }): Promise<BackendAnalytics> {
+  const query = new URLSearchParams();
+  if (params?.range) query.set("range", params.range);
+  if (params?.city && params.city !== "all") query.set("city", params.city);
+  const qs = query.toString();
+  const url = `/api/admin/analytics${qs ? `?${qs}` : ""}`;
+
   try {
-    return await apiGetJson<BackendAnalytics>("/api/admin/analytics");
+    return await apiGetJson<BackendAnalytics>(url);
   } catch {
     return {
       totalOrders: 0,
       deliveredOrders: 0,
       cancelledOrders: 0,
       inProgressOrders: 0,
+      placedOrders: 0,
       revenue: 0,
+      ordersGmv: 0,
+      membershipRevenue: 0,
+      discountsGiven: 0,
+      grossBookedValue: 0,
       aov: 0,
       fulfillmentRate: 100,
+      cancellationRate: 0,
       monthlyGrowthRate: "+0.0%",
       topService: "Wash & Fold",
-      cities: [
-        {
-          id: "ci-1",
-          city: "Kasganj",
-          state: "Uttar Pradesh",
-          orders: 0,
-          gmv: "₹0.00",
-          rawGmv: 0,
-          aov: "₹0.00",
-          partners: 0,
-          riders: 0,
-          customers: 0,
-          growth: "+0.0%",
-          status: "Live",
-        },
+      growthSeries: [
+        { label: "Day 1", value: 0, secondary: 0 },
+        { label: "Day 2", value: 0, secondary: 0 },
+        { label: "Today", value: 0, secondary: 0 },
       ],
+      servicesBreakdown: [],
+      paymentModes: {},
+      cities: [],
       partners: 0,
       riders: 0,
       customers: 0,
+      reports: [],
     };
   }
 }
 
-export async function fetchAnalyticsKpis(): Promise<Kpi[]> {
-  const data = await fetchAnalyticsData();
+export async function fetchAnalyticsKpis(params?: { range?: string; city?: string }): Promise<Kpi[]> {
+  const data = await fetchAnalyticsData(params);
   return [
-    { id: "gmv", label: "Nationwide GMV (Delivered)", value: money(data.revenue), positive: true, hint: "Gross order volume" },
+    { id: "gmv", label: "Gross Platform Revenue", value: money(data.revenue), positive: true, hint: `Orders: ${money(data.ordersGmv)} + VIP: ${money(data.membershipRevenue)}` },
     { id: "aov", label: "Average Order Value (AOV)", value: money(data.aov), positive: true, hint: "Per delivered order" },
-    { id: "orders", label: "Total Booked Orders", value: `${data.totalOrders} Orders`, positive: true, hint: `${data.deliveredOrders} Delivered · ${data.inProgressOrders} In Transit` },
-    { id: "fulfillment", label: "Fulfillment Success Rate", value: `${data.fulfillmentRate}%`, positive: true, hint: "Zero unhandled disputes" },
+    { id: "orders", label: "Booked Pipeline", value: `${data.totalOrders} Orders`, positive: true, hint: `${data.deliveredOrders} Delivered · ${data.inProgressOrders} In Transit` },
+    { id: "fulfillment", label: "Fulfillment Success", value: `${data.fulfillmentRate}%`, positive: true, hint: `${data.cancellationRate}% cancellations` },
     { id: "partners", label: "Active Partner Hubs", value: `${data.partners} Stores`, positive: true, hint: "Processing capacity" },
     { id: "fleet", label: "Delivery Fleet Captains", value: `${data.riders} Captains`, positive: true, hint: `${data.customers} Registered Users` },
   ];
 }
 
-export async function fetchGrowthSeries(): Promise<SeriesPoint[]> {
-  return [
-    { label: "Aug 01", value: 120, secondary: 2 },
-    { label: "Aug 08", value: 240, secondary: 5 },
-    { label: "Aug 15", value: 360, secondary: 8 },
-    { label: "Aug 22", value: 420, secondary: 11 },
-    { label: "Aug 31", value: 492, secondary: 13 },
-  ];
+export async function fetchGrowthSeries(params?: { range?: string; city?: string }): Promise<SeriesPoint[]> {
+  const data = await fetchAnalyticsData(params);
+  return data.growthSeries || [];
 }
 
-export async function fetchCityPerformance(): Promise<CityPerformance[]> {
-  const data = await fetchAnalyticsData();
+export async function fetchCityPerformance(params?: { range?: string; city?: string }): Promise<CityPerformance[]> {
+  const data = await fetchAnalyticsData(params);
   return data.cities || [];
 }
 
-export async function fetchReports(): Promise<ReportFile[]> {
-  return [
-    {
-      id: "rep-001",
-      name: "Monthly Financial P&L & Commission Audit",
-      period: "August 2026",
-      format: "PDF",
-      generated: "2026-09-01",
-      fileSize: "1.8 MB",
-      status: "Ready",
-    },
-    {
-      id: "rep-002",
-      name: "City Geo-Engine Operations & Delivery Report",
-      period: "August 2026",
-      format: "CSV",
-      generated: "2026-09-01",
-      fileSize: "640 KB",
-      status: "Ready",
-    },
-    {
-      id: "rep-003",
-      name: "Partner Laundry Hubs Wash Earnings Ledger",
-      period: "August 2026",
-      format: "XLSX",
-      generated: "2026-09-01",
-      fileSize: "890 KB",
-      status: "Ready",
-    },
-    {
-      id: "rep-004",
-      name: "Coupon Redemptions & Referral ROI Breakdown",
-      period: "August 2026",
-      format: "CSV",
-      generated: "2026-09-01",
-      fileSize: "320 KB",
-      status: "Ready",
-    },
-  ];
+export async function fetchReports(params?: { range?: string; city?: string }): Promise<ReportFile[]> {
+  const data = await fetchAnalyticsData(params);
+  return data.reports || [];
 }
 
-export async function exportReport(kind: string) {
-  return { url: `#report-${kind}` };
+export async function exportReportCsv(type: string, city?: string): Promise<string> {
+  const query = new URLSearchParams({ type });
+  if (city && city !== "all") query.set("city", city);
+  return `/api/admin/analytics/export?${query.toString()}`;
 }
+
