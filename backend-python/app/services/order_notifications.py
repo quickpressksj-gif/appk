@@ -50,7 +50,7 @@ async def send_customer_notification(
     }
     await database.collection("notifications").insert_one(doc)
 
-    # Real OneSignal & Native WebPush dispatch with deep link
+    # Real OneSignal, FCM & Native WebPush dispatch with deep link
     deep_link = f"/track/{order_id}" if order_id else "/history"
     try:
         from app.core.onesignal import send_onesignal_notification
@@ -60,6 +60,17 @@ async def send_customer_notification(
             body=description,
             data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "kind": kind},
             url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.fcm import send_fcm_push
+        await send_fcm_push(
+            user_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "kind": kind},
         )
     except Exception:
         pass
@@ -119,6 +130,17 @@ async def send_partner_notification(
             body=description,
             data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "role": "partner", "kind": kind},
             url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.fcm import send_fcm_push
+        await send_fcm_push(
+            partner_id,
+            title=title,
+            body=description,
+            data={"orderId": str(order_id or ""), "orderCode": str(order_code or ""), "url": deep_link, "role": "partner", "kind": kind},
         )
     except Exception:
         pass
@@ -186,6 +208,17 @@ async def send_rider_notification(
             body=message,
             data={"orderId": str(order_id or ""), "url": deep_link, "role": "rider", "kind": "rider-assigned"},
             url=deep_link,
+        )
+    except Exception:
+        pass
+
+    try:
+        from app.core.fcm import send_fcm_push
+        await send_fcm_push(
+            rider_id,
+            title=title,
+            body=message,
+            data={"orderId": str(order_id or ""), "url": deep_link, "role": "rider", "kind": "rider-assigned"},
         )
     except Exception:
         pass
