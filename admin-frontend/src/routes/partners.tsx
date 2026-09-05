@@ -89,7 +89,7 @@ export const Route = createFileRoute("/partners")({
   ),
 });
 
-export function PartnersPage() {
+function PartnersPage() {
   const queryClient = useQueryClient();
   const partnersQuery = useQuery({ queryKey: ["admin", "partners"], queryFn: () => fetchPartners(1, 100) });
   const statsQuery = useQuery({ queryKey: ["admin", "partners", "stats"], queryFn: fetchPartnerStats });
