@@ -38,33 +38,28 @@ export function getPanelUrls(currentPanel: "customer" | "partner" | "rider" | "a
       hostname.endsWith(".local");
   }
 
-  const getUrl = (devPort: number, prodEnvVar?: string, fallbackProdUrl?: string) => {
-    if (prodEnvVar) return prodEnvVar;
-    if (isLocal) {
-      return `${protocol}//${hostname}:${devPort}`;
+  const getUrl = (prodEnvVar?: string, fallbackProdUrl?: string) => {
+    if (prodEnvVar && typeof prodEnvVar === "string" && prodEnvVar.trim()) {
+      return prodEnvVar.trim();
     }
     return fallbackProdUrl || `${protocol}//${hostname}`;
   };
 
   const customerUrl = getUrl(
-    8081,
     import.meta.env["VITE_CUSTOMER_URL"] as string | undefined,
-    "https://www.quickpress.online"
+    "https://appk-mu.vercel.app"
   );
   const partnerUrl = getUrl(
-    8082,
     import.meta.env["VITE_PARTNER_URL"] as string | undefined,
-    "https://partner.quickpress.online"
+    "https://quickpress-partner.vercel.app"
   );
   const riderUrl = getUrl(
-    8083,
     import.meta.env["VITE_RIDER_URL"] as string | undefined,
-    "https://rider.quickpress.online"
+    "https://quickpress-rider.vercel.app"
   );
   const adminUrl = getUrl(
-    8084,
     import.meta.env["VITE_ADMIN_URL"] as string | undefined,
-    "https://admin.quickpress.online"
+    "https://quickpress-admin.vercel.app"
   );
 
   return [

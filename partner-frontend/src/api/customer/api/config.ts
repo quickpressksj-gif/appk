@@ -32,36 +32,13 @@ function readString(key: string): string {
 }
 
 export function apiBaseUrl(): string {
-  const custom = readString("VITE_API_BASE_URL").replace(/\/+$/, "");
+  const custom = (readString("VITE_API_BASE_URL") || readString("VITE_API_URL")).replace(/\/+$/, "");
   if (custom) return custom;
 
   if (typeof window !== "undefined") {
-    // Detect Capacitor native mobile app (Android / iOS APK)
-    const isCapacitor = Boolean(
-      (window as any).Capacitor?.isNativePlatform?.() ||
-      window.location.protocol === "capacitor:" ||
-      window.location.protocol === "file:" ||
-      (window.location.hostname === "localhost" && (!window.location.port || window.location.port === "80" || window.location.port === "443")) ||
-      (window.location.hostname === "127.0.0.1" && (!window.location.port || window.location.port === "80" || window.location.port === "443"))
-    );
-    if (isCapacitor) {
-      return "https://quickpress-api-production-3292.up.railway.app";
-    }
-
-    const host = window.location.hostname;
-    const port = window.location.port;
-
-    // Desktop browser local development (e.g. Vite dev server on port 5173)
-    if ((host === "localhost" || host === "127.0.0.1") && port && port !== "80" && port !== "443") {
-      return "http://localhost:8000";
-    }
-
-    if (host.includes("vercel.app") || host.includes("quickpress.online") || host.includes("onrender.com") || host.includes("railway.app")) {
-      return "https://quickpress-api-production-3292.up.railway.app";
-    }
-
-    if (host && host !== "localhost" && host !== "127.0.0.1") {
-      return `http://${host}:8000`;
+    const globalBase = (window as any).__QUICKPRESS_CONFIG__?.API_BASE_URL;
+    if (globalBase && typeof globalBase === "string") {
+      return globalBase.trim().replace(/\/+$/, "");
     }
   }
 

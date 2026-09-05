@@ -15,8 +15,7 @@ class Settings(BaseSettings):
     # --- environment -------------------------------------------------
     app_env: str = "development"  # development | staging | production
     api_prefix: str = "/api"
-    # Comma-separated list of allowed frontend origins.
-    cors_origins: str = "http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,https://www.quickpress.online,https://quickpress.online,https://customer-5ys4.onrender.com"
+    cors_origins: str = "https://appk-mu.vercel.app,https://quickpress-partner.vercel.app,https://quickpress-rider.vercel.app,https://quickpress-admin.vercel.app,https://www.quickpress.online,https://quickpress.online"
 
     # --- Supabase / PostgreSQL Database ------------------------------
     supabase_url: str = ""
@@ -89,37 +88,6 @@ class Settings(BaseSettings):
             if origin.strip()
         ]
         origins = [o for o in raw_origins if o != "*"]
-
-        if self.app_env.lower() == "production":
-            # In production, allow ONLY explicit https origins
-            prod_origins = [
-                "https://www.quickpress.online",
-                "https://quickpress.online",
-                "https://customer-5ys4.onrender.com",
-            ]
-            for origin in prod_origins:
-                if origin not in origins:
-                    origins.append(origin)
-            return [o for o in origins if not ("localhost" in o or "127.0.0.1" in o)]
-
-        essential_origins = [
-            "https://www.quickpress.online",
-            "https://quickpress.online",
-            "https://customer-5ys4.onrender.com",
-            "http://localhost:8080",
-            "http://localhost:8081",
-            "http://localhost:8082",
-            "http://localhost:8083",
-            "http://localhost:8084",
-            "http://127.0.0.1:8080",
-            "http://127.0.0.1:8081",
-            "http://127.0.0.1:8082",
-            "http://127.0.0.1:8083",
-            "http://127.0.0.1:8084",
-        ]
-        for origin in essential_origins:
-            if origin not in origins:
-                origins.append(origin)
         return origins
 
     @property

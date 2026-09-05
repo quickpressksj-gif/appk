@@ -32,36 +32,17 @@ function readString(key: string): string {
 }
 
 export function apiBaseUrl(): string {
-  const custom = readString("VITE_API_BASE_URL").replace(/\/+$/, "");
+  const custom = (readString("VITE_API_BASE_URL") || readString("VITE_API_URL")).replace(/\/+$/, "");
+  if (custom) return custom;
 
   if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    const port = window.location.port;
-
-    // Desktop browser local development (Vite dev server)
-    if (host === "localhost" || host === "127.0.0.1") {
-      if (custom && !custom.includes("railway.app")) return custom;
-      return "http://localhost:8000";
-    }
-
-    if (custom) return custom;
-
-    // Detect Capacitor native mobile app (Android / iOS APK)
-    const isCapacitor = Boolean(
-      (window as any).Capacitor?.isNativePlatform?.() ||
-      window.location.protocol === "capacitor:" ||
-      window.location.protocol === "file:"
-    );
-    if (isCapacitor) {
-      return "https://quickpress-api-production-3292.up.railway.app";
-    }
-
-    if (host.includes("vercel.app") || host.includes("quickpress.online") || host.includes("onrender.com") || host.includes("railway.app")) {
-      return "https://quickpress-api-production-3292.up.railway.app";
+    const globalBase = (window as any).__QUICKPRESS_CONFIG__?.API_BASE_URL;
+    if (globalBase && typeof globalBase === "string") {
+      return globalBase.trim().replace(/\/+$/, "");
     }
   }
 
-  return custom || "http://localhost:8000";
+  return "https://quickpress-api-production-3292.up.railway.app";
 }
 
 export function appEnvironment(): AppEnvironment {

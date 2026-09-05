@@ -195,23 +195,23 @@ export function Footer({
           </div>
         </div>
 
-        {/* 3 Apps Quick Access Bar */}
+        {/* Direct App Portals Quick Access Bar */}
         <div className="border-t border-emerald-950 py-4 mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-300/80">
           <span className="font-bold text-emerald-400 uppercase tracking-wider text-[11px]">Direct App Portals:</span>
           <div className="flex flex-wrap gap-4 text-xs font-medium">
-            <a href="https://quickpressksj-gif-appk-customer-frontend.quickpressksj-gif.workers.dev" target="_blank" rel="noreferrer" className="hover:text-white underline">
+            <a href="https://appk-mu.vercel.app" target="_blank" rel="noreferrer" className="hover:text-white underline">
               👤 Customer Web App
             </a>
             <span className="text-emerald-800">•</span>
-            <a href="https://quickpressksj-gif-appk-partner-frontend.quickpressksj-gif.workers.dev" target="_blank" rel="noreferrer" className="hover:text-white underline">
+            <a href="https://quickpress-partner.vercel.app" target="_blank" rel="noreferrer" className="hover:text-white underline">
               🏪 Partner Store Portal
             </a>
             <span className="text-emerald-800">•</span>
-            <a href="https://quickpressksj-gif-appk-rider-frontend.quickpressksj-gif.workers.dev" target="_blank" rel="noreferrer" className="hover:text-white underline">
+            <a href="https://quickpress-rider.vercel.app" target="_blank" rel="noreferrer" className="hover:text-white underline">
               🛵 Captain (Rider) Portal
             </a>
             <span className="text-emerald-800">•</span>
-            <a href="https://quickpressksj-gif-appk-admin-frontend.quickpressksj-gif.workers.dev" target="_blank" rel="noreferrer" className="hover:text-white underline">
+            <a href="https://quickpress-admin.vercel.app" target="_blank" rel="noreferrer" className="hover:text-white underline">
               🛡️ Admin Control Panel
             </a>
           </div>
