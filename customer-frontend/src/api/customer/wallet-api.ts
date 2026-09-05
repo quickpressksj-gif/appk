@@ -292,6 +292,7 @@ export type AddFundsResult = {
 export async function addFunds(
   amount: number,
   method: string = "wallet",
+  paymentId?: string,
 ): Promise<AddFundsResult> {
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new ApiError("validation", "Enter an amount greater than ₹0.");
@@ -305,7 +306,7 @@ export async function addFunds(
     message?: string;
     wallet?: RawWallet;
     transaction?: RawTransaction | null;
-  }>("/api/wallet/add-funds", { amount, method });
+  }>("/api/wallet/add-funds", { amount, method, ...(paymentId ? { paymentId } : {}) });
   invalidateWalletCache();
   return {
     ok: raw.ok ?? true,

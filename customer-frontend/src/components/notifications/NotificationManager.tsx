@@ -12,7 +12,7 @@ export function NotificationManager() {
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setPermissionState("unsupported");
-      return;
+      return undefined;
     }
 
     const current = Notification.permission;
@@ -27,6 +27,7 @@ export function NotificationManager() {
       }, 2000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, []);
 
   const requestPermission = async () => {

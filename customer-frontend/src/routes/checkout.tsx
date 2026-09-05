@@ -188,7 +188,7 @@ export function CheckoutPage() {
 
     setPlacingOrder(true);
     try {
-      let paidPaymentId = selectedPayment;
+      let paidPaymentId: string = selectedPayment;
 
       // Online Payment via Razorpay (UPI, Credit/Debit Cards, NetBanking)
       if (selectedPayment === "upi" || selectedPayment === "card") {

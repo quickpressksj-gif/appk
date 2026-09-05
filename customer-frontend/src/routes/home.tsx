@@ -520,7 +520,7 @@ function HomeScreen() {
                           key={`${service.id}-${index}`}
                           type="button"
                           onClick={() => {
-                            const targetPartnerId = (service as any).partnerId || (partners.length > 0 ? partners[0].id : null);
+                            const targetPartnerId = (service as any).partnerId || (partners && partners.length > 0 && partners[0] ? partners[0].id : null);
                             if (targetPartnerId) {
                               void navigate({
                                 to: "/partner/$partnerId",
@@ -606,7 +606,11 @@ function HomeScreen() {
                         key={`${partner.id}-${index}`}
                         type="button"
                         onClick={() =>
-                          navigate({ to: "/partner/$partnerId", params: { partnerId: partner.id } })
+                          void navigate({
+                            to: "/partner/$partnerId",
+                            params: { partnerId: partner.id },
+                            search: { highlightService: undefined },
+                          })
                         }
                         className="card-soft w-full overflow-hidden border border-border/80 bg-card p-4 text-left transition-all duration-300 hover:border-primary/50 hover:shadow-md active:scale-[0.985]"
                       >

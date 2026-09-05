@@ -40,6 +40,7 @@ export function fetchProfile(options: { forceRefresh?: boolean | undefined; sign
       email: "",
       initials: "GU",
       avatarUrl: "",
+      unreadNotifications: 0,
     } as Profile);
   }
   return resolveResource<Profile>({

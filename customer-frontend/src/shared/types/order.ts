@@ -157,7 +157,7 @@ export type Order = {
   address: OrderAddress;
   pickup: { date: string; slot: string; express: boolean };
   delivery: { date: string; slot: string };
-  payment: { mode: "online" | "cod"; label: string; note: string; paid: boolean };
+  payment: { mode: "online" | "cod" | "wallet"; label: string; note: string; paid: boolean };
   /** OTPs the rider collects at pickup and at delivery. */
   otp: { pickup: string; delivery: string };
   events: OrderEvent[];
@@ -173,7 +173,7 @@ export type PlaceOrderPayload = {
   address?: OrderAddress;
   pickup: { date: string; slot: string; express: boolean };
   delivery?: { date: string; slot: string };
-  payment: { mode: "online" | "cod"; label: string; note?: string };
+  payment: { mode: "online" | "cod" | "wallet"; label: string; note?: string };
   totals?: Partial<OrderTotals>;
   serviceLabel?: string;
 };

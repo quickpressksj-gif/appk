@@ -228,7 +228,8 @@ function WalletScreen() {
         });
 
         if (payResult.status === "paid") {
-          const result = await addFunds(value, selectedMethod, payResult.paymentId);
+          const paymentId = payResult.payment?.id || (payResult.payment as any)?.razorpayPaymentId || undefined;
+          const result = await addFunds(value, selectedMethod, paymentId);
           setWallet(result.wallet);
           toast.success(result.message || `₹${value} successfully added to your wallet!`);
           setAddOpen(false);

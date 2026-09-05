@@ -44,10 +44,10 @@ export const CACHE_KEYS = {
   supportTickets: "help-tickets",
 } as const;
 
-export type CacheKey = (typeof CACHE_KEYS)[keyof typeof CACHE_KEYS];
+export type CacheKey = (typeof CACHE_KEYS)[keyof typeof CACHE_KEYS] | (string & {});
 
 /** Default freshness window per cache key, in milliseconds. */
-export const CACHE_TTL: Record<CacheKey, number> = {
+export const CACHE_TTL: Record<string, number> = {
   profile: 10 * 60_000,
   location: 30 * 60_000,
   banners: 5 * 60_000,
@@ -79,7 +79,7 @@ export const CACHE_TTL: Record<CacheKey, number> = {
   "help-tickets": 60_000,
 };
 
-export function readCache<T>(key: CacheKey, ttlMs = CACHE_TTL[key]): T | null {
+export function readCache<T>(key: CacheKey, ttlMs = CACHE_TTL[key] ?? 5 * 60_000): T | null {
   return readCacheEntry<T>(key, ttlMs);
 }
 

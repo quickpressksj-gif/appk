@@ -174,7 +174,7 @@ function ServiceListingScreen() {
   };
 
   const openPartner = useCallback(
-    (partnerId: string) => navigate({ to: "/partner/$partnerId", params: { partnerId } }),
+    (partnerId: string) => navigate({ to: "/partner/$partnerId", params: { partnerId }, search: { highlightService: undefined } }),
     [navigate],
   );
 

@@ -30,7 +30,7 @@ export function NamePromptModal() {
 
   const checkAndPrompt = async () => {
     const session = readSession("customer");
-    if (!session || !session.tokens?.access) {
+    if (!session || !session.token) {
       setOpen(false);
       return;
     }

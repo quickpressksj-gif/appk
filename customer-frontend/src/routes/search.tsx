@@ -110,7 +110,7 @@ function SearchScreen() {
 
   const open = (result: SearchResult) => {
     if (result.scope === "partners")
-      return navigate({ to: "/partner/$partnerId", params: { partnerId: result.id } });
+      return navigate({ to: "/partner/$partnerId", params: { partnerId: result.id }, search: { highlightService: undefined } });
     if (result.scope === "offers") return navigate({ to: "/offers" });
     return navigate({ to: "/services/$serviceId", params: { serviceId: result.id } });
   };

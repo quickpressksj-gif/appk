@@ -97,10 +97,11 @@ export async function requestPushNotificationPermission(): Promise<string | null
       config.apiKey ||
       undefined;
 
-    const token = await getToken(messaging, {
-      vapidKey: vapidKey || undefined,
-      serviceWorkerRegistration: serviceWorkerRegistration || undefined,
-    });
+    const options: { vapidKey?: string; serviceWorkerRegistration?: ServiceWorkerRegistration } = {};
+    if (vapidKey) options.vapidKey = vapidKey;
+    if (serviceWorkerRegistration) options.serviceWorkerRegistration = serviceWorkerRegistration;
+
+    const token = await getToken(messaging, Object.keys(options).length > 0 ? options : undefined);
 
     if (token) {
       currentToken = token;
@@ -134,11 +135,11 @@ export async function setupForegroundMessageListener(
 
     const unsubscribe = onMessage(messaging, (payload) => {
       const notification = payload.notification || {};
-      const data = payload.data || {};
+      const data = (payload.data || {}) as Record<string, string | undefined>;
 
-      const title = notification.title || data.title || "🔔 QuickPress Update";
-      const body = notification.body || data.body || data.message || "You have a new update.";
-      const clickUrl = data.url || (data.orderId ? `/track/${data.orderId}` : "/notifications");
+      const title = notification.title || data["title"] || "🔔 QuickPress Update";
+      const body = notification.body || data["body"] || data["message"] || "You have a new update.";
+      const clickUrl = data["url"] || (data["orderId"] ? `/track/${data["orderId"]}` : "/notifications");
 
       // Render interactive Sonner toast
       toast(title, {

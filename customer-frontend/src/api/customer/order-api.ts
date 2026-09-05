@@ -11,7 +11,7 @@
  */
 
 import store1 from "@/shared/assets/store-1.jpg";
-import type { Order } from "@/shared/types";
+import type { Order, OrderLifecycleStatus } from "@/shared/types";
 
 import {
   CUSTOMER_STAGES,
@@ -67,7 +67,7 @@ export type OrderSummary = {
 };
 
 export type TrackingStep = {
-  id: OrderStage;
+  id: OrderTimelineStage | OrderStage | string;
   label: string;
   description: string;
   time: string;
@@ -256,8 +256,6 @@ export async function cancelOrder(orderId: string, reason = ""): Promise<{ ok: t
  * ====================================================================== */
 
 import { ORDER_STATUS_LABEL } from "@/shared/types/order";
-import type { OrderLifecycleStatus } from "@/shared/types";
-
 
 import { readScopedCache, readStaleScopedCache, writeScopedCache } from "./api/cache";
 import { formatOrderDate as fmtDate, formatOrderTime as fmtTime } from "@/shared/utils/order-mappers";
@@ -302,7 +300,7 @@ export const ORDER_TIMELINE: OrderTimelineStage[] = [
 
 const TIMELINE_COPY: Record<
   OrderTimelineStage,
-  { label: string; description: string; pending: string; status: string }
+  { label: string; description: string; pending: string; status: OrderLifecycleStatus }
 > = {
   placed: {
     label: "Order Placed",

@@ -45,7 +45,7 @@ export function LiveDeliveryMap({
 }: LiveDeliveryMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<{ [key: string]: any }>({});
+  const markersRef = useRef<{ rider?: any; dest?: any; store?: any }>({});
   const polylineRef = useRef<any>(null);
 
   const [mapReady, setMapReady] = useState(false);
@@ -228,7 +228,7 @@ export function LiveDeliveryMap({
 
       // 4. Live Route Polyline
       if (riderLocation && destinationLocation) {
-        const routePoints = [
+        const routePoints: [number, number][] = [
           [riderLocation.lat, riderLocation.lng],
           [destinationLocation.lat, destinationLocation.lng],
         ];

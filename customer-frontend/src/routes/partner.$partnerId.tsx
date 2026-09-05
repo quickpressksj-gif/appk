@@ -100,8 +100,8 @@ function resolveServiceImage(title?: string | null, img?: string | null): string
 }
 
 export const Route = createFileRoute("/partner/$partnerId")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    highlightService: typeof search.highlightService === "string" ? search.highlightService : undefined,
+  validateSearch: (search: Record<string, unknown>): { highlightService?: string | undefined } => ({
+    highlightService: typeof search["highlightService"] === "string" ? String(search["highlightService"]) : undefined,
   }),
   head: () => ({
     meta: [

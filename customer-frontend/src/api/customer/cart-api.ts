@@ -352,15 +352,15 @@ export function subscribeCart(fn: () => void) {
  */
 export type PostOrderPayload = {
   items: CartItem[];
-  addressId?: string;
-  address?: Address;
-  deliveryAddress?: Address;
-  customerName?: string;
-  customerPhone?: string;
-  pickup?: { day: string; slot: string; express: boolean };
-  paymentId?: string;
-  paymentMethod?: string;
-  cardId?: string | null;
+  addressId?: string | undefined;
+  address?: Address | undefined;
+  deliveryAddress?: Address | undefined;
+  customerName?: string | undefined;
+  customerPhone?: string | undefined;
+  pickup?: { day: string; slot: string; express: boolean } | undefined;
+  paymentId?: string | undefined;
+  paymentMethod?: string | undefined;
+  cardId?: string | null | undefined;
   total: number;
 };
 

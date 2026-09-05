@@ -293,7 +293,7 @@ export async function fetchProfileData(
   }
 }
 
-export type ProfileEdit = { name: string; email?: string; city?: string };
+export type ProfileEdit = { name: string; email?: string; city?: string; phone?: string };
 
 /** PUT /api/profile — name, email and city; the phone number is immutable. */
 export async function updateProfile(payload: ProfileEdit): Promise<ProfileEdit> {
@@ -318,7 +318,7 @@ export function validateProfile(edit: ProfileEdit): Partial<Record<keyof Profile
   const errors: Partial<Record<keyof ProfileEdit, string>> = {};
   const name = edit.name.trim();
   if (name.length < 2 || name.length > 60) errors.name = "Name must be 2–60 characters";
-  const email = edit.email.trim();
+  const email = (edit.email ?? "").trim();
   if (email && !/^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/.test(email)) {
     errors.email = "Enter a valid email address";
   }

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -32,6 +32,7 @@ import {
   Receipt,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Star,
   Store,
@@ -1738,7 +1739,7 @@ function FavouriteStoresDrawer({
                 key={store.id}
                 onClick={() => {
                   onClose();
-                  void navigate({ to: "/partner/$partnerId", params: { partnerId: store.partnerId } });
+                  void navigate({ to: "/partner/$partnerId", params: { partnerId: store.partnerId }, search: { highlightService: undefined } });
                 }}
                 className="group relative flex items-center gap-3.5 rounded-2xl border border-border bg-background p-3.5 transition-all hover:border-primary/50 cursor-pointer active:scale-[0.99]"
               >
