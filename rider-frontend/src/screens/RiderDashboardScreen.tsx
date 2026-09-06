@@ -34,6 +34,7 @@ import {
   confirmPickup,
   confirmDelivery,
   confirmDropAtPartner,
+  startDelivery,
 } from "../api/rider/rider-orders-api";
 import {
   fetchRiderDashboard,
@@ -234,12 +235,19 @@ export function RiderDashboardScreen() {
     triggerHaptic([100, 50, 100]);
     setIncomingOffer(null);
 
+    const isDeliveryLeg =
+      (offer as any).ride_type === "delivery" || (offer as any).rideType === "delivery";
+
     try {
       await acceptRiderOrder(offer.id);
-      toast.success("Trip Accepted! Proceed to pick up from Customer.");
+      toast.success(
+        isDeliveryLeg
+          ? "Delivery Trip Accepted! Proceed to Store to collect clean garments."
+          : "Pickup Trip Accepted! Proceed to Customer home to collect clothes."
+      );
     } catch (err: any) {
       console.warn("Backend accept error:", err);
-      toast.info("Trip Accepted! Proceeding to pickup.");
+      toast.info("Trip Accepted! Proceeding with mission.");
     }
 
     const newActive: ActiveOrder = {
@@ -249,12 +257,13 @@ export function RiderDashboardScreen() {
       pickup_address: offer.pickup_address,
       customer_name: offer.customer_name,
       delivery_address: offer.delivery_address,
-      status: "assigned",
+      status: isDeliveryLeg ? "ready_for_delivery" : "assigned",
+      ride_type: isDeliveryLeg ? "delivery" : "pickup",
       delivery_fee: offer.payout_amount || 60,
       total_amount: 450,
       payment_method: "cod",
       items_count: 3,
-      service_name: offer.items_summary || "Laundry Pickup",
+      service_name: offer.items_summary || (isDeliveryLeg ? "Clean Garments Delivery" : "Laundry Pickup"),
     };
 
     setActiveOrder(newActive);
@@ -272,10 +281,29 @@ export function RiderDashboardScreen() {
         setActiveOrder((prev) => (prev ? { ...prev, status: "picked_up" } : null));
         playSuccessChime();
         toast.success("Customer pickup confirmed! Now deliver to Laundry Store.");
-      } else if (nextStatus === "delivered") {
-        await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, otp || "0000"));
+      } else if (nextStatus === "out_for_delivery") {
+        await startDelivery(orderId, otp).catch(() => updateOrderStatus(orderId, "out_for_delivery"));
+        setActiveOrder((prev) => (prev ? { ...prev, status: "out_for_delivery" } : null));
         playSuccessChime();
-        toast.success(`Handover to Store complete! ₹${activeOrder?.delivery_fee || 60} credited.`);
+        toast.success("Clothes collected from store! Proceed to Customer Doorstep.");
+      } else if (nextStatus === "delivered") {
+        const isDelivery =
+          activeOrder?.ride_type === "delivery" || activeOrder?.status === "out_for_delivery";
+
+        if (isDelivery) {
+          await confirmDelivery(orderId, otp || "0000");
+          playSuccessChime();
+          toast.success(
+            `Customer Doorstep Delivery Complete! ₹${activeOrder?.delivery_fee || 60} credited to wallet.`
+          );
+        } else {
+          await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, otp || "0000"));
+          playSuccessChime();
+          toast.success(
+            `Handover to Partner Store Complete! ₹${activeOrder?.delivery_fee || 60} credited to wallet.`
+          );
+        }
+
         setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
         setCompletedToday((prev) => prev + 1);
         setActiveOrder(null);
@@ -283,7 +311,7 @@ export function RiderDashboardScreen() {
         await updateOrderStatus(orderId, nextStatus);
         setActiveOrder((prev) => (prev ? { ...prev, status: nextStatus } : null));
       }
-    } catch {
+    } catch (err: any) {
       if (nextStatus === "delivered") {
         setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
         setCompletedToday((prev) => prev + 1);

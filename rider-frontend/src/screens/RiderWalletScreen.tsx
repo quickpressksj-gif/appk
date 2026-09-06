@@ -10,14 +10,20 @@ import {
   ShieldCheck,
   Sparkles,
   Zap,
+  CreditCard,
+  Building2,
+  Send,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { RiderLayout } from "../components/layout/RiderLayout";
 import {
   fetchRiderWallet,
   fetchRiderTransactions,
+  withdrawRiderEarnings,
 } from "../api/rider/rider-wallet-api";
 import type { RiderTransaction } from "@/shared/types/rider";
+import { triggerHaptic, playSuccessChime } from "../lib/captain-audio";
 
 export function RiderWalletScreen() {
   const [balance, setBalance] = useState(0);
@@ -26,6 +32,9 @@ export function RiderWalletScreen() {
   const [transactions, setTransactions] = useState<RiderTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
 
   // Load real wallet data from backend
   const loadWalletData = useCallback(async (showToast = false) => {
@@ -56,11 +65,39 @@ export function RiderWalletScreen() {
     return () => clearInterval(interval);
   }, [loadWalletData]);
 
+  const handleInstantWithdraw = async () => {
+    const amt = Number(withdrawAmount || balance);
+    if (isNaN(amt) || amt <= 0) {
+      toast.error("Please enter a valid withdrawal amount");
+      return;
+    }
+    if (amt > balance) {
+      toast.error(`Cannot withdraw more than available balance (₹${balance})`);
+      return;
+    }
+
+    setWithdrawing(true);
+    triggerHaptic([50, 50]);
+
+    try {
+      await withdrawRiderEarnings(amt);
+      playSuccessChime();
+      toast.success(`₹${amt} Instant Payout initiated to linked UPI/Bank Account! 🎉`);
+      setShowWithdrawModal(false);
+      setWithdrawAmount("");
+      await loadWalletData();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to initiate withdrawal");
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   return (
     <RiderLayout
       activeTab="wallet"
       title="Earnings & Payouts"
-      subtitle="Live Wallet Ledger · Auto Payout Every 2 Days"
+      subtitle="Live Wallet Ledger · Auto Payout Rail & Instant Transfer"
     >
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6 select-none">
         {/* ========================================================================= */}
@@ -92,29 +129,44 @@ export function RiderWalletScreen() {
               </p>
             </div>
 
-            {/* AUTO PAYMENT 2 DAYS BADGE (Replaces Instant Withdraw) */}
-            <div className="rounded-2xl border-2 border-emerald-800 bg-emerald-50 px-5 py-3.5 space-y-1 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="flex size-2.5 rounded-full bg-emerald-600 animate-ping" />
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
-                  AUTO PAYOUT: EVERY 2 DAYS
-                </span>
+            {/* ACTION BUTTONS: INSTANT PAYOUT & AUTO 2-DAY STATUS */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setWithdrawAmount(String(balance));
+                  setShowWithdrawModal(true);
+                }}
+                disabled={balance < 1}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-800 hover:bg-emerald-900 active:scale-98 text-white px-5 py-3 text-xs font-black shadow-md transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Zap className="size-4 text-emerald-300" />
+                <span>INSTANT PAYOUT</span>
+              </button>
+
+              <div className="rounded-2xl border-2 border-emerald-800 bg-emerald-50 px-4 py-2.5 space-y-0.5 shadow-2xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="flex size-2 rounded-full bg-emerald-600 animate-ping" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-950">
+                    AUTO PAYOUT: 48H
+                  </span>
+                </div>
+                <p className="text-[10px] font-semibold text-emerald-800">
+                  Zero fee automatic rail
+                </p>
               </div>
-              <p className="text-[11px] font-semibold text-emerald-800">
-                Transferred automatically every 48 hours
-              </p>
             </div>
           </div>
 
           {/* Metrics: Pending Settlement & Lifetime Earnings */}
           <div className="mt-5 grid grid-cols-2 gap-3 pt-4 border-t border-emerald-100 text-xs">
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
+            <div className="rounded-2xl bg-emerald-50/50 p-3.5 border border-emerald-100">
               <span className="text-[10px] font-bold uppercase text-emerald-800">Pending Settlement</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 ₹{pendingSettlement.toLocaleString("en-IN")}
               </p>
             </div>
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
+            <div className="rounded-2xl bg-emerald-50/50 p-3.5 border border-emerald-100">
               <span className="text-[10px] font-bold uppercase text-emerald-800">Lifetime Earnings</span>
               <p className="text-lg font-black text-slate-900 mt-0.5">
                 ₹{lifetimeEarnings.toLocaleString("en-IN")}
@@ -124,7 +176,94 @@ export function RiderWalletScreen() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 2. AUTO PAYOUT CYCLE POLICY BANNER (White & Dark Green)                    */}
+        {/* 2. INSTANT WITHDRAWAL MODAL / DIALOG                                      */}
+        {/* ========================================================================= */}
+        {showWithdrawModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border-2 border-emerald-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-950">
+                  <div className="size-9 rounded-xl bg-emerald-800 text-white flex items-center justify-center">
+                    <Zap className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Instant UPI Payout</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">Immediate transfer to Bank Account</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  className="size-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center text-xs font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                  Withdrawal Amount (₹)
+                </label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-emerald-800" />
+                  <input
+                    type="number"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="h-12 w-full rounded-2xl border-2 border-emerald-300 bg-white pl-10 pr-4 text-lg font-black text-slate-900 focus:border-emerald-800 focus:outline-hidden"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                  <span>Available: ₹{balance}</span>
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawAmount(String(balance))}
+                    className="text-emerald-800 font-bold hover:underline cursor-pointer"
+                  >
+                    Withdraw Full Balance
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-emerald-700" />
+                  <span>Direct Bank Payout Guarantee</span>
+                </p>
+                <p className="text-[11px] text-emerald-700">
+                  Funds will be sent via IMPS/UPI directly to your registered bank account on file.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  className="flex-1 h-12 rounded-2xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInstantWithdraw}
+                  disabled={withdrawing}
+                  className="flex-1 h-12 rounded-2xl bg-emerald-800 hover:bg-emerald-900 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {withdrawing ? (
+                    <RefreshCw className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                  <span>{withdrawing ? "Processing..." : "Transfer Now"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 3. AUTO PAYOUT CYCLE POLICY BANNER (White & Dark Green)                    */}
         {/* ========================================================================= */}
         <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm space-y-2">
           <div className="flex items-center gap-2.5 text-emerald-950">
@@ -133,21 +272,21 @@ export function RiderWalletScreen() {
             </div>
             <div>
               <h3 className="text-xs font-black text-slate-900">
-                Automated 2-Day Payout Rail
+                Automated 48-Hour Payout Rail
               </h3>
               <p className="text-[11px] font-medium text-slate-500">
-                100% Direct &amp; Seamless Transfer
+                100% Direct &amp; Seamless Bank Transfer
               </p>
             </div>
           </div>
 
           <p className="text-xs text-slate-700 leading-relaxed pt-1">
-            All your delivery trip payouts, incentives, and cash collections are automatically balanced and credited directly every <strong>2 days</strong>. You do not need to submit manual withdrawal requests.
+            All your delivery trip payouts, incentives, and surge bonuses are automatically balanced and credited directly every <strong>2 days</strong>. You can also use <strong>Instant Payout</strong> anytime for immediate UPI transfers.
           </p>
         </div>
 
         {/* ========================================================================= */}
-        {/* 3. RECENT PAYOUT TRANSACTIONS (Real Backend Ledger)                       */}
+        {/* 4. RECENT PAYOUT TRANSACTIONS (Real Backend Ledger)                       */}
         {/* ========================================================================= */}
         <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">

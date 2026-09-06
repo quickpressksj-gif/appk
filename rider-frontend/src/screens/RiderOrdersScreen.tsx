@@ -62,7 +62,7 @@ export type DetailedRiderOrder = {
   estimated_time: string;
 };
 
-type OrderFilter = "all" | "pickup" | "transit" | "delivered";
+type OrderFilter = "all" | "pickup" | "transit" | "delivery" | "delivered";
 
 export function RiderOrdersScreen() {
   const navigate = useNavigate();
@@ -87,9 +87,11 @@ export function RiderOrdersScreen() {
         const status =
           item.status === "delivered" || item.status === "completed"
             ? "delivered"
-            : item.status === "picked_up" || item.status === "out_for_delivery"
+            : item.status === "picked_up" || item.status === "in_transit_to_store"
               ? "picked_up"
-              : "assigned";
+              : item.status === "ready_for_delivery" || item.status === "out_for_delivery"
+                ? "out_for_delivery"
+                : "assigned";
 
         const garments = Array.isArray(item.items)
           ? item.items.map((i: any) => ({
@@ -105,7 +107,7 @@ export function RiderOrdersScreen() {
           order_number: item.order_number || item.code || id.slice(-6).toUpperCase(),
           status,
           placed_at: item.placedAt || item.created_at || "Today",
-          slot: item.slot || "Immediate Pickup Slot",
+          slot: item.slot || "Immediate Slot",
           customer_name: item.customer_name || item.customerName || "Customer",
           customer_phone: item.customer_phone || item.customerPhone || "9876543210",
           customer_address: item.customer_address || item.deliveryAddress || "Customer Address, Kasganj",
@@ -149,6 +151,7 @@ export function RiderOrdersScreen() {
       .filter((o) => {
         if (filter === "pickup") return o.status === "assigned";
         if (filter === "transit") return o.status === "picked_up";
+        if (filter === "delivery") return (o.status as any) === "out_for_delivery" || (o.status as any) === "ready_for_delivery";
         if (filter === "delivered") return o.status === "delivered";
         return true;
       })
@@ -170,6 +173,7 @@ export function RiderOrdersScreen() {
       all: orders.length,
       pickup: orders.filter((o) => o.status === "assigned").length,
       transit: orders.filter((o) => o.status === "picked_up").length,
+      delivery: orders.filter((o) => (o.status as any) === "out_for_delivery" || (o.status as any) === "ready_for_delivery").length,
       delivered: orders.filter((o) => o.status === "delivered").length,
     };
   }, [orders]);
@@ -273,6 +277,7 @@ export function RiderOrdersScreen() {
               { id: "all" as const, label: "All Tasks", count: counts.all },
               { id: "pickup" as const, label: "Customer Pickups", count: counts.pickup },
               { id: "transit" as const, label: "In Transit to Store", count: counts.transit },
+              { id: "delivery" as const, label: "Doorstep Deliveries", count: counts.delivery },
               { id: "delivered" as const, label: "Completed", count: counts.delivered },
             ].map((tab) => (
               <button
