@@ -3129,17 +3129,100 @@ class AdminSettingsRepository:
         },
     }
 
-    async def get(self) -> Dict[str, Any]:
-        doc = await database.find_one("admin_settings", {"_id": self.doc_id})
-        if not doc:
+    async def get(self, scope: str = "global", city_id: Optional[str] = None) -> Dict[str, Any]:
+        global_doc = await database.find_one("admin_settings", {"_id": self.doc_id})
+        if not global_doc:
             await database.insert("admin_settings", {"_id": self.doc_id, **self.default_settings})
-            return dict(self.default_settings)
-        return {**self.default_settings, **doc}
+            global_doc = dict(self.default_settings)
+        base = {**self.default_settings, **global_doc}
 
-    async def update(self, changes: Dict[str, Any]) -> Dict[str, Any]:
-        current = await self.get()
+        # City Scope Override Lookup
+        if scope == "city" and city_id and city_id != "global":
+            city_override = await database.find_one("admin_city_settings", {"_id": f"city_{city_id}"})
+            if not city_override:
+                city_override = await database.find_one("admin_city_settings", {"cityId": city_id})
+            
+            city_record = await database.find_one("admin_cities", {"_id": city_id}) or await database.find_one("admin_cities", {"city": city_id})
+            
+            merged_city = structured_clone_dict(base)
+            override_data = dict(city_override or {})
+            override_data.pop("_id", None)
+
+            # Deep merge nested categories if provided in city override
+            for group in ("business", "finance", "surge", "slots", "referral", "compliance", "safety", "integrations", "platform"):
+                if group in override_data and isinstance(override_data[group], dict):
+                    merged_city[group] = {**merged_city.get(group, {}), **override_data[group]}
+
+            # If city record in admin_cities has direct pricing fields, synchronize them
+            if city_record:
+                if "minOrderValue" in city_record and "minimumOrderValue" not in (override_data.get("business") or {}):
+                    merged_city["business"]["minimumOrderValue"] = city_record["minOrderValue"]
+                if "baseDeliveryFee" in city_record and "deliveryFee" not in (override_data.get("business") or {}):
+                    merged_city["business"]["deliveryFee"] = city_record["baseDeliveryFee"]
+                if "freeDeliveryAbove" in city_record and "freeDeliveryAbove" not in (override_data.get("business") or {}):
+                    merged_city["business"]["freeDeliveryAbove"] = city_record["freeDeliveryAbove"]
+
+            merged_city["_scope"] = "city"
+            merged_city["_cityId"] = city_id
+            merged_city["_cityName"] = city_record.get("city") or city_record.get("name") if city_record else city_id
+            merged_city["_isOverridden"] = bool(city_override)
+            return merged_city
+
+        base["_scope"] = "global"
+        base["_cityId"] = None
+        base["_isOverridden"] = False
+        return base
+
+    async def update(self, changes: Dict[str, Any], scope: str = "global", city_id: Optional[str] = None) -> Dict[str, Any]:
+        changes.pop("_scope", None)
+        changes.pop("_cityId", None)
+        changes.pop("_cityName", None)
+        changes.pop("_isOverridden", None)
+
+        if scope == "city" and city_id and city_id != "global":
+            city_override_id = f"city_{city_id}"
+            changes["cityId"] = city_id
+            changes["updatedAt"] = now_iso()
+
+            await database.update("admin_city_settings", {"_id": city_override_id}, {"_id": city_override_id, **changes}, upsert=True)
+
+            # Also keep admin_cities in sync if logistics/surge changed
+            city_updates: Dict[str, Any] = {"updatedAt": now_iso()}
+            if "business" in changes and isinstance(changes["business"], dict):
+                if "minimumOrderValue" in changes["business"]:
+                    try:
+                        city_updates["minOrderValue"] = float(changes["business"]["minimumOrderValue"])
+                    except Exception:
+                        pass
+                if "deliveryFee" in changes["business"]:
+                    try:
+                        city_updates["baseDeliveryFee"] = float(changes["business"]["deliveryFee"])
+                    except Exception:
+                        pass
+                if "freeDeliveryAbove" in changes["business"]:
+                    try:
+                        city_updates["freeDeliveryAbove"] = float(changes["business"]["freeDeliveryAbove"])
+                    except Exception:
+                        pass
+            if "surge" in changes and isinstance(changes["surge"], dict):
+                surge_on = bool(changes["surge"].get("enabled", False))
+                city_updates["surgeMultiplier"] = 1.25 if surge_on else 1.0
+
+            if len(city_updates) > 1:
+                await database.update("admin_cities", {"_id": city_id}, city_updates)
+                await database.update("admin_cities", {"city": city_id}, city_updates)
+
+            return await self.get(scope="city", city_id=city_id)
+
+        # Global update
+        current = await self.get(scope="global")
         merged = {**current, **changes}
         merged.pop("_id", None)
+        merged.pop("_scope", None)
+        merged.pop("_cityId", None)
+        merged.pop("_cityName", None)
+        merged.pop("_isOverridden", None)
+
         # Update top-level flat aliases if nested groups changed
         if "business" in merged and isinstance(merged["business"], dict):
             if "minimumOrderValue" in merged["business"]:
@@ -3181,7 +3264,57 @@ class AdminSettingsRepository:
                 pass
 
         await database.update("admin_settings", {"_id": self.doc_id}, merged, upsert=True)
-        return await self.get()
+        return await self.get(scope="global")
+
+    async def get_available_scopes(self) -> List[Dict[str, Any]]:
+        scopes: List[Dict[str, Any]] = [
+            {
+                "id": "global",
+                "cityId": "global",
+                "name": "Global Platform Defaults (Nationwide)",
+                "type": "global",
+                "state": "All India",
+                "status": "Active",
+            }
+        ]
+
+        cities = await database.find_sorted("admin_cities", sort=[("city", 1)])
+        if not cities:
+            cities = [
+                {"_id": "city-kasganj", "city": "Kasganj", "state": "Uttar Pradesh", "tier": "Tier-2", "status": "Live", "baseDeliveryFee": 20, "minOrderValue": 99},
+                {"_id": "city-delhi", "city": "Delhi NCR", "state": "Delhi", "tier": "Tier-1", "status": "Live", "baseDeliveryFee": 39, "minOrderValue": 199},
+                {"_id": "city-mumbai", "city": "Mumbai", "state": "Maharashtra", "tier": "Tier-1", "status": "Live", "baseDeliveryFee": 49, "minOrderValue": 249},
+                {"_id": "city-bengaluru", "city": "Bengaluru", "state": "Karnataka", "tier": "Tier-1", "status": "Live", "baseDeliveryFee": 45, "minOrderValue": 229},
+            ]
+
+        city_settings_docs = await database.find_many("admin_city_settings", {})
+        overridden_city_ids = {
+            str(d.get("cityId") or d.get("_id", "").replace("city_", ""))
+            for d in city_settings_docs
+        }
+
+        for c in cities:
+            cid = str(c.get("_id") or c.get("id") or c.get("city", ""))
+            city_name = str(c.get("city") or c.get("name") or cid)
+            scopes.append({
+                "id": cid,
+                "cityId": cid,
+                "name": city_name,
+                "state": c.get("state", "India"),
+                "type": "city",
+                "tier": c.get("tier", "Tier-2"),
+                "status": c.get("status", "Live"),
+                "hasOverride": cid in overridden_city_ids or city_name in overridden_city_ids or f"city_{cid}" in overridden_city_ids,
+                "deliveryFee": c.get("baseDeliveryFee", 29),
+                "minOrderValue": c.get("minOrderValue", 99),
+                "zones": c.get("zones") or [],
+            })
+        return scopes
+
+
+def structured_clone_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    import copy
+    return copy.deepcopy(d)
 
 
 admin_settings_repository = AdminSettingsRepository()

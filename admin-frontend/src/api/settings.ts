@@ -87,7 +87,25 @@ export type SafetySettings = {
   autoLockoutHours: number | string;
 };
 
+export type ScopeOption = {
+  id: string;
+  cityId?: string;
+  name: string;
+  state?: string;
+  type: "global" | "city" | "area";
+  tier?: string;
+  status?: string;
+  hasOverride?: boolean;
+  deliveryFee?: number;
+  minOrderValue?: number;
+  zones?: string[];
+};
+
 export type AdminSettings = {
+  _scope?: "global" | "city" | "area";
+  _cityId?: string | null;
+  _cityName?: string | null;
+  _isOverridden?: boolean;
   platform: PlatformSettings;
   business: BusinessSettings;
   integrations: IntegrationSettings;
@@ -125,6 +143,9 @@ export type SecurityEventsResponse = {
 };
 
 const DEFAULTS: AdminSettings = {
+  _scope: "global",
+  _cityId: null,
+  _isOverridden: false,
   platform: {
     platformName: "QuickPress Laundry & Dry Clean",
     tagline: "Ultra-Fast On-Demand Laundry & Express Dry Cleaning",
@@ -200,10 +221,35 @@ const DEFAULTS: AdminSettings = {
   },
 };
 
-export async function fetchSettings(): Promise<AdminSettings> {
+export async function fetchSettingsScopes(): Promise<ScopeOption[]> {
   try {
-    const doc = await apiGetJson<Record<string, any>>("/api/admin/settings");
+    const scopes = await apiGetJson<ScopeOption[]>("/api/admin/settings/scopes");
+    if (Array.isArray(scopes) && scopes.length > 0) return scopes;
+  } catch {
+    // fallback defaults
+  }
+  return [
+    { id: "global", cityId: "global", name: "Global Platform Defaults (Nationwide)", type: "global", state: "All India", status: "Active" },
+    { id: "city-kasganj", cityId: "city-kasganj", name: "Kasganj", type: "city", state: "Uttar Pradesh", tier: "Tier-2", status: "Live" },
+    { id: "city-delhi", cityId: "city-delhi", name: "Delhi NCR", type: "city", state: "Delhi", tier: "Tier-1", status: "Live" },
+    { id: "city-mumbai", cityId: "city-mumbai", name: "Mumbai", type: "city", state: "Maharashtra", tier: "Tier-1", status: "Live" },
+  ];
+}
+
+export async function fetchSettings(scope: string = "global", cityId?: string): Promise<AdminSettings> {
+  try {
+    const query = new URLSearchParams();
+    if (scope && scope !== "global") query.set("scope", scope);
+    if (cityId && cityId !== "global") query.set("cityId", cityId);
+
+    const url = query.toString() ? `/api/admin/settings?${query.toString()}` : "/api/admin/settings";
+    const doc = await apiGetJson<Record<string, any>>(url);
     const merged = structuredClone(DEFAULTS);
+
+    merged._scope = (doc._scope as any) || (scope === "city" ? "city" : "global");
+    merged._cityId = doc._cityId || cityId || null;
+    merged._cityName = doc._cityName || null;
+    merged._isOverridden = Boolean(doc._isOverridden);
 
     if (doc.platform) Object.assign(merged.platform, doc.platform);
     if (doc.business) Object.assign(merged.business, doc.business);
@@ -227,8 +273,16 @@ export async function fetchSettings(): Promise<AdminSettings> {
   }
 }
 
-export async function saveSettings(settings: AdminSettings): Promise<AdminSettings> {
-  return await apiPutJson<AdminSettings>("/api/admin/settings", settings);
+export async function saveSettings(payload: { settings: AdminSettings; scope?: string; cityId?: string }): Promise<AdminSettings> {
+  const scope = payload.scope || (payload.cityId && payload.cityId !== "global" ? "city" : "global");
+  const cityId = payload.cityId;
+
+  const query = new URLSearchParams();
+  if (scope && scope !== "global") query.set("scope", scope);
+  if (cityId && cityId !== "global") query.set("cityId", cityId);
+
+  const url = query.toString() ? `/api/admin/settings?${query.toString()}` : "/api/admin/settings";
+  return await apiPutJson<AdminSettings>(url, payload.settings);
 }
 
 export async function fetchSecurityEvents(): Promise<SecurityEventsResponse> {

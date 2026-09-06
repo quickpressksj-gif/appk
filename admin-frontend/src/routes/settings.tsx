@@ -33,6 +33,9 @@ import {
   Calculator,
   Search,
   ExternalLink,
+  Globe2,
+  MapPin,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,9 +50,11 @@ import {
   changeAdminPin,
   fetchSecurityEvents,
   fetchSettings,
+  fetchSettingsScopes,
   saveSettings,
   unlockClientIp,
   type AdminSettings,
+  type ScopeOption,
 } from "../api/settings";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
@@ -142,7 +147,19 @@ const SETTINGS_CATEGORIES = [
 ];
 
 export function SettingsPage() {
-  const settings = useQuery({ queryKey: ["admin", "settings"], queryFn: fetchSettings });
+  const [selectedScopeId, setSelectedScopeId] = useState<string>("global");
+
+  const scopesQuery = useQuery({ queryKey: ["admin", "settings-scopes"], queryFn: fetchSettingsScopes });
+
+  const settings = useQuery({
+    queryKey: ["admin", "settings", selectedScopeId],
+    queryFn: () => {
+      const scope = selectedScopeId === "global" ? "global" : "city";
+      const cityId = selectedScopeId === "global" ? undefined : selectedScopeId;
+      return fetchSettings(scope, cityId);
+    },
+  });
+
   const securityEvents = useQuery({ queryKey: ["admin", "security-events"], queryFn: fetchSecurityEvents });
 
   const [draft, setDraft] = useState<AdminSettings | null>(null);
@@ -169,10 +186,17 @@ export function SettingsPage() {
   }, [draft, settings.data]);
 
   const saveMutation = useMutation({
-    mutationFn: saveSettings,
+    mutationFn: (settingsData: AdminSettings) => {
+      const scope = selectedScopeId === "global" ? "global" : "city";
+      const cityId = selectedScopeId === "global" ? undefined : selectedScopeId;
+      return saveSettings({ settings: settingsData, scope, cityId });
+    },
     onSuccess: () => {
-      toast.success("Platform settings saved and propagated live across all customer and partner apps! 🎉");
+      const currentScope = (scopesQuery.data || []).find((s) => s.id === selectedScopeId);
+      const scopeName = currentScope ? currentScope.name : "Platform";
+      toast.success(`Platform settings saved and synced live for ${scopeName}! 🎉`);
       settings.refetch();
+      void scopesQuery.refetch();
     },
     onError: () => {
       toast.error("Failed to persist settings.");
@@ -230,6 +254,8 @@ export function SettingsPage() {
       (c) => c.title.toLowerCase().includes(q) || c.subtitle.toLowerCase().includes(q) || c.id.includes(q)
     );
   }, [searchFilter]);
+
+  const selectedScope = (scopesQuery.data || []).find((s) => s.id === selectedScopeId);
 
   if (!draft) {
     return (
@@ -293,6 +319,92 @@ export function SettingsPage() {
       }
     >
       <div className="space-y-6 pb-20">
+        {/* =========================================================================
+            0. ENTERPRISE MULTI-TIER CITY & AREA SCOPE SELECTOR HUD
+        ========================================================================= */}
+        <div className="rounded-2xl border border-zinc-200/80 bg-white/95 p-4 shadow-xs backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                "size-10 rounded-xl flex items-center justify-center border shadow-xs transition-all",
+                selectedScopeId === "global"
+                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              )}
+            >
+              {selectedScopeId === "global" ? <Globe2 className="size-5" /> : <MapPin className="size-5" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Configuration Hierarchy Scope</span>
+                {selectedScopeId === "global" ? (
+                  <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[9px] font-black uppercase">
+                    Nationwide Master Default
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                    City Override Scope
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-black text-zinc-900 mt-0.5 flex items-center gap-2">
+                <span>{selectedScope?.name || "Global Platform"}</span>
+                {selectedScope?.state && <span className="text-xs font-medium text-zinc-500">• {selectedScope.state}</span>}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <Label className="text-xs font-bold text-zinc-600 hidden sm:inline">Active Territory Scope:</Label>
+            <Select value={selectedScopeId} onValueChange={(val) => setSelectedScopeId(val)}>
+              <SelectTrigger className="h-10 min-w-[280px] rounded-xl text-xs font-bold bg-zinc-50 border-zinc-200 cursor-pointer">
+                <SelectValue placeholder="Select Territory Scope..." />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl shadow-xl">
+                <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-zinc-400">Master Level</div>
+                <SelectItem value="global" className="cursor-pointer font-bold text-xs py-2">
+                  🌐 Global Platform Defaults (Nationwide)
+                </SelectItem>
+                <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-zinc-400 border-t border-zinc-100 mt-1">
+                  City & Territory Overrides
+                </div>
+                {(scopesQuery.data || [])
+                  .filter((s) => s.id !== "global")
+                  .map((scope) => (
+                    <SelectItem key={scope.id} value={scope.id} className="cursor-pointer text-xs py-2">
+                      <div className="flex items-center justify-between w-full gap-3">
+                        <span className="font-bold">🏙️ {scope.name}</span>
+                        <span className="text-[10px] text-zinc-400 font-medium">
+                          {scope.hasOverride ? "• Custom Override" : `• ${scope.state || "Active"}`}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* City Override Active Advisory */}
+        {selectedScopeId !== "global" && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-xs text-emerald-900 flex items-center justify-between gap-3 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2.5">
+              <MapPin className="size-4 text-emerald-700 shrink-0" />
+              <span>
+                You are currently viewing & configuring settings for <strong>{selectedScope?.name}</strong>. Values saved here take highest priority for customers and delivery captains in this region.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedScopeId("global")}
+              className="h-7 text-[11px] font-bold rounded-lg border-emerald-300 text-emerald-800 hover:bg-emerald-100 cursor-pointer shrink-0"
+            >
+              Switch to Global Default
+            </Button>
+          </div>
+        )}
+
         {/* =========================================================================
             1. TOP HIGH-IMPACT TELEMETRY HUD (6 STAT CARDS)
         ========================================================================= */}
@@ -506,7 +618,7 @@ export function SettingsPage() {
                 <span>Enterprise Core Guarantee</span>
               </div>
               <p className="text-[11px] text-emerald-800 leading-relaxed">
-                Settings update atomically in database. All customer carts, rider algorithms, and partner payouts recalculate immediately upon save.
+                Settings update atomically in database. All customer carts, rider algorithms, and partner payouts recalculate immediately upon save for <strong>{selectedScope?.name}</strong>.
               </p>
             </div>
           </div>
@@ -527,7 +639,7 @@ export function SettingsPage() {
                     <div className="flex items-center gap-2">
                       <h3 className="text-base font-black text-zinc-900">{activeCategory.title}</h3>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-700 border border-zinc-200">
-                        Production Engine
+                        {selectedScopeId === "global" ? "Global Scope" : `City Scope: ${selectedScope?.name}`}
                       </span>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">{activeCategory.subtitle}</p>
@@ -541,8 +653,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-
-
             {/* =====================================================================
                 TAB 2: LOGISTICS, DELIVERY FEES & CART THRESHOLDS
             ===================================================================== */}
@@ -551,7 +661,7 @@ export function SettingsPage() {
                 <div>
                   <h4 className="text-sm font-black text-zinc-900">Doorstep Logistics & Minimum Order Values</h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Controls customer checkout eligibility, free delivery incentives, and handling surcharges.
+                    Controls customer checkout eligibility, free delivery incentives, and handling surcharges for <strong>{selectedScope?.name}</strong>.
                   </p>
                 </div>
 
@@ -650,7 +760,7 @@ export function SettingsPage() {
                         <span>Monsoon & Bad Weather Dynamic Surcharge</span>
                       </h4>
                       <p className="text-xs text-sky-700">
-                        Compensates delivery captains during heavy downpour and manages rider fleet retention.
+                        Compensates delivery captains in <strong>{selectedScope?.name}</strong> during heavy downpour and manages rider fleet retention.
                       </p>
                     </div>
 
@@ -745,7 +855,7 @@ export function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <h5 className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
                       <Calculator className="size-4 text-sky-600" />
-                      <span>Live Customer Cart Surge Simulator</span>
+                      <span>Live Customer Cart Surge Simulator ({selectedScope?.name})</span>
                     </h5>
                     <span className="text-[10px] font-bold text-zinc-400">Interactive Preview</span>
                   </div>
@@ -806,7 +916,7 @@ export function SettingsPage() {
                     <span>Time Slot Capacity Throttle & Turnaround Speed Multipliers</span>
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Prevents partner store overwhelm and configures pricing multipliers for express 24-hour turnaround.
+                    Prevents partner store overwhelm and configures pricing multipliers for express 24-hour turnaround in <strong>{selectedScope?.name}</strong>.
                   </p>
                 </div>
 
@@ -1044,7 +1154,7 @@ export function SettingsPage() {
                 <div>
                   <h4 className="text-sm font-black text-zinc-900">Platform Commission & Partner Settlement Escrow</h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Configures automated platform fee deduction and periodic store payout schedules.
+                    Configures automated platform fee deduction and periodic store payout schedules for <strong>{selectedScope?.name}</strong>.
                   </p>
                 </div>
 
@@ -1292,7 +1402,7 @@ export function SettingsPage() {
                     <span>Fraud Prevention & Rider Anti-Spoofing Engine</span>
                   </h4>
                   <p className="text-xs text-rose-700 mt-0.5">
-                    Automated security rules to mitigate fake orders, mock GPS spoofing, and serial cart cancellations.
+                    Automated security rules to mitigate fake orders, mock GPS spoofing, and serial cart cancellations for <strong>{selectedScope?.name}</strong>.
                   </p>
                 </div>
 
@@ -1381,7 +1491,7 @@ export function SettingsPage() {
                         <span>Platform Emergency Maintenance Mode</span>
                       </h4>
                       <p className="text-xs text-zinc-500">
-                        Pauses customer order intake for infrastructure upgrades or emergency operations.
+                        Pauses customer order intake for infrastructure upgrades or emergency operations in <strong>{selectedScope?.name}</strong>.
                       </p>
                     </div>
 
@@ -1422,7 +1532,7 @@ export function SettingsPage() {
                   <div className="space-y-0.5">
                     <h5 className="text-xs font-black text-zinc-900">Laundry Partner Self-Registration</h5>
                     <p className="text-xs text-zinc-500">
-                      Enable the public merchant portal allowing new laundry shops to submit onboarding KYC documents.
+                      Enable the public merchant portal allowing new laundry shops in <strong>{selectedScope?.name}</strong> to submit onboarding KYC documents.
                     </p>
                   </div>
                   <Switch
@@ -1552,8 +1662,10 @@ export function SettingsPage() {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-white">Unsaved configuration changes</p>
-                  <p className="text-[10px] text-zinc-400">Press ⌘S or click Save to propagate live</p>
+                  <p className="text-xs font-bold text-white">
+                    Unsaved modifications in {selectedScope?.name || "Settings"}
+                  </p>
+                  <p className="text-[10px] text-zinc-400">Press ⌘S or click Save to propagate live to this region</p>
                 </div>
               </div>
 

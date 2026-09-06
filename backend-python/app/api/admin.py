@@ -1538,15 +1538,35 @@ async def close_support(ticket_id: str, user: User = Depends(current_user)):
 
 
 # ------------------------------------------------------------------- settings
+@router.get("/settings/scopes")
+async def get_settings_scopes(user: User = Depends(current_user)):
+    """GET /api/admin/settings/scopes — Returns all available scopes (Global + Live Cities)."""
+    return await admin_settings_repository.get_available_scopes()
+
+
 @router.get("/settings")
-async def get_settings_(user: User = Depends(current_user)):
-    return await admin_settings_repository.get()
+async def get_settings_(
+    scope: str = Query(default="global"),
+    city_id: Optional[str] = Query(default=None, alias="cityId"),
+    user: User = Depends(current_user),
+):
+    return await admin_settings_repository.get(scope=scope, city_id=city_id)
 
 
 @router.put("/settings")
-async def update_settings(payload: SettingsUpdatePayload, user: User = Depends(current_user)):
-    settings_doc = await admin_settings_repository.update(payload.model_dump(exclude_unset=True))
-    await audit_repository.log(await _actor(user), "settings.update", "platform")
+async def update_settings(
+    payload: SettingsUpdatePayload,
+    scope: str = Query(default="global"),
+    city_id: Optional[str] = Query(default=None, alias="cityId"),
+    user: User = Depends(current_user),
+):
+    target = f"city:{city_id}" if scope == "city" and city_id else "platform"
+    settings_doc = await admin_settings_repository.update(
+        payload.model_dump(exclude_unset=True),
+        scope=scope,
+        city_id=city_id,
+    )
+    await audit_repository.log(await _actor(user), "settings.update", target)
     return settings_doc
 
 
