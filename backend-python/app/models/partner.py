@@ -247,28 +247,31 @@ class PartnerNotificationResponse(BaseModel):
 class OnboardingPayload(BaseModel):
     businessName: str
     ownerName: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
     category: BusinessCategory = "laundry"
-    gstin: str = ""
+    gstin: Optional[str] = ""
     address: str = ""
     city: str = ""
-    state: str = "Uttar Pradesh"
-    area: str = ""
-    pincode: str = ""
+    state: Optional[str] = "Uttar Pradesh"
+    area: Optional[str] = ""
+    pincode: Optional[str] = ""
     servicePincodes: List[str] = Field(default_factory=list)
     sectors: List[str] = Field(default_factory=list)
-    openingTime: str = "08:00"
-    closingTime: str = "21:00"
-    weeklyOff: str = "None"
+    openingTime: Optional[str] = "08:00"
+    closingTime: Optional[str] = "21:00"
+    weeklyOff: Optional[str] = "None"
+    emergencyClosing: Optional[str] = None
     services: List[Union[str, Dict[str, Any]]] = []
-    pickupRadiusKm: int = 10
-    deliveryRadiusKm: int = 10
-    pan: str = ""
-    aadhaar: str = ""
-    experience: str = ""
-    accountHolder: str = ""
-    bankName: str = ""
-    accountNumber: str = ""
-    ifsc: str = ""
+    pickupRadiusKm: Optional[int] = 10
+    deliveryRadiusKm: Optional[int] = 10
+    pan: Optional[str] = ""
+    aadhaar: Optional[str] = ""
+    experience: Optional[str] = ""
+    accountHolder: Optional[str] = ""
+    bankName: Optional[str] = ""
+    accountNumber: Optional[str] = ""
+    ifsc: Optional[str] = ""
     logo: Optional[str] = None
     banner: Optional[str] = None
     gallery: List[str] = []

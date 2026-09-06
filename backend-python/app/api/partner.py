@@ -872,10 +872,10 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
     store_id_str = str(partner_id)
 
     # --- Strict 1-to-1 Uniqueness Constraints ---
-    clean_phone = str(user.phone or "").strip()
+    clean_phone = str(getattr(payload, "phone", None) or user.phone or "").strip()
     clean_aadhaar = str(payload.aadhaar or "").replace(" ", "").replace("-", "").strip()
     clean_pan = str(payload.pan or "").replace(" ", "").strip().upper()
-    clean_email = str(payload.email or user.email or "").strip().lower()
+    clean_email = str(getattr(payload, "email", None) or user.email or "").strip().lower()
 
     # 1. Aadhaar Uniqueness Check
     if clean_aadhaar and len(clean_aadhaar) == 12:
