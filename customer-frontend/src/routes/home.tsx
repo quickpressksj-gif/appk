@@ -5,6 +5,7 @@ import {
   BedDouble,
   Blinds,
   CalendarCheck,
+  Check,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -711,14 +712,14 @@ function HomeScreen() {
                             </p>
                           </div>
                         </div>
-                        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                        <span className="rounded-full bg-secondary/15 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-brand-green">
                           Active
                         </span>
                       </div>
 
                       <div className="relative mt-3.5 grid grid-cols-2 gap-2 border-t border-dashed border-border/80 pt-3 text-xs">
                         <div className="card-soft flex items-center gap-2 bg-muted/40 p-2.5">
-                          <span className="size-2 rounded-full bg-primary" />
+                          <span className="size-2 rounded-full bg-brand-green" />
                           <div className="min-w-0">
                             <p className="text-[10px] font-bold text-muted-foreground">Orders Balance</p>
                             <p className="truncate text-xs font-black text-foreground">
@@ -729,7 +730,7 @@ function HomeScreen() {
                           </div>
                         </div>
                         <div className="card-soft flex items-center gap-2 bg-muted/40 p-2.5">
-                          <span className="size-2 rounded-full bg-emerald-500" />
+                          <span className="size-2 rounded-full bg-brand-green" />
                           <div className="min-w-0">
                             <p className="text-[10px] font-bold text-muted-foreground">Weight Quota</p>
                             <p className="truncate text-xs font-black text-foreground">
@@ -742,11 +743,11 @@ function HomeScreen() {
                       </div>
 
                       {membership.quota.totalSavings > 0 ? (
-                        <div className="relative mt-2.5 flex items-center justify-between rounded-2xl bg-emerald-500/10 px-3.5 py-2 text-xs text-foreground">
-                          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                        <div className="relative mt-2.5 flex items-center justify-between rounded-2xl bg-secondary/15 px-3.5 py-2 text-xs text-foreground">
+                          <span className="text-[11px] font-bold text-brand-green">
                             🎉 Total Member Savings:
                           </span>
-                          <span className="font-black text-emerald-600 dark:text-emerald-400">
+                          <span className="font-black text-brand-green">
                             ₹{membership.quota.totalSavings.toLocaleString("en-IN")} saved
                           </span>
                         </div>
@@ -755,85 +756,79 @@ function HomeScreen() {
                       <button
                         type="button"
                         onClick={() => void navigate({ to: "/membership" })}
-                        className="ripple relative mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-xs font-extrabold text-primary-foreground shadow-cta transition-transform hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
+                        className="ripple relative mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-brand-green text-xs font-extrabold text-white shadow-cta transition-transform hover:bg-brand-green-dark hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
                       >
                         Manage Plan &amp; View Orders
                         <ArrowRight className="size-3.5" />
                       </button>
                     </div>
                   ) : (
-                    /* 2. Non-Member Upgrade Banner (Clean, Modern & Premium VIP Theme) */
-                    <div className="relative overflow-hidden rounded-[1.75rem] border border-emerald-500/25 bg-gradient-to-br from-emerald-50/80 via-white to-white p-5 shadow-soft dark:border-emerald-500/20 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900">
-                      {/* Ambient luxury lighting accents */}
-                      <div className="pointer-events-none absolute -right-8 -top-8 size-36 rounded-full bg-emerald-500/10 blur-2xl" />
-                      <div className="pointer-events-none absolute -left-8 -bottom-8 size-28 rounded-full bg-emerald-600/10 blur-2xl" />
+                    /* 2. Non-Member Upgrade Banner (Full Theme Green - Simple & Clean Design) */
+                    <div className="relative overflow-hidden rounded-[2rem] border border-brand-green/20 bg-gradient-to-br from-brand-green/[0.08] via-background to-background p-6 shadow-soft dark:border-brand-green/25 dark:from-brand-green/[0.12] dark:via-card dark:to-card">
+                      {/* Ambient soft glow accents */}
+                      <div className="pointer-events-none absolute -right-10 -top-10 size-44 rounded-full bg-brand-green/10 blur-3xl" />
+                      <div className="pointer-events-none absolute -left-10 -bottom-10 size-36 rounded-full bg-brand-green/10 blur-3xl" />
 
                       {/* Header Row */}
                       <div className="relative flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-                            <Crown className="size-3.5" />
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-9 items-center justify-center rounded-full bg-secondary/15 text-brand-green">
+                            <Crown className="size-4.5 stroke-[2.2]" />
                           </span>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-                            QuickPress VIP
+                          <span className="text-xs font-black uppercase tracking-wider text-brand-green">
+                            QUICKPRESS VIP MEMBERSHIP
                           </span>
                         </div>
-                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                        <span className="rounded-full bg-secondary/15 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-brand-green">
                           SAVE ₹500+/MO
                         </span>
                       </div>
 
                       {/* Headline */}
-                      <div className="relative mt-3">
-                        <h3 className="text-base font-black tracking-tight text-zinc-950 dark:text-white sm:text-lg">
-                          Unlimited <span className="text-emerald-600 dark:text-emerald-400">₹0 Delivery</span> &amp; <span className="text-emerald-600 dark:text-emerald-400">15% OFF</span>
+                      <div className="relative mt-4">
+                        <h3 className="text-lg font-black tracking-tight text-foreground sm:text-xl">
+                          Unlimited ₹0 Delivery &amp; 15% OFF Every Order
                         </h3>
-                        <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                          On all laundry, dry cleaning, ironing &amp; bag care orders
-                        </p>
                       </div>
 
-                      {/* Feature Micro-Badges */}
-                      <div className="relative mt-3.5 grid grid-cols-3 gap-2">
-                        <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-white/80 p-2 text-center shadow-2xs backdrop-blur-xs dark:bg-zinc-800/80">
-                          <span className="text-sm">⚡</span>
-                          <span className="mt-1 text-[10px] font-black text-zinc-900 dark:text-white leading-tight">
-                            ₹0 Delivery
+                      {/* Clean Benefit Items with Green Check Circles */}
+                      <div className="relative mt-4 space-y-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-brand-green">
+                            <Check className="size-3.5 stroke-[3]" />
                           </span>
-                          <span className="text-[9px] text-zinc-400 font-medium">Doorstep free</span>
+                          <span className="text-xs font-medium text-foreground sm:text-[13px]">
+                            Unlimited free doorstep pickup &amp; delivery
+                          </span>
                         </div>
 
-                        <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-white/80 p-2 text-center shadow-2xs backdrop-blur-xs dark:bg-zinc-800/80">
-                          <span className="text-sm">🏷️</span>
-                          <span className="mt-1 text-[10px] font-black text-zinc-900 dark:text-white leading-tight">
-                            Extra 15% OFF
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-brand-green">
+                            <Check className="size-3.5 stroke-[3]" />
                           </span>
-                          <span className="text-[9px] text-zinc-400 font-medium">Every order</span>
+                          <span className="text-xs font-medium text-foreground sm:text-[13px]">
+                            Extra 10% to 20% member discounts on all services
+                          </span>
                         </div>
 
-                        <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-white/80 p-2 text-center shadow-2xs backdrop-blur-xs dark:bg-zinc-800/80">
-                          <span className="text-sm">⏱️</span>
-                          <span className="mt-1 text-[10px] font-black text-zinc-900 dark:text-white leading-tight">
-                            Priority Queue
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-brand-green">
+                            <Check className="size-3.5 stroke-[3]" />
                           </span>
-                          <span className="text-[9px] text-zinc-400 font-medium">Express return</span>
+                          <span className="text-xs font-medium text-foreground sm:text-[13px]">
+                            Priority queue &amp; 2-hour superfast turnaround
+                          </span>
                         </div>
                       </div>
 
-                      {/* CTA Action Button */}
+                      {/* Full Theme Green Action Button */}
                       <button
                         type="button"
                         onClick={() => void navigate({ to: "/membership" })}
-                        className="ripple relative mt-4 flex h-12 w-full items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 px-4 text-xs font-black text-white shadow-md shadow-emerald-600/25 transition-all hover:shadow-lg hover:shadow-emerald-600/30 hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
+                        className="ripple relative mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-green px-4 text-sm font-black text-white shadow-cta transition-transform hover:bg-brand-green-dark hover:scale-[1.01] active:scale-[0.985] cursor-pointer"
                       >
-                        <div className="flex items-center gap-2">
-                          <Crown className="size-4 text-amber-300" />
-                          <span className="text-xs font-black tracking-wide">Join VIP Membership</span>
-                        </div>
-                        <span className="flex items-center gap-1 rounded-xl bg-black/20 px-2.5 py-1 text-[11px] font-black text-emerald-100">
-                          <span>From ₹99/mo</span>
-                          <ArrowRight className="size-3" />
-                        </span>
+                        <Crown className="size-4.5" />
+                        <span>Join VIP Membership • From ₹99/mo</span>
                       </button>
                     </div>
                   )}
