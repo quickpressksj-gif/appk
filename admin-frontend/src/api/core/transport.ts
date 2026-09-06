@@ -31,7 +31,7 @@ export type RequestOptions = {
   anonymous?: boolean | undefined;
 };
 
-export type TransportMode = "http" | "mock";
+export type TransportMode = "http";
 
 export function transportMode(): TransportMode {
   return "http";
