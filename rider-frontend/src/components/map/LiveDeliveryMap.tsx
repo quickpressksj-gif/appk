@@ -127,132 +127,137 @@ export function LiveDeliveryMap({
     if (!mapReady || !mapInstanceRef.current) return;
 
     void (async () => {
-      const L = (await import("leaflet")).default;
-      const map = mapInstanceRef.current;
-      const bounds: any[] = [];
+      try {
+        const L = (await import("leaflet")).default;
+        const map = mapInstanceRef.current;
+        if (!map) return;
+        const bounds: any[] = [];
 
-      // 1. Rider Marker (Pulsing Emerald Bike)
-      if (riderLocation && riderLocation.lat && riderLocation.lng) {
-        bounds.push([riderLocation.lat, riderLocation.lng]);
+        // 1. Rider Marker (Pulsing Emerald Bike)
+        if (riderLocation && riderLocation.lat && riderLocation.lng) {
+          bounds.push([riderLocation.lat, riderLocation.lng]);
 
-        const riderIcon = L.divIcon({
-          className: "custom-rider-icon",
-          html: `
-            <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
-              <span style="position: absolute; width: 42px; height: 42px; border-radius: 9999px; background-color: #34d399; opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-              <div style="position: relative; display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #065f46; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/>
-                  <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
-                </svg>
+          const riderIcon = L.divIcon({
+            className: "custom-rider-icon",
+            html: `
+              <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
+                <span style="position: absolute; width: 42px; height: 42px; border-radius: 9999px; background-color: #34d399; opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+                <div style="position: relative; display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #065f46; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/>
+                    <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
+                  </svg>
+                </div>
               </div>
-            </div>
-          `,
-          iconSize: [44, 44],
-          iconAnchor: [22, 22],
-        });
+            `,
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
+          });
 
-        if (markersRef.current.rider) {
-          markersRef.current.rider.setLatLng([riderLocation.lat, riderLocation.lng]);
-        } else {
-          markersRef.current.rider = L.marker([riderLocation.lat, riderLocation.lng], {
-            icon: riderIcon,
-            zIndexOffset: 1000,
-          }).addTo(map);
-          markersRef.current.rider.bindPopup(
-            `<b>${riderLocation.label || "QuickPress Captain"}</b><br/>Live GPS Telemetry`
-          );
+          if (markersRef.current.rider) {
+            markersRef.current.rider.setLatLng([riderLocation.lat, riderLocation.lng]);
+          } else {
+            markersRef.current.rider = L.marker([riderLocation.lat, riderLocation.lng], {
+              icon: riderIcon,
+              zIndexOffset: 1000,
+            }).addTo(map);
+            markersRef.current.rider.bindPopup(
+              `<b>${riderLocation.label || "QuickPress Captain"}</b><br/>Live GPS Telemetry`
+            );
+          }
         }
-      }
 
-      // 2. Destination Marker (Customer Home / Drop)
-      if (destinationLocation && destinationLocation.lat && destinationLocation.lng) {
-        bounds.push([destinationLocation.lat, destinationLocation.lng]);
+        // 2. Destination Marker (Customer Home / Drop)
+        if (destinationLocation && destinationLocation.lat && destinationLocation.lng) {
+          bounds.push([destinationLocation.lat, destinationLocation.lng]);
 
-        const destIcon = L.divIcon({
-          className: "custom-dest-icon",
-          html: `
-            <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
-              <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #d97706; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                </svg>
+          const destIcon = L.divIcon({
+            className: "custom-dest-icon",
+            html: `
+              <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
+                <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #d97706; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  </svg>
+                </div>
               </div>
-            </div>
-          `,
-          iconSize: [40, 40],
-          iconAnchor: [20, 20],
-        });
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
 
-        if (markersRef.current.dest) {
-          markersRef.current.dest.setLatLng([destinationLocation.lat, destinationLocation.lng]);
-        } else {
-          markersRef.current.dest = L.marker(
+          if (markersRef.current.dest) {
+            markersRef.current.dest.setLatLng([destinationLocation.lat, destinationLocation.lng]);
+          } else {
+            markersRef.current.dest = L.marker(
+              [destinationLocation.lat, destinationLocation.lng],
+              { icon: destIcon }
+            ).addTo(map);
+            markersRef.current.dest.bindPopup(
+              `<b>${destinationLocation.label || "Customer Location"}</b><br/>${destinationLocation.sublabel || ""}`
+            );
+          }
+        }
+
+        // 3. Store Marker (Partner Laundry Store)
+        if (storeLocation && storeLocation.lat && storeLocation.lng) {
+          bounds.push([storeLocation.lat, storeLocation.lng]);
+
+          const storeIcon = L.divIcon({
+            className: "custom-store-icon",
+            html: `
+              <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
+                <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #4f46e5; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                  </svg>
+                </div>
+              </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
+
+          if (markersRef.current.store) {
+            markersRef.current.store.setLatLng([storeLocation.lat, storeLocation.lng]);
+          } else {
+            markersRef.current.store = L.marker([storeLocation.lat, storeLocation.lng], {
+              icon: storeIcon,
+            }).addTo(map);
+            markersRef.current.store.bindPopup(
+              `<b>${storeLocation.label || "QuickPress Partner Store"}</b><br/>${storeLocation.sublabel || ""}`
+            );
+          }
+        }
+
+        // 4. Live Route Polyline between Rider and Target Destination
+        if (riderLocation && destinationLocation) {
+          const routePoints = [
+            [riderLocation.lat, riderLocation.lng],
             [destinationLocation.lat, destinationLocation.lng],
-            { icon: destIcon }
-          ).addTo(map);
-          markersRef.current.dest.bindPopup(
-            `<b>${destinationLocation.label || "Customer Location"}</b><br/>${destinationLocation.sublabel || ""}`
-          );
+          ];
+
+          if (polylineRef.current) {
+            polylineRef.current.setLatLngs(routePoints);
+          } else {
+            polylineRef.current = L.polyline(routePoints, {
+              color: "#059669",
+              weight: 4,
+              opacity: 0.85,
+              dashArray: "8, 8",
+              lineCap: "round",
+            }).addTo(map);
+          }
         }
-      }
 
-      // 3. Store Marker (Partner Laundry Store)
-      if (storeLocation && storeLocation.lat && storeLocation.lng) {
-        bounds.push([storeLocation.lat, storeLocation.lng]);
-
-        const storeIcon = L.divIcon({
-          className: "custom-store-icon",
-          html: `
-            <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
-              <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #4f46e5; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>
-                </svg>
-              </div>
-            </div>
-          `,
-          iconSize: [40, 40],
-          iconAnchor: [20, 20],
-        });
-
-        if (markersRef.current.store) {
-          markersRef.current.store.setLatLng([storeLocation.lat, storeLocation.lng]);
-        } else {
-          markersRef.current.store = L.marker([storeLocation.lat, storeLocation.lng], {
-            icon: storeIcon,
-          }).addTo(map);
-          markersRef.current.store.bindPopup(
-            `<b>${storeLocation.label || "QuickPress Partner Store"}</b><br/>${storeLocation.sublabel || ""}`
-          );
+        // Auto-Fit Bounds if multiple points exist
+        if (bounds.length > 1) {
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+        } else if (bounds.length === 1) {
+          map.setView(bounds[0], 15);
         }
-      }
-
-      // 4. Live Route Polyline between Rider and Target Destination
-      if (riderLocation && destinationLocation) {
-        const routePoints = [
-          [riderLocation.lat, riderLocation.lng],
-          [destinationLocation.lat, destinationLocation.lng],
-        ];
-
-        if (polylineRef.current) {
-          polylineRef.current.setLatLngs(routePoints);
-        } else {
-          polylineRef.current = L.polyline(routePoints, {
-            color: "#059669",
-            weight: 4,
-            opacity: 0.85,
-            dashArray: "8, 8",
-            lineCap: "round",
-          }).addTo(map);
-        }
-      }
-
-      // Auto-Fit Bounds if multiple points exist
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-      } else if (bounds.length === 1) {
-        map.setView(bounds[0], 15);
+      } catch (err) {
+        // Suppress unmounted map transitions
       }
     })();
   }, [mapReady, riderLocation, destinationLocation, storeLocation]);
