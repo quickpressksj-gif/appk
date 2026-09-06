@@ -30,7 +30,15 @@ function CaptainRootSplash() {
 
         if (!active) return;
         if (sess && sess.token) {
-          if (sess.isOnboarded && sess.isVerified) {
+          const isApproved = Boolean(
+            sess.isVerified ||
+            (sess as any).status === "active" ||
+            (sess as any).status === "approved" ||
+            (sess as any).account?.isVerified ||
+            (sess as any).account?.status === "active" ||
+            (sess as any).account?.status === "approved"
+          );
+          if (isApproved) {
             void navigate({ to: "/dashboard" });
           } else {
             void navigate({ to: "/onboarding" });

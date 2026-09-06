@@ -29,6 +29,10 @@ export async function fetchRiderProfile(): Promise<RiderProfile> {
       res.accountLast4 ||
       (res.accountNumber ? String(res.accountNumber).slice(-4) : "4821"),
     ifsc: res.ifsc || "SBIN0001234",
+    status: res.status || (res.isVerified ? "active" : "pending"),
+    isVerified: Boolean(res.isVerified),
+    isOnboarded: Boolean(res.isOnboarded ?? true),
+    isOnline: Boolean(res.isOnline),
     kycStatus:
       res.kycStatus ||
       (res.isVerified ? "verified" : "pending"),

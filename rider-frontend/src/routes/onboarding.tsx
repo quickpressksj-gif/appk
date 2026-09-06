@@ -193,13 +193,18 @@ export function CaptainOnboardingScreen() {
 
         // Update local session
         const existing = readSession("rider") || readSession();
-        if (existing && existing.account) {
+        if (existing) {
           const updatedSession: AuthSession = {
             ...existing,
+            isVerified: true,
+            isOnboarded: true,
+            status: "active",
             account: {
-              ...existing.account,
+              ...(existing.account || {}),
               isVerified: true,
+              isOnboarded: true,
               status: "active",
+              name: profile?.fullName || onboarding?.fullName || existing.account?.name || fullName || "Delivery Captain",
             },
           };
           writeSession(updatedSession, "rider");
@@ -567,7 +572,26 @@ export function CaptainOnboardingScreen() {
 
           <button
             type="button"
-            onClick={() => void navigate({ to: "/dashboard" })}
+            onClick={() => {
+              const existing = readSession("rider") || readSession();
+              if (existing) {
+                const updatedSession: AuthSession = {
+                  ...existing,
+                  isVerified: true,
+                  isOnboarded: true,
+                  status: "active",
+                  account: {
+                    ...(existing.account || {}),
+                    isVerified: true,
+                    isOnboarded: true,
+                    status: "active",
+                    name: fullName || existing.account?.name || "Delivery Captain",
+                  },
+                };
+                writeSession(updatedSession, "rider");
+              }
+              void navigate({ to: "/dashboard" });
+            }}
             className="w-full rounded-2xl bg-emerald-600 py-3.5 px-4 text-sm font-black text-white hover:bg-emerald-700 active:scale-98 transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>Enter Captain Cockpit &amp; Start Duty</span>

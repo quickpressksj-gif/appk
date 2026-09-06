@@ -104,8 +104,8 @@ export function RiderDashboardScreen() {
       ]);
 
       if (profileRes) {
-        // Enforce admin approval: Both isVerified AND active/approved status required
-        const isApproved = Boolean(profileRes.isVerified && (profileRes.status === "active" || profileRes.status === "approved"));
+        // Enforce admin approval: isVerified OR active/approved status required
+        const isApproved = Boolean(profileRes.isVerified || profileRes.status === "active" || profileRes.status === "approved");
         if (!isApproved) {
           toast.error("Application Under Review! Admin approval required to access Cockpit.");
           navigate({ to: "/onboarding" });
@@ -114,6 +114,24 @@ export function RiderDashboardScreen() {
         if (profileRes.fullName) setCaptainName(profileRes.fullName);
         if (profileRes.riderId) setCaptainId(profileRes.riderId);
         if (typeof profileRes.rating === "number") setCaptainRating(profileRes.rating);
+
+        // Keep local session storage aligned with verified state
+        const sess = readSession("rider") || readSession();
+        if (sess) {
+          writeSession({
+            ...sess,
+            isVerified: true,
+            isOnboarded: true,
+            status: profileRes.status || "active",
+            account: {
+              ...(sess.account || {}),
+              isVerified: true,
+              isOnboarded: true,
+              status: profileRes.status || "active",
+              name: profileRes.fullName || sess.account?.name || "Delivery Captain",
+            },
+          }, "rider");
+        }
       }
 
       if (dashRes) {

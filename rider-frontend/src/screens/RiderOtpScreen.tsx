@@ -84,10 +84,13 @@ export function RiderOtpScreen() {
       toast.success("Mobile number verified successfully!");
 
       window.setTimeout(() => {
-        if (sessionResult.isOnboarded && sessionResult.isVerified) {
+        const isApproved = Boolean(
+          sessionResult.isVerified ||
+          (sessionResult as any).status === "active" ||
+          (sessionResult as any).status === "approved"
+        );
+        if (isApproved) {
           navigate({ to: "/dashboard" });
-        } else if (!sessionResult.isOnboarded) {
-          navigate({ to: "/onboarding" });
         } else {
           navigate({ to: "/onboarding" });
         }
