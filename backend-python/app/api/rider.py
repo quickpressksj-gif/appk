@@ -1097,7 +1097,14 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
     pub.setdefault("isVerified", bool(profile.get("isVerified", False) or is_user_verified))
     pub.setdefault("isOnboarded", bool(profile.get("isOnboarded", is_user_onboarded)))
     pub.setdefault("kycStatus", profile.get("kycStatus", "pending" if is_user_onboarded else "unregistered"))
-    pub.setdefault("fullName", pub.get("name") or getattr(user, "name", "") or getattr(user, "display_name", "") or "Delivery Partner")
+    raw_user_name = getattr(user, "name", "") or getattr(user, "display_name", "") or ""
+    if raw_user_name in ("Delivery Partner", "Delivery Captain"):
+        raw_user_name = ""
+    candidate_name = profile.get("fullName") or profile.get("name") or profile.get("accountHolder") or raw_user_name or ""
+    if candidate_name in ("Delivery Partner", "Delivery Captain"):
+        candidate_name = ""
+    pub["fullName"] = candidate_name
+    pub["name"] = candidate_name
     pub.setdefault("phone", getattr(user, "phone", ""))
     pub.setdefault("email", getattr(user, "email", ""))
     pub.setdefault("city", pub.get("city") or getattr(user, "city", "") or "Kasganj")

@@ -219,7 +219,12 @@ export function CaptainOnboardingScreen() {
         // Show 4-Step Registration Form
         setIsUnderReview(false);
         setIsApproved(false);
-        if (profile?.fullName && !fullName) {
+        if (
+          profile?.fullName &&
+          profile.fullName !== "Delivery Partner" &&
+          profile.fullName !== "Delivery Captain" &&
+          !fullName
+        ) {
           setFullName(profile.fullName);
         }
       }

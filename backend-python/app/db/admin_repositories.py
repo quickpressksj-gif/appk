@@ -1588,16 +1588,37 @@ class AdminRiderRepository:
                 rider_orders[rid].append(o)
 
         profiles_by_id = {}
+        profiles_by_phone = {}
         for p in (profiles or []):
-            for k in ("_id", "riderId", "userId", "user_id", "phone"):
+            for k in ("_id", "riderId", "userId", "user_id"):
                 if p.get(k):
                     profiles_by_id[str(p[k])] = p
+            ph = str(p.get("phone") or p.get("mobile") or "").replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
+            if ph:
+                profiles_by_phone[ph] = p
 
         riders_by_id = {}
         for r in (riders_tbl or []):
-            for k in ("_id", "rider_id", "user_id", "phone"):
+            for k in ("_id", "rider_id", "user_id"):
                 if r.get(k):
                     riders_by_id[str(r[k])] = r
+            fb_uid = str(r.get("firebase_uid") or "")
+            if "phone-" in fb_uid:
+                clean_fb = fb_uid.split("phone-")[-1].replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
+                if clean_fb:
+                    riders_by_id[clean_fb] = r
+
+        users_by_id = {}
+        users_by_phone = {}
+        for u in (users or []):
+            uid_str = str(u.get("_id") or u.get("id") or "")
+            if uid_str:
+                users_by_id[uid_str] = u
+            if u.get("linked_id"):
+                users_by_id[str(u.get("linked_id"))] = u
+            ph = str(u.get("phone") or "").replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
+            if ph:
+                users_by_phone[ph] = u
 
         wallets_by_id = {str(w.get("_id")): w for w in (wallets or []) if w.get("_id")}
 
@@ -1611,12 +1632,13 @@ class AdminRiderRepository:
             clean_phone = raw_phone.replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:] if raw_phone else ""
             uid = str(row.get("riderId") or row.get("rider_id") or row.get("linked_id") or row.get("_id") or row.get("id") or "")
 
-            p = profiles_by_id.get(uid) or (profiles_by_id.get(clean_phone) if clean_phone else None) or (profiles_by_id.get(raw_phone) if raw_phone else None) or {}
-            r = riders_by_id.get(uid) or (riders_by_id.get(clean_phone) if clean_phone else None) or (riders_by_id.get(raw_phone) if raw_phone else None) or {}
+            p = profiles_by_id.get(uid) or (profiles_by_phone.get(clean_phone) if clean_phone else None) or {}
+            r = riders_by_id.get(uid) or (riders_by_id.get(clean_phone) if clean_phone else None) or {}
+            u = users_by_id.get(uid) or (users_by_phone.get(clean_phone) if clean_phone else None) or {}
 
             # Primary action target ID for admin actions (approve/suspend/etc)
-            target_id = str(p.get("riderId") or p.get("_id") or r.get("rider_id") or r.get("_id") or row.get("linked_id") or uid)
-            effective_phone = clean_phone or str(p.get("phone") or r.get("phone") or "").replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
+            target_id = str(p.get("riderId") or p.get("_id") or r.get("rider_id") or r.get("_id") or u.get("linked_id") or uid)
+            effective_phone = clean_phone or str(p.get("phone") or u.get("phone") or r.get("phone") or "").replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
 
             if not target_id and not effective_phone:
                 continue
@@ -1631,17 +1653,29 @@ class AdminRiderRepository:
             if effective_phone:
                 seen_keys.add(effective_phone)
 
-            name = (
+            # Name calculation: NEVER show 'Delivery Partner' or 'Delivery Captain' if actual name exists
+            raw_name = (
                 p.get("fullName")
                 or p.get("name")
-                or r.get("name")
+                or p.get("accountHolder")
+                or u.get("display_name")
+                or u.get("name")
                 or row.get("display_name")
                 or row.get("name")
-                or "Delivery Captain"
+                or ""
             )
-            phone_val = raw_phone or p.get("phone") or r.get("phone") or (f"+91{clean_phone}" if clean_phone else "—")
-            email_val = p.get("email") or row.get("email") or "—"
-            city_val = p.get("city") or row.get("city") or r.get("city") or "Kasganj"
+            if raw_name in ("Delivery Partner", "Delivery Captain", "None", ""):
+                holder = p.get("accountHolder") or ""
+                if holder and holder not in ("Delivery Partner", "Delivery Captain", "None", "uhuhu"):
+                    name = holder
+                else:
+                    name = f"Captain Candidate ({effective_phone[-4:]})" if effective_phone else "Delivery Captain"
+            else:
+                name = raw_name
+
+            phone_val = p.get("phone") or u.get("phone") or raw_phone or (f"+91{effective_phone}" if effective_phone else "—")
+            email_val = p.get("email") or u.get("email") or row.get("email") or "—"
+            city_val = p.get("city") or u.get("city") or r.get("city") or "Kasganj"
 
             r_ords = rider_orders.get(target_id) or rider_orders.get(uid) or []
             completed = [o for o in r_ords if o.get("status") == "delivered"]
@@ -1653,19 +1687,19 @@ class AdminRiderRepository:
             is_online = bool(p.get("isOnline") or r.get("is_available") or active_deliv)
             current_live = "On delivery" if active_deliv else ("Online" if is_online else "Offline")
 
-            # Determine true status from profile and verification
-            raw_st = str(p.get("status") or r.get("status") or "").lower()
-            is_ver = bool(p.get("isVerified") or r.get("is_verified") or row.get("is_verified"))
-            is_onboarded = bool(p.get("isOnboarded", True) if p else (row.get("is_onboarded", False)))
+            # Determine true status: Rider is ONLY Active if their profile has been approved & verified!
+            p_status = str(p.get("status") or "").lower()
+            is_ver = bool(p.get("isVerified", False))
+            is_onb = bool(p.get("isOnboarded", False) or u.get("is_onboarded", False))
 
-            if raw_st == "suspended":
+            if p_status == "suspended":
                 status_val = "Suspended"
                 kyc_val = "Rejected"
-            elif (raw_st in ("active", "approved") or is_ver) and is_onboarded:
+            elif is_ver and p_status in ("active", "approved"):
                 status_val = "Active"
                 kyc_val = "Verified"
-            elif not is_onboarded and not p:
-                status_val = "Unregistered"
+            elif p or is_onb:
+                status_val = "Pending"
                 kyc_val = "Pending"
             else:
                 status_val = "Pending"

@@ -4,10 +4,13 @@ import type { RiderProfile } from "@/shared/types/rider";
 
 export async function fetchRiderProfile(): Promise<RiderProfile> {
   const res = await apiGetJson<any>("/api/rider/profile");
+  const rawName = res.fullName || res.name || "";
+  const cleanName =
+    rawName === "Delivery Partner" || rawName === "Delivery Captain" ? "" : rawName;
   return {
     id: res.id || res._id || res.riderId || "—",
     riderId: res.riderId || res._id || "—",
-    fullName: res.fullName || res.name || "Delivery Partner",
+    fullName: cleanName,
     phone: res.phone || res.mobile || "—",
     email: res.email || "—",
     city: res.city || "—",
