@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
 
 from app.core.deps import current_user, require_roles
@@ -1555,14 +1555,14 @@ async def get_settings_(
 
 @router.put("/settings")
 async def update_settings(
-    payload: SettingsUpdatePayload,
+    payload: Dict[str, Any] = Body(...),
     scope: str = Query(default="global"),
     city_id: Optional[str] = Query(default=None, alias="cityId"),
     user: User = Depends(current_user),
 ):
     target = f"city:{city_id}" if scope == "city" and city_id else "platform"
     settings_doc = await admin_settings_repository.update(
-        payload.model_dump(exclude_unset=True),
+        payload,
         scope=scope,
         city_id=city_id,
     )

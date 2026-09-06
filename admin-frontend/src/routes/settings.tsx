@@ -36,6 +36,7 @@ import {
   Globe2,
   MapPin,
   Store,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -165,6 +166,7 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<AdminSettings | null>(null);
   const [activeTab, setActiveTab] = useState<string>("logistics");
   const [searchFilter, setSearchFilter] = useState<string>("");
+  const [justSaved, setJustSaved] = useState<boolean>(false);
 
   // Interactive Live Simulator states
   const [simCartValue, setSimCartValue] = useState<number>(450);
@@ -195,6 +197,8 @@ export function SettingsPage() {
       const currentScope = (scopesQuery.data || []).find((s) => s.id === selectedScopeId);
       const scopeName = currentScope ? currentScope.name : "Platform";
       toast.success(`Platform settings saved and synced live for ${scopeName}! 🎉`);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 3000);
       settings.refetch();
       void scopesQuery.refetch();
     },
@@ -305,15 +309,38 @@ export function SettingsPage() {
             size="sm"
             className={cn(
               "h-9 rounded-xl font-bold text-xs px-5 shadow-sm cursor-pointer transition-all flex items-center gap-1.5",
-              isDirty
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 shadow-md ring-2 ring-emerald-500/20"
+              justSaved
+                ? "bg-emerald-600 text-white shadow-emerald-600/30 ring-2 ring-emerald-500/30"
+                : isDirty
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 shadow-md ring-2 ring-emerald-500/20 animate-pulse"
                 : "bg-zinc-900 hover:bg-zinc-800 text-white"
             )}
             disabled={saveMutation.isPending}
-            onClick={() => saveMutation.mutate(draft)}
+            onClick={() => {
+              if (draft) saveMutation.mutate(draft);
+            }}
           >
-            <Save className="size-3.5" />
-            <span>{saveMutation.isPending ? "Saving to Cloud..." : isDirty ? "Save Changes (⌘S)" : "Saved"}</span>
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin text-white" />
+                <span>Saving to Cloud...</span>
+              </>
+            ) : justSaved ? (
+              <>
+                <CheckCircle2 className="size-3.5 text-emerald-300" />
+                <span>Saved Live!</span>
+              </>
+            ) : isDirty ? (
+              <>
+                <Save className="size-3.5 text-white" />
+                <span>Save Changes (⌘S)</span>
+              </>
+            ) : (
+              <>
+                <Save className="size-3.5 text-zinc-300" />
+                <span>Save Settings</span>
+              </>
+            )}
           </Button>
         </div>
       }
@@ -1685,10 +1712,22 @@ export function SettingsPage() {
                 <Button
                   size="sm"
                   disabled={saveMutation.isPending}
-                  onClick={() => saveMutation.mutate(draft)}
-                  className="h-8 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black text-xs px-4 shadow-md cursor-pointer"
+                  onClick={() => {
+                    if (draft) saveMutation.mutate(draft);
+                  }}
+                  className="h-8 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black text-xs px-4 shadow-md cursor-pointer flex items-center gap-1.5"
                 >
-                  {saveMutation.isPending ? "Saving..." : "Save Now (⌘S)"}
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Saving to Cloud...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="size-3.5" />
+                      <span>Save Now (⌘S)</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
