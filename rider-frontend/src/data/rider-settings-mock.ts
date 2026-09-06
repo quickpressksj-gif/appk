@@ -74,41 +74,31 @@ export type SecuritySettings = {
 };
 
 export const RIDER_ACCOUNT_PROFILE: RiderAccountProfile = {
-  fullName: "Aarav Sharma",
-  riderId: "QP-RID-20418",
-  phone: "+91 98204 41120",
-  email: "aarav.sharma@quickpress.in",
-  city: "Mumbai",
-  address: "B-702, Sunrise Heights, Andheri East, Mumbai 400069",
-  emergencyContact: "+91 90048 77219",
-  joinedOn: "Mar 2024",
-  rating: 4.86,
-  totalTrips: 2841,
+  fullName: "",
+  riderId: "",
+  phone: "",
+  email: "",
+  city: "",
+  address: "",
+  emergencyContact: "",
+  joinedOn: "",
+  rating: 5.0,
+  totalTrips: 0,
   photoUrl: null,
-  kycStatus: "verified",
+  kycStatus: "pending",
 };
 
 export const RIDER_VEHICLE_INFO: RiderVehicleInfo = {
-  vehicleType: "Motorcycle",
-  vehicleNumber: "MH 02 CX 4471",
-  model: "Honda Activa 6G",
-  insuranceExpiry: "12 Feb 2027",
-  pucExpiry: "30 Sep 2026",
+  vehicleType: "",
+  vehicleNumber: "",
+  model: "",
+  insuranceExpiry: "",
+  pucExpiry: "",
 };
 
-export const RIDER_DOCUMENTS: RiderDocument[] = [
-  { id: "dl", label: "Driving Licence", number: "MH0220180041127", status: "verified", expiresOn: "18 Jun 2031" },
-  { id: "aadhaar", label: "Aadhaar Card", number: "XXXX XXXX 4418", status: "verified", expiresOn: "—" },
-  { id: "pan", label: "PAN Card", number: "AXZPS8841K", status: "verified", expiresOn: "—" },
-  { id: "rc", label: "Vehicle RC", number: "MH02CX4471", status: "pending", expiresOn: "04 Nov 2029" },
-  { id: "insurance", label: "Insurance", number: "INS-4471-2026", status: "expired", expiresOn: "12 Feb 2026" },
-];
+export const RIDER_DOCUMENTS: RiderDocument[] = [];
 
-export const DEVICE_SESSIONS: DeviceSession[] = [
-  { id: "d1", device: "Redmi Note 13 Pro", platform: "Android 14 · QuickPress Rider", location: "Mumbai, IN", lastActive: "Active now", current: true },
-  { id: "d2", device: "iPhone 13", platform: "iOS 18 · QuickPress Rider", location: "Pune, IN", lastActive: "2 days ago", current: false },
-  { id: "d3", device: "Chrome · Windows", platform: "Web dashboard", location: "Mumbai, IN", lastActive: "12 Aug, 08:40", current: false },
-];
+export const DEVICE_SESSIONS: DeviceSession[] = [];
 
 export const PREFERRED_AREAS = [
   "Andheri East",

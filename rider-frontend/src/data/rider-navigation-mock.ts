@@ -31,19 +31,19 @@ export type NavigationTrip = {
 };
 
 export const navigationTripMock: NavigationTrip = {
-  riderLocationLabel: "Veera Desai Road, Andheri West",
-  pickupEtaMinutes: 6,
-  deliveryEtaMinutes: 21,
-  totalDistanceKm: 5.8,
-  remainingDistanceKm: 3.4,
-  nextManeuver: "Turn right onto JVLR service road",
-  nextManeuverDistance: "450 m",
+  riderLocationLabel: "",
+  pickupEtaMinutes: 0,
+  deliveryEtaMinutes: 0,
+  totalDistanceKm: 0,
+  remainingDistanceKm: 0,
+  nextManeuver: "",
+  nextManeuverDistance: "",
   traffic: {
-    level: "moderate",
-    headline: "Moderate traffic on JVLR",
-    detail: "Expect a 4 minute delay near Chandivali junction.",
-    alternateRouteAvailable: true,
-    alternateSaving: "Saves 3 min",
+    level: "normal",
+    headline: "",
+    detail: "",
+    alternateRouteAvailable: false,
+    alternateSaving: "",
   },
 };
 
