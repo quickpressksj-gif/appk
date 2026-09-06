@@ -375,7 +375,7 @@ export function PartnerDevicePermissionsCard({
                     : "bg-orange-100 text-orange-800"
                 }`}
               >
-                {audioUnlocked ? "✓ Unlocked" : "Test Siren"}
+                {audioUnlocked ? "✓ Active" : "Enable Siren"}
               </span>
             </div>
             <h5 className="mt-2 text-xs font-black text-zinc-900">Loud Order Siren</h5>
@@ -403,7 +403,7 @@ export function PartnerDevicePermissionsCard({
             ) : (
               <>
                 <Volume2 className="size-3" />
-                <span>{audioUnlocked ? "Re-test Siren Chime" : "Test & Unlock Sound"}</span>
+                <span>{audioUnlocked ? "Play Siren Ringtone" : "Enable & Activate Siren"}</span>
               </>
             )}
           </button>

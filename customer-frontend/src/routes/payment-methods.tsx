@@ -147,7 +147,6 @@ function PaymentMethodsScreen() {
   const [isDefaultCheckbox, setIsDefaultCheckbox] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [testTesting, setTestTesting] = useState(false);
 
   // Load Payment Methods & Wallet
   const loadData = async (force = false) => {
@@ -323,29 +322,6 @@ function PaymentMethodsScreen() {
     }
   };
 
-  // Test Real Gateway Connection
-  const handleTestGateway = async () => {
-    setTestTesting(true);
-    try {
-      const outcome = await payWithRazorpay({
-        amount: 1,
-        purpose: "QuickPress ₹1 Gateway Verification Test",
-        description: "100% Refundable Gateway Test",
-      });
-      if (outcome.status === "paid") {
-        toast.success("✅ Gateway Verified! Real payments are active and 100% operational.");
-        void loadData(true);
-      } else if (outcome.status === "cancelled") {
-        toast.info("Gateway test modal closed.");
-      } else {
-        toast.error("Gateway test failed: " + outcome.message);
-      }
-    } catch (err: any) {
-      toast.error("Gateway connection error: " + (err?.message || "Check network"));
-    } finally {
-      setTestTesting(false);
-    }
-  };
 
   const cardBrand = detectCardBrand(cardNumber);
 
@@ -653,7 +629,7 @@ function PaymentMethodsScreen() {
               </div>
             </section>
 
-            {/* 4. Live Gateway Health & Test Verification */}
+            {/* 4. Live Gateway & Instant Checkout */}
             <section className="card-soft border border-border p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -662,30 +638,16 @@ function PaymentMethodsScreen() {
                     <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
                   </span>
                   <span className="text-xs font-black text-foreground">
-                    Razorpay Gateway Rails Live
+                    Razorpay Gateway Rails Active
                   </span>
                 </div>
                 <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-[9px] font-black text-brand-green">
-                  Verified
+                  Live &amp; Secure
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                All online transactions are verified with HMAC SHA-256 signatures and instant webhook reconciliation.
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                All online transactions and wallet payments are processed with bank-grade 256-bit encryption, HMAC SHA-256 signatures, and instant webhook reconciliation.
               </p>
-
-              <button
-                type="button"
-                disabled={testTesting}
-                onClick={() => void handleTestGateway()}
-                className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground transition-all hover:bg-accent active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-              >
-                {testTesting ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="size-3.5 text-brand-green" />
-                )}
-                <span>Test Gateway Connection (₹1 Test)</span>
-              </button>
             </section>
 
             {/* 5. Security & Trust Guarantee */}
