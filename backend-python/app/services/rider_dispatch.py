@@ -133,35 +133,73 @@ class RiderDispatchEngine:
             extra_data={"city": order_city, "searchStartedAt": lifecycle.now_iso()},
         )
 
-        import re
-        city_regex = {"$regex": f"^{re.escape(order_city)}$", "$options": "i"}
+        # Extract clean city (e.g. "Kasganj, Kasganj 207123" -> "Kasganj")
+        clean_city = order_city.split(",")[0].strip()
+        if not clean_city:
+            clean_city = "Kasganj"
 
-        # 2. Query eligible active & online riders from same city in MongoDB
+        # Also extract 6-digit postal pincode
+        order_pin = str(
+            (order.get("address") or {}).get("pincode")
+            or (order.get("pickupAddress") or {}).get("pincode")
+            or order.get("pincode")
+            or ""
+        ).strip()
+        import re
+        if not order_pin:
+            m = re.search(r'\b\d{6}\b', str(order.get("address") or ""))
+            if m:
+                order_pin = m.group(0)
+
+        city_regex = {"$regex": f"^{re.escape(clean_city)}$", "$options": "i"}
+        city_sub_regex = {"$regex": re.escape(clean_city), "$options": "i"}
+
+        location_clauses = [
+            {"city": city_regex},
+            {"city": city_sub_regex},
+            {"operatingCity": city_regex},
+            {"workingCity": city_regex},
+            {"preferredCity": city_regex},
+        ]
+        if order_pin:
+            location_clauses.extend([
+                {"pincode": order_pin},
+                {"primaryPincode": order_pin},
+                {"operatingPincodes": order_pin},
+                {"pincodes": order_pin},
+            ])
+
+        # 2. Query eligible active & online riders in MongoDB
         query = {
-            "isOnline": True,
             "status": "active",
-            "$or": [
-                {"city": city_regex},
-                {"operatingCity": city_regex},
-                {"workingCity": city_regex},
-                {"preferredCity": city_regex},
-            ],
+            "$or": location_clauses,
+            "$and": [
+                {"$or": [
+                    {"isOnline": True},
+                    {"isOnline": "true"},
+                    {"isOnline": 1},
+                    {"is_available": True},
+                ]}
+            ]
         }
         eligible_riders = await database.find_many(RIDERS_COLLECTION, query)
 
-        # Fallback: verified riders in the same city
+        # Fallback 1: also check "riders" collection
+        if not eligible_riders and RIDERS_COLLECTION != "riders":
+            eligible_riders = await database.find_many("riders", query)
+
+        # Fallback 2: verified riders in the same location/city
         if not eligible_riders:
             eligible_riders = await database.find_many(
                 RIDERS_COLLECTION,
-                {
-                    "status": "active",
-                    "$or": [
-                        {"city": city_regex},
-                        {"operatingCity": city_regex},
-                        {"workingCity": city_regex},
-                        {"preferredCity": city_regex},
-                    ],
-                },
+                {"status": "active", "$or": location_clauses},
+            )
+
+        # Fallback 3: active online riders anywhere if local query missed
+        if not eligible_riders:
+            eligible_riders = await database.find_many(
+                RIDERS_COLLECTION,
+                {"status": "active", "$or": [{"isOnline": True}, {"is_available": True}]},
             )
 
         if not eligible_riders:
@@ -190,8 +228,8 @@ class RiderDispatchEngine:
         
         # Calculate dynamic trip fare based on delivery distance
         dist_km = float(order.get("distanceKm") or (order.get("delivery") or {}).get("distanceKm") or 2.8)
-        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=dist_km, city=order_city)
-        est_earning = max(35, int(round(fare_calc.totalTripEarnings)))
+        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=dist_km, city=clean_city)
+        est_earning = max(40, int(round(fare_calc.totalTripEarnings)))
 
         address_line = (
             order.get("address", {}).get("line")
@@ -199,7 +237,7 @@ class RiderDispatchEngine:
             else str(order.get("address") or "")
         )
 
-        partner_name = (order.get("partner") or {}).get("name") or "QuickPress Laundry"
+        partner_name = (order.get("partner") or {}).get("name") or (order.get("partner") or {}).get("storeName") or "QuickPress Laundry"
 
         for rider in eligible_riders[:10]:
             r_id = str(rider.get("_id") or rider.get("riderId") or "")
@@ -226,6 +264,11 @@ class RiderDispatchEngine:
                 {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
                 upsert=True,
             )
+            await database.collection("rider_offers").update_one(
+                {"_id": offer_doc["_id"]},
+                {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
+                upsert=True,
+            )
 
             # In-app notification for rider
             notif_doc = {
@@ -244,20 +287,25 @@ class RiderDispatchEngine:
                 upsert=True,
             )
 
-            # Emit Socket.IO event to specific rider room
-            await sio.emit(
-                EVENT_ORDER_RIDER_OFFER,
-                {
-                    "offerId": offer_doc["_id"],
-                    "orderId": canonical_id,
-                    "orderCode": order.get("code", canonical_id),
-                    "partnerName": partner_name,
-                    "pickupAddress": address_line,
-                    "estimatedEarning": est_earning,
-                    "expiresAt": expires_at,
-                },
-                room=f"rider:{r_id}",
-            )
+            # Emit Socket.IO event to all rider room variants
+            payload = {
+                "offerId": offer_doc["_id"],
+                "orderId": canonical_id,
+                "orderCode": order.get("code", canonical_id),
+                "partnerName": partner_name,
+                "pickupAddress": address_line,
+                "estimatedEarning": est_earning,
+                "expiresAt": expires_at,
+            }
+            await sio.emit(EVENT_ORDER_RIDER_OFFER, payload, room=f"rider:{r_id}")
+            r_phone = str(rider.get("phone") or "").replace("+", "").strip()
+            if r_phone:
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, payload, room=f"rider:{r_phone}")
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, payload, room=f"rider:+{r_phone}")
+            r_uid = str(rider.get("userId") or "").strip()
+            if r_uid:
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, payload, room=f"rider:{r_uid}")
+
             offered_rider_ids.append(r_id)
 
         # Also emit to general "riders" room

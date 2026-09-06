@@ -652,18 +652,39 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         or 78.6530
     )
 
+    order_amount = int(
+        totals.get("grandTotal")
+        or (order.get("pricing") or {}).get("finalTotal")
+        or order.get("total_amount")
+        or order.get("amount")
+        or 0
+    )
+    delivery_earning = int(
+        (order.get("pricing") or {}).get("deliveryFee")
+        or max(35, round(order_amount * 0.12) if order_amount > 0 else 45)
+    )
+    placed_at = (
+        order.get("createdAt")
+        or order.get("created_at")
+        or order.get("placedAt")
+        or now_iso()
+    )
+
+    p_code = pickup_otp.get("code") if isinstance(pickup_otp, dict) else str(pickup_otp or "")
+    d_code = delivery_otp.get("code") if isinstance(delivery_otp, dict) else str(delivery_otp or "")
+
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
-        "riderId": (order.get("rider") or {}).get("id", ""),
-        "code": order.get("code", ""),
+        "riderId": (order.get("rider") or {}).get("id", "") or str(order.get("riderId") or ""),
+        "code": order.get("code", "") or order.get("orderCode", ""),
         "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
         "status": RIDER_STATUS.get(status, "assigned"),
         "canonicalStatus": status,
-        "customerName": customer.get("name", "") or "Customer",
-        "customerPhone": customer.get("phone", "") or "",
-        "partnerName": partner.get("name", "") or "QuickPress Laundry Store",
-        "partnerPhone": partner.get("phone", "") or "",
+        "customerName": customer.get("name", "") or order.get("customerName", "") or "Customer",
+        "customerPhone": customer.get("phone", "") or order.get("customerPhone", "") or "",
+        "partnerName": partner.get("name", "") or order.get("partnerName", "") or "QuickPress Laundry Store",
+        "partnerPhone": partner.get("phone", "") or order.get("partnerPhone", "") or "",
         "partnerAddress": partner_addr,
         "pickupAddress": address or "Customer Pickup Location, Kasganj",
         "deliveryAddress": address or "Customer Delivery Address, Kasganj",
@@ -672,12 +693,14 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "partnerLocation": {"latitude": p_lat, "longitude": p_lng},
         "distanceKm": round(dist_km, 1),
         "etaMinutes": eta_mins,
-        "estimatedEarning": max(35, round(int(totals.get("grandTotal", 0)) * 0.12) or 45),
-        "itemCount": sum(int(item.get("qty", 0)) for item in items) or 1,
+        "estimatedEarning": delivery_earning,
+        "itemCount": sum(int(item.get("qty", 0)) for item in items) or len(items) or 1,
         "slot": (order.get("pickup") or {}).get("slot", "") or "Standard Slot",
-        "placedAt": order.get("createdAt", ""),
+        "placedAt": placed_at,
         "paymentMode": payment.get("mode", "cod"),
-        "amount": int(totals.get("grandTotal", 0)),
+        "amount": order_amount,
+        "pickupOtp": p_code,
+        "deliveryOtp": d_code,
         "pickupOtpRequired": status in (RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING) and not pickup_verified,
         "dispatchOtpRequired": status in (READY, COMPLETED, DISPATCH_OTP_PENDING) and not dispatch_verified,
         "deliveryOtpRequired": status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING) and not delivery_verified,
@@ -686,3 +709,4 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "deliveryOtpVerified": delivery_verified,
         "timeline": _timeline(order, _RIDER_STAGES),
     }
+

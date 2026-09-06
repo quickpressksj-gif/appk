@@ -141,13 +141,29 @@ class RiderDeliveryRepository:
     """
 
     async def _orders_for(self, rider_id: str) -> List[Dict[str, Any]]:
-        # 1. Orders already assigned or claimed by this rider
+        # 1. Orders already assigned or claimed by this rider in customer_orders
+        all_orders = await database.find_many(lifecycle.ORDERS, {})
         assigned_docs = [
             d
-            for d in await database.find_many(lifecycle.ORDERS, {})
+            for d in all_orders
             if (d.get("rider") or {}).get("id") == rider_id
+            or d.get("riderId") == rider_id
+            or d.get("rider_id") == rider_id
         ]
         assigned_ids = {str(d.get("_id") or "") for d in assigned_docs}
+
+        # Also check rides assigned to this rider in rides collection
+        try:
+            assigned_rides = await database.find_many("rides", {"$or": [{"riderId": rider_id}, {"assignedRiderId": rider_id}]})
+            for ar in (assigned_rides or []):
+                roid = ar.get("orderId")
+                if roid and roid not in assigned_ids:
+                    ord_doc = await lifecycle.find_order(roid)
+                    if ord_doc:
+                        assigned_docs.append(ord_doc)
+                        assigned_ids.add(roid)
+        except Exception:
+            pass
 
         # 2. Pending trip offers dispatched to this rider in rider_offers
         now_iso = lifecycle.now_iso()
@@ -180,6 +196,7 @@ class RiderDeliveryRepository:
         combined = offer_docs + assigned_docs
         combined.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
         return combined
+
 
     async def list(
         self,
@@ -253,6 +270,14 @@ class RiderDeliveryRepository:
         from app.services.rider_dispatch import rider_dispatch_engine
         updated = await rider_dispatch_engine.claim_rider_offer(order_id, rider_id)
         return lifecycle.to_rider_delivery(updated)
+
+    async def reject(self, order_id: str, rider_id: str = "", reason: str = "Declined by rider") -> Dict[str, Any]:
+        from app.services.rider_dispatch import rider_dispatch_engine
+        try:
+            return await rider_dispatch_engine.decline_rider_offer(order_id, rider_id)
+        except Exception:
+            return {"ok": True, "orderId": order_id}
+
 
     async def pickup(self, order_id: str, rider_id: str = "", otp: Optional[str] = None) -> Dict[str, Any]:
         from app.services.rider_dispatch import rider_dispatch_engine

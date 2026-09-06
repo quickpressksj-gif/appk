@@ -389,10 +389,12 @@ class Smart2RideEngine:
     ) -> List[Tuple[Dict[str, Any], float]]:
         """Find ONLINE, AVAILABLE riders within radius, ranked by distance to target."""
         all_riders = await database.find_many(RIDERS_COLLECTION, {})
+        if not all_riders:
+            all_riders = await database.find_many("riders", {})
         eligible: List[Tuple[Dict[str, Any], float]] = []
 
         for rider in all_riders:
-            is_online = rider.get("isOnline")
+            is_online = rider.get("isOnline") or rider.get("is_available")
             if is_online not in (True, 1, "true", "True"):
                 continue
 
@@ -556,12 +558,15 @@ class Smart2RideEngine:
                 upsert=True,
             )
 
-            # Send real-time socket offer to rider
-            await sio.emit(
-                EVENT_ORDER_RIDER_OFFER,
-                offer_doc,
-                room=f"rider:{r_id}",
-            )
+            # Send real-time socket offer to rider across all possible room identifiers
+            await sio.emit(EVENT_ORDER_RIDER_OFFER, offer_doc, room=f"rider:{r_id}")
+            r_phone = str(best_rider.get("phone") or "").replace("+", "").strip()
+            if r_phone:
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, offer_doc, room=f"rider:{r_phone}")
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, offer_doc, room=f"rider:+{r_phone}")
+            r_uid = str(best_rider.get("userId") or "").strip()
+            if r_uid:
+                await sio.emit(EVENT_ORDER_RIDER_OFFER, offer_doc, room=f"rider:{r_uid}")
             dispatched_count += 1
 
         # Also emit to global riders channel
@@ -685,6 +690,8 @@ class Smart2RideEngine:
             {
                 "$set": {
                     "rider": rider_party,
+                    "riderId": rider_id,
+                    "rider_id": rider_id,
                     "status": target_status,
                     "updatedAt": now,
                 }

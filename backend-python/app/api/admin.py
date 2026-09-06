@@ -741,9 +741,11 @@ async def assign_partner_territory(partner_id: str, payload: dict, user: User = 
     return partner
 
 
+@router.get("/cities/{city_id}/pincodes")
 @router.get("/cities/{city_id}/pincodes-intelligence")
 async def city_pincodes_intelligence(city_id: str, user: User = Depends(current_user)):
     return await city_repository.get_city_pincodes_intelligence(city_id)
+
 
 
 @router.post("/cities/{city_id}/pincodes")

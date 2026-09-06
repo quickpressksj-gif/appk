@@ -1220,6 +1220,25 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
     except Exception:
         pass
     possible_rider_ids.discard("")
+    now_dt = datetime.now(timezone.utc)
+    rider_city = "kasganj"
+    rider_pincodes = set()
+    try:
+        profile = await rider_profile_repository.get(rider_id)
+        if profile:
+            for k in ("_id", "riderId", "userId", "phone", "mobile"):
+                val = profile.get(k)
+                if val:
+                    possible_rider_ids.add(str(val))
+            if profile.get("city"):
+                rider_city = str(profile.get("city")).strip().lower()
+            pins = profile.get("operatingPincodes") or profile.get("pincodes") or []
+            if profile.get("pincode"):
+                pins.append(profile.get("pincode"))
+            rider_pincodes = {str(p).strip() for p in pins if str(p).strip()}
+    except Exception:
+        pass
+    possible_rider_ids.discard("")
     
     offers = await database.find_many(
         RIDE_ASSIGNMENTS_COLLECTION,
@@ -1234,7 +1253,7 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
     # Check active rides in SEARCHING_RIDER or OFFER_SENT state
     open_rides = await database.find_many(
         RIDES_COLLECTION,
-        {"status": {"$in": ["SEARCHING_RIDER", "OFFER_SENT"]}}
+        {"status": {"$in": ["SEARCHING_RIDER", "OFFER_SENT", "NO_RIDER_FOUND"]}}
     )
     for r in open_rides:
         attempted = list(r.get("attemptedRiderIds") or [])
@@ -1245,12 +1264,7 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
             p_loc = r.get("pickupLocation") or {}
             d_loc = r.get("dropLocation") or {}
             created_at = r.get("createdAt") or now_iso
-            # Offer is valid for 45 seconds from creation
-            try:
-                dt_created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                exp_iso = (dt_created + timedelta(seconds=45)).isoformat()
-            except Exception:
-                exp_iso = (datetime.now(timezone.utc) + timedelta(seconds=45)).isoformat()
+            exp_iso = (now_dt + timedelta(seconds=60)).isoformat()
 
             all_raw.append({
                 "_id": f"off-{r.get('_id')}-{rider_id}",
@@ -1262,7 +1276,7 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
                 "riderId": rider_id,
                 "status": "pending",
                 "distanceKm": r.get("distanceKm", 2.0),
-                "estimatedEarning": r.get("estimatedEarning", 40),
+                "estimatedEarning": r.get("estimatedEarning", 45),
                 "pickupAddress": p_loc.get("address") or "",
                 "dropAddress": d_loc.get("address") or "",
                 "customerName": p_loc.get("contactName") or "",
@@ -1273,6 +1287,65 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
                 "expiresAt": exp_iso,
             })
 
+    # Also directly scan active unassigned customer orders needing rider pickup in rider's service area
+    pending_customer_orders = await database.find_many(
+        "customer_orders",
+        {
+            "status": {"$in": ["rider_searching", "partner_accepted", "assigned"]},
+            "$or": [{"riderId": None}, {"riderId": ""}, {"rider": None}],
+        },
+    )
+    for cord in pending_customer_orders:
+        c_id = str(cord.get("_id") or cord.get("id"))
+        if not c_id:
+            continue
+        c_addr = cord.get("address") if isinstance(cord.get("address"), dict) else {}
+        order_city_raw = str(c_addr.get("city") or cord.get("city") or "").strip().lower()
+        order_pin = str(c_addr.get("pincode") or cord.get("pincode") or "").strip()
+        if not order_pin:
+            import re
+            m = re.search(r'\b\d{6}\b', str(cord.get("address") or ""))
+            if m:
+                order_pin = m.group(0)
+
+        # Match if in same city, matching pincode, or Kasganj default
+        matches_area = (
+            rider_city in order_city_raw
+            or order_city_raw in rider_city
+            or (order_pin and order_pin in rider_pincodes)
+            or ("kasganj" in order_city_raw and "kasganj" in rider_city)
+            or not order_city_raw
+        )
+        if not matches_area:
+            continue
+
+        p_info = cord.get("partner") or {}
+        partner_name = p_info.get("name") or p_info.get("storeName") or cord.get("partnerName") or "QuickPress Partner Store"
+        pickup_addr = c_addr.get("line") or c_addr.get("address") or "Customer Pickup Location"
+        dist_km = float((cord.get("delivery") or {}).get("distanceKm") or 2.5)
+        est_earning = max(45, int((cord.get("pricing") or {}).get("deliveryFee") or 45))
+
+        all_raw.append({
+            "_id": f"off-{c_id}-{rider_id}",
+            "offerId": f"off-{c_id}-{rider_id}",
+            "rideId": cord.get("ride1Id") or f"ride-pk-{c_id}",
+            "orderId": c_id,
+            "orderCode": cord.get("code") or cord.get("orderCode") or c_id,
+            "rideType": "pickup",
+            "riderId": rider_id,
+            "status": "pending",
+            "distanceKm": dist_km,
+            "estimatedEarning": est_earning,
+            "pickupAddress": pickup_addr,
+            "dropAddress": p_info.get("address") or f"{partner_name}, Kasganj",
+            "customerName": (cord.get("customer") or {}).get("name") or c_addr.get("name") or "Customer",
+            "customerPhone": (cord.get("customer") or {}).get("phone") or c_addr.get("phone") or "",
+            "partnerName": partner_name,
+            "partnerPhone": p_info.get("phone") or "",
+            "createdAt": cord.get("createdAt") or now_iso,
+            "expiresAt": (now_dt + timedelta(seconds=60)).isoformat(),
+        })
+
     # Deduplicate and strictly validate against active customer orders
     seen = set()
     valid_offers = []
@@ -1281,15 +1354,9 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
         if not order_id:
             continue
 
-        oid = off.get("offerId") or off.get("_id") or f"{order_id}-{rider_id}"
-        if oid in seen:
+        if order_id in seen:
             continue
-        seen.add(oid)
-
-        # Check expiration
-        exp = off.get("expiresAt")
-        if exp and exp <= now_iso:
-            continue
+        seen.add(order_id)
 
         # Strictly verify that a REAL active customer order exists for this ride
         real_order = await database.find_one("customer_orders", {"_id": order_id})
@@ -1299,8 +1366,23 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
             real_order = await database.find_one("orders", {"_id": order_id})
 
         if not real_order:
-            # Orphaned / dummy / test offer without a real customer order -> skip!
             continue
+
+        order_status = str(real_order.get("status") or "").lower()
+        if order_status in ("delivered", "completed", "cancelled", "rejected", "picked_up", "at_partner", "processing", "out_for_delivery"):
+            continue
+
+        # If order already has a rider assigned, it is not an open offer
+        if real_order.get("riderId") or real_order.get("rider") or order_status in ("pickup_rider_accepted", "rider_assigned"):
+            continue
+
+        # Check expiration - if order is still actively waiting for a rider, extend validity
+        exp = off.get("expiresAt")
+        if exp and exp <= now_iso:
+            if order_status in ("rider_searching", "partner_accepted", "assigned") and not real_order.get("riderId"):
+                off["expiresAt"] = (now_dt + timedelta(seconds=60)).isoformat()
+            else:
+                continue
 
         order_status = str(real_order.get("status") or "").lower()
         if order_status in ("delivered", "completed", "cancelled", "rejected"):
@@ -1345,12 +1427,41 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
             or ""
         )
 
+        real_total = int(
+            (real_order.get("totals") or {}).get("grandTotal")
+            or (real_order.get("pricing") or {}).get("finalTotal")
+            or real_order.get("total_amount")
+            or real_order.get("amount")
+            or 0
+        )
+        real_items_cnt = (
+            sum(int(item.get("qty", 0)) for item in (real_order.get("items") or []))
+            or len(real_order.get("items") or [])
+            or 1
+        )
+        real_pay_mode = (
+            (real_order.get("payment") or {}).get("mode")
+            or real_order.get("paymentMode")
+            or "cod"
+        )
+        real_service = (
+            real_order.get("serviceLabel")
+            or ((real_order.get("items") or [{}])[0].get("name") if real_order.get("items") else "Laundry Pickup")
+        )
+
         off["customerName"] = cust_name
         off["customerPhone"] = cust_phone
         off["pickupAddress"] = pickup_line or "Pickup Location"
         off["partnerName"] = partner_name
         off["dropAddress"] = partner_addr or "Partner Store"
         off["orderCode"] = real_order.get("code") or real_order.get("orderNumber") or order_id
+        off["total_amount"] = real_total
+        off["amount"] = real_total
+        off["items_count"] = real_items_cnt
+        off["itemCount"] = real_items_cnt
+        off["payment_method"] = real_pay_mode
+        off["paymentMode"] = real_pay_mode
+        off["serviceLabel"] = real_service
 
         valid_offers.append(off)
 
@@ -1410,30 +1521,55 @@ async def _rider_action(action, order_id: str, user: User, **kwargs) -> dict:
 async def accept_order(order_id: str, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
     from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
+    from app.services import order_lifecycle as lifecycle
+    import re
+
+    canonical_ord_id = order_id
+    offer_doc = await database.find_one("rider_offers", {"_id": order_id}) or await database.find_one("ride_assignments", {"_id": order_id})
+    if offer_doc and offer_doc.get("orderId"):
+        canonical_ord_id = offer_doc["orderId"]
+    else:
+        ord_m = re.search(r'(ord-[a-zA-Z0-9]+|QP[a-zA-Z0-9]+)', order_id)
+        if ord_m:
+            canonical_ord_id = ord_m.group(1)
+
+    customer_order = await database.find_one("customer_orders", {"_id": canonical_ord_id})
+    if not customer_order:
+        customer_order = await database.find_one("customer_orders", {"id": canonical_ord_id})
+    if not customer_order:
+        customer_order = await database.find_one("customer_orders", {"code": canonical_ord_id})
+    if customer_order:
+        canonical_ord_id = customer_order.get("_id") or customer_order.get("id")
+
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    if not ride and offer_doc and offer_doc.get("rideId"):
+        ride = await database.find_one(RIDES_COLLECTION, {"_id": offer_doc["rideId"]})
     if not ride:
-        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id, "status": {"$in": ["OFFER_SENT", "SEARCHING_RIDER"]}})
+        ride = await database.find_one(RIDES_COLLECTION, {"_id": f"ride-pk-{canonical_ord_id}"})
     if not ride:
-        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id})
-    if not ride and "ord-" in order_id:
-        sub_id = order_id[order_id.find("ord-"):]
-        ride = await database.find_one(RIDES_COLLECTION, {"orderId": sub_id})
-    if not ride and "ride-pk-" in order_id:
-        sub_id = order_id[order_id.find("ride-pk-"):]
-        ride = await database.find_one(RIDES_COLLECTION, {"_id": sub_id})
-    if not ride and "off-" in order_id:
-        parts = order_id.split("-")
-        if len(parts) >= 3:
-            r_candidate = "-".join(parts[1:-1])
-            ride = await database.find_one(RIDES_COLLECTION, {"_id": r_candidate}) or await database.find_one(RIDES_COLLECTION, {"_id": f"ride-pk-{r_candidate}"})
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": canonical_ord_id, "status": {"$in": ["OFFER_SENT", "SEARCHING_RIDER", "NO_RIDER_FOUND"]}})
+    if not ride:
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": canonical_ord_id})
+    if not ride and canonical_ord_id:
+        created_ride = await smart_2ride_engine.create_ride_1_pickup(canonical_ord_id)
+        if created_ride:
+            ride = created_ride
     
     if ride:
         try:
-            return await smart_2ride_engine.handle_rider_accept(ride["_id"], rider_id)
+            res = await smart_2ride_engine.handle_rider_accept(ride["_id"], rider_id)
+            ord_doc = await lifecycle.find_order(canonical_ord_id)
+            if ord_doc:
+                return lifecycle.to_rider_delivery(ord_doc)
+            return res
         except ValueError as err:
+            if "already accepted" in str(err).lower() or ride.get("riderId") == rider_id:
+                ord_doc = await lifecycle.find_order(canonical_ord_id)
+                if ord_doc:
+                    return lifecycle.to_rider_delivery(ord_doc)
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err))
 
-    return await _rider_action(rider_delivery_repository.accept, order_id, user)
+    return await _rider_action(rider_delivery_repository.accept, canonical_ord_id, user)
 
 
 @router.post("/orders/{order_id}/reject")
@@ -1444,14 +1580,26 @@ async def reject_order(
 ) -> dict:
     rider_id = await _rider_id(user)
     from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
+    import re
+
+    ord_m = re.search(r'(ord-[a-zA-Z0-9]+|QP[a-zA-Z0-9]+)', order_id)
+    canonical_ord_id = ord_m.group(1) if ord_m else order_id
+
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
     if not ride:
-        ride = await database.find_one(RIDES_COLLECTION, {"orderId": order_id})
+        ride = await database.find_one(RIDES_COLLECTION, {"_id": f"ride-pk-{canonical_ord_id}"})
+    if not ride:
+        ride = await database.find_one(RIDES_COLLECTION, {"orderId": canonical_ord_id})
     if ride:
         reason = (body or {}).get("reason", "Declined by rider")
         return await smart_2ride_engine.handle_rider_reject(ride["_id"], rider_id, reason)
 
-    return await _rider_action(rider_delivery_repository.reject, order_id, user)
+    try:
+        from app.services.rider_dispatch import rider_dispatch_engine
+        return await rider_dispatch_engine.decline_rider_offer(canonical_ord_id, rider_id)
+    except Exception:
+        return {"ok": True, "orderId": canonical_ord_id}
+
 
 
 @router.post("/orders/{order_id}/pickup")

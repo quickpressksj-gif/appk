@@ -79,7 +79,7 @@ export function ActiveDeliveryCockpit({
   // Determine current destination
   let targetAddress = "Kasganj Hub";
   let targetName = "Destination";
-  let targetPhone = "9876543210";
+  let targetPhone = "";
   let stepTitle = "DELIVERY TASK";
   let stepSubtitle = "Proceed with mission";
 
@@ -88,14 +88,14 @@ export function ActiveDeliveryCockpit({
       stepTitle = "STEP 1/2: CUSTOMER LAUNDRY PICKUP";
       stepSubtitle = "Pick up clothes & verify OTP";
       targetName = order.customer_name || "Customer";
-      targetAddress = order.delivery_address || order.pickup_address || "Customer Address, Kasganj";
-      targetPhone = order.customer_phone || "9876543210";
+      targetAddress = order.pickup_address || order.delivery_address || "Customer Address, Kasganj";
+      targetPhone = order.customer_phone || "";
     } else {
       stepTitle = "STEP 2/2: HANDOVER TO LAUNDRY STORE";
       stepSubtitle = "Drop dirty clothes bags at store";
       targetName = order.store_name || "QuickPress Partner Store";
-      targetAddress = order.pickup_address || "Partner Store Hub, Kasganj";
-      targetPhone = order.store_phone || "9876543210";
+      targetAddress = order.delivery_address || order.pickup_address || "Partner Store Hub, Kasganj";
+      targetPhone = order.store_phone || "";
     }
   } else {
     if (isCollectingFromStore) {
@@ -103,15 +103,16 @@ export function ActiveDeliveryCockpit({
       stepSubtitle = "Collect cleaned packaged garments";
       targetName = order.store_name || "QuickPress Partner Store";
       targetAddress = order.pickup_address || "Partner Store Hub, Kasganj";
-      targetPhone = order.store_phone || "9876543210";
+      targetPhone = order.store_phone || "";
     } else {
       stepTitle = "STEP 2/2: CUSTOMER DOORSTEP DELIVERY";
       stepSubtitle = "Handover clean clothes & verify OTP";
       targetName = order.customer_name || "Customer";
-      targetAddress = order.delivery_address || "Customer Address, Kasganj";
-      targetPhone = order.customer_phone || "9876543210";
+      targetAddress = order.delivery_address || order.pickup_address || "Customer Address, Kasganj";
+      targetPhone = order.customer_phone || "";
     }
   }
+
 
   // 1-Tap Google Maps Navigation
   const handleOpenMaps = () => {
@@ -264,15 +265,16 @@ export function ActiveDeliveryCockpit({
                   CASH ON DELIVERY (COD) ORDER
                 </p>
                 <p className="text-xs font-black">
-                  Collect ₹{order.total_amount || 450} Cash from Customer before handing over clothes!
+                  Collect ₹{order.total_amount || 0} Cash from Customer before handing over clothes!
                 </p>
               </div>
             </div>
             <span className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-950 text-amber-200 text-xs font-black">
-              ₹{order.total_amount || 450}
+              ₹{order.total_amount || 0}
             </span>
           </div>
         )}
+
 
         {/* Location & Contact Information */}
         <div className="p-5 sm:p-6 space-y-4">
@@ -343,16 +345,17 @@ export function ActiveDeliveryCockpit({
             <div className="flex items-center gap-2 text-emerald-950 font-bold">
               <Package className="size-4 text-emerald-800" />
               <span>
-                {order.service_name || "Laundry & Dry Clean"} · {order.items_count || 3} Bags
+                {order.service_name || "Laundry Pickup"} · {order.items_count || 1} Item(s)
               </span>
             </div>
 
             <div className="flex items-center gap-1.5">
               <span className="rounded-md bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 font-black">
-                {isCOD ? "COD Cash: ₹" + (order.total_amount || 450) : "Prepaid Online"}
+                {isCOD ? "COD Cash: ₹" + (order.total_amount || 0) : "Prepaid Online"}
               </span>
             </div>
           </div>
+
 
           {/* ------------------------------------------------------------- */}
           {/* STAGE A: LEG 1 - CUSTOMER PICKUP WITH 4-DIGIT OTP             */}

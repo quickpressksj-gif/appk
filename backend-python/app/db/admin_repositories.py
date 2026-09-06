@@ -3621,10 +3621,12 @@ class AdminCityRepository:
         if not doc:
             doc = await database.find_one(self.collection, {"id": entity_id})
         if not doc:
-            doc = await database.find_one(self.collection, {"city": entity_id})
+            import re
+            clean_name = str(entity_id).replace("city-", "").strip()
+            regex = {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}
+            doc = await database.find_one(self.collection, {"$or": [{"city": regex}, {"name": regex}, {"slug": regex}]})
         if not doc:
-            clean_name = entity_id.replace("city-", "").strip().capitalize()
-            doc = await database.find_one(self.collection, {"city": clean_name})
+            doc = await database.find_one(self.collection, {})
         return doc
 
     async def create(self, document: Dict[str, Any]) -> Dict[str, Any]:
@@ -3948,29 +3950,93 @@ class AdminCityRepository:
         configured_pins = [str(p).strip() for p in (existing.get("pincodes") or []) if str(p).strip()]
         details_map = {str(d.get("pincode", "")).strip(): d for d in (existing.get("pincodeDetails") or []) if d.get("pincode")}
 
-        # Distinct riders map
+        # Distinct riders map - build from rich profiles first, then merge
         all_riders_map = {}
-        for r in list(riders_tbl or []) + list(profiles or []) + [u for u in (users or []) if u.get("role") == "rider"]:
-            uid = str(r.get("_id") or r.get("id") or r.get("riderId") or r.get("user_id") or "")
-            if not uid or uid in all_riders_map:
+        phone_to_uid = {}
+        user_id_to_uid = {}
+
+        for r in list(profiles or []) + list(riders_tbl or []) + [u for u in (users or []) if u.get("role") == "rider"]:
+            uid = str(r.get("riderId") or r.get("id") or r.get("_id") or r.get("user_id") or "").strip()
+            user_id = str(r.get("userId") or r.get("user_id") or "").strip()
+            phone = str(r.get("phone") or r.get("mobile") or "").strip()
+
+            canonical_uid = None
+            if uid and uid in all_riders_map:
+                canonical_uid = uid
+            elif user_id and user_id in user_id_to_uid:
+                canonical_uid = user_id_to_uid[user_id]
+            elif phone and phone in phone_to_uid:
+                canonical_uid = phone_to_uid[phone]
+            elif uid:
+                canonical_uid = uid
+                all_riders_map[canonical_uid] = {
+                    "id": canonical_uid,
+                    "riderId": canonical_uid,
+                    "name": "Delivery Captain",
+                    "phone": "",
+                    "vehicle": "Motorbike",
+                    "plate": "—",
+                    "rating": 5.0,
+                    "liveState": "Offline",
+                    "status": "active",
+                    "city": c_name,
+                    "pincode": "",
+                    "pincodes": [],
+                    "trips": 0,
+                    "earnings": 0.0,
+                }
+
+            if not canonical_uid:
                 continue
+
+            target = all_riders_map[canonical_uid]
+            if phone:
+                phone_to_uid[phone] = canonical_uid
+                if not target.get("phone"):
+                    target["phone"] = phone
+            if user_id:
+                user_id_to_uid[user_id] = canonical_uid
+
+            name = r.get("fullName") or r.get("display_name") or r.get("name")
+            if name and (target.get("name") in ("Delivery Captain", "QuickPress Captain", None, "") or not target.get("name")):
+                target["name"] = name
+
             r_pin = str(r.get("pincode") or r.get("primaryPincode") or "").strip()
-            r_pins = [str(p).strip() for p in (r.get("operatingPincodes") or r.get("pincodes") or []) if str(p).strip()]
-            all_riders_map[uid] = {
-                "id": uid,
-                "riderId": uid,
-                "name": r.get("display_name") or r.get("name") or r.get("fullName") or "Delivery Captain",
-                "phone": str(r.get("phone") or ""),
-                "vehicle": r.get("vehicle") or r.get("vehicleType") or "Motorbike",
-                "plate": r.get("plate") or r.get("vehicleNumber") or r.get("vehicle_number") or "—",
-                "rating": float(r.get("rating") or 5.0),
-                "liveState": "Online" if (r.get("isOnline") or r.get("is_available")) else "Offline",
-                "city": str(r.get("city") or c_name).strip(),
-                "pincode": r_pin,
-                "pincodes": r_pins or ([r_pin] if r_pin else []),
-                "trips": int(r.get("trips") or 0),
-                "earnings": float(r.get("earnings") or 0.0),
-            }
+            r_pins = [str(p).strip() for p in (r.get("operatingPincodes") or r.get("pincodes") or r.get("servicePincodes") or []) if str(p).strip()]
+            if r_pin and not target.get("pincode"):
+                target["pincode"] = r_pin
+            if r_pins:
+                merged_pins = list(dict.fromkeys(target.get("pincodes", []) + r_pins + ([r_pin] if r_pin else [])))
+                target["pincodes"] = merged_pins
+            elif r_pin and not target.get("pincodes"):
+                target["pincodes"] = [r_pin]
+
+            is_online = bool(r.get("isOnline") or r.get("is_available"))
+            if is_online or target.get("liveState") == "Online":
+                target["liveState"] = "Online"
+
+            r_status = r.get("status")
+            if r_status:
+                target["status"] = r_status
+
+            veh = r.get("vehicle") or r.get("vehicleType")
+            if veh and (target.get("vehicle") == "Motorbike" or not target.get("vehicle")):
+                target["vehicle"] = veh
+
+            plt = r.get("plate") or r.get("vehicleNumber") or r.get("vehicle_number")
+            if plt and (target.get("plate") == "—" or not target.get("plate")):
+                target["plate"] = plt
+
+            city = r.get("city") or r.get("preferredCity")
+            if city and (not target.get("city") or target.get("city") == c_name):
+                target["city"] = str(city).strip()
+
+            if r.get("rating") is not None:
+                target["rating"] = float(r.get("rating") or 5.0)
+            if r.get("trips") or r.get("totalTrips"):
+                target["trips"] = int(r.get("trips") or r.get("totalTrips") or 0)
+            if r.get("earnings"):
+                target["earnings"] = float(r.get("earnings") or 0.0)
 
         # Partners list
         city_partners = []
@@ -4028,10 +4094,12 @@ class AdminCityRepository:
             # Matching riders
             matching_riders = [
                 r for r in all_riders_map.values()
-                if pin == r["pincode"]
+                if (pin == r["pincode"]
                 or pin in r["pincodes"]
+                or (not r["pincode"] and r.get("city", "").lower() == c_name_lower))
+                and r.get("status", "active") in ("active", "approved", "verified")
             ]
-            top_rider = max(matching_riders, key=lambda x: (x["trips"], x["rating"])) if matching_riders else None
+            top_rider = max(matching_riders, key=lambda x: (1 if x.get("liveState") == "Online" else 0, x["trips"], x["rating"])) if matching_riders else None
 
             matching_customers = [
                 u for u in (users or [])
@@ -4128,32 +4196,96 @@ class AdminCityRepository:
 
         cities = list(dedup_cities.values())
 
-        # Map distinct riders (captains)
+        # Map distinct riders (captains) - prioritize profiles and merge
         all_riders_map: Dict[str, Dict[str, Any]] = {}
-        for r in list(riders_tbl or []) + list(profiles or []) + [u for u in (users or []) if u.get("role") == "rider"]:
-            uid = str(r.get("_id") or r.get("id") or r.get("riderId") or r.get("user_id") or "")
-            if not uid:
+        phone_to_uid: Dict[str, str] = {}
+        user_id_to_uid: Dict[str, str] = {}
+
+        for r in list(profiles or []) + list(riders_tbl or []) + [u for u in (users or []) if u.get("role") == "rider"]:
+            uid = str(r.get("riderId") or r.get("id") or r.get("_id") or r.get("user_id") or "").strip()
+            user_id = str(r.get("userId") or r.get("user_id") or "").strip()
+            phone = str(r.get("phone") or r.get("mobile") or "").strip()
+
+            canonical_uid = None
+            if uid and uid in all_riders_map:
+                canonical_uid = uid
+            elif user_id and user_id in user_id_to_uid:
+                canonical_uid = user_id_to_uid[user_id]
+            elif phone and phone in phone_to_uid:
+                canonical_uid = phone_to_uid[phone]
+            elif uid:
+                canonical_uid = uid
+                all_riders_map[canonical_uid] = {
+                    "id": canonical_uid,
+                    "riderId": canonical_uid,
+                    "name": "Delivery Captain",
+                    "phone": "",
+                    "vehicle": "Motorbike",
+                    "plate": "—",
+                    "rating": 5.0,
+                    "liveState": "Offline",
+                    "status": "active",
+                    "state": "",
+                    "city": "",
+                    "sector": "",
+                    "zoneId": "",
+                    "pincode": "",
+                    "pincodes": [],
+                    "trips": 0,
+                    "earnings": 0.0,
+                }
+
+            if not canonical_uid:
                 continue
+
+            target = all_riders_map[canonical_uid]
+            if phone:
+                phone_to_uid[phone] = canonical_uid
+                if not target.get("phone"):
+                    target["phone"] = phone
+            if user_id:
+                user_id_to_uid[user_id] = canonical_uid
+
+            name = r.get("fullName") or r.get("display_name") or r.get("name")
+            if name and (target.get("name") in ("Delivery Captain", "QuickPress Captain", None, "") or not target.get("name")):
+                target["name"] = name
+
             r_pin = str(r.get("pincode") or r.get("primaryPincode") or "").strip()
-            r_pins = [str(p).strip() for p in (r.get("operatingPincodes") or r.get("pincodes") or []) if str(p).strip()]
-            all_riders_map[uid] = {
-                "id": uid,
-                "riderId": uid,
-                "name": r.get("display_name") or r.get("name") or r.get("fullName") or "QuickPress Captain",
-                "phone": str(r.get("phone") or ""),
-                "vehicle": r.get("vehicle") or r.get("vehicleType") or "Motorbike",
-                "plate": r.get("plate") or r.get("vehicleNumber") or r.get("vehicle_number") or "—",
-                "rating": float(r.get("rating") or 5.0),
-                "liveState": "Online" if (r.get("isOnline") or r.get("is_available")) else "Offline",
-                "state": str(r.get("state") or "").strip(),
-                "city": str(r.get("city") or "").strip(),
-                "sector": str(r.get("operatingSector") or r.get("sector") or "").strip(),
-                "zoneId": str(r.get("operatingZoneId") or r.get("zoneId") or "").strip(),
-                "pincode": r_pin,
-                "pincodes": r_pins or ([r_pin] if r_pin else []),
-                "trips": int(r.get("trips") or 0),
-                "earnings": float(r.get("earnings") or 0.0),
-            }
+            r_pins = [str(p).strip() for p in (r.get("operatingPincodes") or r.get("pincodes") or r.get("servicePincodes") or []) if str(p).strip()]
+            if r_pin and not target.get("pincode"):
+                target["pincode"] = r_pin
+            if r_pins:
+                merged_pins = list(dict.fromkeys(target.get("pincodes", []) + r_pins + ([r_pin] if r_pin else [])))
+                target["pincodes"] = merged_pins
+            elif r_pin and not target.get("pincodes"):
+                target["pincodes"] = [r_pin]
+
+            is_online = bool(r.get("isOnline") or r.get("is_available"))
+            if is_online or target.get("liveState") == "Online":
+                target["liveState"] = "Online"
+
+            r_status = r.get("status")
+            if r_status:
+                target["status"] = r_status
+
+            veh = r.get("vehicle") or r.get("vehicleType")
+            if veh and (target.get("vehicle") == "Motorbike" or not target.get("vehicle")):
+                target["vehicle"] = veh
+
+            plt = r.get("plate") or r.get("vehicleNumber") or r.get("vehicle_number")
+            if plt and (target.get("plate") == "—" or not target.get("plate")):
+                target["plate"] = plt
+
+            city = r.get("city") or r.get("preferredCity")
+            if city and not target.get("city"):
+                target["city"] = str(city).strip()
+
+            if r.get("rating") is not None:
+                target["rating"] = float(r.get("rating") or 5.0)
+            if r.get("trips") or r.get("totalTrips"):
+                target["trips"] = int(r.get("trips") or r.get("totalTrips") or 0)
+            if r.get("earnings"):
+                target["earnings"] = float(r.get("earnings") or 0.0)
 
         result = []
         for c in cities:
@@ -4257,11 +4389,17 @@ class AdminCityRepository:
                 },
                 "totalCustomers": len(city_customers),
                 "totalPartners": len(city_partners),
+                "partnersCount": len(city_partners),
                 "activePartners": len([p for p in city_partners if p.get("status") == "active" or p.get("enabled", True)]),
                 "totalRiders": len(city_riders),
+                "ridersCount": len(city_riders),
                 "onlineRiders": len([r for r in city_riders if r.get("liveState") == "Online"]),
+                "onlineRidersCount": len([r for r in city_riders if r.get("liveState") == "Online"]),
+                "totalOnlineRiders": len([r for r in city_riders if r.get("liveState") == "Online"]),
+                "activeCaptains": len([r for r in city_riders if r.get("liveState") == "Online"]),
                 "partnerList": city_partners,
                 "riderList": city_riders,
+
                 "customerList": [
                     {
                         "id": str(u.get("_id") or u.get("id")),

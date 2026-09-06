@@ -54,6 +54,7 @@ import {
   unlockAudioContext,
 } from "../lib/captain-audio";
 import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
+import { subscribeRiderOffers } from "../lib/rider-socket";
 
 import { CaptainLocationPermissionModal } from "../components/CaptainLocationPermissionModal";
 
@@ -142,24 +143,47 @@ export function RiderDashboardScreen() {
 
       const list = Array.isArray(ordersRes) ? ordersRes : (ordersRes as any)?.items || [];
       const backendActive = list.find(
-        (o: any) => o.status === "assigned" || o.status === "picked_up"
+        (o: any) =>
+          o.status === "assigned" ||
+          o.status === "accepted" ||
+          o.status === "picked" ||
+          o.status === "picked_up" ||
+          o.status === "pickup_rider_accepted" ||
+          o.status === "ready-for-delivery" ||
+          o.status === "out_for_delivery"
       );
 
       if (backendActive) {
+        const isDelivery =
+          backendActive.taskType === "delivery" ||
+          backendActive.status === "ready-for-delivery" ||
+          backendActive.status === "out_for_delivery";
+        const canonicalStatus =
+          backendActive.status === "picked" || backendActive.status === "picked_up"
+            ? "picked_up"
+            : isDelivery
+            ? "ready_for_delivery"
+            : "assigned";
+
         setActiveOrder({
-          id: String(backendActive.id),
-          order_number: backendActive.order_number || String(backendActive.id),
-          store_name: backendActive.store_name || backendActive.partnerName || "Partner Store",
-          pickup_address: backendActive.pickup_address || "Store Address",
-          customer_name: backendActive.customer_name || backendActive.customerName || "Customer",
-          customer_phone: backendActive.customer_phone || backendActive.customerPhone || "",
-          delivery_address: backendActive.delivery_address || backendActive.deliveryAddress || "Delivery Address",
-          status: backendActive.status || "assigned",
-          delivery_fee: backendActive.delivery_fee || backendActive.estimatedEarning || 60,
-          total_amount: backendActive.total_amount || backendActive.amount || 450,
-          payment_method: backendActive.payment_method || "cod",
-          items_count: backendActive.items_count || 3,
-          service_name: backendActive.service_name || "Laundry Pickup",
+          id: String(backendActive.id || backendActive.orderId),
+          order_number: backendActive.code || backendActive.order_number || String(backendActive.id),
+          store_name: backendActive.partnerName || backendActive.store_name || "QuickPress Store",
+          pickup_address: backendActive.pickupAddress || backendActive.pickup_address || "Customer Address",
+          customer_name: backendActive.customerName || backendActive.customer_name || "Customer",
+          customer_phone: backendActive.customerPhone || backendActive.customer_phone || "",
+          delivery_address:
+            backendActive.deliveryAddress ||
+            backendActive.delivery_address ||
+            backendActive.partnerAddress ||
+            "Store Address",
+          status: canonicalStatus,
+          ride_type: isDelivery ? "delivery" : "pickup",
+          delivery_fee: Number(backendActive.estimatedEarning || backendActive.delivery_fee || 45),
+          total_amount: Number(backendActive.amount || backendActive.total_amount || 0),
+          payment_method: backendActive.paymentMode || backendActive.payment_method || "cod",
+          items_count: Number(backendActive.itemCount || backendActive.items_count || 1),
+          service_name: isDelivery ? "Clean Garments Delivery" : "Laundry Pickup",
         });
       } else {
         setActiveOrder(null);
@@ -187,17 +211,27 @@ export function RiderDashboardScreen() {
       const offers = await fetchRiderOffers();
       if (Array.isArray(offers) && offers.length > 0) {
         const topOffer = offers[0];
-        if (topOffer && (topOffer.orderId || topOffer.rideId || topOffer._id || topOffer.id)) {
+        const cleanOrdId =
+          topOffer.orderId ||
+          (topOffer.rideId && topOffer.rideId.includes("ord-") ? topOffer.rideId.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
+          (topOffer._id && topOffer._id.includes("ord-") ? topOffer._id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
+          topOffer.id;
+
+        if (cleanOrdId) {
           setIncomingOffer({
-            id: topOffer.rideId || topOffer._id || topOffer.id || topOffer.orderId,
-            order_number: topOffer.orderCode || topOffer.order_number || topOffer.orderId || "QP-ORDER",
+            id: cleanOrdId,
+            order_number: topOffer.orderCode || topOffer.order_number || cleanOrdId,
             store_name: topOffer.partnerName || topOffer.store_name || "QuickPress Partner Store",
             pickup_address: topOffer.pickupAddress || topOffer.pickup_address || "Customer Address",
             customer_name: topOffer.customerName || topOffer.customer_name || topOffer.contactName || "Customer",
+            customer_phone: topOffer.customerPhone || topOffer.customer_phone || "",
             delivery_address: topOffer.dropAddress || topOffer.deliveryAddress || topOffer.delivery_address || "Partner Store Address",
             distance_km: Number(topOffer.distanceKm || topOffer.distance_km || 2.0),
-            payout_amount: Number(topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 40),
+            payout_amount: Number(topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 45),
             items_summary: topOffer.rideType === "delivery" ? "Store Clean Clothes Delivery -> Customer" : "Customer Clothes Pickup -> Handover to Store",
+            total_amount: Number(topOffer.total_amount || topOffer.amount || 0),
+            items_count: Number(topOffer.items_count || topOffer.itemCount || 1),
+            payment_method: topOffer.payment_method || topOffer.paymentMode || "cod",
           });
           return;
         }
@@ -214,12 +248,51 @@ export function RiderDashboardScreen() {
     return () => clearInterval(interval);
   }, [loadData]);
 
+  // Instant real-time Socket.IO dispatch + 2.5s Polling fallback
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || activeOrder) {
+      setIncomingOffer(null);
+      return;
+    }
+
+    // 1. Instant Socket.IO listener: The second partner accepts, bell rings!
+    const unsubscribe = subscribeRiderOffers((rawOffer: any) => {
+      if (!rawOffer || activeOrder) return;
+      console.log("[RiderCockpit] ⚡ Instant order offer received via socket:", rawOffer);
+      const cleanOrdId =
+        rawOffer.orderId ||
+        (rawOffer.rideId && rawOffer.rideId.includes("ord-") ? rawOffer.rideId.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
+        (rawOffer._id && rawOffer._id.includes("ord-") ? rawOffer._id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
+        rawOffer.id;
+      if (!cleanOrdId) return;
+
+      setIncomingOffer({
+        id: cleanOrdId,
+        order_number: rawOffer.orderCode || rawOffer.order_number || cleanOrdId,
+        store_name: rawOffer.partnerName || rawOffer.store_name || "QuickPress Partner Store",
+        pickup_address: rawOffer.pickupAddress || rawOffer.pickup_address || "Customer Pickup Location",
+        customer_name: rawOffer.customerName || rawOffer.customer_name || "Customer",
+        customer_phone: rawOffer.customerPhone || rawOffer.customer_phone || "",
+        delivery_address: rawOffer.dropAddress || rawOffer.deliveryAddress || rawOffer.delivery_address || "Partner Store Address",
+        distance_km: Number(rawOffer.distanceKm || rawOffer.distance_km || 2.0),
+        payout_amount: Number(rawOffer.estimatedEarning || rawOffer.payout_amount || 45),
+        items_summary: rawOffer.rideType === "delivery" ? "Store Clean Clothes Delivery -> Customer" : "Customer Clothes Pickup -> Handover to Store",
+        total_amount: Number(rawOffer.total_amount || rawOffer.amount || 0),
+        items_count: Number(rawOffer.items_count || rawOffer.itemCount || 1),
+        payment_method: rawOffer.payment_method || rawOffer.paymentMode || "cod",
+      });
+    });
+
+
+    // 2. Immediate check + 2.5s polling fallback
     void checkLiveOffers();
     const offerInterval = setInterval(checkLiveOffers, 2500);
-    return () => clearInterval(offerInterval);
-  }, [isOnline, checkLiveOffers]);
+
+    return () => {
+      unsubscribe();
+      clearInterval(offerInterval);
+    };
+  }, [isOnline, activeOrder, checkLiveOffers]);
 
   // Real-time GPS location streaming when online
   useEffect(() => {
@@ -288,36 +361,45 @@ export function RiderDashboardScreen() {
     const isDeliveryLeg =
       (offer as any).ride_type === "delivery" || (offer as any).rideType === "delivery";
 
+    const cleanOrdId =
+      offer.id && offer.id.includes("ord-")
+        ? offer.id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] || offer.id
+        : offer.id;
+
     try {
-      await acceptRiderOrder(offer.id);
+      await acceptRiderOrder(cleanOrdId);
       toast.success(
         isDeliveryLeg
           ? "Delivery Trip Accepted! Proceed to Store to collect clean garments."
           : "Pickup Trip Accepted! Proceed to Customer home to collect clothes."
       );
+      await loadData();
     } catch (err: any) {
       console.warn("Backend accept error:", err);
       toast.info("Trip Accepted! Proceeding with mission.");
+      await loadData();
     }
 
     const newActive: ActiveOrder = {
-      id: offer.id,
-      order_number: offer.order_number || offer.id,
+      id: cleanOrdId,
+      order_number: offer.order_number || cleanOrdId,
       store_name: offer.store_name,
       pickup_address: offer.pickup_address,
       customer_name: offer.customer_name,
+      customer_phone: offer.customer_phone || "",
       delivery_address: offer.delivery_address,
       status: isDeliveryLeg ? "ready_for_delivery" : "assigned",
       ride_type: isDeliveryLeg ? "delivery" : "pickup",
-      delivery_fee: offer.payout_amount || 60,
-      total_amount: 450,
-      payment_method: "cod",
-      items_count: 3,
+      delivery_fee: offer.payout_amount || 45,
+      total_amount: offer.total_amount || 0,
+      payment_method: offer.payment_method === "online" ? "online" : "cod",
+      items_count: offer.items_count || 1,
       service_name: offer.items_summary || (isDeliveryLeg ? "Clean Garments Delivery" : "Laundry Pickup"),
     };
 
-    setActiveOrder(newActive);
+    setActiveOrder((prev) => prev || newActive);
   };
+
 
   // Handle real step progression
   const handleUpdateOrderStatus = async (

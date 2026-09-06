@@ -19,11 +19,16 @@ export type IncomingOffer = {
   store_name: string;
   pickup_address: string;
   customer_name: string;
+  customer_phone?: string;
   delivery_address: string;
   distance_km: number;
   payout_amount: number;
   items_summary?: string;
+  total_amount?: number;
+  items_count?: number;
+  payment_method?: string;
 };
+
 
 export function IncomingOrderAlertModal({
   offer,
@@ -135,7 +140,9 @@ export function IncomingOrderAlertModal({
                 <p className="text-[10px] font-bold uppercase text-emerald-700">
                   Step 1: Customer Pickup
                 </p>
-                <p className="text-sm font-black text-slate-900">{offer.customer_name}</p>
+                <p className="text-sm font-black text-slate-900">
+                  {offer.customer_name} {offer.customer_phone ? `(${offer.customer_phone})` : ""}
+                </p>
                 <p className="text-xs text-slate-600 mt-0.5">{offer.pickup_address}</p>
               </div>
             </div>
@@ -151,6 +158,14 @@ export function IncomingOrderAlertModal({
               </div>
             </div>
           </div>
+
+          {offer.total_amount ? (
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">
+              <span>Order Value: ₹{offer.total_amount} ({offer.payment_method?.toUpperCase() || "COD"})</span>
+              <span>{offer.items_count || 1} Item(s)</span>
+            </div>
+          ) : null}
+
 
           {/* Big Action Buttons (White & Dark Green) */}
           <div className="pt-2 flex flex-col gap-2.5">

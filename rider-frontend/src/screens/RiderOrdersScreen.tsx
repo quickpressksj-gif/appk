@@ -109,24 +109,25 @@ export function RiderOrdersScreen() {
           placed_at: item.placedAt || item.created_at || "Today",
           slot: item.slot || "Immediate Slot",
           customer_name: item.customer_name || item.customerName || "Customer",
-          customer_phone: item.customer_phone || item.customerPhone || "9876543210",
-          customer_address: item.customer_address || item.deliveryAddress || "Customer Address, Kasganj",
+          customer_phone: item.customer_phone || item.customerPhone || "",
+          customer_address: item.customer_address || item.pickupAddress || item.deliveryAddress || "Customer Address, Kasganj",
           customer_landmark: item.customer_landmark || item.landmark || "",
-          pickup_otp: item.pickup_otp || item.pickupOtp || "0000",
+          pickup_otp: item.pickup_otp || item.pickupOtp || "",
           store_name: item.store_name || item.partnerName || "QuickPress Partner Store",
-          store_phone: item.store_phone || item.partnerPhone || "9812345678",
-          store_address: item.pickup_address || item.store_address || "Station Road, Kasganj",
+          store_phone: item.store_phone || item.partnerPhone || "",
+          store_address: item.deliveryAddress || item.store_address || item.pickup_address || "Station Road, Kasganj",
           store_manager: item.store_manager || "Store Incharge",
           service_name: item.service_name || item.serviceType || "Laundry & Dry Clean",
-          items_count: item.items_count || garments.reduce((a: number, b: any) => a + b.qty, 0),
+          items_count: item.items_count || item.itemCount || garments.reduce((a: number, b: any) => a + b.qty, 0) || 1,
           items_breakdown: garments,
           special_instructions: item.special_instructions || item.instructions || "",
-          delivery_fee: item.delivery_fee || item.estimatedEarning || 60,
-          order_amount: item.total_amount || item.amount || 450,
+          delivery_fee: item.delivery_fee || item.estimatedEarning || 45,
+          order_amount: item.total_amount || item.amount || 0,
           payment_method: item.payment_method === "online" ? "online" : "cod",
           distance_km: item.distance_km || item.distanceKm || 2.4,
           estimated_time: item.estimated_time || "15 mins",
         };
+
       });
 
       setOrders(mapped);

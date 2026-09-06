@@ -239,11 +239,16 @@ export function CitiesPage() {
   const currentCity: CityIntelligence | null = useMemo(() => {
     if (allCities.length === 0) return null;
     const matchInFiltered = filteredCities.find(
-      (c) => c.id === selectedCityId || c.city.toLowerCase() === selectedCityId.toLowerCase()
+      (c) =>
+        c.id === selectedCityId ||
+        c.city.toLowerCase() === selectedCityId.toLowerCase() ||
+        selectedCityId.toLowerCase().includes(c.city.toLowerCase()) ||
+        c.city.toLowerCase().includes(selectedCityId.toLowerCase())
     );
     if (matchInFiltered) return matchInFiltered;
     return filteredCities[0] || allCities[0] || null;
   }, [filteredCities, allCities, selectedCityId]);
+
 
   // Query pincodes intelligence for active city
   const pincodesIntelligenceQuery = useQuery({
@@ -763,12 +768,13 @@ export function CitiesPage() {
                     Active Fleet & Stores
                   </p>
                   <p className="text-2xl font-black text-purple-900">
-                    {currentCity.totalPartners || pincodeList.reduce((a, p) => a + p.partnersCount, 0)} Stores ·{" "}
-                    {currentCity.totalRiders || pincodeList.reduce((a, p) => a + p.ridersCount, 0)} Riders
+                    {currentCity.totalPartners ?? pincodeList.reduce((a, p) => a + p.partnersCount, 0)} Stores ·{" "}
+                    {currentCity.totalRiders ?? pincodeList.reduce((a, p) => a + p.ridersCount, 0)} Riders
                   </p>
                   <p className="text-[11px] text-purple-700 font-medium">
-                    {pincodeList.reduce((a, p) => a + p.onlineRidersCount, 0)} Captains Online
+                    {Math.max(currentCity.onlineRiders || 0, pincodeList.reduce((a, p) => a + p.onlineRidersCount, 0))} Captains Online
                   </p>
+
                 </div>
               </div>
 
@@ -1292,7 +1298,7 @@ export function CitiesPage() {
                   render: (c) => (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700">
                       <Store className="size-3.5 text-emerald-600" />
-                      {c.totalPartners || 2} Hubs
+                      {c.totalPartners ?? 0} Hubs
                     </span>
                   ),
                 },
@@ -1302,10 +1308,11 @@ export function CitiesPage() {
                   render: (c) => (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700">
                       <Bike className="size-3.5" />
-                      {c.totalRiders || 3} Captains
+                      {c.totalRiders ?? 0} Fleet ({c.onlineRiders ?? 0} Online)
                     </span>
                   ),
                 },
+
                 {
                   key: "revenue",
                   label: "Delivered GMV",
