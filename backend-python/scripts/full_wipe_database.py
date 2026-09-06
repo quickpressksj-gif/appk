@@ -99,7 +99,20 @@ COLLECTIONS_TO_CLEAR_COMPLETELY = [
     "zones",
     "sectors",
     
-    # Support & Financial
+    # Support & Financial / Wallets
+    "wallets",
+    "wallet_transactions",
+    "user_wallets",
+    "partner_withdrawals",
+    "rider_withdrawals",
+    "withdrawals",
+    "payments",
+    "gateway_payments",
+    "loyalty_wallets",
+    "loyalty_transactions",
+    "referral_wallets",
+    "referral_transactions",
+    "membership_transactions",
     "support_tickets",
     "admin_support_tickets",
     "support_faqs",
