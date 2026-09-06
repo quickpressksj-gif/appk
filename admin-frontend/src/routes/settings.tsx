@@ -24,6 +24,16 @@ import {
   Smartphone,
   MapPin,
   HelpCircle,
+  CloudRain,
+  CalendarClock,
+  Gift,
+  FileText,
+  ShieldAlert,
+  SlidersHorizontal,
+  Flame,
+  Receipt,
+  UserCheck,
+  Award,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,7 +62,7 @@ export const Route = createFileRoute("/settings")({
   head: () =>
     adminHead(
       "Platform & Business Settings",
-      "Configure nationwide pricing rules, commissions, payment gateways, and operational parameters."
+      "Configure nationwide pricing rules, monsoon surge, capacity throttle, referral limits, tax invoicing, and operational safety."
     ),
   component: SettingsPage,
 });
@@ -76,7 +86,7 @@ export function SettingsPage() {
   const saveMutation = useMutation({
     mutationFn: saveSettings,
     onSuccess: () => {
-      toast.success("Platform settings saved and propagated to all applications! 🎉");
+      toast.success("Platform settings saved and propagated across all live applications! 🎉");
       settings.refetch();
     },
     onError: () => {
@@ -130,7 +140,7 @@ export function SettingsPage() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100"
+            className="h-8 rounded-xl border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
             onClick={() => {
               if (settings.data) setDraft(structuredClone(settings.data));
               toast.info("Reset form to saved values");
@@ -141,7 +151,7 @@ export function SettingsPage() {
 
           <Button
             size="sm"
-            className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 shadow-xs"
+            className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 shadow-xs cursor-pointer"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft)}
           >
@@ -167,17 +177,17 @@ export function SettingsPage() {
           />
           <KpiCard
             kpi={{
-              id: "hub",
-              label: "Primary Launch Hub",
-              value: draft.platform.defaultCity,
-              hint: "Operating market",
-              positive: true,
+              id: "surge-status",
+              label: "Monsoon Surge",
+              value: draft.surge.enabled ? `+₹${draft.surge.rainSurgeFee} Active` : "Inactive (Normal)",
+              hint: draft.surge.enabled ? "Rain surge applied" : "Standard pricing",
+              positive: !draft.surge.enabled,
             }}
           />
           <KpiCard
             kpi={{
               id: "comm",
-              label: "Platform Commission",
+              label: "Platform Cut",
               value: draft.finance.defaultCommission,
               hint: "Store deduction rate",
               positive: true,
@@ -186,18 +196,18 @@ export function SettingsPage() {
           <KpiCard
             kpi={{
               id: "gst",
-              label: "Standard GST Rate",
+              label: "SAC 998813 GST",
               value: draft.finance.gstPercent,
-              hint: "Laundry services tax",
+              hint: "Laundry tax rate",
               positive: true,
             }}
           />
           <KpiCard
             kpi={{
-              id: "deliv",
-              label: "Base Delivery Fee",
-              value: `₹${draft.business.deliveryFee}`,
-              hint: `Free above ₹${draft.business.freeDeliveryAbove || 499}`,
+              id: "referral-reward",
+              label: "Referral Reward",
+              value: `₹${draft.referral.referrerReward}`,
+              hint: `Max ${draft.referral.maxWalletUsagePercent}% wallet cart pay`,
               positive: true,
             }}
           />
@@ -218,31 +228,43 @@ export function SettingsPage() {
         <SectionCard>
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-zinc-100">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-zinc-100 p-1 rounded-xl">
-                <TabsTrigger value="platform" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+              <TabsList className="bg-zinc-100 p-1 rounded-xl flex flex-wrap gap-1">
+                <TabsTrigger value="platform" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
                   🏢 Brand Profile
                 </TabsTrigger>
-                <TabsTrigger value="logistics" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  🚚 Logistics & Delivery Fees
+                <TabsTrigger value="logistics" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🚚 Logistics & Fees
                 </TabsTrigger>
-                <TabsTrigger value="finance" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                <TabsTrigger value="surge" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🌧️ Monsoon & Surge
+                </TabsTrigger>
+                <TabsTrigger value="slots" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  ⏱️ Slots & Capacity
+                </TabsTrigger>
+                <TabsTrigger value="referral" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🎁 Referral & Wallet
+                </TabsTrigger>
+                <TabsTrigger value="finance" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
                   💰 Taxes & Commission
                 </TabsTrigger>
-                <TabsTrigger value="integrations" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  🔌 Payment & API Gateways
+                <TabsTrigger value="compliance" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🧾 SAC 998813 Invoice
                 </TabsTrigger>
-                <TabsTrigger value="operations" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  ⚙️ Operations & Maintenance
+                <TabsTrigger value="safety" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🛡️ Fraud & Safety
                 </TabsTrigger>
-                <TabsTrigger value="security" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
-                  🛡️ Security & Passcode
+                <TabsTrigger value="operations" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  ⚙️ Operations Mode
+                </TabsTrigger>
+                <TabsTrigger value="security" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs cursor-pointer">
+                  🔒 Security & PIN
                 </TabsTrigger>
               </TabsList>
             </Tabs>
 
             <div className="flex items-center gap-2 text-xs font-bold text-zinc-500">
               <Sparkles className="size-4 text-emerald-600" />
-              <span>Real-Time Database Sync</span>
+              <span>Live Database Synchronization</span>
             </div>
           </div>
 
@@ -299,11 +321,11 @@ export function SettingsPage() {
                     }
                     className="h-10 text-xs font-mono"
                   />
-                  <p className="text-[10px] text-zinc-400">Displayed on customer booking invoices</p>
+                  <p className="text-[10px] text-zinc-400">24/7 customer and delivery captain helpline</p>
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-bold">Primary Launch City Hub</Label>
+                  <Label className="text-xs font-bold">Primary Launch Hub City</Label>
                   <Input
                     value={draft.platform.defaultCity}
                     onChange={(e) =>
@@ -311,13 +333,13 @@ export function SettingsPage() {
                     }
                     className="h-10 text-xs font-bold"
                   />
-                  <p className="text-[10px] text-zinc-400">Default market for unlocalized visitors</p>
+                  <p className="text-[10px] text-zinc-400">Default territory for new customer geocoding</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs font-bold">Platform Currency</Label>
+                  <Label className="text-xs font-bold">Currency Specification</Label>
                   <Input
                     value={draft.platform.currency}
                     onChange={(e) =>
@@ -405,7 +427,298 @@ export function SettingsPage() {
           )}
 
           {/* =====================================================================
-              TAB 3: TAXES, COMMISSION & PARTNER ESCROW
+              TAB 3: MONSOON & SURGE PRICING ENGINE
+          ===================================================================== */}
+          {activeTab === "surge" && (
+            <div className="pt-4 space-y-6 max-w-4xl">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-xs text-blue-950 flex items-center gap-2">
+                      <CloudRain className="size-4 text-blue-600" />
+                      <span>Monsoon & Bad Weather Surcharge Toggle</span>
+                    </h4>
+                    <p className="text-[11px] text-blue-700">
+                      When enabled, adds extra rain surge fee to compensate delivery riders during heavy rainfall.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(draft.surge.enabled)}
+                    onCheckedChange={(checked) =>
+                      setDraft((p) =>
+                        p ? { ...p, surge: { ...p.surge, enabled: checked } } : null
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 pt-3 border-t border-blue-200">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-blue-900">Rain Surcharge Fee (₹)</Label>
+                    <Input
+                      type="number"
+                      value={draft.surge.rainSurgeFee}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, surge: { ...p.surge, rainSurgeFee: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-blue-600">Added to customer cart when surge is active</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-blue-900">Peak Festival Surge (₹)</Label>
+                    <Input
+                      type="number"
+                      value={draft.surge.peakSurgeFee}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, surge: { ...p.surge, peakSurgeFee: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-blue-600">High-demand rush surcharge</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-blue-900">Dynamic Rain Delay Buffer (Mins)</Label>
+                    <Input
+                      type="number"
+                      value={draft.surge.etaDelayMinutes}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, surge: { ...p.surge, etaDelayMinutes: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-blue-600">Extra buffer advisory added to tracking ETA</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-blue-900">Customer Facing Surge Notice</Label>
+                  <Input
+                    value={draft.surge.surgeReason || ""}
+                    onChange={(e) =>
+                      setDraft((p) =>
+                        p ? { ...p, surge: { ...p.surge, surgeReason: e.target.value } } : null
+                      )
+                    }
+                    className="h-10 text-xs bg-white"
+                    placeholder="e.g. Heavy rainfall in your area. Surcharge applied to support delivery captains."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =====================================================================
+              TAB 4: TIME SLOTS & CAPACITY THROTTLE ENGINE
+          ===================================================================== */}
+          {activeTab === "slots" && (
+            <div className="pt-4 space-y-4 max-w-4xl">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-5 space-y-4 shadow-xs">
+                <div className="space-y-1">
+                  <h4 className="font-bold text-xs text-zinc-900 flex items-center gap-2">
+                    <CalendarClock className="size-4 text-emerald-600" />
+                    <span>Pickup & Delivery Slot Capacity Controls</span>
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">
+                    Throttle order intake per time interval to ensure partner stores and delivery fleets are never overwhelmed.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Slot Window Duration (Hours)</Label>
+                    <Select
+                      value={String(draft.slots.slotDurationHours)}
+                      onValueChange={(v) =>
+                        setDraft((p) =>
+                          p ? { ...p, slots: { ...p.slots, slotDurationHours: v } } : null
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-10 text-xs cursor-pointer">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1-Hour Precision Windows</SelectItem>
+                        <SelectItem value="2">2-Hour Standard Windows</SelectItem>
+                        <SelectItem value="3">3-Hour Flexible Windows</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Max Orders Intake Per Slot</Label>
+                    <Input
+                      type="number"
+                      value={draft.slots.maxOrdersPerSlot}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, slots: { ...p.slots, maxOrdersPerSlot: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-zinc-400">Slot automatically closes when limit is reached</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Minimum Advance Lead Time (Hours)</Label>
+                    <Input
+                      type="number"
+                      value={draft.slots.leadTimeHours}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, slots: { ...p.slots, leadTimeHours: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-zinc-400">Advance booking required prior to pickup</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-zinc-100">
+                  <h5 className="font-bold text-xs text-zinc-900 mb-3">Turnaround Speed Pricing Multipliers</h5>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-amber-800">⚡ Express 24-Hour Multiplier</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={draft.slots.express24hMultiplier}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, slots: { ...p.slots, express24hMultiplier: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">e.g. 1.5x (50% premium for 24-hour delivery)</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-zinc-800">Standard 48-Hour Multiplier</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={draft.slots.standard48hMultiplier}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, slots: { ...p.slots, standard48hMultiplier: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">1.0x baseline regular catalog rate</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-emerald-800">Economy 72-Hour Multiplier</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={draft.slots.economy72hMultiplier}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, slots: { ...p.slots, economy72hMultiplier: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">e.g. 0.9x (10% discount for non-urgent washing)</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =====================================================================
+              TAB 5: REFERRAL, CASHBACK & WALLET LIMITS ENGINE
+          ===================================================================== */}
+          {activeTab === "referral" && (
+            <div className="pt-4 space-y-4 max-w-4xl">
+              <div className="rounded-2xl border border-purple-200 bg-purple-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-xs text-purple-950 flex items-center gap-2">
+                      <Gift className="size-4 text-purple-600" />
+                      <span>Referral Program & Signup Rewards Engine</span>
+                    </h4>
+                    <p className="text-[11px] text-purple-700">
+                      Configure referral wallet incentives, referee signup credits, and checkout redemption boundaries.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(draft.referral.enabled)}
+                    onCheckedChange={(checked) =>
+                      setDraft((p) =>
+                        p ? { ...p, referral: { ...p.referral, enabled: checked } } : null
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 pt-3 border-t border-purple-200">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-purple-900">Referee Signup Welcome Credit (₹)</Label>
+                    <Input
+                      type="number"
+                      value={draft.referral.refereeReward}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, referral: { ...p.referral, refereeReward: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-purple-600">Instant wallet credit on registering with invite code</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-purple-900">Referrer Reward on 1st Order (₹)</Label>
+                    <Input
+                      type="number"
+                      value={draft.referral.referrerReward}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, referral: { ...p.referral, referrerReward: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-purple-600">Paid to inviter when friend's 1st order is delivered</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-purple-900">Max Wallet Usage per Checkout (%)</Label>
+                    <Input
+                      type="number"
+                      value={draft.referral.maxWalletUsagePercent}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, referral: { ...p.referral, maxWalletUsagePercent: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-purple-600">e.g. Max 35% of cart subtotal can be paid from wallet</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =====================================================================
+              TAB 6: TAXES, COMMISSION & PARTNER ESCROW
           ===================================================================== */}
           {activeTab === "finance" && (
             <div className="pt-4 space-y-4 max-w-4xl">
@@ -456,7 +769,7 @@ export function SettingsPage() {
                       setDraft((p) => (p ? { ...p, business: { ...p.business, payoutCycle: v } } : null))
                     }
                   >
-                    <SelectTrigger className="h-10 text-xs">
+                    <SelectTrigger className="h-10 text-xs cursor-pointer">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -507,94 +820,192 @@ export function SettingsPage() {
           )}
 
           {/* =====================================================================
-              TAB 4: PAYMENT GATEWAYS & API INTEGRATIONS
+              TAB 7: AUTOMATED TAX INVOICE & SAC 998813 COMPLIANCE
           ===================================================================== */}
-          {activeTab === "integrations" && (
+          {activeTab === "compliance" && (
             <div className="pt-4 space-y-4 max-w-4xl">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-5 space-y-4 shadow-xs">
                 <div className="space-y-1">
-                  <Label className="text-xs font-bold">Payment Gateway Provider</Label>
-                  <Input
-                    value={draft.integrations.paymentGateway}
-                    onChange={(e) =>
-                      setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, paymentGateway: e.target.value } } : null
-                      )
-                    }
-                    className="h-10 text-xs font-bold"
-                  />
-                  <p className="text-[10px] text-zinc-400">Razorpay Live / Cashfree UPI / Stripe</p>
+                  <h4 className="font-bold text-xs text-zinc-900 flex items-center gap-2">
+                    <FileText className="size-4 text-emerald-600" />
+                    <span>GST Law & SAC 998813 Invoicing Compliance</span>
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">
+                    Automated B2B/B2C invoice generation adhering to Indian GST rules for Laundry & Dry Cleaning Services (SAC 998813).
+                  </p>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold">Payment Gateway Key ID / Merchant ID</Label>
-                  <Input
-                    value={draft.integrations.paymentKeyId}
-                    onChange={(e) =>
-                      setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, paymentKeyId: e.target.value } } : null
-                      )
-                    }
-                    className="h-10 text-xs font-mono"
-                  />
-                  <p className="text-[10px] text-zinc-400">Production merchant key for UPI collection</p>
+                <div className="grid grid-cols-3 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Services Accounting Code (SAC)</Label>
+                    <Input
+                      value={draft.compliance.sacCode}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, compliance: { ...p.compliance, sacCode: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-zinc-400">Mandatory SAC 998813 printed on all PDF receipts</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Tax Invoice Serial Prefix</Label>
+                    <Input
+                      value={draft.compliance.invoicePrefix}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, compliance: { ...p.compliance, invoicePrefix: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-zinc-400">e.g. QP/2026-27/0001 series</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">Section 194C TDS Rate on Stores (%)</Label>
+                    <Input
+                      value={draft.compliance.tdsRate}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, compliance: { ...p.compliance, tdsRate: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold"
+                    />
+                    <p className="text-[10px] text-zinc-400">TDS deducted on partner store settlement batches</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-zinc-100">
+                  <h5 className="font-bold text-xs text-zinc-900 mb-3">GST Component Breakdown (Intra-State vs Inter-State)</h5>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold">Central GST (CGST %)</Label>
+                      <Input
+                        value={draft.compliance.cgstPercent}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, compliance: { ...p.compliance, cgstPercent: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">Applied for intra-state pickups</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold">State GST (SGST %)</Label>
+                      <Input
+                        value={draft.compliance.sgstPercent}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, compliance: { ...p.compliance, sgstPercent: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">Applied for intra-state pickups</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold">Integrated GST (IGST %)</Label>
+                      <Input
+                        value={draft.compliance.igstPercent}
+                        onChange={(e) =>
+                          setDraft((p) =>
+                            p ? { ...p, compliance: { ...p.compliance, igstPercent: e.target.value } } : null
+                          )
+                        }
+                        className="h-10 text-xs font-mono font-bold"
+                      />
+                      <p className="text-[10px] text-zinc-400">Applied for inter-state orders</p>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="grid grid-cols-2 gap-4">
+          {/* =====================================================================
+              TAB 8: FRAUD DETECTION & ORDER SAFETY ENGINE
+          ===================================================================== */}
+          {activeTab === "safety" && (
+            <div className="pt-4 space-y-4 max-w-4xl">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-5 space-y-4 shadow-xs">
                 <div className="space-y-1">
-                  <Label className="text-xs font-bold">Google Maps Platform API Key</Label>
-                  <Input
-                    value={draft.integrations.googleMapsKey}
-                    onChange={(e) =>
-                      setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, googleMapsKey: e.target.value } } : null
-                      )
-                    }
-                    className="h-10 text-xs font-mono"
-                  />
-                  <p className="text-[10px] text-zinc-400">Distance matrix & address geocoding key</p>
+                  <h4 className="font-bold text-xs text-rose-950 flex items-center gap-2">
+                    <ShieldAlert className="size-4 text-rose-600" />
+                    <span>Order Fraud Detection & Rider Security Rules</span>
+                  </h4>
+                  <p className="text-[11px] text-rose-700">
+                    Automated security rules to prevent fake orders, rider GPS spoofing, and excessive cart cancellations.
+                  </p>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold">Firebase Cloud Project ID</Label>
-                  <Input
-                    value={draft.integrations.firebaseProject}
-                    onChange={(e) =>
-                      setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, firebaseProject: e.target.value } } : null
-                      )
-                    }
-                    className="h-10 text-xs font-mono"
-                  />
-                  <p className="text-[10px] text-zinc-400">FCM Push token registry & Google Auth</p>
-                </div>
-              </div>
+                <div className="grid grid-cols-3 gap-4 pt-3 border-t border-rose-200">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-rose-900">High-Value Dual OTP Threshold (₹)</Label>
+                    <Input
+                      type="number"
+                      value={draft.safety.highValueThreshold}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, safety: { ...p.safety, highValueThreshold: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-rose-600">Mandatory dual security OTP on orders exceeding this value</p>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-100">
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold">SMS Gateway Provider</Label>
-                  <Input
-                    value={draft.integrations.smsProvider}
-                    onChange={(e) =>
-                      setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, smsProvider: e.target.value } } : null
-                      )
-                    }
-                    className="h-10 text-xs"
-                  />
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-rose-900">Max Cancellation Strikes / Week</Label>
+                    <Input
+                      type="number"
+                      value={draft.safety.maxCancellationStrikes}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, safety: { ...p.safety, maxCancellationStrikes: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-rose-600">Strikes before temporary account suspension</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-rose-900">Auto Security Lockout Period (Hours)</Label>
+                    <Input
+                      type="number"
+                      value={draft.safety.autoLockoutHours}
+                      onChange={(e) =>
+                        setDraft((p) =>
+                          p ? { ...p, safety: { ...p.safety, autoLockoutHours: e.target.value } } : null
+                        )
+                      }
+                      className="h-10 text-xs font-mono font-bold bg-white"
+                    />
+                    <p className="text-[10px] text-rose-600">IP & Account cool-off duration</p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold">DLT Registered 6-Char Sender ID</Label>
-                  <Input
-                    value={draft.integrations.smsSenderId}
-                    onChange={(e) =>
+                <div className="flex items-center justify-between pt-3 border-t border-rose-200">
+                  <div>
+                    <h5 className="font-bold text-xs text-rose-950">Rider Mock Location / Fake GPS Guard</h5>
+                    <p className="text-[10px] text-rose-700">
+                      Disallow rider status updates if device reports mock/simulated GPS coordinates.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(draft.safety.mockGpsGuard)}
+                    onCheckedChange={(checked) =>
                       setDraft((p) =>
-                        p ? { ...p, integrations: { ...p.integrations, smsSenderId: e.target.value } } : null
+                        p ? { ...p, safety: { ...p.safety, mockGpsGuard: checked } } : null
                       )
                     }
-                    className="h-10 text-xs font-mono font-bold"
                   />
                 </div>
               </div>
@@ -602,7 +1013,7 @@ export function SettingsPage() {
           )}
 
           {/* =====================================================================
-              TAB 5: OPERATIONS & MAINTENANCE MODE
+              TAB 9: OPERATIONS & MAINTENANCE MODE
           ===================================================================== */}
           {activeTab === "operations" && (
             <div className="pt-4 space-y-6 max-w-4xl">
@@ -613,7 +1024,7 @@ export function SettingsPage() {
                       <AlertTriangle className="size-4 text-amber-600" /> Emergency Platform Maintenance Mode
                     </h4>
                     <p className="text-[11px] text-zinc-400">
-                      Temporarily pause customer order placement for server updates or monsoon emergency.
+                      Temporarily pause customer order placement for server updates or emergency situations.
                     </p>
                   </div>
                   <Switch
@@ -663,7 +1074,7 @@ export function SettingsPage() {
           )}
 
           {/* =====================================================================
-              TAB 6: SECURITY & PASSCODE
+              TAB 10: SECURITY & PASSCODE
           ===================================================================== */}
           {activeTab === "security" && (
             <div className="pt-4 space-y-6 max-w-4xl">
@@ -719,7 +1130,7 @@ export function SettingsPage() {
                   size="sm"
                   onClick={() => pinMutation.mutate()}
                   disabled={!currentPin || !newPin || !confirmPin || pinMutation.isPending}
-                  className="rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs h-9 px-4 shadow-xs"
+                  className="rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs h-9 px-4 shadow-xs cursor-pointer"
                 >
                   <Key className="size-3.5 mr-1.5" />
                   {pinMutation.isPending ? "Updating..." : "Update Master Passcode"}

@@ -3091,6 +3091,42 @@ class AdminSettingsRepository:
             "defaultCommission": "18%",
             "riderCommission": "100% of Delivery Fee + Trip Bonus",
         },
+        "surge": {
+            "enabled": False,
+            "rainSurgeFee": 25,
+            "peakSurgeFee": 15,
+            "etaDelayMinutes": 20,
+            "surgeReason": "Monsoon / High Demand Surge",
+        },
+        "slots": {
+            "slotDurationHours": 2,
+            "maxOrdersPerSlot": 15,
+            "express24hMultiplier": 1.5,
+            "standard48hMultiplier": 1.0,
+            "economy72hMultiplier": 0.9,
+            "leadTimeHours": 2,
+        },
+        "referral": {
+            "enabled": True,
+            "refereeReward": 100,
+            "referrerReward": 150,
+            "maxWalletUsagePercent": 35,
+            "minOrderValueForReferral": 199,
+        },
+        "compliance": {
+            "sacCode": "998813",
+            "invoicePrefix": "QP/2026-27/",
+            "tdsRate": "1%",
+            "cgstPercent": "2.5%",
+            "sgstPercent": "2.5%",
+            "igstPercent": "5%",
+        },
+        "safety": {
+            "highValueThreshold": 2000,
+            "maxCancellationStrikes": 3,
+            "mockGpsGuard": True,
+            "autoLockoutHours": 24,
+        },
     }
 
     async def get(self) -> Dict[str, Any]:
@@ -3135,6 +3171,14 @@ class AdminSettingsRepository:
                     merged["platformCommissionRate"] = float(clean_comm)
                 except Exception:
                     pass
+
+        # Sync surge and slot variables if updated in nested dictionaries
+        if "surge" in merged and isinstance(merged["surge"], dict):
+            try:
+                merged["rain_surge_active"] = bool(merged["surge"].get("enabled", False))
+                merged["rain_surge_fee"] = int(merged["surge"].get("rainSurgeFee", 25))
+            except Exception:
+                pass
 
         await database.update("admin_settings", {"_id": self.doc_id}, merged, upsert=True)
         return await self.get()

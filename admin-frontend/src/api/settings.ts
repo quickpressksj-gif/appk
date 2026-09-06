@@ -46,11 +46,57 @@ export type FinanceSettings = {
   riderCommission: string;
 };
 
+export type SurgeSettings = {
+  enabled: boolean;
+  rainSurgeFee: number | string;
+  peakSurgeFee: number | string;
+  etaDelayMinutes: number | string;
+  surgeReason?: string;
+};
+
+export type SlotSettings = {
+  slotDurationHours: number | string;
+  maxOrdersPerSlot: number | string;
+  express24hMultiplier: number | string;
+  standard48hMultiplier: number | string;
+  economy72hMultiplier: number | string;
+  leadTimeHours: number | string;
+};
+
+export type ReferralSettings = {
+  enabled: boolean;
+  refereeReward: number | string;
+  referrerReward: number | string;
+  maxWalletUsagePercent: number | string;
+  minOrderValueForReferral?: number | string;
+};
+
+export type ComplianceSettings = {
+  sacCode: string;
+  invoicePrefix: string;
+  tdsRate: string;
+  cgstPercent: string;
+  sgstPercent: string;
+  igstPercent: string;
+};
+
+export type SafetySettings = {
+  highValueThreshold: number | string;
+  maxCancellationStrikes: number | string;
+  mockGpsGuard: boolean;
+  autoLockoutHours: number | string;
+};
+
 export type AdminSettings = {
   platform: PlatformSettings;
   business: BusinessSettings;
   integrations: IntegrationSettings;
   finance: FinanceSettings;
+  surge: SurgeSettings;
+  slots: SlotSettings;
+  referral: ReferralSettings;
+  compliance: ComplianceSettings;
+  safety: SafetySettings;
 };
 
 export type SecurityEvent = {
@@ -116,6 +162,42 @@ const DEFAULTS: AdminSettings = {
     defaultCommission: "18%",
     riderCommission: "100% of Delivery Fee + ₹25 Peak Bonus",
   },
+  surge: {
+    enabled: false,
+    rainSurgeFee: "25",
+    peakSurgeFee: "15",
+    etaDelayMinutes: "20",
+    surgeReason: "Monsoon Rain & High Rush Surge",
+  },
+  slots: {
+    slotDurationHours: "2",
+    maxOrdersPerSlot: "15",
+    express24hMultiplier: "1.5",
+    standard48hMultiplier: "1.0",
+    economy72hMultiplier: "0.9",
+    leadTimeHours: "2",
+  },
+  referral: {
+    enabled: true,
+    refereeReward: "100",
+    referrerReward: "150",
+    maxWalletUsagePercent: "35",
+    minOrderValueForReferral: "199",
+  },
+  compliance: {
+    sacCode: "998813",
+    invoicePrefix: "QP/2026-27/",
+    tdsRate: "1%",
+    cgstPercent: "2.5%",
+    sgstPercent: "2.5%",
+    igstPercent: "5%",
+  },
+  safety: {
+    highValueThreshold: "2000",
+    maxCancellationStrikes: "3",
+    mockGpsGuard: true,
+    autoLockoutHours: "24",
+  },
 };
 
 export async function fetchSettings(): Promise<AdminSettings> {
@@ -127,6 +209,11 @@ export async function fetchSettings(): Promise<AdminSettings> {
     if (doc.business) Object.assign(merged.business, doc.business);
     if (doc.integrations) Object.assign(merged.integrations, doc.integrations);
     if (doc.finance) Object.assign(merged.finance, doc.finance);
+    if (doc.surge) Object.assign(merged.surge, doc.surge);
+    if (doc.slots) Object.assign(merged.slots, doc.slots);
+    if (doc.referral) Object.assign(merged.referral, doc.referral);
+    if (doc.compliance) Object.assign(merged.compliance, doc.compliance);
+    if (doc.safety) Object.assign(merged.safety, doc.safety);
 
     if (doc.minimumOrderValue !== undefined) merged.business.minimumOrderValue = String(doc.minimumOrderValue);
     if (doc.deliveryFee !== undefined) merged.business.deliveryFee = String(doc.deliveryFee);
