@@ -441,46 +441,122 @@ function TrackOrderScreen() {
             {/* Rider card */}
             <section className="mt-6">
               <SectionHeading title="Your rider" />
-              <div className="card-soft mt-3 border border-border p-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-base font-bold text-brand-dark">
-                    {tracking.rider.name.charAt(0)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-bold text-foreground">
-                        {tracking.rider.name}
-                      </p>
-                      <BadgeCheck className="size-3.5 shrink-0 text-brand-green" />
+              {(() => {
+                const rName = detail?.rider?.name || tracking?.rider?.name;
+                const isAssigned = Boolean(
+                  detail?.rider?.assigned ||
+                  (rName &&
+                    rName !== "Rider not assigned yet" &&
+                    rName !== "Assigning rider" &&
+                    rName !== "Assigning" &&
+                    !rName.toLowerCase().includes("not assigned") &&
+                    !rName.toLowerCase().includes("assigning"))
+                );
+
+                if (!isAssigned) {
+                  return (
+                    <div className="relative mt-3 overflow-hidden rounded-3xl border border-brand-green/20 bg-gradient-to-br from-brand-green/[0.08] via-card to-card p-5 shadow-soft dark:border-brand-green/20 dark:from-brand-green/[0.10]">
+                      {/* Ambient radar glow */}
+                      <div className="pointer-events-none absolute -right-6 -top-6 size-32 rounded-full bg-brand-green/10 blur-2xl" />
+
+                      <div className="relative flex items-center gap-3.5">
+                        {/* Radar pulse animation */}
+                        <div className="relative flex size-13 shrink-0 items-center justify-center">
+                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand-green/25 opacity-75" />
+                          <span className="absolute inline-flex size-9 animate-pulse rounded-full bg-brand-green/30" />
+                          <span className="relative flex size-11 items-center justify-center rounded-2xl bg-brand-green text-white shadow-cta">
+                            <Navigation className="size-5 animate-pulse" />
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/15 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-brand-green">
+                              <span className="size-1.5 animate-ping rounded-full bg-brand-green" />
+                              Searching Nearby Captain
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm font-black text-foreground">
+                            Finding nearest delivery partner...
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            Locating available QuickPress riders near your location
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Animated radar scanning bar */}
+                      <div className="relative mt-3.5 h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+                        <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-brand-green via-emerald-400 to-brand-green animate-pulse" />
+                      </div>
+
+                      <div className="mt-2.5 flex items-center justify-between text-[10px] font-semibold text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3 text-brand-green" />
+                          Usually assigned in 1-3 mins
+                        </span>
+                        <span className="font-bold text-brand-green">Live Radar Active</span>
+                      </div>
                     </div>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {tracking.rider.vehicle} · {tracking.rider.plate}
-                    </p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Star className="size-3 fill-primary text-primary" />
-                      {tracking.rider.rating} · {tracking.rider.trips}
-                    </p>
+                  );
+                }
+
+                const assignedRider = {
+                  name: rName || "Delivery Captain",
+                  vehicle: detail?.rider?.vehicle || tracking?.rider?.vehicle || "QuickPress Fleet",
+                  plate: detail?.rider?.plate || tracking?.rider?.plate || "—",
+                  rating: Number(detail?.rider?.rating || tracking?.rider?.rating || 4.9),
+                  trips: String(detail?.rider?.trips || tracking?.rider?.trips || "100+ deliveries"),
+                  phone: String(detail?.rider?.phone || tracking?.rider?.phone || ""),
+                };
+
+                return (
+                  <div className="card-soft mt-3 border border-border p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-base font-bold text-brand-dark">
+                        {assignedRider.name.charAt(0)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-bold text-foreground">
+                            {assignedRider.name}
+                          </p>
+                          <BadgeCheck className="size-3.5 shrink-0 text-brand-green" />
+                        </div>
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {assignedRider.vehicle} · {assignedRider.plate}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Star className="size-3 fill-primary text-primary" />
+                          {assignedRider.rating} · {assignedRider.trips}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
+                      <a
+                        href={assignedRider.phone ? `tel:${assignedRider.phone.replace(/\s/g, "")}` : "#"}
+                        className="flex h-11 items-center justify-center gap-2 rounded-3xl bg-primary text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
+                      >
+                        <Phone className="size-4" /> Call rider
+                      </a>
+                      <a
+                        href={
+                          assignedRider.phone
+                            ? `https://wa.me/${assignedRider.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                                `Hi ${assignedRider.name}, I am reaching out regarding my QuickPress Order #${orderId}.`
+                              )}`
+                            : "#"
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex h-11 items-center justify-center gap-2 rounded-3xl border border-border bg-muted/60 text-xs font-bold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
+                      >
+                        <MessageCircle className="size-4 text-emerald-500" /> WhatsApp Chat
+                      </a>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2.5">
-                  <a
-                    href={`tel:${tracking.rider.phone.replace(/\s/g, "")}`}
-                    className="flex h-11 items-center justify-center gap-2 rounded-3xl bg-primary text-xs font-bold text-primary-foreground shadow-cta transition-all duration-300 active:scale-[0.97]"
-                  >
-                    <Phone className="size-4" /> Call rider
-                  </a>
-                  <a
-                    href={`https://wa.me/${tracking.rider.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                      `Hi ${tracking.rider.name}, I am reaching out regarding my QuickPress Order #${orderId}.`
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex h-11 items-center justify-center gap-2 rounded-3xl border border-border bg-muted/60 text-xs font-bold text-foreground transition-all duration-300 hover:border-primary/60 active:scale-[0.97]"
-                  >
-                    <MessageCircle className="size-4 text-emerald-500" /> WhatsApp Chat
-                  </a>
-                </div>
-              </div>
+                );
+              })()}
             </section>
 
             {/* Timeline */}

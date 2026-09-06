@@ -179,7 +179,7 @@ function HomeScreen() {
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
-    void fetchMembership().then(setMembership).catch(() => {});
+    void fetchMembership().then(setMembership).catch(() => { });
   }, []);
 
   const profile = sections.profile.data;
@@ -248,7 +248,7 @@ function HomeScreen() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       refresh(),
-      fetchMembership({ forceRefresh: true }).then(setMembership).catch(() => {}),
+      fetchMembership({ forceRefresh: true }).then(setMembership).catch(() => { }),
     ]);
     setPull(0);
   }, [refresh]);
@@ -697,7 +697,7 @@ function HomeScreen() {
                     <div className="relative overflow-hidden rounded-3xl border border-primary/30 bg-white p-5 shadow-soft dark:border-primary/25 dark:bg-zinc-900">
                       <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-primary/10 blur-2xl" />
                       <div className="pointer-events-none absolute -left-10 -bottom-10 size-32 rounded-full bg-emerald-500/10 blur-2xl" />
-                      
+
                       <div className="relative flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
                           <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs">
@@ -913,13 +913,12 @@ function HomeScreen() {
                               <p className="mt-0.5 text-xs text-muted-foreground">{order.placed}</p>
                             </div>
                             <span
-                              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                                String(order.status) === "Delivered"
+                              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${String(order.status) === "Delivered"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : String(order.status) === "Cancelled"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              }`}
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                    : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                }`}
                             >
                               {order.status}
                             </span>
