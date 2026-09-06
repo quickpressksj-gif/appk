@@ -46,7 +46,13 @@ import { CaptainHomeHeader } from "../components/dashboard/CaptainHomeHeader";
 import { BikeDutyBanner } from "../components/dashboard/BikeDutyBanner";
 import { ActiveDeliveryCockpit, type ActiveOrder } from "../components/dashboard/ActiveDeliveryCockpit";
 import { IncomingOrderAlertModal, type IncomingOffer } from "../components/dashboard/IncomingOrderAlertModal";
-import { playSuccessChime, triggerHaptic } from "../lib/captain-audio";
+import {
+  playDutyToggleSound,
+  playSuccessChime,
+  stopOrderAlertSound,
+  triggerHaptic,
+  unlockAudioContext,
+} from "../lib/captain-audio";
 import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
 
 import { CaptainLocationPermissionModal } from "../components/CaptainLocationPermissionModal";
@@ -186,7 +192,7 @@ export function RiderDashboardScreen() {
   useEffect(() => {
     if (!isOnline) return;
     void checkLiveOffers();
-    const offerInterval = setInterval(checkLiveOffers, 3000);
+    const offerInterval = setInterval(checkLiveOffers, 2500);
     return () => clearInterval(offerInterval);
   }, [isOnline, checkLiveOffers]);
 
@@ -224,6 +230,9 @@ export function RiderDashboardScreen() {
 
   // Real toggle online/offline state to backend
   const handleToggleDuty = async (nextState: boolean) => {
+    unlockAudioContext();
+    playDutyToggleSound(nextState);
+
     if (nextState && typeof window !== "undefined" && !localStorage.getItem("quickpress_rider_location_consented")) {
       setShowLocationModal(true);
       return;
@@ -247,6 +256,7 @@ export function RiderDashboardScreen() {
 
   // Handle incoming trip acceptance
   const handleAcceptOffer = async (offer: IncomingOffer) => {
+    stopOrderAlertSound();
     triggerHaptic([100, 50, 100]);
     setIncomingOffer(null);
 
@@ -369,6 +379,7 @@ export function RiderDashboardScreen() {
             offer={incomingOffer}
             onAccept={handleAcceptOffer}
             onDecline={() => {
+              stopOrderAlertSound();
               const offId = incomingOffer.id;
               setIncomingOffer(null);
               void rejectRiderOrder(offId).catch(() => {});

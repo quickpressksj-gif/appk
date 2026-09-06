@@ -1154,14 +1154,26 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
     from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION, RIDES_COLLECTION
     from app.services.rider_dispatch import OFFERS_COLLECTION
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    possible_rider_ids = {rider_id, getattr(user, "id", ""), str(getattr(user, "id", ""))}
+    try:
+        profile = await rider_profile_repository.get(rider_id)
+        if profile:
+            for k in ("_id", "riderId", "userId", "phone", "mobile"):
+                val = profile.get(k)
+                if val:
+                    possible_rider_ids.add(str(val))
+    except Exception:
+        pass
+    possible_rider_ids.discard("")
     
     offers = await database.find_many(
         RIDE_ASSIGNMENTS_COLLECTION,
-        {"riderId": rider_id, "status": "pending"},
+        {"riderId": {"$in": list(possible_rider_ids)}, "status": "pending"},
     )
     alt_offers = await database.find_many(
         OFFERS_COLLECTION,
-        {"riderId": rider_id, "status": "pending"},
+        {"riderId": {"$in": list(possible_rider_ids)}, "status": "pending"},
     )
     all_raw = list(offers) + list(alt_offers)
 
@@ -1172,8 +1184,10 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
     )
     for r in open_rides:
         attempted = list(r.get("attemptedRiderIds") or [])
-        offered_to = r.get("offeredRiderId")
-        if (offered_to == rider_id or not offered_to) and (rider_id not in attempted or offered_to == rider_id):
+        offered_to = str(r.get("offeredRiderId") or "")
+        is_targeted = not offered_to or offered_to in possible_rider_ids
+        not_attempted = not any(pid in attempted for pid in possible_rider_ids)
+        if is_targeted and not_attempted:
             p_loc = r.get("pickupLocation") or {}
             d_loc = r.get("dropLocation") or {}
             created_at = r.get("createdAt") or now_iso
@@ -1294,15 +1308,19 @@ async def list_orders(
     q: Optional[str] = None,
     status_filter: Optional[str] = Query(default=None, alias="status"),
     scope: Optional[str] = None,
-    page: int = Query(default=1, ge=1),
-    pageSize: int = Query(default=20, ge=1, le=100),
+    page: int = 1,
+    page_size: int = 20,
     user: User = Depends(current_user),
-):
+) -> dict:
     rider_id = await _rider_id(user)
     if scope == "history":
         return await rider_delivery_repository.history(rider_id)
     return await rider_delivery_repository.list(
-        rider_id, q=q, status=status_filter, page=page, page_size=pageSize
+        rider_id,
+        status=status_filter,
+        q=q,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -1310,12 +1328,11 @@ async def list_orders(
 async def get_order(order_id: str, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
     try:
-        order = await rider_delivery_repository.by_id(order_id, rider_id)
+        return await rider_delivery_repository.by_id(rider_id, order_id)
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
     except lifecycle.OrderAuthorizationError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
-    if order is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    return order
 
 
 async def _rider_action(action, order_id: str, user: User, **kwargs) -> dict:
@@ -1334,9 +1351,10 @@ async def _rider_action(action, order_id: str, user: User, **kwargs) -> dict:
 
 
 @router.post("/orders/{order_id}/accept")
+@router.post("/rides/{order_id}/accept")
+@router.post("/offers/{order_id}/accept")
 async def accept_order(order_id: str, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
-    # Check if order_id is a rideId or orderId
     from app.services.smart_2ride_engine import smart_2ride_engine, RIDES_COLLECTION
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
     if not ride:
@@ -1346,6 +1364,14 @@ async def accept_order(order_id: str, user: User = Depends(current_user)) -> dic
     if not ride and "ord-" in order_id:
         sub_id = order_id[order_id.find("ord-"):]
         ride = await database.find_one(RIDES_COLLECTION, {"orderId": sub_id})
+    if not ride and "ride-pk-" in order_id:
+        sub_id = order_id[order_id.find("ride-pk-"):]
+        ride = await database.find_one(RIDES_COLLECTION, {"_id": sub_id})
+    if not ride and "off-" in order_id:
+        parts = order_id.split("-")
+        if len(parts) >= 3:
+            r_candidate = "-".join(parts[1:-1])
+            ride = await database.find_one(RIDES_COLLECTION, {"_id": r_candidate}) or await database.find_one(RIDES_COLLECTION, {"_id": f"ride-pk-{r_candidate}"})
     
     if ride:
         try:
@@ -1357,6 +1383,8 @@ async def accept_order(order_id: str, user: User = Depends(current_user)) -> dic
 
 
 @router.post("/orders/{order_id}/reject")
+@router.post("/rides/{order_id}/reject")
+@router.post("/offers/{order_id}/reject")
 async def reject_order(
     order_id: str, body: dict | None = None, user: User = Depends(current_user)
 ) -> dict:

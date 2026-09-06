@@ -1,5 +1,5 @@
 // Rider profile data layer — backed by the shared FastAPI backend.
-import { apiGetJson } from "../core/transport";
+import { apiGetJson, apiPatchJson, apiPostJson, apiPutJson } from "../core/transport";
 import type { RiderProfile } from "@/shared/types/rider";
 
 export async function fetchRiderProfile(): Promise<RiderProfile> {

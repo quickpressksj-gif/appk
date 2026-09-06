@@ -8,6 +8,18 @@ let activeSirenOsc1: OscillatorNode | null = null;
 let activeSirenOsc2: OscillatorNode | null = null;
 let activeSirenInterval: any = null;
 
+export function unlockAudioContext(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      void ctx.resume();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   try {
@@ -39,8 +51,8 @@ export function triggerHaptic(pattern: number | number[] = [100, 50, 100]) {
 }
 
 /**
- * Loud pulsing siren for incoming order dispatch.
- * Alerts the rider even while on bike in noisy traffic!
+ * Loud pulsing dual-tone siren for incoming order dispatch.
+ * Alerts the rider immediately even while on bike in noisy traffic!
  */
 export function playOrderAlertSound() {
   const ctx = getAudioContext();
@@ -49,33 +61,56 @@ export function playOrderAlertSound() {
   stopOrderAlertSound();
   triggerHaptic([300, 150, 300, 150, 500]);
 
-  let toggle = false;
+  let step = 0;
   const playPulse = () => {
     try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      if (!ctx || ctx.state === "closed") return;
+      if (ctx.state === "suspended") {
+        void ctx.resume();
+      }
 
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(toggle ? 880 : 660, ctx.currentTime);
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.28);
+      // Primary punchy tone
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
 
-      osc.start();
-      osc.stop(ctx.currentTime + 0.28);
-      toggle = !toggle;
+      // Secondary harmonic overtone
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+
+      const freq1 = step % 2 === 0 ? 950 : 720;
+      const freq2 = step % 2 === 0 ? 1200 : 880;
+
+      osc1.type = "sawtooth";
+      osc1.frequency.setValueAtTime(freq1, ctx.currentTime);
+      gain1.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.26);
+
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(freq2, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.26);
+
+      osc1.start();
+      osc2.start();
+      osc1.stop(ctx.currentTime + 0.26);
+      osc2.stop(ctx.currentTime + 0.26);
+
+      step++;
     } catch {
       /* ignore */
     }
   };
 
   playPulse();
-  activeSirenInterval = setInterval(playPulse, 450);
+  activeSirenInterval = setInterval(playPulse, 380);
 }
 
 /**
- * Stop the incoming order siren immediately.
+ * Stop the incoming order siren immediately without delay.
  */
 export function stopOrderAlertSound() {
   if (activeSirenInterval) {
@@ -122,7 +157,7 @@ export function playDutyToggleSound(isOnline: boolean) {
       osc.frequency.exponentialRampToValueAtTime(440.0, ctx.currentTime + 0.25);
     }
 
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
 
     osc.start();
@@ -152,7 +187,7 @@ export function playSuccessChime() {
       osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.08);
 
       gain.gain.setValueAtTime(0, ctx.currentTime + index * 0.08);
-      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + index * 0.08 + 0.02);
+      gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + index * 0.08 + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.08 + 0.4);
 
       osc.start(ctx.currentTime + index * 0.08);

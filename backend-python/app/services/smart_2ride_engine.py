@@ -387,20 +387,24 @@ class Smart2RideEngine:
         excluded_rider_ids: List[str],
         preferred_rider_id: Optional[str] = None,
     ) -> List[Tuple[Dict[str, Any], float]]:
-        """Find ONLINE, AVAILABLE, ACTIVE riders within radius, ranked by distance to target."""
-        query = {
-            "isOnline": True,
-            "status": "active",
-        }
-        all_riders = await database.find_many(RIDERS_COLLECTION, query)
+        """Find ONLINE, AVAILABLE riders within radius, ranked by distance to target."""
+        all_riders = await database.find_many(RIDERS_COLLECTION, {})
         eligible: List[Tuple[Dict[str, Any], float]] = []
 
         for rider in all_riders:
-            r_id = str(rider.get("_id") or rider.get("riderId") or "")
+            is_online = rider.get("isOnline")
+            if is_online not in (True, 1, "true", "True"):
+                continue
+
+            r_id = str(rider.get("_id") or rider.get("riderId") or rider.get("id") or "")
             if not r_id or r_id in excluded_rider_ids:
                 continue
 
             if rider.get("isSuspended") or rider.get("isBlocked"):
+                continue
+
+            r_status = str(rider.get("status") or "").lower()
+            if r_status in ("suspended", "blocked", "banned", "inactive", "offline"):
                 continue
 
             r_lat = rider.get("lat") or rider.get("latitude")
@@ -462,16 +466,15 @@ class Smart2RideEngine:
             preferred_rider_id=ride.get("preferredRiderId"),
         )
 
-        # If none found within 15km, search all online active riders
+        # If none found within 15km, search all online riders
         if not ranked_riders:
-            all_online = await database.find_many(
-                RIDERS_COLLECTION,
-                {"isOnline": True, "status": "active"}
-            )
-            for rider in all_online:
-                r_id = str(rider.get("_id") or rider.get("riderId") or "")
-                if r_id and r_id not in attempted:
-                    ranked_riders.append((rider, 3.5))
+            all_riders = await database.find_many(RIDERS_COLLECTION, {})
+            for rider in all_riders:
+                is_online = rider.get("isOnline")
+                if is_online in (True, 1, "true", "True") and not rider.get("isSuspended") and not rider.get("isBlocked"):
+                    r_id = str(rider.get("_id") or rider.get("riderId") or rider.get("id") or "")
+                    if r_id and r_id not in attempted:
+                        ranked_riders.append((rider, 2.5))
 
         if not ranked_riders:
             await database.collection(RIDES_COLLECTION).update_one(
@@ -497,7 +500,7 @@ class Smart2RideEngine:
         # Broadcast offers to ALL eligible riders simultaneously
         dispatched_count = 0
         for best_rider, best_dist in ranked_riders:
-            r_id = str(best_rider.get("_id") or best_rider.get("riderId"))
+            r_id = str(best_rider.get("_id") or best_rider.get("riderId") or best_rider.get("id") or "")
             offer_id = f"off-{ride_id}-{r_id}"
             offer_doc = {
                 "_id": offer_id,
@@ -508,7 +511,7 @@ class Smart2RideEngine:
                 "rideType": ride_type,
                 "riderId": r_id,
                 "status": "pending",
-                "distanceKm": best_dist,
+                "distanceKm": round(best_dist, 1),
                 "estimatedEarning": ride.get("estimatedEarning", 45),
                 "pickupAddress": target_loc.get("address"),
                 "dropAddress": (ride.get("dropLocation") or {}).get("address"),
@@ -526,11 +529,16 @@ class Smart2RideEngine:
                 {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
                 upsert=True,
             )
+            await database.collection("rider_offers").update_one(
+                {"_id": offer_id},
+                {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
+                upsert=True,
+            )
 
             notif_title = (
                 "⚡ New Fast Laundry Pickup Trip!" if ride_type == "pickup" else "⚡ New Fast Delivery Trip!"
             )
-            notif_msg = f"Order #{ride.get('orderCode')} ({best_dist} km away). Earn ₹{ride.get('estimatedEarning', 45)} — Fastest acceptance wins!"
+            notif_msg = f"Order #{ride.get('orderCode')} ({round(best_dist, 1)} km away). Earn ₹{ride.get('estimatedEarning', 45)} — Fastest acceptance wins!"
             await database.collection(NOTIFICATIONS_COLLECTION).update_one(
                 {"_id": f"notif-{offer_id}"},
                 {
@@ -571,12 +579,13 @@ class Smart2RideEngine:
             room="riders",
         )
 
+        # Update ride record state
         await database.collection(RIDES_COLLECTION).update_one(
             {"_id": ride_id},
             {
                 "$set": {
                     "status": "OFFER_SENT",
-                    "broadcastSentAt": now,
+                    "offeredRiderId": ranked_riders[0][0].get("_id") if ranked_riders else None,
                     "dispatchedRidersCount": dispatched_count,
                     "updatedAt": now,
                 }
