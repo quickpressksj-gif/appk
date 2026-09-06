@@ -150,8 +150,12 @@ export async function apiRequest<T>(
       if (!retryable) {
         if (error instanceof ApiError && error.kind === "unauthorized" && typeof window !== "undefined") {
           clearSession(activeSessionRole());
-          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
-            window.location.href = "/auth";
+          if (
+            !window.location.pathname.startsWith("/login") &&
+            !window.location.pathname.startsWith("/auth") &&
+            !window.location.pathname.startsWith("/otp")
+          ) {
+            window.location.href = "/login";
           }
         }
         throw error;
@@ -161,8 +165,12 @@ export async function apiRequest<T>(
       if (!refreshed) {
         if (typeof window !== "undefined") {
           clearSession(activeSessionRole());
-          if (!window.location.pathname.startsWith("/auth") && !window.location.pathname.startsWith("/otp")) {
-            window.location.href = "/auth";
+          if (
+            !window.location.pathname.startsWith("/login") &&
+            !window.location.pathname.startsWith("/auth") &&
+            !window.location.pathname.startsWith("/otp")
+          ) {
+            window.location.href = "/login";
           }
         }
         throw error;

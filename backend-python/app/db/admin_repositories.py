@@ -1796,7 +1796,7 @@ class AdminRiderRepository:
             {
                 "id": str(o.get("_id") or o.get("id")),
                 "orderCode": o.get("code") or f"QP{str(o.get('_id', ''))[:4].upper()}",
-                "service": o.get("service") or o.get("serviceLabel") or "Express Laundry",
+                "service": o.get("service") or o.get("serviceLabel") or "Wash & Fold",
                 "partner": (o.get("partner") or {}).get("name") or "Store Partner",
                 "customer": (o.get("customer") or {}).get("name") or "Customer",
                 "pickupAddress": ((o.get("partner") or {}).get("address") or {}).get("formatted") or "Partner Store",

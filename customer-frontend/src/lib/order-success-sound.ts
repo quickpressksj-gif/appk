@@ -93,3 +93,51 @@ export function playOrderPlacedSonicChime(): void {
     console.debug("[Audio] Order sound playback notice:", e);
   }
 }
+
+/**
+ * Plays a vibrant, clear dual-harmonic order bell chime (Ding-Dong / Swiggy / Zomato order alert style):
+ * - Bell strike 1 at 1046.5 Hz (C6) with bright metallic tone
+ * - Bell strike 2 at 1318.5 Hz (E6) with warm resonance
+ */
+export function playOrderBellNotificationSound(): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const strikes = [
+      { freq: 1046.5, start: 0.0, duration: 0.35, gain: 0.4 },
+      { freq: 1318.5, start: 0.14, duration: 0.55, gain: 0.45 },
+    ];
+
+    strikes.forEach(({ freq, start, duration, gain }) => {
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + start);
+
+      gainNode.gain.setValueAtTime(0.001, now + start);
+      gainNode.gain.linearRampToValueAtTime(gain, now + start + 0.012);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + start + duration);
+
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      osc.start(now + start);
+      osc.stop(now + start + duration);
+    });
+
+    // Soft haptic pulse
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate([80, 40, 100]);
+      } catch {
+        // ignore
+      }
+    }
+  } catch (e) {
+    console.debug("[Audio] Order bell notification sound notice:", e);
+  }
+}
+

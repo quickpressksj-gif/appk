@@ -176,9 +176,9 @@ const SERVICES: (MasterCatalogItem & { category?: string })[] = [
   { id: "Curtain Cleaning (Per Panel)", name: "Curtain Cleaning (Per Panel)", price: 199, unit: "panel", defaultHours: 36, category: "home-care", desc: "Dust-free steam extraction and anti-shrink washing." },
   { id: "Carpet / Rug Deep Shampoo", name: "Carpet / Rug Deep Shampoo", price: 449, unit: "carpet", defaultHours: 48, category: "home-care", desc: "Industrial fibre deep shampoo wash and stain extraction." },
 
-  // 🚀 7. Express Priority Turnaround
-  { id: "Express Laundry (6 Hours)", name: "Express Laundry (6 Hours)", price: 129, unit: "kg", defaultHours: 6, category: "express", desc: "Priority wash, tumble dry and pack within 6 hours." },
-  { id: "Express Steam Ironing (4 Hours)", name: "Express Steam Ironing (4 Hours)", price: 25, unit: "pc", defaultHours: 4, category: "express", desc: "Superfast urgent wardrobe pressing within 4 hours." },
+  // 👜 7. Bag & Leather Cleaning
+  { id: "Leather Jacket & Coat Spa", name: "Leather Jacket & Coat Spa", price: 499, unit: "pc", defaultHours: 72, category: "leather", desc: "Deep conditioning, stain removal and leather nourishment." },
+  { id: "Luxury Handbag & Purse Spa", name: "Luxury Handbag & Purse Spa", price: 399, unit: "pc", defaultHours: 48, category: "leather", desc: "Interior sanitization, strap conditioning and hardware polish." },
 ];
 
 const SERVICE_CATEGORY_TABS = [
@@ -187,9 +187,9 @@ const SERVICE_CATEGORY_TABS = [
   { id: "dry-clean", label: "👔 Dry Clean" },
   { id: "wash", label: "🧺 Wash & Fold" },
   { id: "premium", label: "✨ Saree & Silk" },
-  { id: "shoe-care", label: "👟 Shoes & Bags" },
+  { id: "shoe-care", label: "👟 Shoes & Care" },
   { id: "home-care", label: "🪟 Blankets & Home" },
-  { id: "express", label: "🚀 Express" },
+  { id: "leather", label: "👜 Bag & Leather" },
 ] as const;
 
 function resolveServiceIcon(s: MasterCatalogItem) {
@@ -319,7 +319,7 @@ export function BusinessRegistrationScreen() {
     "Shoe Cleaning": 249,
     "Blanket Wash": 349,
     "Curtain Cleaning": 199,
-    "Express Laundry": 129,
+    "Bag & Leather Cleaning": 399,
   });
   const [serviceTurnarounds, setServiceTurnarounds] = useState<Record<string, number>>({
     "Wash & Fold": 24,
@@ -330,7 +330,7 @@ export function BusinessRegistrationScreen() {
     "Shoe Cleaning": 48,
     "Blanket Wash": 48,
     "Curtain Cleaning": 36,
-    "Express Laundry": 12,
+    "Bag & Leather Cleaning": 48,
   });
 
   // Fetch real-time Master Service Catalog from Admin Panel / Backend

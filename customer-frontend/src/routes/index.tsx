@@ -63,7 +63,7 @@ function SplashScreen() {
     ]).then(([{ loggedIn }]) => {
       if (cancelled) return;
       if (loggedIn) stopRefresh = startCustomerAutoRefresh();
-      navigate({ to: loggedIn ? "/home" : "/login" });
+      navigate({ to: loggedIn ? "/home" : "/login", replace: true });
     });
     return () => {
       cancelled = true;

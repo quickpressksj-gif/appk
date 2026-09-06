@@ -21,9 +21,15 @@ import {
   Truck,
   Wallet,
   WashingMachine,
+  Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  getNotificationPermission,
+  requestPushNotificationPermission,
+} from "@/api/core/firebase-messaging";
+import { playOrderBellNotificationSound } from "@/lib/order-success-sound";
 
 import { BottomNav } from "@/components/home/BottomNav";
 import { NotificationsSkeleton } from "@/components/rewards/RewardsSkeletons";
@@ -108,7 +114,12 @@ function NotificationsScreen() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const sentinel = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
 
   /* Debounce the search box so typing never floods the API. */
   useEffect(() => {
@@ -304,6 +315,53 @@ function NotificationsScreen() {
                 {option.label}
               </button>
             ))}
+          </div>
+
+          {/* Push Notification & Sound Bell Status Card */}
+          <div className="card-soft mt-3.5 flex items-center justify-between gap-3 border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 rounded-2xl dark:border-emerald-500/20 dark:bg-emerald-950/20">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                <Bell className="size-4.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-zinc-900 dark:text-white">
+                  Order Bell & Live Alerts
+                </p>
+                <p className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 truncate">
+                  {notifPermission === "granted" ? "Push notifications & bell sound active" : "Enable real-time push notifications"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  playOrderBellNotificationSound();
+                  toast("🔔 Order Bell Test Sound", { description: "Order chime sound working perfectly!" });
+                }}
+                className="flex items-center gap-1 rounded-xl bg-white dark:bg-zinc-800 border border-border px-2.5 py-1.5 text-[11px] font-bold text-foreground hover:bg-muted active:scale-95 transition-all shadow-2xs"
+                title="Test Order Bell Sound"
+              >
+                <Volume2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Test Bell</span>
+              </button>
+              {notifPermission !== "granted" && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const token = await requestPushNotificationPermission();
+                    setNotifPermission(getNotificationPermission());
+                    if (token || getNotificationPermission() === "granted") {
+                      playOrderBellNotificationSound();
+                      toast.success("Notifications & Order Bell Enabled! 🔔");
+                    }
+                  }}
+                  className="rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+                >
+                  Enable
+                </button>
+              )}
+            </div>
           </div>
 
           {offline || cached ? (

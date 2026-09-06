@@ -33,7 +33,7 @@ export interface CompactServiceItem {
   badges: string[];
   accentColor: string;
   bgLight: string;
-  iconType: "laundry" | "dryclean" | "steam" | "shoe" | "home" | "courier" | "business";
+  iconType: "laundry" | "dryclean" | "steam" | "shoe" | "home" | "bag" | "business";
 }
 
 const ALL_SERVICES_CATALOG: CompactServiceItem[] = [
@@ -272,36 +272,36 @@ const ALL_SERVICES_CATALOG: CompactServiceItem[] = [
     iconType: "home",
   },
 
-  // ─── Category: Express Logistics ─────────────────────────────────────────
+  // ─── Category: Bag & Leather Cleaning ─────────────────────────────────────
   {
-    id: "courier-instant-point",
-    title: "Instant Point-to-Point Courier",
-    category: "Express Logistics",
-    categoryPill: "🛵 Express Courier",
-    tagline: "Direct point-to-point courier across Noida & NCR.",
-    desc: "Movement of urgent parcels, documents, gifts, keys, and retail deliveries with live GPS tracking.",
-    turnaround: "⚡ Under 45 Mins",
-    sla: "< 12m Dispatch",
-    bestFor: "Urgent packages, forgotten keys & gifts",
-    badges: ["Live GPS Map", "Photo Proof Drop", "₹5,000 Insured"],
-    accentColor: "#2563EB",
-    bgLight: "#EFF6FF",
-    iconType: "courier",
+    id: "leather-jackets-coats",
+    title: "Leather Jackets & Suede Spa",
+    category: "Bag & Leather Cleaning",
+    categoryPill: "👜 Bag & Leather",
+    tagline: "Specialized deep restoration for pure leather & suede.",
+    desc: "Conditioning, stain removal, color rejuvenation, and moisture-seal finish for leather jackets, coats & luxury apparel.",
+    turnaround: "⚡ 48-72h Return",
+    sla: "Zero Moisture Residue",
+    bestFor: "Pure leather jackets, suede coats & biker wear",
+    badges: ["Leather Nourishment", "Wax Buffing", "Color Restored"],
+    accentColor: "#92400E",
+    bgLight: "#FEF3C7",
+    iconType: "bag",
   },
   {
-    id: "courier-secure-docs",
-    title: "Secure Document & Contract Courier",
-    category: "Express Logistics",
-    categoryPill: "🛵 Express Courier",
-    tagline: "Tamper-proof sealed envelope transit with OTP.",
-    desc: "Confidential legal documents, bank cheques, passports, and business contracts delivered with OTP.",
-    turnaround: "⚡ Under 60 Mins",
-    sla: "100% OTP Security",
-    bestFor: "Legal papers, contracts & bank cheques",
-    badges: ["Tamper-Proof Seal", "Receiver OTP", "SMS Realtime"],
-    accentColor: "#7C3AED",
-    bgLight: "#F5F3FF",
-    iconType: "courier",
+    id: "leather-handbags-backpacks",
+    title: "Luxury Handbag & Backpack Spa",
+    category: "Bag & Leather Cleaning",
+    categoryPill: "👜 Bag & Leather",
+    tagline: "Deep interior sanitization & exterior hardware buffing.",
+    desc: "Stain extraction, lining deodorization, zipper lubrication, and edge refinishing for designer handbags, purses & backpacks.",
+    turnaround: "⚡ 48h Return",
+    sla: "100% Gentle Care",
+    bestFor: "Designer handbags, leather backpacks & travel bags",
+    badges: ["Hardware Polish", "Lining Deodorized", "Stain Barrier"],
+    accentColor: "#78350F",
+    bgLight: "#FDF4FF",
+    iconType: "bag",
   },
 
   // ─── Category: Enterprise B2B ───────────────────────────────────────────
@@ -344,7 +344,7 @@ const CATEGORIES = [
   { label: "Steam Pressing", icon: "⚡" },
   { label: "Shoe & Leather Spa", icon: "👟" },
   { label: "Home & Bulky Linens", icon: "🏠" },
-  { label: "Express Logistics", icon: "🛵" },
+  { label: "Bag & Leather Cleaning", icon: "👜" },
   { label: "Enterprise B2B", icon: "🏢" },
 ];
 
@@ -355,7 +355,7 @@ const QUICK_TAGS = [
   "⚡ Steam Press",
   "👟 Sneaker Spa",
   "🏠 Blankets & Quilts",
-  "🛵 45m Courier",
+  "👜 Bag & Leather",
 ];
 
 const PROCESSING_STEPS = [
@@ -472,7 +472,7 @@ export function ServicesPage({
         </h1>
         
         <p className="text-gray-600 text-xs sm:text-base max-w-2xl mx-auto mt-3 leading-relaxed">
-          From daily wash & fold and designer dry cleaning to sneaker spa and express 45-min courier across Noida & NCR.
+          From daily wash & fold and designer dry cleaning to sneaker spa and luxury bag & leather restoration across Noida & NCR.
         </p>
 
         {/* Sleek Search Bar */}
@@ -480,7 +480,7 @@ export function ServicesPage({
           <div className="relative w-full">
             <input
               type="text"
-              placeholder="Search services (e.g. Saree, Suit, Sneaker, Curtain, 45m Courier)..."
+              placeholder="Search services (e.g. Saree, Suit, Sneaker, Curtain, Leather Jacket, Handbag)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-3 rounded-2xl bg-white border border-gray-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-600 focus:ring-3 focus:ring-emerald-500/10 shadow-xs transition-all"
@@ -600,8 +600,8 @@ export function ServicesPage({
                   ? IconShield
                   : s.iconType === "home"
                   ? IconBox
-                  : s.iconType === "courier"
-                  ? IconVan
+                  : s.iconType === "bag"
+                  ? IconBriefcase
                   : IconBriefcase;
 
               return (
@@ -802,7 +802,7 @@ export function ServicesPage({
               <span style={{ color: "#34D399" }}>for 1-Click Doorstep Service.</span>
             </h2>
             <p className="text-emerald-100/80 text-xs sm:text-sm leading-relaxed max-w-xl">
-              Order fresh eco-laundry, schedule express package couriers, track your rider live on GPS maps, and manage digital invoices seamlessly from your smartphone.
+              Order fresh eco-laundry, schedule luxury leather & bag cleaning, track your rider live on GPS maps, and manage digital invoices seamlessly from your smartphone.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">

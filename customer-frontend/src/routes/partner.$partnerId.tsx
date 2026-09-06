@@ -109,7 +109,7 @@ export const Route = createFileRoute("/partner/$partnerId")({
       {
         name: "description",
         content:
-          "Browse services, pricing, reviews and photos of your nearby QuickPress laundry partner. Add wash & fold, dry cleaning or express laundry straight to your cart.",
+          "Browse services, pricing, reviews and photos of your nearby QuickPress laundry partner. Add wash & fold, dry cleaning or bag & leather cleaning straight to your cart.",
       },
       { property: "og:title", content: "Partner Store — QuickPress Laundry Services" },
       {

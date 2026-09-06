@@ -1043,7 +1043,7 @@ async def onboarding(payload: OnboardingPayload, user: User = Depends(current_us
             "Shoe Cleaning": {"price": 249, "unit": "pair", "category": "shoe-care", "turnaroundHours": 48, "desc": "Deep cleaning, deodorizing and protection for sneakers and leather shoes."},
             "Blanket Wash": {"price": 349, "unit": "pc", "category": "home-care", "turnaroundHours": 48, "desc": "Bulky winter blankets and comforters washed, sanitized and fluff-dried."},
             "Curtain Cleaning": {"price": 199, "unit": "panel", "category": "home-care", "turnaroundHours": 48, "desc": "Specialized curtain and drape dust extraction and steaming."},
-            "Express Laundry": {"price": 129, "unit": "kg", "category": "laundry", "turnaroundHours": 12, "desc": "Superfast priority turnaround within 12 hours from doorstep pickup."},
+            "Bag & Leather Cleaning": {"price": 399, "unit": "pc", "category": "leather", "turnaroundHours": 48, "desc": "Specialized deep restoration and conditioning for leather jackets, handbags and suede."},
         }
         chosen = payload.services if payload.services else ["Wash & Fold", "Steam Ironing"]
         for idx, svc_item in enumerate(chosen, 1):

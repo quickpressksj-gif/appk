@@ -164,7 +164,7 @@ By accessing our website, creating an account, or placing an order, you agree to
 ## 2. Laundry & Dry Cleaning Services
 
 - QuickPress operates as a technology-enabled laundry and dry cleaning network connecting customers with certified local laundry partner stores and trained logistics delivery riders.
-- Available services include **Wash & Fold, Dry Cleaning, Steam Iron, Premium Laundry, Shoe Cleaning, Carpet Cleaning, Curtain Cleaning, Blanket Cleaning, and Express Laundry**.
+- Available services include **Wash & Fold, Dry Cleaning, Steam Iron, Premium Laundry, Shoe Cleaning, Carpet Cleaning, Curtain Cleaning, Blanket Cleaning, and Bag & Leather Cleaning**.
 - Pricing is calculated based on exact garment counts or calibrated scale weight recorded during pickup verification. The finalized summary is presented to the customer prior to wash processing.
 
 ---
@@ -364,7 +364,7 @@ FAQS_SEED: List[Dict[str, Any]] = [
         "_id": "faq-3",
         "category": "Orders",
         "question": "What services does QuickPress provide?",
-        "answer": "We offer 9 specialized fabric care services: Wash & Fold, Dry Cleaning, Steam Iron, Premium Laundry, Shoe Cleaning, Carpet Cleaning, Curtain Cleaning, Blanket Cleaning, and Express Laundry.",
+        "answer": "We offer 9 specialized fabric care services: Wash & Fold, Dry Cleaning, Steam Iron, Premium Laundry, Shoe Cleaning, Carpet Cleaning, Curtain Cleaning, Blanket Cleaning, and Bag & Leather Cleaning.",
         "sortOrder": 3,
         "isPublished": True,
     },

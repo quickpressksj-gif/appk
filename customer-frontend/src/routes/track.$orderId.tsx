@@ -28,6 +28,7 @@ import { OrderReviewModal } from "@/components/orders/OrderReviewModal";
 import { useCustomerOrderRealtime } from "@/shared/hooks/use-customer-realtime";
 import { GoogleMapView, type MapPoint } from "@/shared/ui/google-map";
 import { LiveDeliveryMap } from "@/components/map/LiveDeliveryMap";
+import { playOrderBellNotificationSound } from "@/lib/order-success-sound";
 
 import { TrackingSkeleton } from "@/components/order/OrderSkeleton";
 import {
@@ -133,6 +134,7 @@ function TrackOrderScreen() {
   useEffect(() => {
     if (!live.lastEvent) return;
     if (live.etaMinutes !== null) setEta(live.etaMinutes);
+    playOrderBellNotificationSound();
     setReloadKey((key) => key + 1);
   }, [live.lastEvent]);
 

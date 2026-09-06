@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
-import { Bell, Sparkles, X, Check, ArrowRight } from "lucide-react";
+import { Bell, Sparkles, X, Check, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRealtimeEvent } from "@/shared/hooks/use-realtime";
+import {
+  isPushNotificationSupported,
+  getNotificationPermission,
+  requestPushNotificationPermission,
+  setupForegroundMessageListener,
+} from "@/api/core/firebase-messaging";
+import {
+  playOrderBellNotificationSound,
+  playOrderPlacedSonicChime,
+} from "@/lib/order-success-sound";
 
 export function NotificationManager() {
   const queryClient = useQueryClient();
@@ -10,51 +20,81 @@ export function NotificationManager() {
   const [permissionState, setPermissionState] = useState<NotificationPermission | "unsupported">("default");
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
+    if (!isPushNotificationSupported()) {
       setPermissionState("unsupported");
       return undefined;
     }
 
-    const current = Notification.permission;
+    const current = getNotificationPermission();
     setPermissionState(current);
 
-    // Show permission prompt after a brief 2-second delay if not yet granted/denied
+    // If permission was already granted in a past session, ensure foreground listener & FCM sync is active
+    if (current === "granted") {
+      void requestPushNotificationPermission();
+    }
+
+    // Show permission prompt after a brief 1.5-second delay if not yet granted/denied
     // and not previously dismissed in this session
     const dismissed = sessionStorage.getItem("qp_notif_prompt_dismissed");
     if (current === "default" && !dismissed) {
       const timer = setTimeout(() => {
         setShowPrompt(true);
-      }, 2000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
     return undefined;
   }, []);
 
+  // Set up Firebase Cloud Messaging (FCM) Foreground Listener with Order Bell Chime
+  useEffect(() => {
+    let cleanup: (() => void) | null = null;
+    void setupForegroundMessageListener((payload) => {
+      // Play instant order bell chime sound on incoming push
+      playOrderBellNotificationSound();
+
+      // Refresh notification queries
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    }).then((unsub) => {
+      if (unsub) cleanup = unsub;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, [queryClient]);
+
   const requestPermission = async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (!isPushNotificationSupported()) return;
     try {
-      const result = await Notification.requestPermission();
-      setPermissionState(result);
       setShowPrompt(false);
       sessionStorage.setItem("qp_notif_prompt_dismissed", "true");
 
-      if (result === "granted") {
-        toast.success("Notifications enabled!", {
-          description: "You will receive real-time order alerts and exclusive offers.",
+      const token = await requestPushNotificationPermission();
+      const nextPermission = getNotificationPermission();
+      setPermissionState(nextPermission);
+
+      if (nextPermission === "granted" || token) {
+        // Ring the cheerful order bell sound to confirm audio & notification permission
+        playOrderBellNotificationSound();
+
+        toast.success("Notifications & Alerts Enabled! 🔔", {
+          description: "You will receive real-time order alerts, live rider updates, and exclusive deals.",
           icon: <Check className="size-4 text-emerald-500" />,
         });
-        // Send a test welcome local notification
+
+        // Send a test local welcome notification
         try {
-          new Notification("QuickPress Laundry Notifications Active 🎉", {
-            body: "You will now get live pickup, wash, and delivery updates right here.",
+          new Notification("QuickPress Notifications Active 🔔", {
+            body: "Live pickup, wash, and delivery order alerts are enabled.",
             icon: "/favicon.png",
           });
         } catch {
-          // ignore web worker / android service restrictions
+          // ignore web worker / platform restrictions
         }
       } else {
         toast.info("Notifications not enabled", {
-          description: "You can enable notifications anytime in your browser/app settings.",
+          description: "You can enable notifications anytime in your browser settings.",
         });
       }
     } catch (err) {
@@ -67,41 +107,66 @@ export function NotificationManager() {
     sessionStorage.setItem("qp_notif_prompt_dismissed", "true");
   };
 
-  // Real-time broadcast listener
-  useRealtimeEvent(["admin_broadcast", "notification_created", "notification.created"], (payload: any) => {
-    const title = payload?.title || "QuickPress Alert";
-    const message = payload?.message || payload?.description || "";
+  // Real-time broadcast & order lifecycle event listener
+  useRealtimeEvent(
+    [
+      "admin_broadcast",
+      "notification_created",
+      "notification.created",
+      "order_status_updated",
+      "order_status_changed",
+      "order_accepted",
+      "order_ready",
+      "order_picked_up",
+      "order_out_for_delivery",
+      "order_delivered",
+      "rider_assigned",
+    ],
+    (payload: any) => {
+      const title = payload?.title || payload?.event || "🔔 QuickPress Order Update";
+      const message = payload?.message || payload?.description || payload?.text || "Your laundry order has an update.";
+      const orderId = payload?.orderId || payload?.id;
 
-    // 1. Invalidate caches so UI & badge update instantly
-    queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+      // 1. Play signature order bell chime sound
+      playOrderBellNotificationSound();
 
-    // 2. Display rich in-app toast
-    toast(title, {
-      description: message,
-      icon: <Bell className="size-4 text-amber-500 fill-amber-400" />,
-      duration: 6000,
-      action: {
-        label: "View",
-        onClick: () => {
-          window.location.href = "/notifications";
+      // 2. Invalidate caches so UI & badge update instantly
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      }
+
+      // 3. Display rich in-app toast with order link
+      toast(title, {
+        description: message,
+        icon: <Bell className="size-4 text-amber-500 fill-amber-400" />,
+        duration: 6000,
+        action: {
+          label: "View",
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              window.location.href = orderId ? `/track/${orderId}` : "/notifications";
+            }
+          },
         },
-      },
-    });
+      });
 
-    // 3. Trigger native OS / Mobile push notification if permission is granted
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-      try {
-        new Notification(title, {
-          body: message,
-          icon: "/favicon.png",
-          badge: "/favicon.png",
-        });
-      } catch (err) {
-        console.warn("Native Notification error:", err);
+      // 4. Trigger native OS / Mobile push notification if permission is granted
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(title, {
+            body: message,
+            icon: "/favicon.png",
+            badge: "/favicon.png",
+          });
+        } catch (err) {
+          console.warn("Native Notification error:", err);
+        }
       }
     }
-  });
+  );
 
   if (!showPrompt) return null;
 
@@ -115,9 +180,12 @@ export function NotificationManager() {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-                Allow Notifications
-              </h4>
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                  Allow Notifications
+                </h4>
+                <Volume2 className="size-3 text-emerald-600 dark:text-emerald-400" />
+              </div>
               <button
                 type="button"
                 onClick={dismissPrompt}
@@ -130,7 +198,7 @@ export function NotificationManager() {
               Never miss a pickup, delivery, or promo!
             </p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Get live rider tracking milestones and exclusive discount codes.
+              Get live rider tracking milestones, order bell chimes, and exclusive discount codes.
             </p>
 
             <div className="mt-3.5 flex items-center gap-2">
@@ -156,3 +224,4 @@ export function NotificationManager() {
     </div>
   );
 }
+

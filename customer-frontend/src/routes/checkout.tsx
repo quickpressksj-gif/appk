@@ -201,7 +201,7 @@ export function CheckoutPage() {
           });
 
           const outcome = await openRazorpayCheckout(rzpOrder, {
-            description: "QuickPress Express Laundry",
+            description: "QuickPress Laundry Order",
             profile: {
               name: customerName.trim(),
               contact: cleanPhone,
