@@ -410,10 +410,12 @@ class Smart2RideEngine:
         return eligible
 
     # -------------------------------------------------------------------------
-    # 4. SEQUENTIAL 1-BY-1 OFFER DISPATCH WITH 30s TIMER
+    # 4. FLASH BROADCAST DISPATCH (FIRST-COME-FIRST-SERVE TO ALL NEARBY CAPTAINS)
     # -------------------------------------------------------------------------
     async def dispatch_next_offer(self, ride_id: str) -> None:
-        """Find the next nearest eligible rider and offer the ride exclusively for 30s."""
+        """Flash Broadcast Dispatch: Send trip details instantly to ALL nearby online Captains.
+        The first Captain to tap Accept locks and claims the trip.
+        """
         ride = await database.find_one(RIDES_COLLECTION, {"_id": ride_id})
         if not ride or ride.get("status") in ("ACCEPTED", "COMPLETED", "CANCELLED"):
             return
@@ -423,35 +425,36 @@ class Smart2RideEngine:
         target_loc = ride.get("pickupLocation") or {}
         t_lat = float(target_loc.get("latitude") or 27.8118)
         t_lng = float(target_loc.get("longitude") or 78.6477)
+        now = lifecycle.now_iso()
 
+        # Look for eligible riders within expanded radius (15 km)
         attempted = list(ride.get("attemptedRiderIds") or [])
-        stage_idx = int(ride.get("currentRadiusStage") or 0)
+        ranked_riders = await self.find_ranked_eligible_riders(
+            target_lat=t_lat,
+            target_lng=t_lng,
+            radius_km=15.0,
+            city="Kasganj",
+            excluded_rider_ids=attempted,
+            preferred_rider_id=ride.get("preferredRiderId"),
+        )
 
-        best_rider: Optional[Dict[str, Any]] = None
-        best_dist: float = 0.0
-
-        while stage_idx < len(SEARCH_RADIUS_STAGES):
-            radius = SEARCH_RADIUS_STAGES[stage_idx]
-            ranked = await self.find_ranked_eligible_riders(
-                target_lat=t_lat,
-                target_lng=t_lng,
-                radius_km=radius,
-                city="Kasganj",
-                excluded_rider_ids=attempted,
-                preferred_rider_id=ride.get("preferredRiderId"),
+        # If none found within 15km, search all online active riders
+        if not ranked_riders:
+            all_online = await database.find_many(
+                RIDERS_COLLECTION,
+                {"isOnline": True, "status": "active"}
             )
-            if ranked:
-                best_rider, best_dist = ranked[0]
-                break
-            stage_idx += 1
+            for rider in all_online:
+                r_id = str(rider.get("_id") or rider.get("riderId") or "")
+                if r_id and r_id not in attempted:
+                    ranked_riders.append((rider, 3.5))
 
-        if not best_rider:
-            now = lifecycle.now_iso()
+        if not ranked_riders:
             await database.collection(RIDES_COLLECTION).update_one(
                 {"_id": ride_id},
                 {"$set": {"status": "NO_RIDER_FOUND", "updatedAt": now}},
             )
-            logger.warning("No eligible online riders found for Ride %s after expanding search.", ride_id)
+            logger.warning("No online captains available for Ride %s", ride_id)
             await sio.emit(
                 "admin.no_rider_found",
                 {"rideId": ride_id, "orderId": order_id, "rideType": ride_type},
@@ -459,10 +462,7 @@ class Smart2RideEngine:
             )
             return
 
-        r_id = str(best_rider.get("_id") or best_rider.get("riderId"))
-        attempted.append(r_id)
-        now = lifecycle.now_iso()
-        timeout_sec = DEFAULT_OFFER_TIMEOUT_SECONDS
+        timeout_sec = 45
         expires_at = (
             (datetime.now(timezone.utc) + timedelta(seconds=timeout_sec))
             .replace(microsecond=0)
@@ -470,29 +470,81 @@ class Smart2RideEngine:
             .replace("+00:00", "Z")
         )
 
-        offer_id = f"off-{ride_id}-{r_id}"
-        offer_doc = {
-            "_id": offer_id,
-            "offerId": offer_id,
-            "rideId": ride_id,
-            "orderId": order_id,
-            "orderCode": ride.get("orderCode"),
-            "rideType": ride_type,
-            "riderId": r_id,
-            "status": "pending",
-            "distanceKm": best_dist,
-            "estimatedEarning": ride.get("estimatedEarning", 45),
-            "pickupAddress": target_loc.get("address"),
-            "dropAddress": (ride.get("dropLocation") or {}).get("address"),
-            "createdAt": now,
-            "expiresAt": expires_at,
-            "timeoutSeconds": timeout_sec,
-        }
+        # Broadcast offers to ALL eligible riders simultaneously
+        dispatched_count = 0
+        for best_rider, best_dist in ranked_riders:
+            r_id = str(best_rider.get("_id") or best_rider.get("riderId"))
+            offer_id = f"off-{ride_id}-{r_id}"
+            offer_doc = {
+                "_id": offer_id,
+                "offerId": offer_id,
+                "rideId": ride_id,
+                "orderId": order_id,
+                "orderCode": ride.get("orderCode"),
+                "rideType": ride_type,
+                "riderId": r_id,
+                "status": "pending",
+                "distanceKm": best_dist,
+                "estimatedEarning": ride.get("estimatedEarning", 45),
+                "pickupAddress": target_loc.get("address"),
+                "dropAddress": (ride.get("dropLocation") or {}).get("address"),
+                "customerName": target_loc.get("contactName") or "Customer",
+                "customerPhone": target_loc.get("contactPhone") or "",
+                "partnerName": (ride.get("dropLocation") or {}).get("contactName") or "QuickPress Store",
+                "partnerPhone": (ride.get("dropLocation") or {}).get("contactPhone") or "",
+                "createdAt": now,
+                "expiresAt": expires_at,
+                "timeoutSeconds": timeout_sec,
+            }
 
-        await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_one(
-            {"_id": offer_id},
-            {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
-            upsert=True,
+            await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_one(
+                {"_id": offer_id},
+                {"$set": {k: v for k, v in offer_doc.items() if k != "_id"}},
+                upsert=True,
+            )
+
+            notif_title = (
+                "⚡ New Fast Laundry Pickup Trip!" if ride_type == "pickup" else "⚡ New Fast Delivery Trip!"
+            )
+            notif_msg = f"Order #{ride.get('orderCode')} ({best_dist} km away). Earn ₹{ride.get('estimatedEarning', 45)} — Fastest acceptance wins!"
+            await database.collection(NOTIFICATIONS_COLLECTION).update_one(
+                {"_id": f"notif-{offer_id}"},
+                {
+                    "$set": {
+                        "riderId": r_id,
+                        "orderId": order_id,
+                        "rideId": ride_id,
+                        "type": "new_order_offer",
+                        "title": notif_title,
+                        "message": notif_msg,
+                        "createdAt": now,
+                        "read": False,
+                    }
+                },
+                upsert=True,
+            )
+
+            # Send real-time socket offer to rider
+            await sio.emit(
+                EVENT_ORDER_RIDER_OFFER,
+                offer_doc,
+                room=f"rider:{r_id}",
+            )
+            dispatched_count += 1
+
+        # Also emit to global riders channel
+        await sio.emit(
+            EVENT_ORDER_RIDER_OFFER,
+            {
+                "rideId": ride_id,
+                "orderId": order_id,
+                "orderCode": ride.get("orderCode"),
+                "rideType": ride_type,
+                "pickupAddress": target_loc.get("address"),
+                "dropAddress": (ride.get("dropLocation") or {}).get("address"),
+                "estimatedEarning": ride.get("estimatedEarning", 45),
+            },
+            room="riders",
         )
 
         await database.collection(RIDES_COLLECTION).update_one(
@@ -500,97 +552,21 @@ class Smart2RideEngine:
             {
                 "$set": {
                     "status": "OFFER_SENT",
-                    "offeredRiderId": r_id,
-                    "activeOfferId": offer_id,
-                    "currentRadiusStage": stage_idx,
-                    "attemptedRiderIds": attempted,
+                    "broadcastSentAt": now,
+                    "dispatchedRidersCount": dispatched_count,
                     "updatedAt": now,
                 }
             },
         )
-
-        notif_title = (
-            "New Laundry Pickup Available! ⚡" if ride_type == "pickup" else "New Laundry Delivery Trip! 🚚"
-        )
-        notif_msg = f"Order #{ride.get('orderCode')} ({best_dist} km away). Earn ₹{ride.get('estimatedEarning', 45)}"
-        await database.collection(NOTIFICATIONS_COLLECTION).update_one(
-            {"_id": f"notif-{offer_id}"},
-            {
-                "$set": {
-                    "riderId": r_id,
-                    "orderId": order_id,
-                    "rideId": ride_id,
-                    "type": "new_order_offer",
-                    "title": notif_title,
-                    "message": notif_msg,
-                    "createdAt": now,
-                    "read": False,
-                }
-            },
-            upsert=True,
-        )
-
-        await sio.emit(
-            EVENT_ORDER_RIDER_OFFER,
-            offer_doc,
-            room=f"rider:{r_id}",
-        )
         logger.info(
-            "Dispatched %s Ride offer %s to Rider %s (Distance: %s km, Timeout: 30s)",
+            "⚡ Flash Broadcast %s Ride %s to %d online Captains simultaneously.",
             ride_type,
             ride_id,
-            r_id,
-            best_dist,
+            dispatched_count,
         )
-
-        if ride_id in self._active_timers:
-            self._active_timers[ride_id].cancel()
-
-        self._active_timers[ride_id] = asyncio.create_task(
-            self._handle_offer_timeout(ride_id, r_id, offer_id, timeout_sec)
-        )
-
-    async def _handle_offer_timeout(
-        self, ride_id: str, rider_id: str, offer_id: str, wait_seconds: int
-    ) -> None:
-        """Wait 30s. If rider has not accepted, expire offer and move to next rider."""
-        try:
-            await asyncio.sleep(wait_seconds)
-        except asyncio.CancelledError:
-            return
-
-        ride = await database.find_one(RIDES_COLLECTION, {"_id": ride_id})
-        if not ride or ride.get("status") != "OFFER_SENT":
-            return
-        if ride.get("offeredRiderId") != rider_id:
-            return
-
-        logger.info("Offer %s for Rider %s timed out. Auto-reassigning next rider...", offer_id, rider_id)
-        now = lifecycle.now_iso()
-
-        await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_one(
-            {"_id": offer_id},
-            {"$set": {"status": "timed_out", "updatedAt": now}},
-        )
-
-        await database.collection(RIDES_COLLECTION).update_one(
-            {"_id": ride_id},
-            {
-                "$push": {
-                    "assignmentHistory": {
-                        "riderId": rider_id,
-                        "outcome": "timed_out",
-                        "at": now,
-                    }
-                },
-                "$set": {"status": "SEARCHING_RIDER", "offeredRiderId": None, "updatedAt": now},
-            },
-        )
-
-        await self.dispatch_next_offer(ride_id)
 
     # -------------------------------------------------------------------------
-    # 5. ATOMIC ACCEPTANCE & REJECTION
+    # 5. ATOMIC ACCEPTANCE & REJECTION (FIRST-COME-FIRST-SERVE)
     # -------------------------------------------------------------------------
     async def handle_rider_accept(self, ride_id: str, rider_id: str) -> Dict[str, Any]:
         """Atomically claim the ride. Guarantees that only ONE rider can win the ride."""
@@ -598,16 +574,13 @@ class Smart2RideEngine:
         if not ride:
             raise LookupError(f"Ride {ride_id} does not exist")
 
-        if ride.get("status") == "ACCEPTED" and ride.get("riderId") != rider_id:
+        if ride.get("status") == "ACCEPTED":
+            if ride.get("riderId") == rider_id:
+                return ride
             raise ValueError("RIDE_ALREADY_ASSIGNED: Another delivery partner has already accepted this trip.")
 
-        if ride.get("offeredRiderId") and ride.get("offeredRiderId") != rider_id:
-            active_off = await database.find_one(
-                RIDE_ASSIGNMENTS_COLLECTION,
-                {"rideId": ride_id, "riderId": rider_id, "status": "pending"},
-            )
-            if not active_off:
-                raise ValueError("This ride offer has expired or was assigned to another partner.")
+        if ride.get("status") in ("COMPLETED", "CANCELLED"):
+            raise ValueError("This trip is no longer active.")
 
         if ride_id in self._active_timers:
             self._active_timers[ride_id].cancel()
@@ -635,6 +608,7 @@ class Smart2RideEngine:
             "trips": str(rider_profile.get("totalTrips", 120)),
         }
 
+        # Atomic update on RIDES_COLLECTION
         await database.collection(RIDES_COLLECTION).update_one(
             {"_id": ride_id},
             {
@@ -655,12 +629,17 @@ class Smart2RideEngine:
             },
         )
 
-        active_offer_id = ride.get("activeOfferId")
-        if active_offer_id:
-            await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_one(
-                {"_id": active_offer_id},
-                {"$set": {"status": "accepted", "updatedAt": now}},
-            )
+        # Mark this rider's offer as accepted
+        await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_one(
+            {"rideId": ride_id, "riderId": rider_id},
+            {"$set": {"status": "accepted", "updatedAt": now}},
+        )
+
+        # Mark all other competing pending offers as claimed_by_other
+        await database.collection(RIDE_ASSIGNMENTS_COLLECTION).update_many(
+            {"rideId": ride_id, "riderId": {"$ne": rider_id}, "status": "pending"},
+            {"$set": {"status": "claimed_by_other", "updatedAt": now}},
+        )
 
         order_id = ride.get("orderId")
         target_status = (
@@ -688,17 +667,20 @@ class Smart2RideEngine:
                 actor_role="rider",
                 at=now,
             )
-            await broadcast_order_event(
-                EVENT_ORDER_RIDER_ASSIGNED,
-                order,
-                extra_data={
-                    "rideId": ride_id,
-                    "rideType": ride.get("rideType"),
-                    "rider": rider_party,
-                },
-            )
 
-        return {"ok": True, "rideId": ride_id, "rider": rider_party, "status": "ACCEPTED"}
+        # Broadcast that this ride is now assigned so all other captains' modals dismiss
+        await broadcast_order_event(
+            EVENT_ORDER_RIDER_ASSIGNED,
+            order or {"_id": order_id, "rider": rider_party},
+            extra_data={"rideId": ride_id, "riderId": rider_id, "riderName": r_name},
+        )
+        await sio.emit(
+            "ride.claimed",
+            {"rideId": ride_id, "claimedBy": rider_id, "orderId": order_id},
+            room="riders",
+        )
+
+        return await database.find_one(RIDES_COLLECTION, {"_id": ride_id}) or ride
 
     async def handle_rider_reject(
         self, ride_id: str, rider_id: str, reason: str = "Declined by rider"

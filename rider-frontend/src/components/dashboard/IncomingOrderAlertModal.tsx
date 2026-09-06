@@ -9,6 +9,7 @@ import {
   Navigation,
   Sparkles,
   X,
+  Zap,
 } from "lucide-react";
 import { playOrderAlertSound, stopOrderAlertSound, playSuccessChime } from "../../lib/captain-audio";
 
@@ -33,7 +34,7 @@ export function IncomingOrderAlertModal({
   onAccept: (offer: IncomingOffer) => void;
   onDecline: () => void;
 }) {
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(45);
 
   useEffect(() => {
     // Start loud siren
@@ -68,7 +69,7 @@ export function IncomingOrderAlertModal({
     onDecline();
   };
 
-  const progressPercent = (countdown / 30) * 100;
+  const progressPercent = (countdown / 45) * 100;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-md animate-in fade-in duration-200 select-none">
@@ -77,13 +78,14 @@ export function IncomingOrderAlertModal({
         <div className="bg-emerald-900 p-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="flex size-3 rounded-full bg-emerald-400 animate-ping" />
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-200">
-                NEW TRIP ALERT
+              <span className="flex size-3 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-200 flex items-center gap-1">
+                <Zap className="size-3.5 text-amber-300" />
+                FLASH TRIP DISPATCH
               </span>
             </div>
 
-            <span className="font-mono text-sm font-black text-white">
+            <span className="font-mono text-sm font-black text-amber-300">
               00:{countdown < 10 ? `0${countdown}` : countdown}
             </span>
           </div>
@@ -91,10 +93,16 @@ export function IncomingOrderAlertModal({
           {/* Progress timer bar */}
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-emerald-950">
             <div
-              className="h-full bg-emerald-400 transition-all duration-1000 ease-linear"
+              className="h-full bg-amber-400 transition-all duration-1000 ease-linear"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
+        </div>
+
+        {/* FCFS Banner */}
+        <div className="bg-amber-400 text-amber-950 px-4 py-2 text-[11px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5">
+          <Zap className="size-3.5" />
+          <span>FASTEST ACCEPTANCE WINS — First Captain to Accept Claims Trip!</span>
         </div>
 
         {/* Offer Details — White & Dark Green */}
