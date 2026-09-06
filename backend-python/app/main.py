@@ -71,29 +71,14 @@ async def lifespan(app: FastAPI):
     if report:
         logger.info("Identity index migrations complete: %s", report)
     await database.ensure_indexes()
-    # Background Seeding Routine (Catalog, CMS, Super Admin & Complete Operational Data)
+    # Background Routine: Preserve Super Admin Access
     async def _run_startup_seeds() -> None:
         try:
-            await catalog.ensure_seed()
-            for seed in (SERVICE_CONTENT_SEED, MEMBERSHIP_SEED, SUPPORT_SEED, AVAILABILITY_SEED):
-                for name, documents in seed.items():
-                    count = await database.count(name)
-                    if count == 0:
-                        collection = database.collection(name)
-                        for document in documents:
-                            await collection.update_one(
-                                {"_id": document["_id"]},
-                                {"$set": {k: v for k, v in document.items() if k != "_id"}},
-                                upsert=True,
-                            )
-            await cms_repo.ensure_seed()
             from app.core.admin_security import ensure_super_admin_seed
             await ensure_super_admin_seed()
-            from app.db.admin_seed import ensure_admin_operational_seed
-            await ensure_admin_operational_seed()
-            logger.info("All startup and operational database seeds initialized successfully.")
+            logger.info("Super Admin authentication initialized successfully.")
         except Exception as err:
-            logger.warning("Startup seed warning: %s", err)
+            logger.warning("Startup routine warning: %s", err)
 
     asyncio.create_task(_run_startup_seeds())
 
