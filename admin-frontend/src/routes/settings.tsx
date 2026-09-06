@@ -68,14 +68,6 @@ export const Route = createFileRoute("/settings")({
 // Category Definition for the Left Navigation
 const SETTINGS_CATEGORIES = [
   {
-    id: "platform",
-    title: "Brand Profile",
-    subtitle: "Identity & Support",
-    icon: Building2,
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-    gradient: "from-blue-500/10 to-indigo-500/10",
-  },
-  {
     id: "logistics",
     title: "Logistics & Fees",
     subtitle: "Delivery & Thresholds",
@@ -154,7 +146,7 @@ export function SettingsPage() {
   const securityEvents = useQuery({ queryKey: ["admin", "security-events"], queryFn: fetchSecurityEvents });
 
   const [draft, setDraft] = useState<AdminSettings | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("surge");
+  const [activeTab, setActiveTab] = useState<string>("logistics");
   const [searchFilter, setSearchFilter] = useState<string>("");
 
   // Interactive Live Simulator states
@@ -305,17 +297,17 @@ export function SettingsPage() {
             1. TOP HIGH-IMPACT TELEMETRY HUD (6 STAT CARDS)
         ========================================================================= */}
         <div className="grid gap-3.5 grid-cols-2 lg:grid-cols-6">
-          {/* Card 1: Brand */}
-          <div className="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/90 p-4 shadow-xs backdrop-blur-md transition-all duration-300 hover:border-blue-300 hover:shadow-md">
-            <div className="pointer-events-none absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 transition-opacity group-hover:opacity-100" />
+          {/* Card 1: Logistics & Min Cart */}
+          <div className="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/90 p-4 shadow-xs backdrop-blur-md transition-all duration-300 hover:border-emerald-300 hover:shadow-md">
+            <div className="pointer-events-none absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 transition-opacity group-hover:opacity-100" />
             <div className="flex items-center justify-between text-zinc-400">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Platform Brand</span>
-              <div className="size-7 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200/60">
-                <Building2 className="size-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Min Cart Value</span>
+              <div className="size-7 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200/60">
+                <Truck className="size-3.5" />
               </div>
             </div>
-            <p className="mt-2 text-lg font-black text-zinc-900 truncate">{draft.platform.platformName || "QuickPress"}</p>
-            <div className="mt-2 text-[10px] text-zinc-400 font-medium truncate">HQ: {draft.platform.defaultCity || "Delhi NCR"}</div>
+            <p className="mt-2 text-lg font-black text-zinc-900 truncate">₹{draft.business.minimumOrderValue}</p>
+            <div className="mt-2 text-[10px] text-zinc-400 font-medium truncate">Base Delivery: ₹{draft.business.deliveryFee}</div>
           </div>
 
           {/* Card 2: Monsoon Surge */}
@@ -549,105 +541,7 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* =====================================================================
-                TAB 1: BRAND PROFILE & IDENTITY
-            ===================================================================== */}
-            {activeTab === "platform" && (
-              <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-xs space-y-6">
-                <div>
-                  <h4 className="text-sm font-black text-zinc-900">Application Identity & Support Channels</h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Metadata rendered on customer iOS/Android applications, emails, SMS receipts, and search results.
-                  </p>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Platform Brand Name</Label>
-                    <Input
-                      value={draft.platform.platformName}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, platformName: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-bold"
-                    />
-                    <p className="text-[10px] text-zinc-400">Header title displayed to customers and merchants</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Brand Tagline / Slogan</Label>
-                    <Input
-                      value={draft.platform.tagline || ""}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, tagline: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs"
-                      placeholder="e.g. Instant Doorstep Laundry & Dry Cleaning in 24 Hours"
-                    />
-                    <p className="text-[10px] text-zinc-400">Displayed in meta headers and hero banners</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Official Support Email</Label>
-                    <Input
-                      value={draft.platform.supportEmail}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, supportEmail: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Customer Helpline Number</Label>
-                    <Input
-                      value={draft.platform.supportPhone}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, supportPhone: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Primary Hub City</Label>
-                    <Input
-                      value={draft.platform.defaultCity}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, defaultCity: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Currency Code</Label>
-                    <Input
-                      value={draft.platform.currency}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, currency: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-mono font-bold"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-zinc-800">Operating Schedule Hours</Label>
-                    <Input
-                      value={draft.platform.operatingHours || "08:00 AM - 09:00 PM (Mon-Sun)"}
-                      onChange={(e) =>
-                        setDraft((p) => (p ? { ...p, platform: { ...p.platform, operatingHours: e.target.value } } : null))
-                      }
-                      className="h-10 text-xs font-medium"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* =====================================================================
                 TAB 2: LOGISTICS, DELIVERY FEES & CART THRESHOLDS
