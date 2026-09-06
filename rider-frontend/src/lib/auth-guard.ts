@@ -12,37 +12,33 @@ import { riderRoutes } from "../navigation/rider-routes";
 export function requireRiderAuth() {
   if (typeof window === "undefined") return;
   const sess = readSession("rider") || readSession();
-  const pendingPhone =
-    typeof window !== "undefined"
-      ? window.sessionStorage?.getItem("qp.rider.pendingPhone") ||
-        window.localStorage?.getItem("qp.rider.pendingPhone")
-      : null;
 
-  // Only redirect to login if completely unauthenticated
-  if (!sess && !pendingPhone) {
+  if (!sess || !sess.token) {
     throw redirect({ to: riderRoutes.auth });
   }
   if (sess?.status === "suspended" || (sess as any)?.isSuspended) {
     throw redirect({ to: riderRoutes.suspended });
   }
 
-  // If rider has logged in, allow seamless access to dashboard, orders, wallet, and profile
+  const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
+  if (isOnboarded === false) {
+    throw redirect({ to: "/onboarding" });
+  }
+
+  const isVerified = sess.isVerified ?? sess.account?.isVerified;
+  if (isVerified === false && sess.status !== "active" && sess.account?.status !== "active") {
+    throw redirect({ to: "/onboarding" });
+  }
 }
 
 /**
  * Guard for registration & verification waiting screens.
- * Allows user who verified OTP (has session or pendingPhone) to complete onboarding.
  */
 export function requireRiderSession() {
   if (typeof window === "undefined") return;
   const sess = readSession("rider") || readSession();
-  const pendingPhone =
-    typeof window !== "undefined"
-      ? window.sessionStorage?.getItem("qp.rider.pendingPhone") ||
-        window.localStorage?.getItem("qp.rider.pendingPhone")
-      : null;
 
-  if (!sess && !pendingPhone) {
+  if (!sess || !sess.token) {
     throw redirect({ to: riderRoutes.auth });
   }
 }

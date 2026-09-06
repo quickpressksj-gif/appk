@@ -131,6 +131,15 @@ export function RiderProvider({ children }: { children: ReactNode }) {
   );
   const signOut = useCallback(() => {
     setSession(null);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("quickpress.session.rider");
+        window.localStorage.removeItem("qp.rider.activeOrder");
+        window.localStorage.removeItem("qp.rider.pendingPhone");
+        window.localStorage.removeItem("qp.rider.isOnline");
+        window.sessionStorage.removeItem("qp.rider.pendingPhone");
+      } catch {}
+    }
     void logoutRider().catch(() => undefined);
   }, []);
 

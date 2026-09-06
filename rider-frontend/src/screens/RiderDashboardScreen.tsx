@@ -132,13 +132,19 @@ export function RiderDashboardScreen() {
         });
       } else {
         setActiveOrder(null);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
+        }
       }
     } catch {
-      /* ignore */
+      setActiveOrder(null);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeOrder]);
+  }, []);
 
   // Poll real offers from /api/rider/offers when online
   const checkLiveOffers = useCallback(async () => {

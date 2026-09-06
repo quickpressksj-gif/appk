@@ -23,24 +23,28 @@ function CaptainRootSplash() {
   useEffect(() => {
     let active = true;
 
-    const timer = setTimeout(() => {
-      if (!active) return;
-      const sess = readSession("rider") || readSession();
+    void (async () => {
+      try {
+        const { restoreRiderSession } = await import("../api/rider/rider-auth-api");
+        const sess = await restoreRiderSession();
 
-      if (sess && sess.token) {
-        if (sess.isOnboarded === false && sess.account?.isOnboarded === false) {
-          void navigate({ to: "/onboarding" });
+        if (!active) return;
+        if (sess && sess.token) {
+          if (sess.isOnboarded && sess.isVerified) {
+            void navigate({ to: "/dashboard" });
+          } else {
+            void navigate({ to: "/onboarding" });
+          }
         } else {
-          void navigate({ to: "/dashboard" });
+          void navigate({ to: "/auth" });
         }
-      } else {
-        void navigate({ to: "/auth" });
+      } catch {
+        if (active) void navigate({ to: "/auth" });
       }
-    }, 400);
+    })();
 
     return () => {
       active = false;
-      clearTimeout(timer);
     };
   }, [navigate]);
 

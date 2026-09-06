@@ -77,57 +77,20 @@ export function RiderOtpScreen() {
     const cleanDigits = targetPhone.replace(/\D/g, "").slice(-10) || "9876543210";
 
     try {
-      let sessionResult: any = null;
-      try {
-        sessionResult = await verifyOtp(targetPhone || cleanDigits, digits);
-      } catch {
-        // Fallback session for dev / demo OTP
-        sessionResult = {
-          riderId: `CP-${cleanDigits.slice(-4)}`,
-          phone: `+91${cleanDigits}`,
-          fullName: "Delivery Captain",
-          isVerified: true,
-          isOnboarded: true,
-        };
-      }
+      const sessionResult = await verifyOtp(targetPhone || cleanDigits, digits);
 
-      const stored = readSession("rider") || readSession();
-      const riderId = sessionResult?.riderId || stored?.account?.linkedId || `CP-${cleanDigits.slice(-4)}`;
-      const fullName = (sessionResult?.fullName && sessionResult.fullName !== "Delivery Partner")
-        ? sessionResult.fullName
-        : stored?.account?.name || "Delivery Captain";
-
-      const authSession: AuthSession = {
-        token: sessionResult?.token || stored?.token || `qp_token_${Date.now()}_${cleanDigits}`,
-        refreshToken: sessionResult?.refreshToken || stored?.refreshToken || `qp_refresh_${Date.now()}`,
-        expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
-        account: {
-          id: riderId,
-          phone: `+91${cleanDigits}`,
-          name: fullName,
-          role: "rider",
-          isVerified: true,
-          isOnboarded: true,
-          linkedId: riderId,
-        },
-      };
-
-      writeSession(authSession, "rider");
-
-      signIn({
-        riderId,
-        phone: `+91${cleanDigits}`,
-        fullName,
-        isVerified: true,
-        isOnboarded: true,
-        isNewRider: false,
-        token: authSession.token,
-      });
-
+      signIn(sessionResult);
       setVerified(true);
       toast.success("Mobile number verified successfully!");
+
       window.setTimeout(() => {
-        navigate({ to: "/dashboard" });
+        if (sessionResult.isOnboarded && sessionResult.isVerified) {
+          navigate({ to: "/dashboard" });
+        } else if (!sessionResult.isOnboarded) {
+          navigate({ to: "/onboarding" });
+        } else {
+          navigate({ to: "/onboarding" });
+        }
       }, 400);
     } catch (cause) {
       setBusy(false);
