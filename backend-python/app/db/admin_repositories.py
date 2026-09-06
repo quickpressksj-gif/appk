@@ -3263,6 +3263,32 @@ class AdminSettingsRepository:
             except Exception:
                 pass
 
+        # Synchronize financial engine live config immediately
+        try:
+            from app.services.financial_engine import financial_engine
+            if "business" in merged and isinstance(merged["business"], dict):
+                if "deliveryFee" in merged["business"]:
+                    financial_engine.config["baseDeliveryFee"] = float(merged["business"]["deliveryFee"])
+                if "handlingFee" in merged["business"]:
+                    financial_engine.config["handlingFee"] = float(merged["business"]["handlingFee"])
+                if "freeDeliveryAbove" in merged["business"]:
+                    financial_engine.config["freeDeliveryThreshold"] = float(merged["business"]["freeDeliveryAbove"])
+            if "finance" in merged and isinstance(merged["finance"], dict):
+                if "gstPercent" in merged["finance"]:
+                    clean_gst = float(str(merged["finance"]["gstPercent"]).replace("%", "").strip())
+                    financial_engine.config["laundryGstRate"] = clean_gst / 100.0
+                if "defaultCommission" in merged["finance"]:
+                    clean_comm = float(str(merged["finance"]["defaultCommission"]).replace("%", "").strip())
+                    financial_engine.config["standardCommissionRate"] = clean_comm / 100.0
+            if "surge" in merged and isinstance(merged["surge"], dict):
+                rain_surge = float(merged["surge"].get("rainSurgeFee", 25))
+                financial_engine.config["riderRainSurge"] = rain_surge
+            if "slots" in merged and isinstance(merged["slots"], dict):
+                exp_mult = float(merged["slots"].get("express24hMultiplier", 1.5))
+                financial_engine.config["expressTurnaroundMultiplier"] = exp_mult
+        except Exception:
+            pass
+
         await database.update("admin_settings", {"_id": self.doc_id}, merged, upsert=True)
         return await self.get(scope="global")
 
