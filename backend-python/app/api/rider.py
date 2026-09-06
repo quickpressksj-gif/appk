@@ -551,7 +551,10 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
     await database.update("riders", {"user_id": user.id}, {"rider_id": rider_id_str, "user_id": user.id}, upsert=True)
 
     # 2. Extract profile fields
-    full_name = payload.get("fullName") or user.display_name or "Delivery Partner"
+    candidate_name = payload.get("fullName") or payload.get("name") or user.display_name or getattr(user, "name", "") or ""
+    if candidate_name in ("Delivery Partner", "Delivery Captain"):
+        candidate_name = ""
+    full_name = candidate_name
     phone = payload.get("mobile") or user.phone or ""
     email = payload.get("email") or user.email or ""
     city = payload.get("city") or payload.get("preferredCity") or "Kasganj"
@@ -690,7 +693,7 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
         "vehicleType": payload.get("vehicleType", "bike"),
         "vehicleNumber": payload.get("vehicleNumber", ""),
         "status": "pending",
-        "kycStatus": "verified" if payload.get("aadhaarVerified") else "pending",
+        "kycStatus": "pending",
         "liveState": "offline",
         "rating": 5.0,
         "completedDeliveries": 0,
@@ -760,7 +763,9 @@ async def rider_onboarding(body: dict, user: User = Depends(current_user)) -> di
 async def submit_registration(body: dict) -> dict:
     payload = body.get("payload", body)
     rider_id = await generate_rider_id()
-    full_name = payload.get("fullName", "Delivery Partner")
+    full_name = payload.get("fullName") or payload.get("name") or ""
+    if full_name in ("Delivery Partner", "Delivery Captain"):
+        full_name = ""
     phone = payload.get("mobile", "")
     city = payload.get("city") or payload.get("preferredCity") or "Kasganj"
 

@@ -162,28 +162,29 @@ export function CaptainOnboardingScreen() {
       const onboarding = await fetchOnboardingStatus(cleanDigits || currentPhone).catch(() => null);
       const profile = await fetchRiderProfile().catch(() => null);
 
+      // A rider is approved ONLY if isVerified is True AND status is active or approved:
       const isVerified = Boolean(
-        onboarding?.isVerified ||
-        profile?.isVerified ||
-        onboarding?.status === "active" ||
-        profile?.status === "active" ||
-        onboarding?.status === "approved" ||
-        profile?.status === "approved" ||
-        profile?.kycStatus === "verified"
+        (onboarding?.isVerified && (onboarding?.status === "active" || onboarding?.status === "approved")) ||
+        (profile?.isVerified && (profile?.status === "active" || profile?.status === "approved"))
       );
 
-      // A rider is in "pending review" ONLY if they submitted onboarding form and are awaiting approval
+      // A rider is in "pending review" if they have submitted registration and are awaiting Admin approval:
       const isPending = Boolean(
-        (onboarding?.status === "pending" && !isVerified) ||
-        (profile?.status === "pending" && Boolean(profile?.isOnboarded) && !isVerified) ||
-        (sess?.account?.isOnboarded && sess?.account?.status === "pending" && !isVerified)
+        !isVerified && (
+          onboarding?.status === "pending" ||
+          profile?.status === "pending" ||
+          (profile?.isOnboarded && profile?.status !== "unregistered") ||
+          (sess?.account?.isOnboarded && sess?.account?.status !== "unregistered")
+        )
       );
 
       // A rider is "unregistered" if they have NOT submitted onboarding
       const isUnregistered = Boolean(
-        onboarding?.status === "unregistered" ||
-        profile?.status === "unregistered" ||
-        (!isPending && !isVerified && (!profile?.isOnboarded || !onboarding?.ok))
+        !isPending && !isVerified && (
+          onboarding?.status === "unregistered" ||
+          profile?.status === "unregistered" ||
+          (!profile?.isOnboarded && !onboarding?.ok)
+        )
       );
 
       if (isVerified) {

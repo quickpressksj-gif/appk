@@ -1,5 +1,5 @@
 /** GET/POST/PUT /api/admin/riders/* — live riders from the shared backend. */
-import { apiGetJson, apiPostJson, apiPutJson } from "@/api/core/transport";
+import { apiDeleteJson, apiGetJson, apiPostJson, apiPutJson } from "@/api/core/transport";
 
 export type AdminRider = {
   id: string;
@@ -325,4 +325,9 @@ export async function logoutRiderSessions(id: string) {
 /** PUT /api/admin/riders/{id} — edit rider profile, vehicle, and bank details */
 export async function updateRider(id: string, payload: Record<string, unknown>) {
   return apiPutJson<Record<string, unknown>>(`/api/admin/riders/${encodeURIComponent(id)}`, payload);
+}
+
+/** DELETE /api/admin/riders/{id} — permanently remove rider */
+export async function deleteRider(id: string) {
+  return apiDeleteJson<{ ok: boolean; deleted: string }>(`/api/admin/riders/${encodeURIComponent(id)}`);
 }

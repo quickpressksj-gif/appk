@@ -44,6 +44,7 @@ import {
   Copy,
   ExternalLink,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,6 +66,7 @@ import {
   sendRiderNotification,
   logoutRiderSessions,
   updateRider,
+  deleteRider,
   type AdminRider,
   type Rider360Data,
 } from "../api/riders";
@@ -143,6 +145,20 @@ export function RidersPage() {
     },
     onError: () => {
       toast.error("Failed to update rider status.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteRider(id),
+    onSuccess: () => {
+      toast.success("Rider deleted successfully!");
+      setSelectedRider(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+    onError: () => {
+      toast.error("Failed to delete rider.");
     },
   });
 
@@ -679,6 +695,19 @@ export function RidersPage() {
                         <PauseCircle className="mr-1 size-3.5" /> Suspend
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 rounded-xl text-zinc-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Permanently Delete Rider"
+                      onClick={() => {
+                        if (window.confirm(`Permanently delete rider ${r.name} (#${r.id})? This cannot be undone.`)) {
+                          deleteMutation.mutate(r.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
                   </div>
                 ),
               },
@@ -700,6 +729,7 @@ export function RidersPage() {
             ...(reason ? { reason } : {}),
           })
         }
+        onDelete={(id) => deleteMutation.mutate(id)}
       />
     </AdminShell>
   );
@@ -712,10 +742,12 @@ function Rider360Sheet({
   rider,
   onClose,
   onAction,
+  onDelete,
 }: {
   rider: AdminRider | null;
   onClose: () => void;
   onAction: (id: string, action: "approve" | "reject" | "suspend" | "activate", reason?: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
@@ -1197,6 +1229,22 @@ function Rider360Sheet({
                     </Button>
                   )}
                 </div>
+
+                {onDelete && (
+                  <div className="pt-2 border-t border-zinc-100">
+                    <Button
+                      variant="ghost"
+                      className="w-full rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 h-9"
+                      onClick={() => {
+                        if (window.confirm(`Permanently delete rider ${rider.name} (#${rider.id})? This cannot be undone.`)) {
+                          onDelete(rider.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3.5 mr-1.5" /> Permanently Delete Rider Record
+                    </Button>
+                  </div>
+                )}
               </TabsContent>
 
               {/* TAB 2: KYC DOCUMENTS */}

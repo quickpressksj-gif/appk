@@ -1887,6 +1887,24 @@ class AdminRiderRepository:
                     "uploadedAt": d.get("uploadedAt") or doc.get("registrationTimestamp"),
                 })
 
+        pdoc = profile_doc or {}
+        if pdoc.get("dlFront"):
+            kyc_docs.append({"id": "dl_front", "type": "Driving License (Front)", "name": "DL Front", "documentUrl": pdoc["dlFront"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("dlBack"):
+            kyc_docs.append({"id": "dl_back", "type": "Driving License (Back)", "name": "DL Back", "documentUrl": pdoc["dlBack"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("rcFront"):
+            kyc_docs.append({"id": "rc_front", "type": "RC Certificate (Front)", "name": "RC Front", "documentUrl": pdoc["rcFront"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("rcBack"):
+            kyc_docs.append({"id": "rc_back", "type": "RC Certificate (Back)", "name": "RC Back", "documentUrl": pdoc["rcBack"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("aadhaarFront"):
+            kyc_docs.append({"id": "aadhaar_front", "type": "Aadhaar Card (Front)", "name": "Aadhaar Front", "documentUrl": pdoc["aadhaarFront"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("aadhaarBack"):
+            kyc_docs.append({"id": "aadhaar_back", "type": "Aadhaar Card (Back)", "name": "Aadhaar Back", "documentUrl": pdoc["aadhaarBack"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("panCard"):
+            kyc_docs.append({"id": "pan_card", "type": "PAN Card", "name": "PAN Card", "documentUrl": pdoc["panCard"], "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+        if pdoc.get("selfieUrl") or pdoc.get("photoUrl"):
+            kyc_docs.append({"id": "selfie", "type": "Captain Profile Photo / Selfie", "name": "Selfie", "documentUrl": pdoc.get("selfieUrl") or pdoc.get("photoUrl"), "status": doc.get("kyc", "Pending"), "uploadedAt": pdoc.get("createdAt") or doc.get("registrationTimestamp")})
+
         # Real Wallet Ledger
         ledger_list = [
             {
@@ -1958,12 +1976,12 @@ class AdminRiderRepository:
                 "batteryLevel": int((profile_doc or {}).get("batteryLevel") or 95),
             },
             "vehicle": {
-                "vehicleType": doc.get("vehicle") or "Motorbike",
-                "vehicleModel": (profile_doc or {}).get("vehicleModel") or "Two Wheeler",
-                "vehicleNumber": doc.get("plate") or "—",
-                "drivingLicenseNumber": (profile_doc or {}).get("drivingLicenseNumber") or "—",
-                "rcNumber": (profile_doc or {}).get("rcNumber") or "—",
-                "insuranceExpiry": (profile_doc or {}).get("insuranceExpiry") or "—",
+                "vehicleType": doc.get("vehicle") or (profile_doc or {}).get("vehicleType") or "Motorbike",
+                "vehicleModel": (profile_doc or {}).get("vehicleModel") or (profile_doc or {}).get("vehicleBrand") or "Two Wheeler",
+                "vehicleNumber": doc.get("plate") or (profile_doc or {}).get("vehicleNumber") or "—",
+                "drivingLicenseNumber": (profile_doc or {}).get("dlNumber") or (profile_doc or {}).get("license") or (profile_doc or {}).get("drivingLicenseNumber") or "—",
+                "rcNumber": (profile_doc or {}).get("rcNumber") or doc.get("plate") or "—",
+                "insuranceExpiry": (profile_doc or {}).get("insuranceValidTill") or (profile_doc or {}).get("insuranceExpiry") or "—",
                 "pollutionExpiry": (profile_doc or {}).get("pollutionExpiry") or "—",
             },
             "kyc": {
@@ -1981,11 +1999,11 @@ class AdminRiderRepository:
                 "ledger": ledger_list,
             },
             "payouts": {
-                "bankName": doc.get("bankName") or "—",
-                "accountNumber": f"•••• {doc.get('accountLast4')}" if doc.get("accountLast4") and doc.get("accountLast4") != "—" else "—",
-                "ifsc": doc.get("ifsc") or "—",
-                "upiId": doc.get("upiId") or "—",
-                "beneficiaryName": doc.get("name"),
+                "bankName": (profile_doc or {}).get("bankName") or doc.get("bankName") or "—",
+                "accountNumber": (profile_doc or {}).get("accountNumber") or (f"•••• {doc.get('accountLast4')}" if doc.get("accountLast4") and doc.get("accountLast4") != "—" else "—"),
+                "ifsc": (profile_doc or {}).get("ifsc") or doc.get("ifsc") or "—",
+                "upiId": (profile_doc or {}).get("upiId") or doc.get("upiId") or "—",
+                "beneficiaryName": (profile_doc or {}).get("accountHolder") or doc.get("name"),
                 "payoutHistory": payouts_list,
             },
             "shifts": shifts_list,
@@ -2006,6 +2024,17 @@ class AdminRiderRepository:
         is_suspended = status == "suspended"
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        # Lookup existing profile to find userId and phone
+        profile = (
+            await database.find_one("rider_profiles", {"_id": entity_id})
+            or await database.find_one("rider_profiles", {"riderId": entity_id})
+            or await database.find_one("admin_riders", {"_id": entity_id})
+            or await database.find_one("admin_riders", {"riderId": entity_id})
+            or {}
+        )
+        user_id = profile.get("userId")
+        phone = profile.get("phone")
+
         changes = {
             "status": status,
             "isVerified": is_active,
@@ -2019,18 +2048,30 @@ class AdminRiderRepository:
         # 1. Update rider_profiles
         await database.update("rider_profiles", {"_id": entity_id}, changes)
         await database.update("rider_profiles", {"riderId": entity_id}, changes)
+        if phone:
+            await database.update("rider_profiles", {"phone": phone}, changes)
 
         # 2. Update admin_riders table
         await database.update("admin_riders", {"_id": entity_id}, changes)
         await database.update("admin_riders", {"riderId": entity_id}, changes)
+        if phone:
+            await database.update("admin_riders", {"phone": phone}, changes)
 
         # 3. Update riders table
         await database.update("riders", {"_id": entity_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
         await database.update("riders", {"rider_id": entity_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
+        if user_id:
+            await database.update("riders", {"user_id": user_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
 
-        # 3. Update users table
-        await database.update("users", {"_id": entity_id}, {"is_verified": is_active, "status": "active" if is_active else status})
-        await database.update("users", {"linked_id": entity_id}, {"is_verified": is_active, "status": "active" if is_active else status})
+        # 4. Update users table
+        user_changes = {"is_verified": is_active, "status": "active" if is_active else status}
+        await database.update("users", {"_id": entity_id}, user_changes)
+        await database.update("users", {"linked_id": entity_id}, user_changes)
+        if user_id:
+            await database.update("users", {"_id": user_id}, user_changes)
+        if phone:
+            clean_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+            await database.update("users", {"$or": [{"phone": phone}, {"phone": clean_phone}, {"phone": f"+91{clean_phone}"}], "role": "rider"}, user_changes)
 
         return await self.detail(entity_id)
 

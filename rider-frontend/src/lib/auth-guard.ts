@@ -21,12 +21,16 @@ export function requireRiderAuth() {
   }
 
   const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
-  if (isOnboarded === false) {
+  const isVerified = (sess.isVerified ?? sess.account?.isVerified) === true;
+  const status = (sess.status ?? sess.account?.status ?? "").toLowerCase();
+
+  // If not onboarded or status is unregistered -> redirect to onboarding
+  if (status === "unregistered" || isOnboarded === false) {
     throw redirect({ to: "/onboarding" });
   }
 
-  const isVerified = sess.isVerified ?? sess.account?.isVerified;
-  if (isVerified === false && sess.status !== "active" && sess.account?.status !== "active") {
+  // Without explicit admin approval & verification, rider CANNOT access dashboard/cockpit
+  if (!isVerified || (status !== "active" && status !== "approved")) {
     throw redirect({ to: "/onboarding" });
   }
 }

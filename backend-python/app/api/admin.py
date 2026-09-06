@@ -613,6 +613,30 @@ async def reject_rider(rider_id: str, user: User = Depends(current_user)):
     return await _rider_transition(rider_id, "suspended", "reject", user)
 
 
+@router.delete("/riders/{rider_id}")
+async def delete_rider(rider_id: str, user: User = Depends(current_user)):
+    """Permanently delete a rider and associated records."""
+    profile = await database.find_one("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    phone = (profile or {}).get("phone")
+    user_id = (profile or {}).get("userId")
+
+    await database.delete_many("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    await database.delete_many("admin_riders", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    await database.delete_many("riders", {"$or": [{"_id": rider_id}, {"rider_id": rider_id}]})
+    await database.delete_many("rider_wallets", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    await database.delete_many("rider_shifts", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    await database.delete_many("rider_payouts", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+
+    if user_id:
+        await database.delete_many("users", {"_id": user_id, "role": "rider"})
+    if phone:
+        clean_phone = phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        await database.delete_many("users", {"$or": [{"phone": phone}, {"phone": clean_phone}, {"phone": f"+91{clean_phone}"}], "role": "rider"})
+
+    await audit_repository.log(await _actor(user), "rider.delete", rider_id)
+    return {"ok": True, "deleted": rider_id}
+
+
 # ----------------------------------------------------------------- analytics
 @router.get("/analytics")
 async def analytics(
