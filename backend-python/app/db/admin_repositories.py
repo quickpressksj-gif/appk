@@ -1601,36 +1601,49 @@ class AdminRiderRepository:
 
         wallets_by_id = {str(w.get("_id")): w for w in (wallets or []) if w.get("_id")}
 
+        # Collect riders uniquely by normalized 10-digit phone number and rider ID
         merged_riders = []
-        seen = set()
+        seen_keys = set()
 
-        all_raw = list(users or []) + list(riders_tbl or []) + list(profiles or [])
+        all_raw = list(profiles or []) + list(riders_tbl or []) + list(users or [])
         for row in all_raw:
-            uid = str(row.get("_id") or row.get("id") or row.get("riderId") or row.get("user_id") or "")
-            phone = str(row.get("phone") or "")
-            key = uid or phone
-            if not key or key in seen:
-                continue
-            seen.add(key)
+            raw_phone = str(row.get("phone") or row.get("mobile") or "")
+            clean_phone = raw_phone.replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:] if raw_phone else ""
+            uid = str(row.get("riderId") or row.get("rider_id") or row.get("linked_id") or row.get("_id") or row.get("id") or "")
 
-            p = profiles_by_id.get(uid) or profiles_by_id.get(phone) or {}
-            r = riders_by_id.get(uid) or riders_by_id.get(phone) or {}
+            p = profiles_by_id.get(uid) or (profiles_by_id.get(clean_phone) if clean_phone else None) or (profiles_by_id.get(raw_phone) if raw_phone else None) or {}
+            r = riders_by_id.get(uid) or (riders_by_id.get(clean_phone) if clean_phone else None) or (riders_by_id.get(raw_phone) if raw_phone else None) or {}
+
+            # Primary action target ID for admin actions (approve/suspend/etc)
+            target_id = str(p.get("riderId") or p.get("_id") or r.get("rider_id") or r.get("_id") or row.get("linked_id") or uid)
+            effective_phone = clean_phone or str(p.get("phone") or r.get("phone") or "").replace("+91", "").replace(" ", "").replace("-", "").strip()[-10:]
+
+            if not target_id and not effective_phone:
+                continue
+
+            if target_id and target_id in seen_keys:
+                continue
+            if effective_phone and effective_phone in seen_keys:
+                continue
+
+            if target_id:
+                seen_keys.add(target_id)
+            if effective_phone:
+                seen_keys.add(effective_phone)
 
             name = (
-                row.get("display_name")
-                or row.get("name")
-                or row.get("displayName")
-                or row.get("fullName")
-                or p.get("fullName")
+                p.get("fullName")
                 or p.get("name")
                 or r.get("name")
-                or "Delivery Partner"
+                or row.get("display_name")
+                or row.get("name")
+                or "Delivery Captain"
             )
-            phone_val = phone or p.get("phone") or r.get("phone") or "—"
-            email_val = row.get("email") or p.get("email") or "—"
-            city_val = row.get("city") or p.get("city") or r.get("city") or "Kasganj"
+            phone_val = raw_phone or p.get("phone") or r.get("phone") or (f"+91{clean_phone}" if clean_phone else "—")
+            email_val = p.get("email") or row.get("email") or "—"
+            city_val = p.get("city") or row.get("city") or r.get("city") or "Kasganj"
 
-            r_ords = rider_orders.get(uid) or rider_orders.get(str(p.get("_id", ""))) or rider_orders.get(str(r.get("_id", ""))) or []
+            r_ords = rider_orders.get(target_id) or rider_orders.get(uid) or []
             completed = [o for o in r_ords if o.get("status") == "delivered"]
             active_deliv = [o for o in r_ords if o.get("status") in ("rider_assigned", "picked_up", "out_for_delivery")]
 
@@ -1640,24 +1653,36 @@ class AdminRiderRepository:
             is_online = bool(p.get("isOnline") or r.get("is_available") or active_deliv)
             current_live = "On delivery" if active_deliv else ("Online" if is_online else "Offline")
 
-            raw_st = str(row.get("status") or p.get("status") or r.get("status") or "active").lower()
-            status_val = "Active" if raw_st == "active" else ("Suspended" if raw_st == "suspended" else "Pending")
+            # Determine true status from profile and verification
+            raw_st = str(p.get("status") or r.get("status") or "").lower()
+            is_ver = bool(p.get("isVerified") or r.get("is_verified") or row.get("is_verified"))
+            is_onboarded = bool(p.get("isOnboarded", True) if p else (row.get("is_onboarded", False)))
 
-            is_ver = bool(row.get("is_verified") or p.get("isVerified") or r.get("is_verified") or status_val == "Active")
-            kyc_val = "Verified" if is_ver else ("Rejected" if status_val == "Suspended" else "Pending")
+            if raw_st == "suspended":
+                status_val = "Suspended"
+                kyc_val = "Rejected"
+            elif (raw_st in ("active", "approved") or is_ver) and is_onboarded:
+                status_val = "Active"
+                kyc_val = "Verified"
+            elif not is_onboarded and not p:
+                status_val = "Unregistered"
+                kyc_val = "Pending"
+            else:
+                status_val = "Pending"
+                kyc_val = "Pending"
 
             vehicle_val = p.get("vehicle") or p.get("vehicleType") or r.get("vehicle") or "Motorbike"
             plate_val = p.get("plate") or p.get("vehicleNumber") or r.get("plate") or "—"
 
-            w_doc = wallets_by_id.get(uid) or {}
+            w_doc = wallets_by_id.get(target_id) or wallets_by_id.get(uid) or {}
             wallet_bal = float(w_doc.get("balance", 0.0))
             cod_cash = float(w_doc.get("codCashInHand", 0.0))
 
-            reg_ts = row.get("created_at") or row.get("createdAt") or datetime.now(timezone.utc).isoformat()
+            reg_ts = row.get("created_at") or row.get("createdAt") or p.get("createdAt") or datetime.now(timezone.utc).isoformat()
             last_login_ts = row.get("updated_at") or row.get("last_login_at") or reg_ts
 
             merged_riders.append({
-                "id": uid,
+                "id": target_id,
                 "name": name,
                 "phone": phone_val,
                 "email": email_val,
@@ -1961,7 +1986,11 @@ class AdminRiderRepository:
         await database.update("rider_profiles", {"_id": entity_id}, changes)
         await database.update("rider_profiles", {"riderId": entity_id}, changes)
 
-        # 2. Update riders table
+        # 2. Update admin_riders table
+        await database.update("admin_riders", {"_id": entity_id}, changes)
+        await database.update("admin_riders", {"riderId": entity_id}, changes)
+
+        # 3. Update riders table
         await database.update("riders", {"_id": entity_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
         await database.update("riders", {"rider_id": entity_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
 

@@ -841,6 +841,7 @@ async def submit_registration(body: dict) -> dict:
         # Status
         "status": "pending",
         "isVerified": False,
+        "isOnboarded": True,
         "isOnline": False,
         "rating": 5.0,
         "totalDeliveries": 0,
@@ -861,6 +862,32 @@ async def submit_registration(body: dict) -> dict:
             "lifetimeEarned": 0.0,
         },
     )
+
+    # Sync to admin_riders & riders tables
+    admin_rider_doc = {
+        "id": rider_id,
+        "_id": rider_id,
+        "riderId": rider_id,
+        "name": full_name,
+        "phone": phone,
+        "email": payload.get("email", ""),
+        "city": city,
+        "state": payload.get("state", "Uttar Pradesh"),
+        "pincode": payload.get("pincode", "207123"),
+        "vehicleType": payload.get("vehicleType", "bike"),
+        "vehicleNumber": payload.get("vehicleNumber", ""),
+        "status": "pending",
+        "kycStatus": "pending",
+        "liveState": "offline",
+        "rating": 5.0,
+        "completedDeliveries": 0,
+        "walletBalance": 0.0,
+        "cashInHand": 0.0,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await database.update("admin_riders", {"_id": rider_id}, admin_rider_doc, upsert=True)
+    await database.update("riders", {"rider_id": rider_id}, {"_id": rider_id, "rider_id": rider_id, "name": full_name, "phone": phone, "status": "pending", "is_verified": False}, upsert=True)
 
     # Sync with users collection if exists
     if phone:
@@ -1025,50 +1052,65 @@ async def push_location(body: dict, user: User = Depends(current_user)) -> dict:
 async def get_profile(user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
     profile = await rider_profile_repository.get(rider_id) if rider_id else None
+    if profile is None and rider_id:
+        profile = await database.find_one("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    if profile is None and user.phone:
+        clean_phone = user.phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        profile = await database.find_one("rider_profiles", {
+            "$or": [
+                {"phone": user.phone},
+                {"phone": clean_phone},
+                {"phone": f"+91{clean_phone}"},
+                {"userId": user.id},
+            ]
+        })
+
+    is_user_verified = bool(getattr(user, "is_verified", False))
+    is_user_onboarded = bool(getattr(user, "is_onboarded", False))
+
     if profile is None:
-        is_user_verified = bool(getattr(user, "is_verified", False))
         profile = {
             "_id": rider_id or user.id,
             "riderId": rider_id or user.id,
             "fullName": getattr(user, "name", "") or getattr(user, "display_name", "") or "",
             "phone": getattr(user, "phone", ""),
             "email": getattr(user, "email", ""),
-            "city": "Kasganj",
+            "city": getattr(user, "city", "") or "Kasganj",
             "rating": 5.0,
             "totalTrips": 0,
-            "joinedOn": "August 2026",
+            "joinedOn": datetime.now(timezone.utc).strftime("%B %Y"),
             "vehicleType": "Bike",
             "vehicleNumber": "—",
-            "status": "active" if is_user_verified else "pending",
-            "kycStatus": "verified" if is_user_verified else "pending",
+            "status": "active" if is_user_verified else ("pending" if is_user_onboarded else "unregistered"),
+            "kycStatus": "verified" if is_user_verified else ("pending" if is_user_onboarded else "unregistered"),
             "isVerified": is_user_verified,
-            "isOnboarded": bool(getattr(user, "is_onboarded", False)),
+            "isOnboarded": is_user_onboarded,
             "isOnline": False,
             "onlineMinutes": 0,
             "documents": [],
         }
+
     pub = _public(profile)
     pub.setdefault("id", rider_id or user.id)
     pub.setdefault("riderId", rider_id or user.id)
-    pub.setdefault("status", profile.get("status", "pending"))
-    pub.setdefault("isVerified", bool(profile.get("isVerified", False)))
-    pub.setdefault("kycStatus", profile.get("kycStatus", "pending"))
-    pub.setdefault("fullName", pub.get("name") or getattr(user, "name", "") or "Delivery Partner")
+    pub.setdefault("status", profile.get("status") or ("active" if is_user_verified else ("pending" if is_user_onboarded else "unregistered")))
+    pub.setdefault("isVerified", bool(profile.get("isVerified", False) or is_user_verified))
+    pub.setdefault("isOnboarded", bool(profile.get("isOnboarded", is_user_onboarded)))
+    pub.setdefault("kycStatus", profile.get("kycStatus", "pending" if is_user_onboarded else "unregistered"))
+    pub.setdefault("fullName", pub.get("name") or getattr(user, "name", "") or getattr(user, "display_name", "") or "Delivery Partner")
     pub.setdefault("phone", getattr(user, "phone", ""))
     pub.setdefault("email", getattr(user, "email", ""))
-    pub.setdefault("city", "Kasganj")
+    pub.setdefault("city", pub.get("city") or getattr(user, "city", "") or "Kasganj")
     pub.setdefault("rating", 5.0)
     pub.setdefault("totalTrips", pub.get("trips") or 0)
-    pub.setdefault("joinedOn", "August 2026")
-    pub.setdefault("vehicleType", "Bike")
-    pub.setdefault("vehicleNumber", "—")
-    pub.setdefault("bankName", "State Bank of India")
+    pub.setdefault("joinedOn", pub.get("joinedOn") or "August 2026")
+    pub.setdefault("vehicleType", pub.get("vehicleType") or "Bike")
+    pub.setdefault("vehicleNumber", pub.get("vehicleNumber") or "—")
+    pub.setdefault("bankName", pub.get("bankName") or "State Bank of India")
     pub.setdefault("accountLast4", "4821")
     pub.setdefault("ifsc", "SBIN0001234")
-    pub.setdefault("kycStatus", "verified" if getattr(user, "is_verified", False) else "pending")
     pub.setdefault("isOnline", False)
     pub.setdefault("onlineMinutes", 0)
-    pub.setdefault("status", getattr(user, "status", "pending"))
     pub.setdefault("suspensionReason", getattr(user, "suspensionReason", None))
     pub.setdefault("appealStatus", getattr(user, "appealStatus", "none"))
     pub.setdefault("appealDetails", getattr(user, "appealDetails", ""))

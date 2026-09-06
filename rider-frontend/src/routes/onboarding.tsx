@@ -148,16 +148,45 @@ export function CaptainOnboardingScreen() {
   const checkLiveApprovalStatus = useCallback(async (showToast = false) => {
     try {
       setRefreshingStatus(true);
+      const sess = readSession("rider") || readSession();
+      const currentPhone =
+        (typeof window !== "undefined"
+          ? window.sessionStorage.getItem("qp.rider.pendingPhone") ||
+            window.localStorage.getItem("qp.rider.pendingPhone") ||
+            sess?.account?.phone ||
+            phone
+          : phone) || "";
+      const cleanDigits = currentPhone.replace(/\D/g, "").slice(-10);
+
+      // Check live onboarding status from backend
+      const onboarding = await fetchOnboardingStatus(cleanDigits || currentPhone).catch(() => null);
       const profile = await fetchRiderProfile().catch(() => null);
-      if (!profile) return;
 
-      const activeStatus =
-        profile.isVerified ||
-        profile.status === "active" ||
-        profile.status === "approved" ||
-        profile.kycStatus === "verified";
+      const isVerified = Boolean(
+        onboarding?.isVerified ||
+        profile?.isVerified ||
+        onboarding?.status === "active" ||
+        profile?.status === "active" ||
+        onboarding?.status === "approved" ||
+        profile?.status === "approved" ||
+        profile?.kycStatus === "verified"
+      );
 
-      if (activeStatus) {
+      // A rider is in "pending review" ONLY if they submitted onboarding form and are awaiting approval
+      const isPending = Boolean(
+        (onboarding?.status === "pending" && !isVerified) ||
+        (profile?.status === "pending" && Boolean(profile?.isOnboarded) && !isVerified) ||
+        (sess?.account?.isOnboarded && sess?.account?.status === "pending" && !isVerified)
+      );
+
+      // A rider is "unregistered" if they have NOT submitted onboarding
+      const isUnregistered = Boolean(
+        onboarding?.status === "unregistered" ||
+        profile?.status === "unregistered" ||
+        (!isPending && !isVerified && (!profile?.isOnboarded || !onboarding?.ok))
+      );
+
+      if (isVerified) {
         setIsApproved(true);
         setIsUnderReview(false);
 
@@ -179,10 +208,19 @@ export function CaptainOnboardingScreen() {
         if (showToast) {
           toast.success("🎉 Congratulations! Your Captain account is Approved!");
         }
-      } else if (profile.status === "pending" || profile.kycStatus === "pending") {
+      } else if (isPending && !isUnregistered) {
+        // Show Under Review Screen
         setIsUnderReview(true);
+        setIsApproved(false);
         if (showToast) {
           toast.info("Your application is still under review by Admin. Please wait.");
+        }
+      } else {
+        // Show 4-Step Registration Form
+        setIsUnderReview(false);
+        setIsApproved(false);
+        if (profile?.fullName && !fullName) {
+          setFullName(profile.fullName);
         }
       }
     } catch {
@@ -191,7 +229,7 @@ export function CaptainOnboardingScreen() {
       setRefreshingStatus(false);
       setInitialChecking(false);
     }
-  }, []);
+  }, [phone, fullName]);
 
   // Initial Load: Check session, phone, cities, and profile status
   useEffect(() => {
