@@ -112,11 +112,35 @@ COLLECTIONS_TO_CLEAR_COMPLETELY = [
 
 
 async def run_total_wipe():
+    logger.info("Starting Total Database Wipe...")
+    import requests
+    from app.config import get_settings
+    settings = get_settings()
+
+    # 1. Clear Supabase PostgreSQL via PostgREST if configured
+    sb_url = getattr(settings, "supabase_url", "")
+    sb_key = getattr(settings, "supabase_service_role_key", "")
+    if sb_url and sb_key:
+        try:
+            r = requests.delete(
+                f"{sb_url}/rest/v1/quickpress_documents?id=neq.__none__",
+                headers={
+                    "apikey": sb_key,
+                    "Authorization": f"Bearer {sb_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+            )
+            logger.info(f"Supabase PostgreSQL table wiped successfully (Status: {r.status_code}).")
+        except Exception as e:
+            logger.warning(f"Supabase PostgREST wipe note: {e}")
+
+    # 2. Connect Database client
     logger.info("Connecting to Database...")
     await database.connect()
 
     total_deleted = 0
-    # 1. Clear all complete target collections using delete_many
+    # Clear all complete target collections using delete_many
     for coll in COLLECTIONS_TO_CLEAR_COMPLETELY:
         try:
             purged = await database.delete_many(coll, {})
@@ -128,7 +152,7 @@ async def run_total_wipe():
         except Exception as e:
             logger.warning(f"Note on collection '{coll}': {e}")
 
-    # 2. Clear non-admin users
+    # Clear non-admin users
     try:
         users = await database.find_many("users", {})
         user_delete_count = 0
@@ -144,7 +168,7 @@ async def run_total_wipe():
     except Exception as e:
         logger.warning(f"Note on 'users' cleanup: {e}")
 
-    # 3. Ensure Super Admin Account is intact for Admin Console Login
+    # Ensure Super Admin Account is intact for Admin Console Login
     logger.info("Ensuring Super Admin account is available...")
     await ensure_super_admin_seed()
 
