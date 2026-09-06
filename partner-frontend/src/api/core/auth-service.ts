@@ -134,12 +134,22 @@ export async function restoreSession(explicitRole?: AccountRole): Promise<AuthSe
 
   try {
     const account = await fetchCurrentUser();
-    return persist({ ...stored, account });
-  } catch (error) {
-    if (error instanceof ApiError && error.kind === "unauthorized") {
-      return refreshSession(target);
+    if (!account || !account.id) {
+      clearSession(target);
+      return null;
     }
-    return stored;
+    return persist({ ...stored, account });
+  } catch (error: any) {
+    if (error instanceof ApiError && (error.kind === "unauthorized" || error.status === 401 || error.status === 403 || error.status === 404)) {
+      clearSession(target);
+      return null;
+    }
+    const refreshed = await refreshSession(target);
+    if (!refreshed) {
+      clearSession(target);
+      return null;
+    }
+    return refreshed;
   }
 }
 

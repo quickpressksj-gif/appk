@@ -213,8 +213,8 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
                 role=payload.role,
                 phone=phone,
                 status=UserStatus.active,
-                is_verified=True,
-                is_onboarded=True,
+                is_verified=payload.role in (Role.customer, Role.admin),
+                is_onboarded=payload.role in (Role.customer, Role.admin),
             )
     else:
         try:
@@ -224,11 +224,6 @@ async def verify_phone(payload: VerifyPhoneRequest) -> AuthSessionResponse:
                 user = refreshed
         except Exception:
             pass
-
-    # Ensure partner is active and verified so dashboard loads immediately
-    if user.role == Role.partner:
-        user.is_verified = True
-        user.is_onboarded = True
 
     if payload.referral_code:
         from app.db.referral_repositories import referral_repository

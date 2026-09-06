@@ -36,35 +36,15 @@ async function initializePartnerApp(): Promise<{
     });
   }
 
-  // 1. Fast synchronous check from localStorage
-  const syncSession = readSession("partner");
-  if (syncSession && syncSession.token) {
-    const isSuspended = syncSession.status === "suspended" || (syncSession as any).isSuspended === true;
-    const isOnboarded = (syncSession.isOnboarded ?? syncSession.account?.isOnboarded) !== false;
-    const isVerified = Boolean(
-      syncSession.isVerified ??
-      syncSession.account?.isVerified ??
-      syncSession.status === "active" ??
-      syncSession.account?.status === "active"
-    );
-    return {
-      loggedIn: true,
-      isOnboarded,
-      isVerified,
-      isSuspended,
-    };
-  }
-
-  // 2. Async restore check
   try {
     const restored = await restorePartnerSession();
-    if (restored && (restored.token || (restored as any).partnerId || (restored as any).account)) {
-      const isSuspended = restored.status === "suspended" || (restored as any).isSuspended === true;
-      const isOnboarded = (restored.isOnboarded ?? (restored as any).account?.isOnboarded) !== false;
+    if (restored && (restored.phone || (restored as any).partnerId)) {
+      const isSuspended = (restored as any).status === "suspended" || (restored as any).isSuspended === true;
+      const isOnboarded = Boolean(restored.isOnboarded ?? (restored as any).account?.isOnboarded);
       const isVerified = Boolean(
         restored.isVerified ??
         (restored as any).account?.isVerified ??
-        restored.status === "active"
+        (restored as any).status === "active"
       );
       return {
         loggedIn: true,
@@ -74,7 +54,7 @@ async function initializePartnerApp(): Promise<{
       };
     }
   } catch {
-    // Fallback
+    // Session restore failed
   }
 
   return { loggedIn: false, isOnboarded: false, isVerified: false, isSuspended: false };

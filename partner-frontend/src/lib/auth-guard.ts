@@ -22,6 +22,10 @@ export function requirePartnerAuth() {
   if (isOnboarded === false) {
     throw redirect({ to: partnerRoutes.registration });
   }
+  const isVerified = sess.isVerified ?? sess.account?.isVerified;
+  if (isVerified === false && sess.status !== "active" && sess.account?.status !== "active") {
+    throw redirect({ to: partnerRoutes.registrationSubmitted });
+  }
   // Active partner with store access
 }
 

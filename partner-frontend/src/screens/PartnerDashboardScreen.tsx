@@ -125,6 +125,14 @@ export function PartnerDashboardScreen() {
         navigate({ to: partnerRoutes.suspended });
         return;
       }
+      if (profile.isOnboarded === false) {
+        navigate({ to: partnerRoutes.registration });
+        return;
+      }
+      if (profile.isVerified === false && profile.status !== "active") {
+        navigate({ to: partnerRoutes.registrationSubmitted });
+        return;
+      }
       const newShop: DashboardShop = {
         shopName: profile.businessName || "QuickPress Store",
         partnerName: profile.ownerName || "Partner",
@@ -167,7 +175,27 @@ export function PartnerDashboardScreen() {
           /* ignore */
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.status === 401 || err?.kind === "unauthorized") {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(DASHBOARD_CACHE_KEY);
+          window.localStorage.removeItem("qp.partner.profile_cache");
+        }
+        setShop(null);
+        setSummary(null);
+        navigate({ to: partnerRoutes.auth });
+        return;
+      }
+      if (err?.status === 403 || err?.status === 404) {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(DASHBOARD_CACHE_KEY);
+          window.localStorage.removeItem("qp.partner.profile_cache");
+        }
+        setShop(null);
+        setSummary(null);
+        navigate({ to: partnerRoutes.registration });
+        return;
+      }
       if (!shop) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard");
       }

@@ -84,6 +84,16 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback((next: PartnerSession) => setSession(next), []);
   const signOut = useCallback(() => {
     setSession(null);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("quickpress:partner:cached_orders");
+        window.localStorage.removeItem("qp.partner.cachedOrders");
+        window.localStorage.removeItem("qp.partner.cachedDashboard");
+        window.localStorage.removeItem("qp.partner.profile_cache");
+        window.localStorage.removeItem("qp.partner.pendingPhone");
+        window.sessionStorage.removeItem("qp.partner.pendingPhone");
+      } catch {}
+    }
     void logoutPartner().catch(() => undefined);
   }, []);
 

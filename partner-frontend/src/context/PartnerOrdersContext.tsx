@@ -283,6 +283,15 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
         setOrders(reconciled);
         writeCachedOrders(reconciled);
 
+        if (reconciled.length === 0) {
+          acceptedOrderIds.current.clear();
+          processingOrderIds.current.clear();
+          readyOrderIds.current.clear();
+          cancelledOrderIds.current.clear();
+          stopOrderAlarm();
+          setIncomingOrder(null);
+        }
+
         // Check for real new unacknowledged orders only if on operational route
         if (isOperationalRoute()) {
           const unacknowledgedNew = reconciled.find(
@@ -300,7 +309,18 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
             startOrderAlarm(unacknowledgedNew.code);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        // If unauthorized, forbidden (no partner profile), or 404, purge local orders & cache
+        if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.kind === "unauthorized") {
+          setOrders([]);
+          writeCachedOrders([]);
+          acceptedOrderIds.current.clear();
+          processingOrderIds.current.clear();
+          readyOrderIds.current.clear();
+          cancelledOrderIds.current.clear();
+          stopOrderAlarm();
+          setIncomingOrder(null);
+        }
         if (orders.length === 0) {
           setError(err instanceof Error ? err.message : "Failed to load orders");
         }
