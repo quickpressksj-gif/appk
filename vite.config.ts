@@ -77,6 +77,10 @@ export default defineConfig({
         },
       },
     ],
+    cacheDir: resolvePath(`./node_modules/.vite-${APP}`),
+    optimizeDeps: {
+      exclude: ["@capacitor/app", "@capacitor/core", "@capacitor/android"],
+    },
     resolve: {
       alias: [
         // "@/..." must point at the Partner app source, not the legacy ./src app.
