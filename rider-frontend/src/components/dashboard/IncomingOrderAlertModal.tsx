@@ -136,7 +136,7 @@ export function IncomingOrderAlertModal({
                   Step 1: Customer Pickup
                 </p>
                 <p className="text-sm font-black text-slate-900">{offer.customer_name}</p>
-                <p className="text-xs text-slate-600 mt-0.5">{offer.delivery_address}</p>
+                <p className="text-xs text-slate-600 mt-0.5">{offer.pickup_address}</p>
               </div>
             </div>
 
@@ -147,7 +147,7 @@ export function IncomingOrderAlertModal({
                   Step 2: Partner Store Drop
                 </p>
                 <p className="text-sm font-black text-slate-900">{offer.store_name}</p>
-                <p className="text-xs text-slate-600 mt-0.5">{offer.pickup_address}</p>
+                <p className="text-xs text-slate-600 mt-0.5">{offer.delivery_address}</p>
               </div>
             </div>
           </div>

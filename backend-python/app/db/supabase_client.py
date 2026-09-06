@@ -245,7 +245,7 @@ class SupabaseCollection:
         if "id" not in doc:
             doc["id"] = doc_id
 
-        # Immediate in-memory write-through (< 0.001 ms)
+        # In-memory cache write-through
         if self._cache is not None:
             existing_idx = next((i for i, d in enumerate(self._cache) if str(d.get("_id") or d.get("id")) == doc_id), None)
             if existing_idx is not None:
@@ -256,52 +256,38 @@ class SupabaseCollection:
             self._cache = [dict(doc)]
         self._cache_ts = time.time()
 
-        # Non-blocking async background persistence
-        async def _persist_bg():
+        # Direct database persistence
+        try:
             payload = json.dumps(doc, default=str)
-            for attempt in range(3):
-                try:
-                    pool = await self._db.get_pool()
-                    async with pool.acquire() as conn:
-                        await conn.execute(
-                            """
-                            INSERT INTO quickpress_documents (id, collection, data, updated_at)
-                            VALUES ($1, $2, $3::jsonb, NOW())
-                            ON CONFLICT (id) DO UPDATE
-                            SET data = EXCLUDED.data, updated_at = NOW();
-                            """,
-                            f"{self._name}:{doc_id}",
-                            self._name,
-                            payload,
-                        )
-                        return
-                except Exception as e:
-                    if attempt == 2:
-                        logger.warning(f"Background save error for {self._name}:{doc_id}: {e}")
-                    await asyncio.sleep(0.1 * (attempt + 1))
-
-        asyncio.create_task(_persist_bg())
+            pool = await self._db.get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO quickpress_documents (id, collection, data, updated_at)
+                    VALUES ($1, $2, $3::jsonb, NOW())
+                    ON CONFLICT (id) DO UPDATE
+                    SET data = EXCLUDED.data, updated_at = NOW();
+                    """,
+                    f"{self._name}:{doc_id}",
+                    self._name,
+                    payload,
+                )
+        except Exception as e:
+            logger.warning(f"Save error for {self._name}:{doc_id}: {e}")
 
     async def _delete_doc_id(self, doc_id: str) -> None:
         if self._cache is not None:
             self._cache = [d for d in self._cache if str(d.get("_id") or d.get("id")) != doc_id]
             self._cache_ts = time.time()
 
-        async def _delete_bg():
-            for attempt in range(3):
-                try:
-                    pool = await self._db.get_pool()
-                    async with pool.acquire() as conn:
-                        await conn.execute(
-                            "DELETE FROM quickpress_documents WHERE id = $1", f"{self._name}:{doc_id}"
-                        )
-                        return
-                except Exception as e:
-                    if attempt == 2:
-                        logger.warning(f"Background delete error for {self._name}:{doc_id}: {e}")
-                    await asyncio.sleep(0.1 * (attempt + 1))
-
-        asyncio.create_task(_delete_bg())
+        try:
+            pool = await self._db.get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "DELETE FROM quickpress_documents WHERE id = $1", f"{self._name}:{doc_id}"
+                )
+        except Exception as e:
+            logger.warning(f"Delete error for {self._name}:{doc_id}: {e}")
 
     def find(self, query: Optional[Dict[str, Any]] = None) -> SupabaseCursor:
         return SupabaseCursor(self, query or {})
@@ -397,6 +383,21 @@ class SupabaseCollection:
         return 0
 
     async def delete_many(self, query: Dict[str, Any]) -> int:
+        if not query:
+            # Delete all documents in this collection directly in SQL
+            count = len(self._cache or [])
+            self._cache = []
+            self._cache_ts = time.time()
+            try:
+                pool = await self._db.get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "DELETE FROM quickpress_documents WHERE collection = $1", self._name
+                    )
+            except Exception as e:
+                logger.warning(f"Delete all error for {self._name}: {e}")
+            return count
+
         docs = await self._fetch_all()
         matched = [d for d in docs if _matches(d, query)]
         for m in matched:
@@ -433,7 +434,8 @@ class SupabaseDatabase:
                     self.database_url,
                     min_size=1,
                     max_size=3,
-                    command_timeout=30,
+                    command_timeout=10,
+                    timeout=5.0,
                 )
                 self._loop = current_loop
             return self._pool

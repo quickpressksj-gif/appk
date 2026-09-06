@@ -121,16 +121,28 @@ class Smart2RideEngine:
         addr = order.get("address") or {}
         cust_lat = float(addr.get("latitude") or addr.get("lat") or 27.8165)
         cust_lng = float(addr.get("longitude") or addr.get("lng") or 78.6530)
-        cust_name = (order.get("customer") or {}).get("name") or "Customer"
-        cust_phone = (order.get("customer") or {}).get("phone") or addr.get("phone") or ""
-        pickup_addr = addr.get("line") or "Customer Pickup Location, Kasganj"
+        cust_name = (order.get("customer") or {}).get("name") or addr.get("name") or order.get("customerName") or "Customer"
+        cust_phone = (order.get("customer") or {}).get("phone") or addr.get("phone") or order.get("customerPhone") or ""
+        pickup_addr = addr.get("line") or addr.get("address") or addr.get("formattedAddress") or "Customer Pickup Location"
 
         partner = order.get("partner") or {}
+        partner_id = order.get("partnerId") or order.get("partner_id")
+        if partner_id and not partner.get("address"):
+            db_partner = await database.find_one("partners", {"_id": partner_id}) or await database.find_one("partners", {"partner_id": partner_id})
+            if db_partner:
+                partner = {
+                    "name": db_partner.get("storeName") or db_partner.get("name") or partner.get("name") or "QuickPress Partner Store",
+                    "phone": db_partner.get("phone") or partner.get("phone") or "",
+                    "address": db_partner.get("address") or partner.get("address") or "Partner Store",
+                    "latitude": db_partner.get("latitude") or db_partner.get("lat") or 27.8118,
+                    "longitude": db_partner.get("longitude") or db_partner.get("lng") or 78.6477,
+                }
+
         p_lat = float(partner.get("latitude") or partner.get("lat") or 27.8118)
         p_lng = float(partner.get("longitude") or partner.get("lng") or 78.6477)
-        partner_name = partner.get("name") or "QuickPress Laundry Store"
+        partner_name = partner.get("name") or "QuickPress Partner Store"
         partner_phone = partner.get("phone") or ""
-        drop_addr = partner.get("address") or "QuickPress Partner Store, Kasganj"
+        drop_addr = partner.get("address") or "QuickPress Partner Store"
 
         # Calculate trip distance and dynamic fare
         distance_km = max(0.5, haversine_distance_km(cust_lat, cust_lng, p_lat, p_lng))
@@ -241,19 +253,31 @@ class Smart2RideEngine:
 
         # Pickup location for Ride 2 is PARTNER STORE
         partner = order.get("partner") or {}
+        partner_id = order.get("partnerId") or order.get("partner_id")
+        if partner_id and not partner.get("address"):
+            db_partner = await database.find_one("partners", {"_id": partner_id}) or await database.find_one("partners", {"partner_id": partner_id})
+            if db_partner:
+                partner = {
+                    "name": db_partner.get("storeName") or db_partner.get("name") or partner.get("name") or "QuickPress Partner Store",
+                    "phone": db_partner.get("phone") or partner.get("phone") or "",
+                    "address": db_partner.get("address") or partner.get("address") or "Partner Store",
+                    "latitude": db_partner.get("latitude") or db_partner.get("lat") or 27.8118,
+                    "longitude": db_partner.get("longitude") or db_partner.get("lng") or 78.6477,
+                }
+
         p_lat = float(partner.get("latitude") or partner.get("lat") or 27.8118)
         p_lng = float(partner.get("longitude") or partner.get("lng") or 78.6477)
-        partner_name = partner.get("name") or "QuickPress Laundry Store"
+        partner_name = partner.get("name") or "QuickPress Partner Store"
         partner_phone = partner.get("phone") or ""
-        pickup_addr = partner.get("address") or "QuickPress Partner Store, Kasganj"
+        pickup_addr = partner.get("address") or "QuickPress Partner Store"
 
         # Drop location for Ride 2 is CUSTOMER ADDRESS
         addr = order.get("address") or {}
         cust_lat = float(addr.get("latitude") or addr.get("lat") or 27.8165)
         cust_lng = float(addr.get("longitude") or addr.get("lng") or 78.6530)
-        cust_name = (order.get("customer") or {}).get("name") or "Customer"
-        cust_phone = (order.get("customer") or {}).get("phone") or addr.get("phone") or ""
-        drop_addr = addr.get("line") or "Customer Delivery Address, Kasganj"
+        cust_name = (order.get("customer") or {}).get("name") or addr.get("name") or order.get("customerName") or "Customer"
+        cust_phone = (order.get("customer") or {}).get("phone") or addr.get("phone") or order.get("customerPhone") or ""
+        drop_addr = addr.get("line") or addr.get("address") or addr.get("formattedAddress") or "Customer Delivery Location"
 
         distance_km = max(0.5, haversine_distance_km(p_lat, p_lng, cust_lat, cust_lng))
         city = str(addr.get("city") or "Kasganj")

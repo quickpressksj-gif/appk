@@ -116,32 +116,29 @@ async def run_total_wipe():
     await database.connect()
 
     total_deleted = 0
-    # 1. Clear all complete target collections
+    # 1. Clear all complete target collections using delete_many
     for coll in COLLECTIONS_TO_CLEAR_COMPLETELY:
         try:
-            docs = await database.find_many(coll, {})
-            count = len(docs)
-            if count > 0:
-                for d in docs:
-                    doc_id = d.get("_id") or d.get("id")
-                    if doc_id is not None:
-                        await database.delete(coll, {"_id": doc_id})
-                logger.info(f"Purged {count} documents from collection '{coll}'.")
-                total_deleted += count
+            purged = await database.delete_many(coll, {})
+            if purged > 0:
+                logger.info(f"Purged {purged} documents from collection '{coll}'.")
+                total_deleted += purged
             else:
                 logger.info(f"Collection '{coll}' is already empty (0).")
         except Exception as e:
             logger.warning(f"Note on collection '{coll}': {e}")
 
-    # 2. Clear Users collection (preserving only super_admin)
+    # 2. Clear non-admin users
     try:
         users = await database.find_many("users", {})
         user_delete_count = 0
         for u in users:
             role = str(u.get("role") or "").lower()
             if role not in ("super_admin", "superadmin", "owner"):
-                await database.delete("users", {"_id": u.get("_id")})
-                user_delete_count += 1
+                doc_id = u.get("_id") or u.get("id")
+                if doc_id:
+                    await database.delete_one("users", {"_id": doc_id})
+                    user_delete_count += 1
         logger.info(f"Purged {user_delete_count} non-admin users from 'users' collection.")
         total_deleted += user_delete_count
     except Exception as e:

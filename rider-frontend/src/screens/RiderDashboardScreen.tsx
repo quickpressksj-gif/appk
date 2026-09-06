@@ -114,7 +114,7 @@ export function RiderDashboardScreen() {
         (o: any) => o.status === "assigned" || o.status === "picked_up"
       );
 
-      if (backendActive && !activeOrder) {
+      if (backendActive) {
         setActiveOrder({
           id: String(backendActive.id),
           order_number: backendActive.order_number || String(backendActive.id),
@@ -130,6 +130,8 @@ export function RiderDashboardScreen() {
           items_count: backendActive.items_count || 3,
           service_name: backendActive.service_name || "Laundry Pickup",
         });
+      } else {
+        setActiveOrder(null);
       }
     } catch {
       /* ignore */
@@ -140,25 +142,32 @@ export function RiderDashboardScreen() {
 
   // Poll real offers from /api/rider/offers when online
   const checkLiveOffers = useCallback(async () => {
-    if (!isOnline || activeOrder) return;
+    if (!isOnline || activeOrder) {
+      setIncomingOffer(null);
+      return;
+    }
     try {
       const offers = await fetchRiderOffers();
       if (Array.isArray(offers) && offers.length > 0) {
         const topOffer = offers[0];
-        setIncomingOffer({
-          id: topOffer.rideId || topOffer._id || topOffer.id || topOffer.orderId,
-          order_number: topOffer.orderCode || topOffer.order_number || topOffer.orderId || "QP-NEW",
-          store_name: topOffer.partnerName || topOffer.store_name || "QuickPress Partner Store",
-          pickup_address: topOffer.pickupAddress || topOffer.pickup_address || "Customer Address, Kasganj",
-          customer_name: topOffer.customerName || topOffer.customer_name || topOffer.contactName || "Customer",
-          delivery_address: topOffer.dropAddress || topOffer.deliveryAddress || topOffer.delivery_address || "Partner Store, Kasganj",
-          distance_km: topOffer.distanceKm || topOffer.distance_km || 2.4,
-          payout_amount: topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 60,
-          items_summary: topOffer.rideType === "pickup" ? "Customer Clothes Pickup -> Handover to Store" : "Store Clean Clothes Delivery -> Customer",
-        });
+        if (topOffer && (topOffer.orderId || topOffer.rideId || topOffer._id || topOffer.id)) {
+          setIncomingOffer({
+            id: topOffer.rideId || topOffer._id || topOffer.id || topOffer.orderId,
+            order_number: topOffer.orderCode || topOffer.order_number || topOffer.orderId || "QP-ORDER",
+            store_name: topOffer.partnerName || topOffer.store_name || "QuickPress Partner Store",
+            pickup_address: topOffer.pickupAddress || topOffer.pickup_address || "Customer Address",
+            customer_name: topOffer.customerName || topOffer.customer_name || topOffer.contactName || "Customer",
+            delivery_address: topOffer.dropAddress || topOffer.deliveryAddress || topOffer.delivery_address || "Partner Store Address",
+            distance_km: Number(topOffer.distanceKm || topOffer.distance_km || 2.0),
+            payout_amount: Number(topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 40),
+            items_summary: topOffer.rideType === "delivery" ? "Store Clean Clothes Delivery -> Customer" : "Customer Clothes Pickup -> Handover to Store",
+          });
+          return;
+        }
       }
+      setIncomingOffer(null);
     } catch {
-      /* ignore */
+      setIncomingOffer(null);
     }
   }, [isOnline, activeOrder]);
 

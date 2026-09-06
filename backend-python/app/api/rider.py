@@ -1149,7 +1149,7 @@ async def update_settings(body: dict, user: User = Depends(current_user)) -> dic
 
 @router.get("/offers")
 async def get_active_offers(user: User = Depends(current_user)) -> list:
-    """Fetch live pending ride offers dispatched to this rider."""
+    """Fetch live pending ride offers dispatched to this rider — strictly validated against real customer orders."""
     rider_id = await _rider_id(user)
     from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION, RIDES_COLLECTION
     from app.services.rider_dispatch import OFFERS_COLLECTION
@@ -1165,7 +1165,7 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
     )
     all_raw = list(offers) + list(alt_offers)
 
-    # Also check if there is an active ride in SEARCHING_RIDER or OFFER_SENT state
+    # Check active rides in SEARCHING_RIDER or OFFER_SENT state
     open_rides = await database.find_many(
         RIDES_COLLECTION,
         {"status": {"$in": ["SEARCHING_RIDER", "OFFER_SENT"]}}
@@ -1176,6 +1176,14 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
         if (offered_to == rider_id or not offered_to) and (rider_id not in attempted or offered_to == rider_id):
             p_loc = r.get("pickupLocation") or {}
             d_loc = r.get("dropLocation") or {}
+            created_at = r.get("createdAt") or now_iso
+            # Offer is valid for 45 seconds from creation
+            try:
+                dt_created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                exp_iso = (dt_created + timedelta(seconds=45)).isoformat()
+            except Exception:
+                exp_iso = (datetime.now(timezone.utc) + timedelta(seconds=45)).isoformat()
+
             all_raw.append({
                 "_id": f"off-{r.get('_id')}-{rider_id}",
                 "offerId": f"off-{r.get('_id')}-{rider_id}",
@@ -1185,28 +1193,98 @@ async def get_active_offers(user: User = Depends(current_user)) -> list:
                 "rideType": r.get("rideType", "pickup"),
                 "riderId": rider_id,
                 "status": "pending",
-                "distanceKm": r.get("distanceKm", 2.5),
-                "estimatedEarning": r.get("estimatedEarning", 45),
-                "pickupAddress": p_loc.get("address") or "Customer Pickup Address, Kasganj",
-                "dropAddress": d_loc.get("address") or "QuickPress Partner Store, Kasganj",
-                "customerName": p_loc.get("contactName") or "Customer",
+                "distanceKm": r.get("distanceKm", 2.0),
+                "estimatedEarning": r.get("estimatedEarning", 40),
+                "pickupAddress": p_loc.get("address") or "",
+                "dropAddress": d_loc.get("address") or "",
+                "customerName": p_loc.get("contactName") or "",
                 "customerPhone": p_loc.get("contactPhone") or "",
-                "partnerName": d_loc.get("contactName") or "QuickPress Store",
+                "partnerName": d_loc.get("contactName") or "",
                 "partnerPhone": d_loc.get("contactPhone") or "",
-                "createdAt": r.get("createdAt"),
-                "expiresAt": (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat(),
+                "createdAt": created_at,
+                "expiresAt": exp_iso,
             })
 
-    # Deduplicate by orderId or rideId
+    # Deduplicate and strictly validate against active customer orders
     seen = set()
     valid_offers = []
     for off in all_raw:
-        oid = off.get("orderId") or off.get("rideId") or off.get("_id")
+        order_id = off.get("orderId")
+        if not order_id:
+            continue
+
+        oid = off.get("offerId") or off.get("_id") or f"{order_id}-{rider_id}"
         if oid in seen:
             continue
         seen.add(oid)
-        if not off.get("expiresAt") or off.get("expiresAt") > now_iso:
-            valid_offers.append(off)
+
+        # Check expiration
+        exp = off.get("expiresAt")
+        if exp and exp <= now_iso:
+            continue
+
+        # Strictly verify that a REAL active customer order exists for this ride
+        real_order = await database.find_one("customer_orders", {"_id": order_id})
+        if not real_order:
+            real_order = await database.find_one("customer_orders", {"id": order_id})
+        if not real_order:
+            real_order = await database.find_one("orders", {"_id": order_id})
+
+        if not real_order:
+            # Orphaned / dummy / test offer without a real customer order -> skip!
+            continue
+
+        order_status = str(real_order.get("status") or "").lower()
+        if order_status in ("delivered", "completed", "cancelled", "rejected"):
+            continue
+
+        # Populate accurate real order customer & store details
+        cust_addr = real_order.get("address") or {}
+        cust_name = (
+            (real_order.get("customer") or {}).get("name")
+            or cust_addr.get("name")
+            or real_order.get("customerName")
+            or off.get("customerName")
+            or "Customer"
+        )
+        cust_phone = (
+            (real_order.get("customer") or {}).get("phone")
+            or cust_addr.get("phone")
+            or real_order.get("customerPhone")
+            or off.get("customerPhone")
+            or ""
+        )
+        pickup_line = (
+            cust_addr.get("line")
+            or cust_addr.get("address")
+            or cust_addr.get("formattedAddress")
+            or off.get("pickupAddress")
+            or ""
+        )
+
+        partner_info = real_order.get("partner") or {}
+        partner_name = (
+            partner_info.get("name")
+            or partner_info.get("storeName")
+            or real_order.get("partnerName")
+            or off.get("partnerName")
+            or "QuickPress Partner Store"
+        )
+        partner_addr = (
+            partner_info.get("address")
+            or partner_info.get("formattedAddress")
+            or off.get("dropAddress")
+            or ""
+        )
+
+        off["customerName"] = cust_name
+        off["customerPhone"] = cust_phone
+        off["pickupAddress"] = pickup_line or "Pickup Location"
+        off["partnerName"] = partner_name
+        off["dropAddress"] = partner_addr or "Partner Store"
+        off["orderCode"] = real_order.get("code") or real_order.get("orderNumber") or order_id
+
+        valid_offers.append(off)
 
     return valid_offers
 
