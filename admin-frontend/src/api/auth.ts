@@ -72,9 +72,9 @@ export async function verifyAdminTwoFactor(input: {
   writeSession(session, "admin");
   return {
     token: session.token,
-    email: session.account.email || "himanshupalsingh6@gmail.com",
-    name: session.account.name || "Himanshu Pal Singh",
-    role: session.account.role || "Super admin",
+    email: session.account?.email || "himanshupalsingh6@gmail.com",
+    name: session.account?.name || "Himanshu Pal Singh",
+    role: session.account?.departmentRole || session.account?.role || "Super Administrator",
     twoFactorRequired: false,
   };
 }
