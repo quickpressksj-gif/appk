@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/shared/ui/sonner";
 
 import { PartnerAuthHeader } from "../components/PartnerAuthHeader";
+import { PartnerDevicePermissionsCard } from "../components/onboarding/PartnerDevicePermissionsCard";
 import { usePartnerContext } from "../context/PartnerContext";
 import { partnerRoutes } from "../navigation/partner-routes";
 import {
@@ -252,6 +253,9 @@ export function RegistrationSubmittedScreen() {
             ))}
           </div>
         </section>
+
+        {/* Real Device Permissions, Push FCM & Loud Siren Setup Card */}
+        <PartnerDevicePermissionsCard className="mt-5" />
 
         {/* Action Buttons Zone */}
         <div className="mt-auto pt-6 space-y-3">

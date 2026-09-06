@@ -54,6 +54,7 @@ import {
   PartnerAgreementSignaturePad,
   type AgreementSignatureData,
 } from "../components/onboarding/PartnerAgreementSignaturePad";
+import { PartnerDevicePermissionsCard } from "../components/onboarding/PartnerDevicePermissionsCard";
 import { testPartnerSoundAndVibration } from "../lib/partner-order-alert-sound";
 import {
   ChoiceChip,
@@ -584,7 +585,7 @@ export function BusinessRegistrationScreen() {
           city: res.city || form.city || "Kasganj",
           state: res.state || "Uttar Pradesh",
           pincode: res.pincode || "207123",
-          photo: res.photo,
+          photo: res.photo || "",
         };
         setAadhaarKycData(kycPayload);
         setShowAadhaarModal(true);
@@ -1008,8 +1009,8 @@ export function BusinessRegistrationScreen() {
                   label="Full Shop Address *"
                   placeholder="Shop #4, Ground Floor, Main Market Road, Landmark..."
                   value={form.shopAddress}
-                  onChange={(val) =>
-                    set("shopAddress", typeof val === "string" ? val : (val as any).target.value)
+                  onChange={(val: any) =>
+                    set("shopAddress", typeof val === "string" ? val : val.target.value)
                   }
                   error={errors["shopAddress"]}
                   action={
@@ -1888,68 +1889,8 @@ export function BusinessRegistrationScreen() {
                   </div>
                 </SectionCard>
 
-                {/* Merchant High-Priority Order Siren & Native Alert Permissions Card */}
-                <div className="rounded-3xl border border-amber-300/80 bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-100/40 p-5 shadow-xs space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="size-4.5 text-amber-600 animate-pulse" />
-                      <h4 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                        High-Priority Order Siren & Permissions
-                      </h4>
-                    </div>
-                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-black text-emerald-800">
-                      Background Ready
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-zinc-600 leading-snug">
-                    QuickPress uses high-frequency alert chimes so your store never misses incoming customer orders even when phone screen is locked or in background.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
-                      <span>Order Push Alerts</span>
-                      {notifPermission === "granted" ? (
-                        <span className="text-emerald-700 font-bold text-[11px]">Enabled ✓</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={requestNotificationPermission}
-                          className="rounded-lg bg-amber-400 px-2 py-0.5 text-[10px] font-black text-black hover:bg-amber-300 transition-all cursor-pointer"
-                        >
-                          Enable 🔔
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl bg-white/90 border border-amber-200 p-2.5 text-xs font-semibold text-zinc-800">
-                      <span>Battery Saver Exemption</span>
-                      <span className="text-emerald-700 font-bold text-[11px]">Active ✓</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={requestNotificationPermission}
-                      className="flex items-center justify-center gap-1.5 rounded-2xl bg-white border border-amber-300 py-2.5 text-xs font-black text-zinc-900 hover:bg-amber-50 shadow-2xs active:scale-[0.98] transition-all cursor-pointer"
-                    >
-                      <Bell className="size-3.5 text-amber-600" />
-                      <span>{notifPermission === "granted" ? "Alerts Enabled ✓" : "Grant Alert Permission"}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        testPartnerSoundAndVibration();
-                        toast.success("Playing merchant order siren chime & vibration test!");
-                      }}
-                      className="flex items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-2.5 text-xs font-black text-black hover:bg-amber-300 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
-                    >
-                      <Volume2 className="size-3.5" />
-                      <span>Test Order Siren Chime</span>
-                    </button>
-                  </div>
-                </div>
+                {/* Real Device Permissions, Push FCM, High-Priority Siren & Battery Guide */}
+                <PartnerDevicePermissionsCard />
 
                 {/* Legal Merchant SLA Franchise Agreement & Digital Signature Pad */}
                 <PartnerAgreementSignaturePad

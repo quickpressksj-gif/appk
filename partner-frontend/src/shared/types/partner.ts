@@ -44,6 +44,8 @@ export type BusinessRegistrationPayload = {
   accountNumber?: string;
   ifsc?: string;
   logo?: string;
+  banner?: string;
+  gallery?: string[];
   latitude?: number;
   longitude?: number;
   services?: Array<string | { name: string; price: number; unit: string; turnaroundHours?: number; enabled?: boolean }>;
