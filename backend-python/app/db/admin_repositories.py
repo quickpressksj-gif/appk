@@ -2695,30 +2695,7 @@ class AdminWalletRepository:
 
     async def withdrawals(self) -> List[Dict[str, Any]]:
         payouts = await database.find_many("admin_payouts")
-        if not payouts:
-            payouts = [
-                {
-                    "_id": "payout-001",
-                    "id": "payout-001",
-                    "account": "Kasganj Super Clean Hub",
-                    "role": "partner",
-                    "amount": 250.0,
-                    "method": "UPI: store@okaxis",
-                    "status": "Pending",
-                    "createdAt": now_iso(),
-                },
-                {
-                    "_id": "payout-002",
-                    "id": "payout-002",
-                    "account": "Rahul Express Rider",
-                    "role": "rider",
-                    "amount": 200.0,
-                    "method": "Bank: SBIN000492 (A/C: **1928)",
-                    "status": "Pending",
-                    "createdAt": now_iso(),
-                },
-            ]
-        return payouts
+        return payouts or []
 
     async def refunds(self) -> List[Dict[str, Any]]:
         return await database.find_many("admin_wallet_transactions", {"kind": "refund"})

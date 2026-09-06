@@ -533,8 +533,12 @@ class SettlementEngine:
         total_rider_settled = sum(float(s.get("netAmount") or 0.0) for s in rider_settled_items)
         total_rider_pending = sum(float(s.get("netAmount") or 0.0) for s in rider_pending_items)
 
-        total_commission = sum(float(os.get("platformCommission") or 0.0) for os in order_settlements) or round(total_gmv * 0.15, 2)
-        total_net_margin = sum(float(os.get("platformNetMargin") or 0.0) for os in order_settlements) or round(total_commission + (total_gmv * 0.05), 2)
+        total_commission = sum(float(os.get("platformCommission") or 0.0) for os in order_settlements)
+        if not order_settlements and total_gmv > 0:
+            total_commission = round(total_gmv * 0.15, 2)
+        total_net_margin = sum(float(os.get("platformNetMargin") or 0.0) for os in order_settlements)
+        if not order_settlements and total_gmv > 0:
+            total_net_margin = round(total_commission + (total_gmv * 0.05), 2)
 
         # Build itemized feed combining order_settlements and settlements
         feed = []
@@ -555,46 +559,6 @@ class SettlementEngine:
 
         # Sort reverse chronological
         feed.sort(key=lambda x: str(x.get("date", "")), reverse=True)
-
-        if not feed:
-            feed = [
-                {
-                    "id": "stl_prt_demo_01",
-                    "orderId": "ord-2026-0208-1",
-                    "orderCode": "QP-9281",
-                    "role": "partner",
-                    "accountName": "Kasganj Steam Express",
-                    "grossAmount": 249.0,
-                    "commission": 37.35,
-                    "netPayout": 209.16,
-                    "status": "SETTLED",
-                    "utr": "NPCI948271049281",
-                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                },
-                {
-                    "id": "stl_rdr_demo_01",
-                    "orderId": "ord-2026-0208-1",
-                    "orderCode": "QP-9281",
-                    "role": "rider",
-                    "accountName": "Captain Vikram",
-                    "grossAmount": 60.0,
-                    "commission": 0.0,
-                    "netPayout": 60.0,
-                    "status": "SETTLED",
-                    "utr": "NPCI948271049281",
-                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                },
-            ]
-            if total_partner_settled == 0:
-                total_partner_settled = 209.16
-            if total_rider_settled == 0:
-                total_rider_settled = 60.0
-            if total_commission == 0:
-                total_commission = 37.35
-            if total_net_margin == 0:
-                total_net_margin = 18.50
-            if total_gmv == 0:
-                total_gmv = 249.0
 
         return {
             "summary": {

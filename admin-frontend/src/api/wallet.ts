@@ -131,7 +131,7 @@ export async function fetchRevenueSplit(): Promise<SeriesPoint[]> {
   try {
     return await apiGetJson<SeriesPoint[]>("/api/admin/wallet/revenue-split");
   } catch {
-    return [{ label: "2026-08", value: 492, secondary: 88.56 }];
+    return [];
   }
 }
 
@@ -237,14 +237,14 @@ export async function fetchAdminRefundsStats(): Promise<RefundStats> {
     return await apiGetJson<RefundStats>("/api/admin/refunds/stats");
   } catch {
     return {
-      totalRefundedAmount: "₹176.00",
-      rawTotalAmount: 176,
-      totalRefundsCount: 3,
-      pendingClaimsCount: 1,
-      walletRefundsCount: 2,
-      gatewayRefundsCount: 1,
+      totalRefundedAmount: "₹0.00",
+      rawTotalAmount: 0,
+      totalRefundsCount: 0,
+      pendingClaimsCount: 0,
+      walletRefundsCount: 0,
+      gatewayRefundsCount: 0,
       instantSuccessRate: "100%",
-      avgTurnaround: "Instant (0 Mins)",
+      avgTurnaround: "0 Mins",
     };
   }
 }
