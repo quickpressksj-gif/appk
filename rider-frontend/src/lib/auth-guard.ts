@@ -14,10 +14,10 @@ export function requireRiderAuth() {
   const sess = readSession("rider") || readSession();
 
   if (!sess || !sess.token) {
-    throw redirect({ to: riderRoutes.auth });
+    throw redirect({ to: "/auth" });
   }
-  if (sess?.status === "suspended" || (sess as any)?.isSuspended) {
-    throw redirect({ to: riderRoutes.suspended });
+  if ((sess as any)?.status === "suspended" || (sess as any)?.isSuspended) {
+    throw redirect({ to: "/auth" });
   }
 
   const isOnboarded = sess.isOnboarded ?? sess.account?.isOnboarded;
@@ -39,6 +39,6 @@ export function requireRiderSession() {
   const sess = readSession("rider") || readSession();
 
   if (!sess || !sess.token) {
-    throw redirect({ to: riderRoutes.auth });
+    throw redirect({ to: "/auth" });
   }
 }

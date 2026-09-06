@@ -104,6 +104,12 @@ export function RiderDashboardScreen() {
       ]);
 
       if (profileRes) {
+        // Enforce admin approval: If rider is pending or unverified, redirect to /onboarding
+        if (!profileRes.isVerified && profileRes.status !== "active" && profileRes.status !== "approved") {
+          toast.error("Application Under Review! Admin approval required to access Cockpit.");
+          navigate({ to: "/onboarding" });
+          return;
+        }
         if (profileRes.fullName) setCaptainName(profileRes.fullName);
         if (profileRes.riderId) setCaptainId(profileRes.riderId);
         if (typeof profileRes.rating === "number") setCaptainRating(profileRes.rating);

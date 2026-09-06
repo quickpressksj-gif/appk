@@ -282,6 +282,8 @@ export type AllowedCity = {
   zones?: Array<{ zoneId: string; name: string; sector: string; pincodes?: string[] }>;
 };
 
+export type CityTerritoryEntry = AllowedCity;
+
 export async function fetchAllowedCities(): Promise<AllowedCity[]> {
   try {
     const res = await apiGetJson<AllowedCity[]>("/api/cities");

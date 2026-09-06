@@ -111,6 +111,8 @@ export type RiderNotification = {
 };
 
 export type RiderProfile = {
+  id?: string;
+  name?: string;
   riderId: string;
   fullName: string;
   phone: string;
@@ -125,7 +127,11 @@ export type RiderProfile = {
   accountLast4: string;
   ifsc: string;
   kycStatus: "verified" | "pending" | "rejected";
+  isVerified?: boolean;
+  status?: string;
+  photo?: string;
   documents: { id: string; label: string; status: "verified" | "pending" | "rejected" }[];
+  [key: string]: any;
 };
 
 export type RiderHistoryEntry = {
