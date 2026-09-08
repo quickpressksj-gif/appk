@@ -13,6 +13,7 @@ export type OrderStage =
   | "new"
   | "accepted"
   | "pickup_pending"
+  | "at_partner"
   | "processing"
   | "washing"
   | "dry_cleaning"

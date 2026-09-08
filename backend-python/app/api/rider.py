@@ -1546,11 +1546,11 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
                 "expiresAt": exp_iso,
             })
 
-    # Also directly scan active unassigned customer orders strictly in Captain's same city
+    # Only scan active unassigned customer orders where Partner has ALREADY accepted or order is ready for delivery
     pending_customer_orders = await database.find_many(
         "customer_orders",
         {
-            "status": {"$in": ["pending", "placed", "confirmed", "rider_searching", "partner_accepted", "assigned"]},
+            "status": {"$in": ["partner_accepted", "pickup_rider_assigned", "rider_searching", "ready", "ready_for_delivery", "delivery_rider_assigned"]},
             "$or": [{"riderId": None}, {"riderId": ""}, {"rider": None}],
         },
     )
@@ -1618,7 +1618,23 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
             continue
 
         order_status = str(real_order.get("status") or "").lower()
-        if order_status in ("delivered", "completed", "cancelled", "rejected", "picked_up", "at_partner", "processing", "out_for_delivery"):
+        # Strictly ignore orders that are not yet accepted by partner, or already in processing/complete
+        if order_status in (
+            "placed",
+            "pending",
+            "pending_partner_acceptance",
+            "delivered",
+            "completed",
+            "cancelled",
+            "rejected",
+            "picked_up",
+            "at_partner",
+            "processing",
+            "washing",
+            "ironing",
+            "dry_cleaning",
+            "out_for_delivery",
+        ):
             continue
 
         # Strict City Match check against real customer order
@@ -1635,7 +1651,7 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
         # Check expiration - if order is still actively waiting for a rider, extend validity
         exp = off.get("expiresAt")
         if exp and exp <= now_iso:
-            if order_status in ("pending", "placed", "confirmed", "rider_searching", "partner_accepted", "assigned") and not real_order.get("riderId"):
+            if order_status in ("partner_accepted", "pickup_rider_assigned", "rider_searching", "ready", "ready_for_delivery") and not real_order.get("riderId"):
                 off["expiresAt"] = (now_dt + timedelta(seconds=60)).isoformat()
             else:
                 continue

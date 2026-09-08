@@ -484,6 +484,10 @@ export function ZomatoHubView() {
                               </button>
                             </>
                           ) : order.stage === "accepted" || order.stage === "pickup_pending" ? (
+                            <span className="rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-[10px] font-black text-amber-700 flex items-center gap-1">
+                              <span>🛵 Clothes En Route</span>
+                            </span>
+                          ) : order.stage === "at_partner" ? (
                             <button
                               type="button"
                               onClick={() => handleAction(order, "start_washing")}
@@ -641,15 +645,21 @@ export function ZomatoHubView() {
                   </button>
                 </div>
               ) : selectedManageOrder.stage === "accepted" || selectedManageOrder.stage === "pickup_pending" ? (
+                <div className="w-full rounded-2xl bg-amber-50 border border-amber-200/80 p-3 text-center text-xs font-bold text-amber-800 flex items-center justify-center gap-2">
+                  <span>🛵</span>
+                  <span>Waiting for Captain to reach store with laundry (कैप्टन के कपड़े लेकर स्टोर पहुँचने की प्रतीक्षा है)</span>
+                </div>
+              ) : selectedManageOrder.stage === "at_partner" ? (
                 <button
                   type="button"
                   onClick={() => {
-                    handleAction(selectedManageOrder, "picked_up");
+                    handleAction(selectedManageOrder, "start_washing");
                     setSelectedManageOrder(null);
                   }}
-                  className="w-full rounded-2xl bg-amber-500 py-3 text-xs font-black text-zinc-950 shadow-sm active:scale-95"
+                  className="w-full rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
                 >
-                  Mark Clothes Picked Up & Start Wash →
+                  <span>Start Cleaning 🧺</span>
+                  <ArrowRight className="size-3" />
                 </button>
               ) : selectedManageOrder.stage === "washing" || selectedManageOrder.stage === "dry_cleaning" || selectedManageOrder.stage === "ironing" ? (
                 <button

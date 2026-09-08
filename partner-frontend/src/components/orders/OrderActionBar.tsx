@@ -20,7 +20,17 @@ export function OrderActionBar({
   const isDryClean = order.services?.some((service) => service.toLowerCase().includes("dry"));
   const actions = getOrderActions(order.stage, isDryClean);
 
-  if (!actions.length) return null;
+  if (!actions.length) {
+    if (order.stage === "accepted" || order.stage === "pickup_pending") {
+      return (
+        <div className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-50 border border-amber-200/80 p-3 text-center text-xs font-bold text-amber-800">
+          <span className="text-base">🛵</span>
+          <span>Waiting for Captain to reach store with laundry (कैप्टन के कपड़े लेकर स्टोर पहुँचने की प्रतीक्षा है)</span>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const primaryAction = actions.find((a) => a.intent === "primary") || actions[0];
   const dangerAction = actions.find((a) => a.intent === "danger");
@@ -44,10 +54,10 @@ export function OrderActionBar({
 
     if (primaryAction) {
       const swipeLabel =
-        primaryAction.id === "processing" || primaryAction.id === "wash" || primaryAction.id === "dry_clean"
-          ? "Swipe to Start Processing"
-          : primaryAction.id === "ready"
-          ? "Swipe to Mark Ready for Delivery"
+        primaryAction.id === "start_washing" || primaryAction.id === "processing" || primaryAction.id === "wash" || primaryAction.id === "dry_clean"
+          ? "Swipe to Start Processing 🧺"
+          : primaryAction.id === "mark_ready" || primaryAction.id === "ready"
+          ? "Swipe: Process Complete ✨"
           : `Swipe to ${primaryAction.label}`;
 
       return (

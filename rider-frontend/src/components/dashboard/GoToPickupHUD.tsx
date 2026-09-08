@@ -417,11 +417,11 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     unlockAudioContext();
     triggerHaptic();
     playSuccessChime();
-    speakText("ट्रिप शुरू हो गई है। सुरक्षित ड्राइव करें।");
+    speakText("पिकअप पूरा हुआ। स्टोर के लिए नेविगेशन शुरू हो रहा है।");
     setStage("in_trip");
     setIsWaitingTimerActive(false);
     setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    toast.success("Trip Started! 🛵 Heading to Drop location.");
+    toast.success("Pickup Done! 🛵 Opening navigation to Partner Store...");
 
     // Real backend verification & status transition
     if (order.orderId) {
@@ -433,34 +433,50 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         } catch {}
       }
     }
+
+    // Auto-open store navigation immediately as requested
+    try {
+      const dest = dropCoords;
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
+      window.open(url, "_blank");
+    } catch {}
   };
 
   const handleCompleteTrip = async () => {
     unlockAudioContext();
     triggerHaptic();
     playSuccessChime();
-    speakTripComplete(order.fare);
-    setStage("completed");
-    setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    toast.success(`🎉 Trip Completed! Collected ₹${order.fare.toFixed(2)} — Credited to Wallet`);
 
-    // Call Real Backend to complete trip and credit rider's wallet
-    if (order.orderId) {
-      try {
-        if (
-          order.rideType === "pickup" ||
-          order.dropTitle?.toLowerCase().includes("store") ||
-          order.dropTitle?.toLowerCase().includes("partner")
-        ) {
+    const isPickupRide =
+      order.rideType === "pickup" ||
+      order.dropTitle?.toLowerCase().includes("store") ||
+      order.dropTitle?.toLowerCase().includes("partner") ||
+      order.dropTitle?.toLowerCase().includes("hub");
+
+    if (isPickupRide) {
+      speakText("कपड़े स्टोर पर सौंप दिए गए हैं। पिकअप पूरा हुआ।");
+      setStage("completed");
+      setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      toast.success(`🎉 Clothes Dropped at Partner Store! Earned ₹${order.fare.toFixed(2)}`);
+
+      if (order.orderId) {
+        try {
           await confirmDropAtPartner(order.orderId);
-        } else {
-          await confirmDelivery(order.orderId, "0000");
+        } catch (e) {
+          console.warn("confirmDropAtPartner error:", e);
         }
-      } catch {
+      }
+    } else {
+      speakTripComplete(order.fare);
+      setStage("completed");
+      setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      toast.success(`🎉 Delivery Completed! Collected ₹${order.fare.toFixed(2)} — Credited to Wallet`);
+
+      if (order.orderId) {
         try {
           await confirmDelivery(order.orderId, "0000");
-        } catch {
-          await confirmDropAtPartner(order.orderId).catch(() => {});
+        } catch (e) {
+          console.warn("confirmDelivery error:", e);
         }
       }
     }
@@ -498,7 +514,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         <h1 className="text-base font-black text-neutral-950 tracking-tight">
           {stage === "en_route_pickup" && (isHandoverRide ? "Go to Handover Point" : "Go to Pickup Zone")}
           {stage === "arrived_pickup" && (isHandoverRide ? "At Handover Point" : "At Pickup Location")}
-          {stage === "in_trip" && "Heading to Drop Zone"}
+          {stage === "in_trip" && (order.rideType === "pickup" ? "Heading to Partner Store" : "Heading to Drop Zone")}
           {stage === "handover_waiting" && "Order Handover in Progress"}
           {stage === "completed" && "Trip Completed"}
         </h1>
@@ -939,30 +955,60 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           </div>
         )}
 
-        {/* STAGE 3: In Trip -> Red [ → COMPLETE TRIP ] Button + Unable to Deliver Reassignment */}
+        {/* STAGE 3: In Trip -> Drop at Store (Pickup Ride) OR Complete Delivery (Delivery Ride) */}
         {stage === "in_trip" && (
           <div className="space-y-2.5 animate-in fade-in duration-200">
+            {order.rideType === "pickup" ||
+            order.dropTitle?.toLowerCase().includes("store") ||
+            order.dropTitle?.toLowerCase().includes("partner") ||
+            order.dropTitle?.toLowerCase().includes("hub") ? (
+              <button
+                type="button"
+                onClick={handleCompleteTrip}
+                className="w-full h-14 flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-emerald-600/30 active:scale-[0.99] transition-all overflow-hidden"
+              >
+                <div className="flex items-center justify-center w-14 h-full bg-emerald-700/60 border-r border-emerald-400/30">
+                  <ArrowRight className="w-6 h-6 stroke-[3]" />
+                </div>
+                <div className="flex-1 text-center pr-14">
+                  <span>SWIPE: ARRIVAL TO STORE & HANDOVER 🧺</span>
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCompleteTrip}
+                className="w-full h-14 flex items-center bg-[#EF4444] hover:bg-[#DC2626] text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-red-500/25 active:scale-[0.99] transition-all overflow-hidden"
+              >
+                <div className="flex items-center justify-center w-14 h-full bg-red-600/50 border-r border-red-400/30">
+                  <ArrowRight className="w-6 h-6 stroke-[3]" />
+                </div>
+                <div className="flex-1 text-center pr-14">
+                  <span>COMPLETE CUSTOMER DELIVERY</span>
+                </div>
+              </button>
+            )}
+
+            {/* In-Trip Navigation Shortcut button */}
             <button
               type="button"
-              onClick={handleCompleteTrip}
-              className="w-full h-13.5 flex items-center bg-[#EF4444] hover:bg-[#DC2626] text-white font-black text-base tracking-wider rounded-xl shadow-lg shadow-red-500/25 active:scale-[0.99] transition-all overflow-hidden"
+              onClick={handleOpenGoogleMaps}
+              className="w-full py-2.5 px-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
             >
-              <div className="flex items-center justify-center w-14 h-full bg-red-600/50 border-r border-red-400/30">
-                <ArrowRight className="w-6 h-6 stroke-[3]" />
-              </div>
-              <div className="flex-1 text-center pr-14">
-                <span>COMPLETE TRIP</span>
-              </div>
+              <Navigation className="w-4 h-4 text-emerald-600" />
+              <span>
+                {order.rideType === "pickup" ? "Navigate to Partner Store (Google Maps)" : "Navigate to Customer Location (Google Maps)"}
+              </span>
             </button>
 
             {/* Unable to Complete Delivery (Emergency Transfer) */}
             <button
               type="button"
               onClick={() => setShowUnableModal(true)}
-              className="w-full py-2.5 px-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+              className="w-full py-2 px-3 rounded-xl border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 font-bold text-[11px] flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
             >
-              <AlertTriangle className="w-4 h-4 text-red-600 animate-pulse" />
-              <span>Unable to Complete Delivery? (Transfer Order)</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+              <span>Need Help / Transfer Order</span>
             </button>
           </div>
         )}

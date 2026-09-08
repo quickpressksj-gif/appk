@@ -24,6 +24,12 @@ export const GlobalOrderDispatchListener: React.FC = () => {
 
     const handleIncomingOffer = (offer: any) => {
       if (!offer) return;
+      // Do not alert if order is still placed/pending partner acceptance
+      const ordStatus = String(offer.orderStatus || offer.status || "").toLowerCase();
+      if (ordStatus === "placed" || ordStatus === "pending" || ordStatus === "pending_partner_acceptance") {
+        return;
+      }
+
       const offerId = offer.offerId || offer.orderId || offer.id || offer._id || `offer-${Date.now()}`;
 
       // Prevent duplicate instant triggers for the same offer ID
