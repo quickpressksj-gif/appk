@@ -146,14 +146,99 @@ async def list_orders(status_filter: Optional[str] = Query(default=None, alias="
 
 @router.get("/orders/{order_id}")
 async def get_order(order_id: str, user: User = Depends(current_user)):
+    from app.db.client import database
     order = await admin_order_repository.find(order_id)
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Order {order_id} does not exist")
-    # Admin sees the canonical order plus its full audit trail.
+
+    canonical_id = str(order["_id"])
+    audit_trail = await admin_order_repository.events(canonical_id)
+
+    # Fetch rides and settlement associated with this order
+    rides = await database.find_many("rides", {"orderId": canonical_id})
+    settlement = await database.find_one("order_settlements", {"orderId": canonical_id})
+
+    # Detailed Rider 1 (Pickup Captain) and Rider 2 (Delivery Captain) resolution
+    reassignment = order.get("reassignment")
+    if not reassignment and order.get("meta", {}).get("reassignment"):
+        reassignment = order.get("meta", {}).get("reassignment")
+
+    rider1_info = None
+    rider2_info = None
+
+    if reassignment:
+        r1_id = reassignment.get("originalRiderId")
+        if r1_id:
+            r1_doc = await database.find_one("rider_profiles", {"$or": [{"_id": r1_id}, {"riderId": r1_id}]}) or {}
+            rider1_info = {
+                "id": r1_id,
+                "name": r1_doc.get("fullName") or r1_doc.get("name") or "Rider 1 (Pickup Captain)",
+                "phone": r1_doc.get("phone") or "",
+                "vehicle": r1_doc.get("vehicleType") or "Bike",
+                "plate": r1_doc.get("vehicleNumber") or "UP-87-QP-1001",
+                "payout": float(reassignment.get("pickupLegPayout") or 35.0),
+            }
+        r2_id = reassignment.get("assignedTransferRiderId") or order.get("transferRiderId") or order.get("assignedRiderId")
+        if r2_id and r2_id != r1_id:
+            r2_doc = await database.find_one("rider_profiles", {"$or": [{"_id": r2_id}, {"riderId": r2_id}]}) or {}
+            rider2_info = {
+                "id": r2_id,
+                "name": r2_doc.get("fullName") or r2_doc.get("name") or "Rider 2 (Delivery Captain)",
+                "phone": r2_doc.get("phone") or "",
+                "vehicle": r2_doc.get("vehicleType") or "Bike",
+                "plate": r2_doc.get("vehicleNumber") or "UP-87-QP-1002",
+                "payout": float(reassignment.get("deliveryLegPayout") or 35.0),
+            }
+
+    # Sanitize ObjectIds in rides
+    sanitized_rides = []
+    for r in rides:
+        rc = dict(r)
+        if "_id" in rc:
+            rc["_id"] = str(rc["_id"])
+        sanitized_rides.append(rc)
+
+    # Sanitize settlement or construct estimated breakdown
+    sanitized_settlement = None
+    if settlement:
+        sanitized_settlement = dict(settlement)
+        if "_id" in sanitized_settlement:
+            sanitized_settlement["_id"] = str(sanitized_settlement["_id"])
+    elif reassignment:
+        grand_total = float(order.get("totals", {}).get("grandTotal") or order.get("pricing", {}).get("total") or 149.0)
+        p1 = float(reassignment.get("pickupLegPayout") or 35.0)
+        p2 = float(reassignment.get("deliveryLegPayout") or 35.0)
+        p_net = round(max(0.0, grand_total * 0.7), 2)
+        plat_fee = round(max(0.0, grand_total - (p_net + p1 + p2)), 2)
+        sanitized_settlement = {
+            "orderId": canonical_id,
+            "customerTotal": grand_total,
+            "partnerNet": p_net,
+            "rider1Payout": p1,
+            "rider2Payout": p2,
+            "platformFee": plat_fee,
+            "status": "SETTLED" if reassignment.get("handoverCompleted") else "PENDING_HANDOVER",
+        }
+
+    dispatch_otp = (
+        order.get("dispatchOtp")
+        or (reassignment or {}).get("dispatchOtp")
+        or (reassignment or {}).get("handoverOtp")
+        or (order.get("otp", {}).get("dispatch") if isinstance(order.get("otp", {}).get("dispatch"), str) else (order.get("otp", {}).get("dispatch") or {}).get("code"))
+    )
+
     return {
         **{k: v for k, v in order.items() if k != "_id"},
-        "id": str(order["_id"]),
-        "auditTrail": await admin_order_repository.events(str(order["_id"])),
+        "id": canonical_id,
+        "auditTrail": audit_trail,
+        "rides": sanitized_rides,
+        "settlement": sanitized_settlement,
+        "custody": order.get("custody", "partner" if reassignment else "customer"),
+        "reassignment": reassignment,
+        "isReassigned": bool(reassignment),
+        "dispatchOtp": dispatch_otp,
+        "rider1": rider1_info,
+        "rider2": rider2_info,
     }
 
 

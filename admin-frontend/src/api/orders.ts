@@ -40,6 +40,9 @@ export type AdminOrder = {
   refundStatus?: string;
   refundAmount?: number;
   refundDate?: string;
+  isReassigned?: boolean;
+  reassignment?: any;
+  custody?: string;
 };
 
 type AdminOrderRow = {
@@ -61,6 +64,9 @@ type AdminOrderRow = {
   refundStatus?: string;
   refundAmount?: number;
   refundDate?: string;
+  isReassigned?: boolean;
+  reassignment?: any;
+  custody?: string;
 };
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -114,6 +120,9 @@ function toAdminOrder(row: AdminOrderRow): AdminOrder {
     refundStatus: row.refundStatus,
     refundAmount: row.refundAmount,
     refundDate: row.refundDate,
+    isReassigned: row.isReassigned,
+    reassignment: row.reassignment,
+    custody: row.custody,
   };
 }
 
@@ -128,6 +137,49 @@ export type OrderDetail = AdminOrder & {
   timeline: { label: string; at: string; done: boolean }[];
   address: string;
   slot: string;
+  reassignment?: {
+    requested?: boolean;
+    requestedAt?: string;
+    originalRiderId?: string;
+    reason?: string;
+    remarks?: string;
+    custody?: string;
+    dispatchOtp?: string;
+    handoverOtp?: string;
+    pickupLegPayout?: number;
+    deliveryLegPayout?: number;
+    handoverCompleted?: boolean;
+    assignedTransferRiderId?: string;
+    storeLocation?: {
+      name?: string;
+      address?: string;
+      lat?: number;
+      lng?: number;
+    };
+  } | null;
+  rides?: any[];
+  settlement?: any;
+  custody?: string;
+  rider1?: {
+    id: string;
+    name: string;
+    phone: string;
+    vehicle: string;
+    plate?: string;
+    payout?: number;
+  } | null;
+  rider2?: {
+    id: string;
+    name: string;
+    phone: string;
+    vehicle: string;
+    plate?: string;
+    payout?: number;
+  } | null;
+  dispatchOtp?: string;
+  pickupOtp?: string;
+  deliveryOtp?: string;
+  isReassigned?: boolean;
 };
 
 /** GET /api/admin/orders/{id} */
@@ -174,6 +226,9 @@ export async function fetchOrder(id: string): Promise<OrderDetail> {
       refundStatus: order.payment?.refundStatus || order.paymentStatus,
       refundAmount: order.refundAmount,
       refundDate: order.refundDate,
+      isReassigned: Boolean(order.reassignment || order.isReassigned),
+      reassignment: order.reassignment,
+      custody: order.custody,
     }),
     phone: order.customer?.phone || order.customerPhone || "",
     service: order.serviceLabel || "Laundry Service",
@@ -186,6 +241,26 @@ export async function fetchOrder(id: string): Promise<OrderDetail> {
     refundStatus: order.payment?.refundStatus || order.paymentStatus,
     refundAmount: order.refundAmount,
     refundDate: order.refundDate,
+    reassignment: order.reassignment || null,
+    rides: order.rides || [],
+    settlement: order.settlement || null,
+    custody: order.custody || "customer",
+    rider1: order.rider1 || null,
+    rider2: order.rider2 || null,
+    dispatchOtp:
+      order.dispatchOtp ||
+      (typeof order.otp?.dispatch === "object" ? order.otp?.dispatch?.code : order.otp?.dispatch) ||
+      order.reassignment?.dispatchOtp ||
+      "",
+    pickupOtp:
+      order.pickupOtp ||
+      (typeof order.otp?.pickup === "object" ? order.otp?.pickup?.code : order.otp?.pickup) ||
+      "",
+    deliveryOtp:
+      order.deliveryOtp ||
+      (typeof order.otp?.delivery === "object" ? order.otp?.delivery?.code : order.otp?.delivery) ||
+      "",
+    isReassigned: Boolean(order.reassignment || order.isReassigned),
     items: (order.items || []).map((item: any) => ({
       name: item.name,
       qty: item.qty || item.quantity || 1,

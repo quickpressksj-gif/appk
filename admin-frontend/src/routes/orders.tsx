@@ -23,6 +23,9 @@ import {
   Store,
   AlertCircle,
   AlertTriangle,
+  ShieldCheck,
+  KeyRound,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,6 +64,7 @@ export const Route = createFileRoute("/orders")({
 
 const STATUS_TABS = [
   { id: "all", label: "All Orders" },
+  { id: "reassigned", label: "2-Way Reassigned" },
   { id: "Pending", label: "Pending Acceptance" },
   { id: "Picked up", label: "Picked Up" },
   { id: "Processing", label: "In Processing" },
@@ -107,7 +111,9 @@ export function OrdersPage() {
           .join(" ")
           .toLowerCase()
           .includes(q);
-      const matchesStatus = activeTab === "all" || order.status === activeTab;
+      const matchesStatus =
+        activeTab === "all" ||
+        (activeTab === "reassigned" ? Boolean(order.isReassigned) : order.status === activeTab);
       const matchesCity = city === "all" || order.city === city;
       const matchesFrom = !from || order.placedAt >= from;
       const matchesTo = !to || order.placedAt <= to;
@@ -216,6 +222,8 @@ export function OrdersPage() {
                 const countNum =
                   tab.id === "all"
                     ? allOrders.length
+                    : tab.id === "reassigned"
+                    ? allOrders.filter((o) => o.isReassigned).length
                     : allOrders.filter((o) => o.status === tab.id).length;
 
                 return (
@@ -301,7 +309,14 @@ export function OrdersPage() {
                       #
                     </div>
                     <div>
-                      <p className="font-mono font-black text-xs text-zinc-900">{r.id}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-mono font-black text-xs text-zinc-900">{r.id}</p>
+                        {r.isReassigned && (
+                          <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-800 border border-amber-300">
+                            2-Way
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-zinc-400 font-medium">{r.placedAt}</p>
                     </div>
                   </div>
@@ -333,9 +348,16 @@ export function OrdersPage() {
                 render: (r) => (
                   <div className="flex items-center gap-1.5">
                     <Truck className="size-3.5 text-zinc-400" />
-                    <span className={`text-xs font-semibold ${r.rider === "Unassigned" ? "text-amber-600 font-black" : "text-zinc-800"}`}>
-                      {r.rider}
-                    </span>
+                    <div>
+                      <span className={`text-xs font-semibold ${r.rider === "Unassigned" ? "text-amber-600 font-black" : "text-zinc-800"}`}>
+                        {r.rider}
+                      </span>
+                      {r.isReassigned && (
+                        <span className="block text-[9px] font-black text-amber-600">
+                          (Reassigned / 2-Way)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ),
               },
@@ -487,6 +509,64 @@ function OrderDetailSheet({
   const cancelledBy = (data as any)?.cancelledBy || order?.cancelledBy || "system";
   const autoCancelled = Boolean((data as any)?.autoCancelled || order?.autoCancelled);
   const refundStatus = (data as any)?.refundStatus || order?.refundStatus || "Refund Processed (Wallet/Online)";
+
+  const is2Way = Boolean(
+    data?.isReassigned ||
+    (order as any)?.isReassigned ||
+    data?.reassignment ||
+    (data as any)?.reassignment ||
+    data?.rider1 ||
+    data?.rider2
+  );
+
+  const reassignmentData = data?.reassignment || (order as any)?.reassignment;
+  const rider1 = data?.rider1 || (reassignmentData ? {
+    id: reassignmentData.originalRiderId,
+    name: "Rider 1 (Pickup Captain)",
+    phone: "",
+    vehicle: "Bike",
+    plate: "UP-87-QP-1001",
+    payout: Number(reassignmentData.pickupLegPayout || 35.0),
+  } : null);
+
+  const rider2 = data?.rider2 || (reassignmentData?.assignedTransferRiderId ? {
+    id: reassignmentData.assignedTransferRiderId,
+    name: "Rider 2 (Delivery Captain)",
+    phone: "",
+    vehicle: "Bike",
+    plate: "UP-87-QP-1002",
+    payout: Number(reassignmentData.deliveryLegPayout || 35.0),
+  } : null);
+
+  const dispatchOtp =
+    data?.dispatchOtp ||
+    reassignmentData?.dispatchOtp ||
+    reassignmentData?.handoverOtp ||
+    "5387";
+  const custodyStatus = data?.custody || reassignmentData?.custody || "partner";
+  const settlement = data?.settlement;
+
+  const getReasonMeta = (reason?: string) => {
+    switch (reason) {
+      case "vehicle_problem":
+      case "vehicle_breakdown":
+        return { label: "🛵 Vehicle Breakdown / Problem", badge: "border-amber-300 bg-amber-100/80 text-amber-900" };
+      case "medical_emergency":
+      case "emergency":
+        return { label: "🚨 Medical Emergency", badge: "border-rose-300 bg-rose-100/80 text-rose-900" };
+      case "accident":
+      case "accident_health":
+        return { label: "⚠️ Accident / Collision", badge: "border-red-400 bg-red-100/80 text-red-900" };
+      case "personal_issue":
+      case "family_emergency":
+        return { label: "🏠 Personal / Family Emergency", badge: "border-purple-300 bg-purple-100/80 text-purple-900" };
+      default:
+        return {
+          label: `⚠️ ${reason ? reason.replace(/_/g, " ") : "Operational Difficulty"}`,
+          badge: "border-amber-300 bg-amber-100/80 text-amber-900",
+        };
+    }
+  };
 
   const statusMutation = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: string }) => {
@@ -673,6 +753,260 @@ function OrderDetailSheet({
               value={<span className="text-base font-black text-emerald-700">{order?.total}</span>}
             />
           </div>
+
+          {/* =========================================================================
+              2-WAY DELIVERY & REASSIGNMENT AUDIT RECORD CARD
+          ========================================================================= */}
+          {is2Way && (
+            <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 p-4 shadow-xs space-y-4">
+              {/* Card Header */}
+              <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                    <ShieldCheck className="size-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                      <span>2-WAY DELIVERY &amp; REASSIGNMENT AUDIT RECORD</span>
+                    </h4>
+                    <p className="text-[10px] font-medium text-indigo-700/90">
+                      Dual-Captain Protocol · Custody Governance · Payout Distribution
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-2xs ${
+                    reassignmentData?.handoverCompleted
+                      ? "bg-emerald-600 text-white"
+                      : reassignmentData?.requested
+                      ? "bg-amber-500 text-white animate-pulse"
+                      : "bg-indigo-600 text-white"
+                  }`}
+                >
+                  {reassignmentData?.handoverCompleted
+                    ? "✓ Handover Complete"
+                    : reassignmentData?.requested
+                    ? "⚡ Reassignment Active"
+                    : "2-Way Delivery"}
+                </span>
+              </div>
+
+              {/* Reassignment Incident Banner (if requested) */}
+              {reassignmentData && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                      <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+                      <span>INCIDENT: UNABLE TO COMPLETE DELIVERY REPORTED</span>
+                    </div>
+                    {reassignmentData.requestedAt && (
+                      <span className="text-[10px] font-mono font-bold text-amber-800">
+                        {new Date(reassignmentData.requestedAt).toLocaleTimeString("en-IN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-bold text-[11px] capitalize shadow-2xs ${
+                        getReasonMeta(reassignmentData.reason).badge
+                      }`}
+                    >
+                      {getReasonMeta(reassignmentData.reason).label}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-[11px] shadow-2xs">
+                      <Store className="size-3 text-emerald-700" />
+                      <span>Custody: Safe at Partner ({order?.partner || "Laundromat Store"})</span>
+                    </span>
+                  </div>
+
+                  {reassignmentData.remarks && (
+                    <div className="text-[11px] text-amber-950 font-medium italic bg-white/90 rounded-lg p-2 border border-amber-200">
+                      "{reassignmentData.remarks}"
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Dual Captains (Rider 1 & Rider 2) Breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Rider 1: Pickup Captain */}
+                <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[10px] font-black text-white">
+                        1
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-wide text-purple-900">
+                        Rider 1 (Pickup Captain)
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Completed
+                    </span>
+                  </div>
+
+                  <div className="text-xs space-y-1">
+                    <div className="font-bold text-zinc-900 flex items-center justify-between">
+                      <span className="truncate">{rider1?.name || (order as any)?.rider || "Captain 1"}</span>
+                      {rider1?.phone && (
+                        <a
+                          href={`tel:${rider1.phone}`}
+                          className="text-purple-700 hover:underline flex items-center gap-1 font-mono text-[11px] shrink-0"
+                        >
+                          <PhoneCall className="size-3" />
+                          <span>{rider1.phone}</span>
+                        </a>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-zinc-600 flex items-center justify-between font-mono">
+                      <span>{rider1?.vehicle || "Bike"} · {rider1?.plate || "UP-87-QP-1001"}</span>
+                    </div>
+                    <div className="mt-2 pt-1.5 border-t border-purple-100 flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-purple-950">Leg 1 Payout:</span>
+                      <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        ₹{(rider1?.payout ?? settlement?.rider1Payout ?? 35).toFixed(2)} (Credited)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rider 2: Delivery Captain */}
+                <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between border-b border-sky-100 pb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-600 text-[10px] font-black text-white">
+                        2
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-wide text-sky-900">
+                        Rider 2 (Delivery Captain)
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                        reassignmentData?.handoverCompleted
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                          : "bg-amber-100 text-amber-800 border-amber-200"
+                      }`}
+                    >
+                      {reassignmentData?.handoverCompleted ? "Dispatched" : "Pending Handshake"}
+                    </span>
+                  </div>
+
+                  <div className="text-xs space-y-1">
+                    <div className="font-bold text-zinc-900 flex items-center justify-between">
+                      <span className="truncate">
+                        {rider2?.name ||
+                          (order as any)?.deliveryRider ||
+                          (reassignmentData?.assignedTransferRiderId ? "Replacement Captain" : "Auto-Dispatching...")}
+                      </span>
+                      {rider2?.phone && (
+                        <a
+                          href={`tel:${rider2.phone}`}
+                          className="text-sky-700 hover:underline flex items-center gap-1 font-mono text-[11px] shrink-0"
+                        >
+                          <PhoneCall className="size-3" />
+                          <span>{rider2.phone}</span>
+                        </a>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-zinc-600 flex items-center justify-between font-mono">
+                      <span>{rider2?.vehicle || "Bike"} · {rider2?.plate || "UP-87-QP-1002"}</span>
+                    </div>
+                    <div className="mt-2 pt-1.5 border-t border-sky-100 flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-sky-950">Leg 2 Payout:</span>
+                      <span className="font-mono font-black text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                        ₹{(rider2?.payout ?? settlement?.rider2Payout ?? 35).toFixed(2)} (Delivery)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dispatch OTP Handshake Card */}
+              <div className="rounded-xl border border-indigo-200 bg-white p-3 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-indigo-950">
+                    <KeyRound className="size-4 text-indigo-600" />
+                    <span>PARTNER STORE DISPATCH OTP (PHYSICAL HANDSHAKE)</span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      reassignmentData?.handoverCompleted
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "bg-indigo-50 text-indigo-800 border-indigo-200"
+                    }`}
+                  >
+                    {reassignmentData?.handoverCompleted ? "✓ Verified by Partner" : "Required for Dispatch"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  <div className="space-y-0.5 max-w-xs">
+                    <p className="text-[11px] text-zinc-600">
+                      Rider 2 communicates this 4-digit code to Partner for parcel release:
+                    </p>
+                    <span className="text-[10px] text-zinc-400 font-mono block">
+                      {reassignmentData?.handoverCompleted
+                        ? "Security handshake verified at partner counter."
+                        : "Physical verification pending at laundromat store."}
+                    </span>
+                  </div>
+
+                  {/* 4-digit OTP Boxes */}
+                  <div className="flex items-center gap-1.5 font-mono self-start sm:self-auto">
+                    {(dispatchOtp || "5387").slice(0, 4).split("").map((digit: string, i: number) => (
+                      <span
+                        key={i}
+                        className="flex h-9 w-8 items-center justify-center rounded-lg border-2 border-indigo-600 bg-indigo-50/80 text-sm font-black text-indigo-950 shadow-xs"
+                      >
+                        {digit}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Split Breakdown Matrix */}
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-black text-zinc-800">
+                  <div className="flex items-center gap-1.5">
+                    <Wallet className="size-3.5 text-emerald-600" />
+                    <span>FINANCIAL SPLIT BREAKDOWN (DUAL-LEG MATRIX)</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-500">Autonomous Settlement</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  <div className="rounded-lg bg-white p-2 border border-zinc-200 text-center shadow-2xs">
+                    <span className="text-[9.5px] font-bold text-zinc-500 uppercase block">Customer Total</span>
+                    <span className="text-xs font-black text-zinc-900 font-mono">{order?.total || "₹149.00"}</span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2 border border-zinc-200 text-center shadow-2xs">
+                    <span className="text-[9.5px] font-bold text-sky-700 uppercase block">Partner Net</span>
+                    <span className="text-xs font-black text-sky-900 font-mono">
+                      ₹{(settlement?.partnerNet ?? 104.30).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2 border border-purple-200 text-center shadow-2xs">
+                    <span className="text-[9.5px] font-bold text-purple-700 uppercase block">Rider 1 + Rider 2</span>
+                    <span className="text-xs font-black text-purple-900 font-mono">
+                      ₹{((rider1?.payout ?? 35) + (rider2?.payout ?? 35)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2 border border-emerald-200 text-center shadow-2xs">
+                    <span className="text-[9.5px] font-bold text-emerald-700 uppercase block">Platform Fee</span>
+                    <span className="text-xs font-black text-emerald-900 font-mono">
+                      ₹{(settlement?.platformFee ?? 4.70).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500">

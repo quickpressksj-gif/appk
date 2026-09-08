@@ -128,6 +128,11 @@ def to_admin_order_row(order: Dict[str, Any]) -> Dict[str, Any]:
         "refundStatus": payment.get("refundStatus") or order.get("paymentStatus") or "",
         "refundAmount": order.get("refundAmount") or 0.0,
         "refundDate": order.get("refundDate") or "",
+        "isReassigned": bool(order.get("reassignment") or order.get("isReassigned")),
+        "reassignment": order.get("reassignment"),
+        "custody": order.get("custody", "customer"),
+        "dispatchOtp": (order.get("otp") or {}).get("dispatch", {}).get("code") if isinstance((order.get("otp") or {}).get("dispatch"), dict) else (order.get("dispatchOtp") or (order.get("reassignment") or {}).get("dispatchOtp")),
+        "deliveryRider": order.get("deliveryRider"),
     }
 
 
