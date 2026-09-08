@@ -453,19 +453,19 @@ export function LiveDeliveryMap({
         <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-1.5">
           <div className="flex items-center gap-2 rounded-2xl bg-white/95 backdrop-blur-md px-3 py-1.5 shadow-lg border border-emerald-200 text-xs text-zinc-900">
             <span className="flex size-2 rounded-full bg-[#00C853] animate-pulse" />
-            <span className="font-black text-[#00C853]">
+            <span className="font-black text-black">
               {phase === "pickup" ? "To Pickup" : "To Customer"}
             </span>
             {distanceKm !== null ? (
               <>
-                <span className="text-zinc-300">·</span>
-                <span className="font-mono font-black text-zinc-900">{distanceKm} km</span>
+                <span className="text-zinc-400">·</span>
+                <span className="font-mono font-black text-black">{distanceKm} km</span>
               </>
             ) : null}
             {etaMins !== null ? (
               <>
-                <span className="text-zinc-300">·</span>
-                <span className="font-bold text-zinc-600">~{etaMins} mins</span>
+                <span className="text-zinc-400">·</span>
+                <span className="font-bold text-black">~{etaMins} mins</span>
               </>
             ) : null}
           </div>

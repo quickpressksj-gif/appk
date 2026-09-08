@@ -102,14 +102,14 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-[#00C853] tracking-wide text-xs uppercase">
+                <span className="font-black text-black tracking-wide text-xs uppercase">
                   ON DUTY
                 </span>
                 <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                   Radar Active
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-600 font-medium truncate max-w-[170px] sm:max-w-[220px]">
+              <p className="text-[11px] text-black font-semibold truncate max-w-[170px] sm:max-w-[220px]">
                 {t("dash.searching", "Searching nearby rides in Kasganj...")}
               </p>
             </div>
@@ -132,19 +132,19 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
 
         {/* Selected Surge Micro-Banner (If a surge pin is tapped) */}
         {selectedSurge && (
-          <div className="pointer-events-auto animate-in slide-in-from-top-2 duration-200 flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl shadow-md font-bold text-xs">
-            <div className="flex items-center gap-2">
+          <div className="pointer-events-auto animate-in slide-in-from-top-2 duration-200 flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 text-black rounded-xl shadow-md font-bold text-xs">
+            <div className="flex items-center gap-2 text-black">
               <Flame className="size-4 text-[#00C853]" />
               <span>
-                {selectedSurge.name}: <strong className="text-[#00C853]">+{selectedSurge.multiplier} Surge</strong> (+₹{selectedSurge.bonus}/ride)
+                {selectedSurge.name}: <strong className="text-black">+{selectedSurge.multiplier} Surge</strong> (+₹{selectedSurge.bonus}/ride)
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSelectedSurge(null)}
-              className="p-1 hover:bg-emerald-100 rounded-full active:scale-90"
+              className="p-1 hover:bg-emerald-100 rounded-full active:scale-90 text-black"
             >
-              <X className="size-3.5 text-emerald-800" />
+              <X className="size-3.5 text-black" />
             </button>
           </div>
         )}
@@ -216,10 +216,10 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
             <div className="w-10 h-1 rounded-full bg-zinc-300 mb-2" />
             <div className="w-full flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <span className="font-mono font-black text-[#00C853] text-sm">
+                <span className="font-mono font-black text-black text-sm">
                   ₹{todayEarnings.toFixed(0)}
                 </span>
-                <span className="text-[11px] text-zinc-500 font-medium">
+                <span className="text-[11px] text-black font-semibold">
                   · {todayDeliveries} {todayDeliveries === 1 ? "Trip" : "Trips"} Today
                 </span>
                 <span className="text-[10px] font-black text-[#00C853] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
@@ -227,12 +227,12 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#00C853]">
+              <div className="flex items-center gap-1 text-[11px] font-black text-black">
                 <span>{isDrawerExpanded ? "Collapse" : "Live Details"}</span>
                 {isDrawerExpanded ? (
-                  <ChevronDown className="size-3.5" />
+                  <ChevronDown className="size-3.5 text-black" />
                 ) : (
-                  <ChevronUp className="size-3.5" />
+                  <ChevronUp className="size-3.5 text-black" />
                 )}
               </div>
             </div>
@@ -253,7 +253,7 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
                 <Zap className="size-4 text-white fill-white" />
                 <span>Switch to Live Orders Queue</span>
               </div>
-              <div className="flex items-center gap-1 bg-white text-[#00C853] font-black px-2.5 py-0.5 rounded-full text-[11px] shadow-xs">
+              <div className="flex items-center gap-1 bg-white text-black font-black px-2.5 py-0.5 rounded-full text-[11px] shadow-xs">
                 <span>{pendingOrdersCount} Incoming</span>
                 <span>➔</span>
               </div>
@@ -262,15 +262,15 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
 
           {/* Expanded Drawer Details (Metrics + Hotspot Advisory) */}
           {isDrawerExpanded && (
-            <div className="px-4 pb-4 space-y-3 text-xs border-t border-zinc-100 pt-3 animate-in fade-in duration-200">
+            <div className="px-4 pb-4 space-y-3 text-xs border-t border-zinc-100 pt-3 animate-in fade-in duration-200 text-black">
               {/* Daily Target Progress Bar */}
               <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-700">
-                  <span className="flex items-center gap-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-black">
+                  <span className="flex items-center gap-1 text-black">
                     <Target className="size-3.5 text-[#00C853]" />
                     <span>Daily Target: 5 Rides for ₹100 Bonus</span>
                   </span>
-                  <span className="font-mono text-[#00C853] font-bold">
+                  <span className="font-mono text-black font-black">
                     {Math.min(5, todayDeliveries)}/5 Done
                   </span>
                 </div>
@@ -286,10 +286,10 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
               <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-start gap-2.5">
                 <Flame className="size-4 text-[#00C853] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-[11px] font-black text-emerald-900">
+                  <p className="text-[11px] font-black text-black">
                     High Demand Hotspot Area Active
                   </p>
-                  <p className="text-[10px] text-emerald-700 mt-0.5 leading-relaxed">
+                  <p className="text-[10px] text-black font-medium mt-0.5 leading-relaxed">
                     Kasganj Junction Station & Gandhi Murti are experiencing surge demand. Stay within 3 km for instant ride matching!
                   </p>
                 </div>
@@ -302,7 +302,7 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
                   onClick={() => {
                     window.location.href = "/wallet";
                   }}
-                  className="p-2.5 bg-white hover:bg-emerald-50 rounded-xl text-center font-bold text-[11px] text-zinc-800 border border-emerald-200 shadow-xs active:scale-95 transition-all"
+                  className="p-2.5 bg-white hover:bg-emerald-50 rounded-xl text-center font-black text-[11px] text-black border border-emerald-200 shadow-xs active:scale-95 transition-all"
                 >
                   💰 View Full Passbook
                 </button>
@@ -311,7 +311,7 @@ export const CaptainOnlineMapView: React.FC<CaptainOnlineMapViewProps> = ({
                   onClick={() => {
                     window.location.href = "/incentives";
                   }}
-                  className="p-2.5 bg-white hover:bg-emerald-50 rounded-xl text-center font-bold text-[11px] text-emerald-700 border border-emerald-200 shadow-xs active:scale-95 transition-all"
+                  className="p-2.5 bg-white hover:bg-emerald-50 rounded-xl text-center font-black text-[11px] text-black border border-emerald-200 shadow-xs active:scale-95 transition-all"
                 >
                   🎯 View All Slabs
                 </button>
