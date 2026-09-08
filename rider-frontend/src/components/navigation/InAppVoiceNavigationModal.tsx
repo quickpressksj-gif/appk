@@ -283,25 +283,25 @@ export function InAppVoiceNavigationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col overflow-hidden text-white font-sans animate-in fade-in duration-200 select-none">
-      {/* 1. TOP TURN-BY-TURN HUD BANNER */}
-      <div className="relative z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 pt-3 pb-4 shadow-2xl">
+    <div className="fixed inset-0 z-[9999] bg-white flex flex-col overflow-hidden text-zinc-900 font-sans animate-in fade-in duration-200 select-none">
+      {/* 1. TOP TURN-BY-TURN HUD BANNER (White & Emerald Green) */}
+      <div className="relative z-20 bg-white/95 backdrop-blur-md border-b border-emerald-100 px-4 pt-3 pb-4 shadow-md">
         <div className="flex items-center justify-between gap-3 mb-2">
           {/* Phase Badge */}
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 flex items-center justify-center text-slate-300 transition-all border border-slate-700"
+              className="w-10 h-10 rounded-full bg-zinc-100 hover:bg-zinc-200 active:scale-95 flex items-center justify-center text-zinc-700 transition-all border border-zinc-200"
               title="Close HUD"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black tracking-wider uppercase bg-emerald-50 text-[#00C853] border border-emerald-200">
                 <Radio className="w-3 h-3 animate-ping" />
                 {phaseLabel}
               </span>
-              <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">
+              <p className="text-xs text-zinc-500 font-medium truncate max-w-[180px]">
                 {orderNumber || "Active Mission"}
               </p>
             </div>
@@ -312,7 +312,7 @@ export function InAppVoiceNavigationModal({
             {/* Language Switcher */}
             <button
               onClick={handleToggleLanguage}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 flex items-center gap-1.5 active:scale-95 transition-all"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1.5 active:scale-95 transition-all"
               title="Toggle Hindi / English Voice"
             >
               <span>{language.startsWith("hi") ? "🇮🇳 हिन्दी" : "🇬🇧 English"}</span>
@@ -323,8 +323,8 @@ export function InAppVoiceNavigationModal({
               onClick={handleToggleMute}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border active:scale-95 ${
                 isMuted
-                  ? "bg-rose-950/60 border-rose-700 text-rose-400"
-                  : "bg-emerald-950/60 border-emerald-600 text-emerald-400 animate-pulse"
+                  ? "bg-rose-50 border-rose-200 text-rose-600"
+                  : "bg-emerald-50 border-emerald-200 text-[#00C853] animate-pulse"
               }`}
               title={isMuted ? "Unmute Voice" : "Mute Voice"}
             >
@@ -334,22 +334,22 @@ export function InAppVoiceNavigationModal({
         </div>
 
         {/* Big Maneuver Instruction Card */}
-        <div className="flex items-center gap-4 bg-slate-950/80 rounded-2xl p-3.5 border border-emerald-500/30">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center shrink-0 shadow-inner">
+        <div className="flex items-center gap-4 bg-emerald-50/70 rounded-2xl p-3.5 border border-emerald-200">
+          <div className="w-16 h-16 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs">
             {renderManeuverIcon()}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black tracking-tight text-white">
+              <span className="text-2xl font-black tracking-tight text-zinc-900">
                 {distanceMeters > 1000 ? `${distanceKm} km` : `${distanceMeters} m`}
               </span>
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-[#00C853] uppercase tracking-wider">
                 {isArrived ? "Arrived" : "Next Maneuver"}
               </span>
             </div>
 
-            <p className="text-sm font-semibold text-slate-200 line-clamp-2 mt-0.5 leading-snug">
+            <p className="text-sm font-semibold text-zinc-800 line-clamp-2 mt-0.5 leading-snug">
               {currentInstruction}
             </p>
           </div>
@@ -357,23 +357,23 @@ export function InAppVoiceNavigationModal({
           {/* Repeat Voice Button */}
           <button
             onClick={handleRepeatVoice}
-            className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-90 flex items-center justify-center text-slate-300 border border-slate-700 shrink-0"
+            className="w-10 h-10 rounded-xl bg-white hover:bg-emerald-50 active:scale-90 flex items-center justify-center text-[#00C853] border border-emerald-200 shrink-0 shadow-xs"
             title="Repeat instruction"
           >
-            <Mic className="w-4 h-4 text-emerald-400" />
+            <Mic className="w-4 h-4 text-[#00C853]" />
           </button>
         </div>
       </div>
 
       {/* 2. CENTER MAP CANVAS */}
-      <div className="relative flex-1 w-full bg-slate-900">
+      <div className="relative flex-1 w-full bg-slate-100">
         <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Floating Re-center Button */}
         <div className="absolute right-4 bottom-6 z-[400] flex flex-col gap-2.5">
           <button
             onClick={handleRecenter}
-            className="w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 text-emerald-400 shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
+            className="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md border border-emerald-200 text-[#00C853] shadow-lg flex items-center justify-center active:scale-90 transition-transform"
             title="Recenter GPS"
           >
             <Locate className="w-6 h-6" />
@@ -382,7 +382,7 @@ export function InAppVoiceNavigationModal({
           {/* External Google Maps Button */}
           <button
             onClick={handleOpenExternalMaps}
-            className="w-12 h-12 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 text-blue-400 shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
+            className="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md border border-zinc-200 text-blue-600 shadow-lg flex items-center justify-center active:scale-90 transition-transform"
             title="Open Google Maps App"
           >
             <ExternalLink className="w-5 h-5" />
@@ -390,32 +390,32 @@ export function InAppVoiceNavigationModal({
         </div>
 
         {/* Speedometer Badge */}
-        <div className="absolute left-4 bottom-6 z-[400] bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl px-3.5 py-2 shadow-2xl flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+        <div className="absolute left-4 bottom-6 z-[400] bg-white/95 backdrop-blur-md border border-emerald-200 rounded-2xl px-3.5 py-2 shadow-lg flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#00C853] animate-ping" />
           <div>
-            <div className="text-lg font-black text-white leading-none">{userSpeedKmh}</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">km/h</div>
+            <div className="text-lg font-black text-zinc-900 leading-none">{userSpeedKmh}</div>
+            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">km/h</div>
           </div>
         </div>
       </div>
 
-      {/* 3. BOTTOM COCKPIT DRAWER */}
-      <div className="relative z-20 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-4 pt-3.5 pb-6 shadow-2xl">
+      {/* 3. BOTTOM COCKPIT DRAWER (White & Emerald Green) */}
+      <div className="relative z-20 bg-white/98 backdrop-blur-md border-t border-emerald-100 px-4 pt-3.5 pb-6 shadow-2xl">
         {/* Destination & Target Summary */}
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#00C853] mb-0.5">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">{targetName}</span>
             </div>
-            <p className="text-xs text-slate-300 truncate font-medium">{targetAddress}</p>
+            <p className="text-xs text-zinc-600 truncate font-medium">{targetAddress}</p>
           </div>
 
           {/* Phone Call Button */}
           {targetPhone && (
             <button
               onClick={handleCall}
-              className="w-11 h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-emerald-900/40 shrink-0"
+              className="w-11 h-11 rounded-2xl bg-[#00C853] hover:bg-[#00B248] active:scale-95 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0"
               title="Call Target"
             >
               <Phone className="w-5 h-5" />
@@ -425,19 +425,19 @@ export function InAppVoiceNavigationModal({
 
         {/* Trip Stats Matrix */}
         <div className="grid grid-cols-3 gap-2.5 mb-3.5">
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Remaining</div>
-            <div className="text-base font-black text-white">{distanceKm} km</div>
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 text-center">
+            <div className="text-[10px] font-bold text-zinc-500 uppercase">Remaining</div>
+            <div className="text-base font-black text-zinc-900">{distanceKm} km</div>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Est. Time</div>
-            <div className="text-base font-black text-emerald-400">{etaMinutes} mins</div>
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 text-center">
+            <div className="text-[10px] font-bold text-zinc-500 uppercase">Est. Time</div>
+            <div className="text-base font-black text-[#00C853]">{etaMinutes} mins</div>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Voice Guide</div>
-            <div className="text-xs font-black text-slate-200 mt-1">
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 text-center">
+            <div className="text-[10px] font-bold text-zinc-500 uppercase">Voice Guide</div>
+            <div className="text-xs font-black text-emerald-800 mt-1">
               {isMuted ? "Muted 🔇" : "Active 🔊"}
             </div>
           </div>
@@ -451,7 +451,7 @@ export function InAppVoiceNavigationModal({
               onArrived();
               onClose();
             }}
-            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] text-white font-black text-sm tracking-wider uppercase shadow-xl shadow-emerald-900/50 flex items-center justify-center gap-2 transition-all border border-emerald-400/30"
+            className="w-full py-3.5 px-4 rounded-2xl bg-[#00C853] hover:bg-[#00B248] active:scale-[0.98] text-white font-black text-sm tracking-wider uppercase shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
           >
             <Sparkles className="w-4 h-4" />
             Arrived at Destination • Proceed
@@ -459,7 +459,7 @@ export function InAppVoiceNavigationModal({
         ) : (
           <button
             onClick={onClose}
-            className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2 border border-slate-700"
+            className="w-full py-3 px-4 rounded-2xl bg-zinc-100 hover:bg-zinc-200 active:scale-[0.98] text-zinc-700 font-bold text-sm tracking-wider uppercase flex items-center justify-center gap-2 border border-zinc-200"
           >
             Exit In-App Navigation
           </button>

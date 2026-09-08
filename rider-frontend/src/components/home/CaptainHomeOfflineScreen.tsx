@@ -72,7 +72,7 @@ export const CaptainHomeOfflineScreen: React.FC<CaptainHomeOfflineScreenProps> =
               onClick={() => {
                 window.location.href = "/wallet";
               }}
-              className="w-full mt-2 py-2 bg-neutral-950 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+              className="w-full mt-2 py-2.5 bg-[#00C853] hover:bg-[#00B248] text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-98"
             >
               <span>View Wallet & 72-Hour Payout Schedule</span>
               <span>➔</span>
@@ -186,10 +186,10 @@ export const CaptainHomeOfflineScreen: React.FC<CaptainHomeOfflineScreenProps> =
               </h4>
             </div>
 
-            {/* Yellow [ Know More ] Button (Screenshot) */}
+            {/* Emerald Green [ Know More ] Button */}
             <button
               type="button"
-              className="px-4 py-1.5 bg-[#FFC400] hover:bg-[#FBBF24] text-neutral-950 font-black text-xs rounded-xl shadow-xs active:scale-95 transition-transform"
+              className="px-4 py-1.5 bg-[#00C853] hover:bg-[#00B248] text-white font-black text-xs rounded-xl shadow-xs active:scale-95 transition-transform"
             >
               Know More
             </button>

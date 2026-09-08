@@ -238,29 +238,20 @@ export function LiveDeliveryMap({
         if (riderLocation && riderLocation.lat && riderLocation.lng) {
           bounds.push([riderLocation.lat, riderLocation.lng]);
 
-          const riderHtml = isRapidoTheme
-            ? `
-              <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px;">
-                <!-- Radar Ripple Wave 1 -->
-                <span style="position: absolute; width: 60px; height: 60px; border-radius: 9999px; background-color: rgba(255, 196, 0, 0.28); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-                <!-- Radar Ripple Wave 2 -->
-                <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(255, 196, 0, 0.45); animation: pulse 1.6s ease-in-out infinite;"></span>
-                <!-- Rapido Signature Yellow 3D Scooter Avatar -->
-                <div style="position: relative; display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 9999px; background: linear-gradient(135deg, #FFE082, #FFC400); color: #0F172A; box-shadow: 0 4px 14px rgba(255, 196, 0, 0.7), 0 2px 4px rgba(0,0,0,0.3); border: 2.5px solid #0F172A; font-size: 19px; line-height: 1;">
-                  🛵
-                </div>
-                <!-- Live Online Duty Dot -->
-                <span style="position: absolute; bottom: 8px; right: 10px; width: 12px; height: 12px; border-radius: 9999px; background: #00C853; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.4);"></span>
+          const riderHtml = `
+            <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px;">
+              <!-- Radar Ripple Wave 1 (Emerald Green) -->
+              <span style="position: absolute; width: 60px; height: 60px; border-radius: 9999px; background-color: rgba(0, 200, 83, 0.22); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+              <!-- Radar Ripple Wave 2 (Emerald Green) -->
+              <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(0, 200, 83, 0.4); animation: pulse 1.6s ease-in-out infinite;"></span>
+              <!-- Signature White & Emerald Green 3D Scooter Avatar -->
+              <div style="position: relative; display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 9999px; background: #FFFFFF; color: #00C853; box-shadow: 0 4px 14px rgba(0, 200, 83, 0.45), 0 2px 4px rgba(0,0,0,0.1); border: 2.5px solid #00C853; font-size: 19px; line-height: 1;">
+                🛵
               </div>
-            `
-            : `
-              <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px;">
-                <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: #34d399; opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-                <div style="position: relative; display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #065f46; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
-                  🛵
-                </div>
-              </div>
-            `;
+              <!-- Live Online Duty Dot -->
+              <span style="position: absolute; bottom: 8px; right: 10px; width: 12px; height: 12px; border-radius: 9999px; background: #00C853; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></span>
+            </div>
+          `;
 
           const riderIcon = L.divIcon({
             className: "rapido-rider-marker",
@@ -349,11 +340,11 @@ export function LiveDeliveryMap({
                 className: "rapido-surge-badge",
                 html: `
                   <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-                    <div style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 12px; background: #0F172A; color: #FFC400; font-weight: 900; font-size: 11px; box-shadow: 0 4px 10px rgba(0,0,0,0.35); border: 1.5px solid #FFC400; white-space: nowrap;">
+                    <div style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 12px; background: #FFFFFF; color: #00873D; font-weight: 900; font-size: 11px; box-shadow: 0 4px 12px rgba(0, 200, 83, 0.25); border: 2px solid #00C853; white-space: nowrap;">
                       <span>${surge.label}</span>
                     </div>
-                    <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #0F172A;"></div>
-                    <span style="position: absolute; bottom: -4px; width: 10px; height: 10px; border-radius: 9999px; background: rgba(255, 196, 0, 0.5); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+                    <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #00C853;"></div>
+                    <span style="position: absolute; bottom: -4px; width: 10px; height: 10px; border-radius: 9999px; background: rgba(0, 200, 83, 0.45); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
                   </div>
                 `,
                 iconSize: [110, 36],
@@ -390,7 +381,7 @@ export function LiveDeliveryMap({
             polylineRef.current.setLatLngs(polylineCoords);
           } else {
             polylineRef.current = L.polyline(polylineCoords, {
-              color: isRapidoTheme ? "#FFC400" : "#00C853",
+              color: "#00C853",
               weight: 5,
               opacity: 0.95,
               dashArray: "6, 8",
@@ -453,42 +444,42 @@ export function LiveDeliveryMap({
   };
 
   return (
-    <div className={`relative w-full overflow-hidden bg-slate-900 select-none ${heightClassName}`}>
+    <div className={`relative w-full overflow-hidden bg-slate-100 select-none ${heightClassName}`}>
       {/* Actual Leaflet Container */}
       <div ref={mapContainerRef} className="absolute inset-0 size-full z-0" />
 
       {/* Floating Telemetry Badge (Top Left - In Trip Phase) */}
       {(phase === "pickup" || phase === "delivery") && (
         <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-2 rounded-2xl bg-zinc-950/90 backdrop-blur-md px-3 py-1.5 shadow-lg border border-amber-400/40 text-xs text-white">
+          <div className="flex items-center gap-2 rounded-2xl bg-white/95 backdrop-blur-md px-3 py-1.5 shadow-lg border border-emerald-200 text-xs text-zinc-900">
             <span className="flex size-2 rounded-full bg-[#00C853] animate-pulse" />
-            <span className="font-black text-amber-400">
+            <span className="font-black text-[#00C853]">
               {phase === "pickup" ? "To Pickup" : "To Customer"}
             </span>
             {distanceKm !== null ? (
               <>
-                <span className="text-zinc-600">·</span>
-                <span className="font-mono font-black text-white">{distanceKm} km</span>
+                <span className="text-zinc-300">·</span>
+                <span className="font-mono font-black text-zinc-900">{distanceKm} km</span>
               </>
             ) : null}
             {etaMins !== null ? (
               <>
-                <span className="text-zinc-600">·</span>
-                <span className="font-bold text-zinc-300">~{etaMins} mins</span>
+                <span className="text-zinc-300">·</span>
+                <span className="font-bold text-zinc-600">~{etaMins} mins</span>
               </>
             ) : null}
           </div>
         </div>
       )}
 
-      {/* Floating Rapido Controls (Right Side) */}
+      {/* Floating Map Controls (Right Side - White & Emerald Green) */}
       {showControls ? (
         <div className="absolute top-16 right-3 z-20 flex flex-col gap-2">
-          {/* Recenter on Captain with Rapido Yellow Accent */}
+          {/* Recenter on Captain */}
           <button
             type="button"
             onClick={handleRecenter}
-            className="flex size-10 items-center justify-center rounded-2xl bg-zinc-950/90 backdrop-blur-md text-[#FFC400] shadow-xl border border-zinc-700 hover:bg-zinc-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex size-10 items-center justify-center rounded-2xl bg-white/95 backdrop-blur-md text-[#00C853] shadow-md border border-emerald-200 hover:bg-emerald-50 active:scale-95 transition-transform cursor-pointer"
             title="Recenter on Captain (GPS)"
           >
             <Crosshair className="size-5" />
@@ -498,15 +489,15 @@ export function LiveDeliveryMap({
           <button
             type="button"
             onClick={handleToggleLayer}
-            className="flex size-10 items-center justify-center rounded-2xl bg-zinc-950/90 backdrop-blur-md text-white shadow-xl border border-zinc-700 hover:bg-zinc-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex size-10 items-center justify-center rounded-2xl bg-white/95 backdrop-blur-md text-zinc-700 shadow-md border border-zinc-200 hover:bg-zinc-50 active:scale-95 transition-transform cursor-pointer"
             title={`Map View: ${activeLayer} (Tap to switch)`}
           >
             {activeLayer === "night" ? (
-              <Moon className="size-4.5 text-indigo-400" />
+              <Moon className="size-4.5 text-indigo-500" />
             ) : activeLayer === "satellite" ? (
-              <Layers className="size-4.5 text-emerald-400" />
+              <Layers className="size-4.5 text-[#00C853]" />
             ) : (
-              <Sun className="size-4.5 text-amber-400" />
+              <Sun className="size-4.5 text-amber-500" />
             )}
           </button>
 
@@ -514,7 +505,7 @@ export function LiveDeliveryMap({
           <button
             type="button"
             onClick={handleZoomIn}
-            className="flex size-10 items-center justify-center rounded-2xl bg-zinc-950/90 backdrop-blur-md text-white shadow-xl border border-zinc-700 hover:bg-zinc-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex size-10 items-center justify-center rounded-2xl bg-white/95 backdrop-blur-md text-zinc-700 shadow-md border border-zinc-200 hover:bg-zinc-50 active:scale-95 transition-transform cursor-pointer"
             title="Zoom in"
           >
             <ZoomIn className="size-4.5" />
@@ -522,7 +513,7 @@ export function LiveDeliveryMap({
           <button
             type="button"
             onClick={handleZoomOut}
-            className="flex size-10 items-center justify-center rounded-2xl bg-zinc-950/90 backdrop-blur-md text-white shadow-xl border border-zinc-700 hover:bg-zinc-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex size-10 items-center justify-center rounded-2xl bg-white/95 backdrop-blur-md text-zinc-700 shadow-md border border-zinc-200 hover:bg-zinc-50 active:scale-95 transition-transform cursor-pointer"
             title="Zoom out"
           >
             <ZoomOut className="size-4.5" />
@@ -537,7 +528,7 @@ export function LiveDeliveryMap({
           <button
             type="button"
             onClick={handleOpenGoogleMapsApp}
-            className="flex items-center gap-1.5 rounded-2xl bg-zinc-950/90 text-white border border-zinc-700 px-3 py-2 text-xs font-black shadow-lg hover:bg-zinc-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex items-center gap-1.5 rounded-2xl bg-white/95 text-zinc-800 border border-zinc-200 px-3 py-2 text-xs font-black shadow-md hover:bg-zinc-50 active:scale-95 transition-transform cursor-pointer"
             title="Open Google Maps App in Bike Navigation Mode"
           >
             <span className="text-sm leading-none">🗺️</span>
@@ -551,7 +542,7 @@ export function LiveDeliveryMap({
           <button
             type="button"
             onClick={onOpenNavigation}
-            className="flex items-center gap-1.5 rounded-2xl bg-[#00C853] px-3.5 py-2 text-xs font-black text-white shadow-lg hover:bg-[#00B248] active:scale-95 transition-transform cursor-pointer"
+            className="flex items-center gap-1.5 rounded-2xl bg-[#00C853] px-3.5 py-2 text-xs font-black text-white shadow-lg shadow-emerald-500/20 hover:bg-[#00B248] active:scale-95 transition-transform cursor-pointer"
           >
             <Navigation className="size-4 fill-white" />
             <span>Turn-by-Turn</span>

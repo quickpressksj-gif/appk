@@ -242,23 +242,24 @@ export function RiderDashboardScreen() {
       )}
 
       {/* Active Trip Floating Pill (if order is active) */}
+      {/* Active Trip Floating Pill (if order is active - White & Emerald Green) */}
       {savedActiveOrder && (
         <div className="absolute bottom-20 left-4 right-4 z-40 animate-in slide-in-from-bottom-2 duration-200">
           <button
             type="button"
             onClick={() => navigate({ to: "/orders" })}
-            className="w-full flex items-center justify-between p-3.5 bg-neutral-950 text-white rounded-2xl shadow-2xl border border-neutral-700 active:scale-98 transition-all"
+            className="w-full flex items-center justify-between p-3.5 bg-white text-zinc-900 rounded-2xl shadow-xl border-2 border-[#00C853] active:scale-98 transition-all"
           >
             <div className="flex items-center gap-2.5 text-left">
               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#00C853] text-white">
                 🛵
               </div>
               <div>
-                <p className="text-xs font-black text-white">Active Trip: {savedActiveOrder.customerName || "Customer"}</p>
-                <p className="text-[10px] text-neutral-400 truncate max-w-[200px]">{savedActiveOrder.pickupTitle || savedActiveOrder.pickupAddress}</p>
+                <p className="text-xs font-black text-zinc-900">Active Trip: {savedActiveOrder.customerName || "Customer"}</p>
+                <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">{savedActiveOrder.pickupTitle || savedActiveOrder.pickupAddress}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-xs font-black text-[#00C853] bg-neutral-800 px-3 py-1.5 rounded-xl border border-neutral-700">
+            <div className="flex items-center gap-1 text-xs font-black text-[#00C853] bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
               <span>Resume HUD</span>
               <span>➔</span>
             </div>
