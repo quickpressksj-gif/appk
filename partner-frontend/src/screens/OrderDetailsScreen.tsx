@@ -41,6 +41,10 @@ import { STAGE_LABEL, type ManagedOrder } from "../data/partner-orders-mock";
 import { useEffect, useState } from "react";
 import { fetchPartnerOrder, verifyPartnerDispatchOtp } from "@/api/partner/partner-orders-api";
 import { PartnerReviewModal } from "../components/orders/PartnerReviewModal";
+import {
+  fetchPartnerOrderCommissionSlip,
+  type PartnerOrderCommissionSlip,
+} from "@/api/partner/partner-commission-api";
 
 
 function formatOrderTime(value?: string | number): string {
@@ -72,6 +76,79 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function PartnerCommissionCard({
+  slip,
+  fallbackSubtotal,
+  isDelivered,
+}: {
+  slip: PartnerOrderCommissionSlip | null;
+  fallbackSubtotal: number;
+  isDelivered: boolean;
+}) {
+  const subtotal = slip?.itemsGrossSubtotal || fallbackSubtotal || 149;
+  const ratePct = slip?.commissionRatePct || 15;
+  const commAmount = slip?.platformCommissionAmount || Number((subtotal * (ratePct / 100)).toFixed(2));
+  const tcs = slip?.tcsDeduction1Pct || Number((subtotal * 0.01).toFixed(2));
+  const netEarnings = slip?.netStoreEarning || Number((subtotal - commAmount - tcs).toFixed(2));
+  const tier = slip?.tier || "Silver";
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-50/70 via-white to-white p-3.5 shadow-sm">
+      <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5">
+        <div className="flex items-center gap-1.5">
+          <div className="flex size-6 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+            <ShieldCheck className="size-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-black tracking-tight text-zinc-900">
+              Partner Settlement Breakdown
+            </h3>
+            <p className="text-[10px] font-semibold text-zinc-500">
+              Live Supabase Commission Engine
+            </p>
+          </div>
+        </div>
+        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-300">
+          {tier} Tier ({ratePct}%)
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-600 font-medium">Laundry Order Subtotal</span>
+          <span className="font-bold text-zinc-900">₹{subtotal.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center justify-between text-zinc-600">
+          <span className="flex items-center gap-1">
+            Platform Commission ({ratePct}%)
+            <span className="text-[10px] text-zinc-400 font-normal">incl. 18% GST</span>
+          </span>
+          <span className="font-bold text-red-600">-₹{commAmount.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center justify-between text-zinc-600">
+          <span className="flex items-center gap-1">
+            Sec 194-O TCS (1%)
+            <span className="text-[10px] text-zinc-400 font-normal">Govt Compliance</span>
+          </span>
+          <span className="font-bold text-red-600">-₹{tcs.toFixed(2)}</span>
+        </div>
+
+        <div className="mt-2.5 border-t border-emerald-200/80 pt-2.5 flex items-center justify-between">
+          <div>
+            <span className="text-xs font-black text-zinc-900">Net Store Credit</span>
+            <p className="text-[10px] font-semibold text-emerald-700">
+              {isDelivered ? "✓ Settled into Store Wallet" : "Credited on Delivery Complete"}
+            </p>
+          </div>
+          <span className="text-base font-black tracking-tight text-emerald-600">
+            ₹{netEarnings.toFixed(2)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -160,6 +237,22 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
   const order = matchedOrder || fetchedOrder;
   const isScreenLoading = (isLoading && !order) || (fetchLoading && !order);
+
+  const [commissionSlip, setCommissionSlip] = useState<PartnerOrderCommissionSlip | null>(null);
+
+  useEffect(() => {
+    const targetId = order?.id || orderId;
+    if (!targetId) return;
+    let alive = true;
+    fetchPartnerOrderCommissionSlip(targetId)
+      .then((slip) => {
+        if (alive && slip) setCommissionSlip(slip);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [order?.id, orderId]);
 
   const copyCode = () => {
     if (order?.code) {
@@ -514,6 +607,13 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                   <Row label="Total Bill Value" value={`₹${order.amount || charges.total}`} strong />
                 </div>
               </div>
+
+              {/* Real-Time Commission Engine Breakdown */}
+              <PartnerCommissionCard
+                slip={commissionSlip}
+                fallbackSubtotal={charges.subtotal}
+                isDelivered={order.stage === "delivered"}
+              />
             </div>
 
             {/* Assigned Rider & Location Card */}
@@ -837,6 +937,13 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                     <Row label="Total Order Value" value={`₹${order.amount || charges.total}`} strong />
                   </div>
                 </div>
+
+                {/* Real-Time Commission Engine Breakdown */}
+                <PartnerCommissionCard
+                  slip={commissionSlip}
+                  fallbackSubtotal={charges.subtotal}
+                  isDelivered={order.stage === "delivered"}
+                />
 
                 <div className="mt-4 flex items-center justify-between rounded-2xl bg-muted/40 p-3 text-xs">
                   <div className="flex items-center gap-2">

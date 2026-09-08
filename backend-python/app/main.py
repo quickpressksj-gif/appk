@@ -18,6 +18,7 @@ from app.api.availability import router as availability_router
 from app.api.auth import router as auth_router
 from app.api.cart import router as cart_router
 from app.api.checkout import router as checkout_router
+from app.api.commission import router as commission_router
 from app.api.earnings import router as earnings_router
 from app.api.financial import router as financial_router
 from app.api.help import router as help_router
@@ -161,6 +162,9 @@ def create_app() -> FastAPI:
     app.include_router(financial_router, prefix=settings.api_prefix)
     # Razorpay server-to-server webhooks (HMAC verified, unauthenticated by design).
     app.include_router(webhooks_router, prefix=settings.api_prefix)
+
+    # QuickPress Commission Engine across 3 apps (Customer, Partner, Rider, Admin).
+    app.include_router(commission_router)
 
     # QuickPress Public Website routes.
     app.include_router(public_router, prefix=settings.api_prefix)

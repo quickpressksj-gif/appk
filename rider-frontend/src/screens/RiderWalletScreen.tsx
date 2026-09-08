@@ -31,6 +31,10 @@ import {
   type RiderWalletTransaction,
   type RiderEarningsSummary,
 } from "../api/rider/rider-wallet-api";
+import {
+  fetchRiderCommissionGuarantee,
+  type RiderCommissionGuarantee,
+} from "../api/rider/rider-commission-api";
 import { useRiderContext } from "../context/RiderContext";
 import { RiderBottomNav } from "../components/RiderBottomNav";
 import { triggerHaptic } from "../lib/captain-audio";
@@ -45,6 +49,7 @@ export function RiderWalletScreen() {
   const [wallet, setWallet] = useState<RiderWalletDetail | null>(null);
   const [transactions, setTransactions] = useState<RiderWalletTransaction[]>([]);
   const [earnings, setEarnings] = useState<RiderEarningsSummary | null>(null);
+  const [guarantee, setGuarantee] = useState<RiderCommissionGuarantee | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -65,10 +70,11 @@ export function RiderWalletScreen() {
     else setLoading(true);
 
     try {
-      const [walletRes, txnsRes, earningsRes] = await Promise.all([
+      const [walletRes, txnsRes, earningsRes, guaranteeRes] = await Promise.all([
         fetchRiderWallet().catch(() => null),
         fetchRiderTransactions().catch(() => []),
         fetchRiderEarningsSummary().catch(() => null),
+        fetchRiderCommissionGuarantee().catch(() => null),
       ]);
 
       if (walletRes) {
@@ -80,6 +86,9 @@ export function RiderWalletScreen() {
       }
       if (earningsRes) {
         setEarnings(earningsRes);
+      }
+      if (guaranteeRes) {
+        setGuarantee(guaranteeRes);
       }
 
       if (isRefresh) {
@@ -569,13 +578,29 @@ export function RiderWalletScreen() {
             </div>
 
             {/* Zero Commission Guarantee Banner */}
-            <div className="p-3.5 bg-amber-50 border border-amber-200/90 rounded-2xl flex items-start gap-3 text-xs">
-              <Sparkles className="size-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-950">100% Earnings Guarantee</p>
-                <p className="text-[11px] text-amber-800 mt-0.5">
-                  QuickPress operates on a zero commission policy. 100% of customer delivery fares and tips go directly to your wallet.
+            <div className="p-4 bg-emerald-50/90 border border-emerald-300 rounded-2xl flex items-start gap-3 text-xs shadow-2xs">
+              <div className="flex size-8 items-center justify-center rounded-xl bg-emerald-600 text-white font-black text-xs shrink-0 shadow-xs">
+                0%
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-black text-emerald-950">
+                    {guarantee?.headline || "Zero Commission. 100% Earnings to Captains."}
+                  </p>
+                  <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Live Guarantee
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800 mt-1 font-medium leading-relaxed">
+                  {guarantee?.description || "QuickPress charges 0% platform commission on Captain delivery fares. 100% of customer delivery fares, surges, and tips go directly to your wallet."}
                 </p>
+                {guarantee?.benefits ? (
+                  <ul className="mt-2 space-y-1 text-[10px] font-bold text-emerald-900 list-disc list-inside">
+                    {guarantee.benefits.slice(0, 3).map((b, i) => (
+                      <li key={i}>{b}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             </div>
           </div>

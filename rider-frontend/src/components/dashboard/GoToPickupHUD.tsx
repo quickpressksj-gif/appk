@@ -1192,6 +1192,26 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                 </div>
               </div>
 
+              {/* QuickPress Zero-Commission Captain Guarantee Badge */}
+              <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-white p-2.5 border border-emerald-500/30">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-6 items-center justify-center rounded-lg bg-emerald-600 text-white font-black text-[10px] shadow-xs">
+                    0%
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] font-black text-neutral-900 leading-none">
+                      Zero Commission Guarantee
+                    </p>
+                    <p className="text-[9px] font-bold text-emerald-700 mt-0.5">
+                      100% Net Trip Fare Credited Directly to Wallet
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md">
+                  ₹0 Cut
+                </span>
+              </div>
+
               {/* Real Earnings Settlement Badge */}
               <div className="grid grid-cols-2 gap-2 text-center pt-1">
                 <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
@@ -1335,6 +1355,11 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                   ? "Customer Doorstep Payout Credited to Wallet"
                   : "Pickup Leg Payout Credited · Partner Processing Unlocked"}
               </p>
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 px-3 py-1 border border-emerald-300 text-[10px] font-black text-emerald-900">
+                <span>🛡️ 0% Platform Commission Guarantee</span>
+                <span>•</span>
+                <span>100% Payout Received</span>
+              </div>
             </div>
 
             <button

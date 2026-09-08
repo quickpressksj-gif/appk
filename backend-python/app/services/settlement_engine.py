@@ -546,6 +546,13 @@ class SettlementEngine:
             }
         )
 
+        # 11. Record into dedicated Supabase platform_commissions ledger
+        try:
+            from app.services.commission_engine import commission_engine
+            await commission_engine.record_order_commission(canonical_id)
+        except Exception as e:
+            logger.warning(f"Error persisting commission ledger for {canonical_id}: {e}")
+
         return settlement_doc
 
     async def get_admin_settlements_overview(self) -> Dict[str, Any]:

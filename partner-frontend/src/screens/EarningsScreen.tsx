@@ -31,6 +31,10 @@ import {
   fetchFinanceTaxInvoices,
   downloadSettlementReport,
 } from "@/api/partner/partner-finance-api";
+import {
+  fetchPartnerCommissionTier,
+  type PartnerCommissionTier,
+} from "@/api/partner/partner-commission-api";
 import { SettlementSummaryModal } from "../components/finance/SettlementSummaryModal";
 
 export function EarningsScreen() {
@@ -39,6 +43,7 @@ export function EarningsScreen() {
 
   const [financeData, setFinanceData] = useState<FinanceOverviewResponse | null>(null);
   const [invoices, setInvoices] = useState<TaxInvoice[]>([]);
+  const [commissionTier, setCommissionTier] = useState<PartnerCommissionTier | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [activeSubTab, setActiveSubTab] = useState<"payouts" | "invoices">("payouts");
@@ -50,7 +55,8 @@ export function EarningsScreen() {
     Promise.all([
       fetchFinanceOverview().catch(() => null),
       fetchFinanceTaxInvoices().catch(() => ({ invoices: [] })),
-    ]).then(([overview, invRes]) => {
+      fetchPartnerCommissionTier().catch(() => null),
+    ]).then(([overview, invRes, tierRes]) => {
       if (!alive) return;
       if (overview) {
         setFinanceData(overview);
@@ -60,6 +66,9 @@ export function EarningsScreen() {
       }
       if (invRes?.invoices) {
         setInvoices(invRes.invoices);
+      }
+      if (tierRes) {
+        setCommissionTier(tierRes);
       }
       setLoading(false);
     });
@@ -210,7 +219,63 @@ export function EarningsScreen() {
           /* PAYOUTS TAB VIEW (Matching Reference Screenshot 2)                        */
           /* ========================================================================= */
           <div className="space-y-4 p-4">
-            
+            {/* Real-Time Commission Engine Tier & Savings Status Card */}
+            {commissionTier ? (
+              <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-white to-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white font-black text-xs shadow-xs">
+                      %
+                    </span>
+                    <div>
+                      <h2 className="text-xs font-black tracking-tight text-zinc-900">
+                        Commission Tier: {commissionTier.tier} ({commissionTier.commissionRatePct}%)
+                      </h2>
+                      <p className="text-[10px] font-semibold text-zinc-500">
+                        Section 194-O TCS 1% Compliant
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-300">
+                    Live Supabase Tier
+                  </span>
+                </div>
+
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
+                    <span className="text-zinc-600">Monthly Volume Progress</span>
+                    <span className="text-zinc-900 font-black">
+                      {commissionTier.monthlyOrders} orders completed
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100 border border-zinc-200">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${Math.min(100, commissionTier.progressPct || 25)}%` }}
+                    />
+                  </div>
+                  {commissionTier.nextTier ? (
+                    <p className="mt-1.5 text-[10px] font-semibold text-zinc-500">
+                      🚀 Complete <span className="font-bold text-zinc-900">{commissionTier.ordersNeededForNextTier} more orders</span> to unlock <span className="font-black text-emerald-700">{commissionTier.nextTier} Tier</span> (lower commission rate)!
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-[10px] font-semibold text-amber-600">
+                      🏆 Maximum Gold Tier achieved! You enjoy the lowest 12% commission rate.
+                    </p>
+                  )}
+                </div>
+
+                {commissionTier.financialSummary?.totalCommissionSaved > 0 ? (
+                  <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 p-2.5 border border-emerald-200/80 text-[11px]">
+                    <span className="font-bold text-emerald-900">Total Commission Saved</span>
+                    <span className="font-black text-emerald-700">
+                      ₹{commissionTier.financialSummary.totalCommissionSaved.toFixed(2)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* Current Ongoing 7-Day Cycle Card */}
             <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs">
               <div className="flex items-start justify-between">
