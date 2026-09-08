@@ -88,7 +88,11 @@ async def test_full_14_stage_canonical_lifecycle_flow():
     doc_picked = await rider_delivery_repository.pickup(order_id, pickup_rider_id, otp=pickup_code)
     assert doc_picked["canonicalStatus"] == lifecycle.PICKED_UP
 
-    # 5. Partner Starts Processing (PICKED_UP -> PROCESSING)
+    # 4.5. Captain Drops Laundry at Partner Store (PICKED_UP -> AT_PARTNER)
+    doc_dropped = await rider_delivery_repository.drop_at_partner(order_id, pickup_rider_id)
+    assert doc_dropped["canonicalStatus"] == lifecycle.AT_PARTNER
+
+    # 5. Partner Starts Processing (AT_PARTNER -> PROCESSING)
     doc_processing = await partner_order_repository.start_processing(partner_id, order_id)
     assert doc_processing["canonicalStatus"] == lifecycle.PROCESSING
 

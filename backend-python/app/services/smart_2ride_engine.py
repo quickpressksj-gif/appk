@@ -325,12 +325,35 @@ class Smart2RideEngine:
         else:
             delivery_otp = create_otp_record()
 
-        # Check Ride 1 rider for preferred assignment
+        # Check if original pickup rider opted out or is unable to deliver
+        has_opted_out = bool(
+            order.get("riderDeliveryOptOut")
+            or order.get("reassignmentRequired")
+            or (order.get("reassignment") and order.get("reassignment", {}).get("requested"))
+        )
+
         ride_1 = await database.find_one(
             RIDES_COLLECTION,
             {"orderId": canonical_id, "rideType": "pickup"},
         )
-        preferred_rider_id = ride_1.get("riderId") if ride_1 else None
+        orig_rider_id = (ride_1.get("riderId") if ride_1 else None) or (order.get("reassignment") or {}).get("originalRiderId") or order.get("originalRiderId")
+
+        extra_bonus_percent = 0
+        extra_bonus_amount = 0.0
+        is_reassigned = False
+
+        if has_opted_out:
+            preferred_rider_id = None
+            attempted_rider_ids = [str(orig_rider_id)] if orig_rider_id else []
+            # User Rule: New rider assigned for delivery gets +20% extra bonus
+            extra_bonus_percent = 20
+            extra_bonus_amount = round(delivery_earning * 0.20, 2)
+            delivery_earning = round(delivery_earning + extra_bonus_amount, 2)
+            is_reassigned = True
+        else:
+            # Captain did not opt out: retain full order for the original Captain
+            preferred_rider_id = orig_rider_id
+            attempted_rider_ids = []
 
         ride_doc = {
             "_id": f"ride-dl-{canonical_id}",
@@ -360,6 +383,11 @@ class Smart2RideEngine:
             },
             "distanceKm": distance_km,
             "estimatedEarning": delivery_earning,
+            "fare": delivery_earning,
+            "isReassigned": is_reassigned,
+            "isReassignedBonus": has_opted_out,
+            "extraBonusPercent": extra_bonus_percent,
+            "extraBonusAmount": extra_bonus_amount,
             "otp": {
                 "dispatch": dispatch_otp,
                 "delivery": delivery_otp,
@@ -368,7 +396,7 @@ class Smart2RideEngine:
             "currentRadiusStage": 0,
             "riderId": None,
             "rider": None,
-            "attemptedRiderIds": [],
+            "attemptedRiderIds": attempted_rider_ids,
             "assignmentHistory": [],
         }
 
@@ -582,10 +610,16 @@ class Smart2RideEngine:
                 "orderId": order_id,
                 "orderCode": ride.get("orderCode"),
                 "rideType": ride_type,
+                "type": ride_type,
                 "riderId": r_id,
                 "status": "pending",
                 "distanceKm": round(best_dist, 1),
                 "estimatedEarning": ride.get("estimatedEarning", 45),
+                "fare": ride.get("fare") or ride.get("estimatedEarning", 45),
+                "isReassigned": ride.get("isReassigned", False),
+                "isReassignedBonus": ride.get("isReassignedBonus", False),
+                "extraBonusPercent": ride.get("extraBonusPercent", 0),
+                "extraBonusAmount": ride.get("extraBonusAmount", 0),
                 "pickupAddress": target_loc.get("address"),
                 "dropAddress": (ride.get("dropLocation") or {}).get("address"),
                 "customerName": target_loc.get("contactName") or "Customer",
@@ -1212,36 +1246,44 @@ class Smart2RideEngine:
         drop_lng = float(drop_loc.get("lng") or drop_loc.get("longitude") or 78.6550)
         drop_addr = str(drop_loc.get("address") or drop_loc.get("line") or order.get("deliveryAddress") or "Customer Doorstep")
 
-        # Pickup leg payout (Customer -> Partner completed by Rider 1): Base ₹25 + distance
+        # Pickup leg payout (Customer -> Partner completed by Rider 1)
+        ride_1 = await database.find_one(RIDES_COLLECTION, {"orderId": canonical_id, "rideType": "pickup"})
         cust_loc = order.get("pickupLocation") or order.get("customerLocation") or {}
         c_lat = float(cust_loc.get("lat") or cust_loc.get("latitude") or p_lat)
         c_lng = float(cust_loc.get("lng") or cust_loc.get("longitude") or p_lng)
         pickup_dist_km = max(0.5, haversine_distance_km(c_lat, c_lng, p_lat, p_lng))
-        pickup_payout = round(25.0 + max(0.0, pickup_dist_km * 8.0), 2)
+        calc_pickup = round(25.0 + max(0.0, pickup_dist_km * 8.0), 2)
+        pickup_gross_payout = float((ride_1 or {}).get("estimatedEarning") or (ride_1 or {}).get("fare") or calc_pickup)
 
-        # Delivery leg payout (Partner Store -> Customer Doorstep for Rider 2): Base ₹25 + distance
+        # User Rule: 25% penalty deduction when Captain opts out of the delivery leg
+        penalty_deduction = round(pickup_gross_payout * 0.25, 2)
+        net_pickup_payout = round(pickup_gross_payout - penalty_deduction, 2)
+
+        # User Rule: Delivery leg payout with +20% bonus for the new replacement rider
         delivery_dist_km = max(0.5, haversine_distance_km(p_lat, p_lng, drop_lat, drop_lng))
-        delivery_payout = round(25.0 + max(0.0, delivery_dist_km * 8.0), 2)
+        base_delivery_payout = round(25.0 + max(0.0, delivery_dist_km * 8.0), 2)
+        bonus_20 = round(base_delivery_payout * 0.20, 2)
+        new_rider_delivery_payout = round(base_delivery_payout + bonus_20, 2)
 
         # Generate secure 4-digit Dispatch OTP for Partner -> Rider 2 handover
         dispatch_otp = generate_secure_4digit_otp()
         dispatch_record = create_otp_record(dispatch_otp)
 
-        # 1. Immediately credit Rider 1 wallet with pickup payout
+        # 1. Credit Rider 1 wallet with 75% net pickup payout (25% opt-out deduction applied)
         if rider_id:
             try:
                 from app.db.rider_repositories import rider_wallet_repository, rider_notification_repository
                 await rider_wallet_repository.credit(
                     rider_id=rider_id,
-                    amount=pickup_payout,
-                    title=f"Pickup leg payout for order #{order.get('code') or canonical_id[:8]}",
+                    amount=net_pickup_payout,
+                    title=f"Pickup leg payout (75% net after 25% opt-out fee) · #{order.get('code') or canonical_id[:8]}",
                     order_code=order.get("code") or canonical_id[:8],
                     kind="transfer_pickup",
                 )
                 await rider_notification_repository.create(
                     rider_id=rider_id,
-                    title="🎉 Pickup Payout Credited to Wallet",
-                    message=f"Pickup leg for order #{order.get('code') or canonical_id[:8]} completed. ₹{pickup_payout:.2f} credited to your wallet. Package is safely in Partner custody.",
+                    title="🎉 Pickup Payout Credited (75% Net)",
+                    message=f"Pickup for order #{order.get('code') or canonical_id[:8]} completed. ₹{net_pickup_payout:.2f} credited to your wallet (Gross ₹{pickup_gross_payout:.2f} minus 25% delivery opt-out fee ₹{penalty_deduction:.2f}). Package safe in Partner Store custody.",
                     kind="payment",
                 )
                 if reason in ("vehicle_breakdown", "accident_health", "medical_emergency"):
@@ -1261,8 +1303,13 @@ class Smart2RideEngine:
             "custody": "partner",
             "dispatchOtp": dispatch_otp,
             "handoverOtp": dispatch_otp,
-            "pickupLegPayout": pickup_payout,
-            "deliveryLegPayout": delivery_payout,
+            "pickupGrossPayout": pickup_gross_payout,
+            "pickupPenaltyDeduction": penalty_deduction,
+            "pickupLegPayout": net_pickup_payout,
+            "baseDeliveryPayout": base_delivery_payout,
+            "deliveryLegPayout": new_rider_delivery_payout,
+            "extraBonusPercent": 20,
+            "extraBonusAmount": bonus_20,
             "handoverCompleted": False,
             "assignedTransferRiderId": None,
             "storeLocation": {
@@ -1279,6 +1326,15 @@ class Smart2RideEngine:
             {
                 "$set": {
                     "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
+                    "riderDeliveryOptOut": True,
+                    "reassignmentRequired": True,
+                    "assignedRiderId": None,
+                    "originalRiderId": rider_id,
+                    "pickupGrossPayout": pickup_gross_payout,
+                    "pickupPenaltyDeduction": penalty_deduction,
+                    "pickupNetPayout": net_pickup_payout,
+                    "deliveryReassignedBonusPercent": 20,
+                    "deliveryReassignedBonusAmount": bonus_20,
                     "reassignment": reassignment_data,
                     "otp.dispatch": dispatch_record,
                     "otp.handover": dispatch_record,
@@ -1315,11 +1371,16 @@ class Smart2RideEngine:
                         "lng": drop_lng,
                         "phone": order.get("customerPhone") or "",
                     },
-                    "fare": delivery_payout,
-                    "estimatedEarning": delivery_payout,
-                    "originalRiderId": rider_id,
-                    "dispatchOtp": dispatch_otp,
+                    "fare": new_rider_delivery_payout,
+                    "estimatedEarning": new_rider_delivery_payout,
+                    "baseFare": base_delivery_payout,
                     "isReassigned": True,
+                    "isReassignedBonus": True,
+                    "extraBonusPercent": 20,
+                    "extraBonusAmount": bonus_20,
+                    "originalRiderId": rider_id,
+                    "attemptedRiderIds": [rider_id],
+                    "dispatchOtp": dispatch_otp,
                     "createdAt": now,
                     "updatedAt": now,
                 }
@@ -1366,9 +1427,13 @@ class Smart2RideEngine:
             "dispatchOtp": dispatch_otp,
             "custody": "partner",
             "storeLocation": {"lat": p_lat, "lng": p_lng, "address": p_addr},
-            "pickupLegPayout": pickup_payout,
-            "deliveryLegPayout": delivery_payout,
-            "message": "Delivery reassignment confirmed. Package remains in Partner store custody.",
+            "pickupLegPayout": net_pickup_payout,
+            "pickupGrossPayout": pickup_gross_payout,
+            "pickupOptOutDeduction": penalty_deduction,
+            "deliveryLegPayout": new_rider_delivery_payout,
+            "extraBonusPercent": 20,
+            "extraBonusAmount": bonus_20,
+            "message": "Delivery opt-out confirmed. 75% net pickup pay credited to your wallet (25% fee deducted). Package remains in Partner store custody.",
         }
 
     async def _search_transfer_riders(
@@ -1403,6 +1468,7 @@ class Smart2RideEngine:
                 return
 
             payout = float((order.get("reassignment") or {}).get("deliveryLegPayout") or 35.0)
+            bonus_amt = float((order.get("reassignment") or {}).get("extraBonusAmount") or 0)
 
             # Broadcast offer to candidates
             for dist, rid, r in candidates[:5]:
@@ -1412,18 +1478,29 @@ class Smart2RideEngine:
                     "orderId": order_id,
                     "rideId": f"ride-transfer-{order_id}",
                     "orderCode": order.get("code") or order_id[:8],
-                    "type": "handover_delivery",
-                    "rideType": "handover_delivery",
+                    "type": "delivery",
+                    "rideType": "delivery",
                     "isTransfer": True,
+                    "isReassigned": True,
+                    "isReassignedBonus": True,
+                    "extraBonusPercent": 20,
+                    "extraBonusAmount": bonus_amt,
                     "pickupTitle": "QuickPress Partner Store (Dispatch Handover)",
                     "pickupAddress": (order.get("reassignment") or {}).get("storeLocation", {}).get("address") or (order.get("partner") or {}).get("address") or "Partner Store Address",
                     "dropTitle": order.get("customerName") or "Customer Drop",
                     "dropAddress": order.get("deliveryAddress") or order.get("dropAddress") or "Customer Address",
                     "distanceKm": dist,
                     "fare": payout,
+                    "estimatedEarning": payout,
                     "expiresInSeconds": 35,
                 }
                 await broadcast_order_event(f"rider_offer_{rid}", offer_payload)
+                try:
+                    from app.core.socketio import sio
+                    await sio.emit("rider.new_offer", offer_payload, room=f"rider_{rid}")
+                    await sio.emit("rider.new_offer", offer_payload, room="riders")
+                except Exception:
+                    pass
 
                 # Send OneSignal notification to candidate rider
                 try:

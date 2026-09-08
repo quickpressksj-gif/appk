@@ -187,12 +187,18 @@ export const RiderUnableToDeliverModal: React.FC<RiderUnableToDeliverModalProps>
         {/* Body Content */}
         <div className="overflow-y-auto p-5 space-y-4">
           {/* Payout & Handover Policy Info */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-xs text-emerald-900 leading-relaxed">
-              <span className="font-bold text-emerald-950">Fair Payout Protection:</span> You will receive{" "}
-              <span className="font-semibold text-emerald-800">full payout for the pickup leg</span> credited directly
-              to your wallet once the package is handed over to the replacement Captain with OTP verification.
+          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-950 leading-relaxed space-y-1">
+              <p>
+                <span className="font-bold text-amber-900">Pickup Pay & 25% Service Fee:</span> You will receive{" "}
+                <span className="font-bold text-emerald-800">75% net pickup earnings</span> credited to your wallet.
+                A standard <span className="font-bold text-rose-700">25% opt-out fee</span> is deducted for releasing the delivery leg.
+              </p>
+              <p className="text-[11px] text-amber-800 font-medium">
+                Clothes remain safely at Partner Store. The replacement delivery Captain will be assigned with a{" "}
+                <span className="font-bold text-blue-700">+20% extra bonus</span>.
+              </p>
             </div>
           </div>
 

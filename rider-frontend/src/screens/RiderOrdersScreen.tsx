@@ -41,7 +41,13 @@ import { CaptainSidebarDrawer } from "../components/layout/CaptainSidebarDrawer"
 export interface OrderOfferItem {
   id: string;
   orderId?: string;
-  type?: "bike" | "laundry" | "parcel";
+  type?: string;
+  rideType?: string;
+  isTransfer?: boolean;
+  isReassigned?: boolean;
+  isReassignedBonus?: boolean;
+  extraBonusPercent?: number;
+  extraBonusAmount?: number;
   pickupTitle?: string;
   pickupAddress: string;
   dropTitle?: string;
@@ -157,6 +163,12 @@ export function RiderOrdersScreen() {
           id: r.offerId || r.id || r._id,
           orderId: r.orderId || r.rideId || r.id,
           type: r.type || r.rideType || "bike",
+          rideType: r.rideType || (r.type === "delivery" || r.type === "handover_delivery" ? "delivery" : "pickup"),
+          isTransfer: Boolean(r.isTransfer),
+          isReassigned: Boolean(r.isReassigned),
+          isReassignedBonus: Boolean(r.isReassignedBonus),
+          extraBonusPercent: Number(r.extraBonusPercent || 0),
+          extraBonusAmount: Number(r.extraBonusAmount || 0),
           pickupTitle: r.pickupTitle || r.pickupName || "Pickup Location",
           pickupAddress: r.pickupAddress || r.pickupLocation?.address || "Pickup Address",
           dropTitle: r.dropTitle || r.dropName || "Drop Location",
@@ -277,7 +289,7 @@ export function RiderOrdersScreen() {
       dropDistanceKm: offer.dropDistanceKm || 2.5,
       fare: offer.fare || 45.0,
       startOtp: "4829",
-      rideType: offer.type || "pickup",
+      rideType: offer.rideType || (offer.type === "delivery" || offer.type === "handover_delivery" ? "delivery" : "pickup"),
     };
 
     // Save to persistent storage and state
@@ -460,7 +472,13 @@ export function RiderOrdersScreen() {
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         />
                         <path
-                          className="text-[#00C853] transition-all duration-1000 ease-linear"
+                          className={`${
+                            offers[0]?.rideType === "delivery" ||
+                            offers[0]?.type === "delivery" ||
+                            offers[0]?.isTransfer
+                              ? "text-blue-600"
+                              : "text-[#00C853]"
+                          } transition-all duration-1000 ease-linear`}
                           strokeDasharray={`${(countdown / 10) * 100}, 100`}
                           strokeWidth="3.5"
                           strokeLinecap="round"
@@ -485,35 +503,90 @@ export function RiderOrdersScreen() {
             <div className="flex-1 space-y-3.5 pb-8">
               {offers.map((offer, idx) => {
                 const isTop = idx === 0;
+                const isDelivery =
+                  offer.rideType === "delivery" ||
+                  offer.type === "delivery" ||
+                  offer.isTransfer ||
+                  offer.type === "handover_delivery" ||
+                  offer.dropTitle?.toLowerCase().includes("customer") ||
+                  offer.pickupTitle?.toLowerCase().includes("store") ||
+                  offer.pickupTitle?.toLowerCase().includes("partner") ||
+                  offer.pickupTitle?.toLowerCase().includes("hub");
 
                 return (
                   <div
                     key={offer.id}
                     className={`rounded-3xl p-4 transition-all duration-200 border ${
-                      isTop
+                      isDelivery
+                        ? isTop
+                          ? "bg-gradient-to-br from-blue-50/95 via-white to-blue-50/50 border-blue-400 shadow-lg shadow-blue-500/15 ring-2 ring-blue-500/30"
+                          : "bg-blue-50/40 border-blue-200/70 opacity-85"
+                        : isTop
                         ? "bg-white border-neutral-200/90 shadow-md shadow-neutral-100 ring-2 ring-[#00C853]/10"
                         : "bg-neutral-50/80 border-neutral-200/60 opacity-80"
                     }`}
                   >
                     {/* Header: Service Type + Cash / Fare Badge */}
-                    <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                    <div
+                      className={`flex items-center justify-between pb-3 border-b ${
+                        isDelivery ? "border-blue-200/70" : "border-neutral-100"
+                      }`}
+                    >
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-amber-100 text-amber-900 font-bold text-xs">
-                          {offer.type === "laundry" ? (
+                        <div
+                          className={`flex items-center justify-center w-7 h-7 rounded-xl font-bold text-xs ${
+                            isDelivery
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "bg-amber-100 text-amber-900"
+                          }`}
+                        >
+                          {isDelivery ? (
+                            <Package className="w-4 h-4" />
+                          ) : offer.type === "laundry" ? (
                             <Shirt className="w-4 h-4" />
                           ) : (
                             <Bike className="w-4 h-4" />
                           )}
                         </div>
-                        <span className="text-xs font-black uppercase tracking-wider text-neutral-600">
-                          {offer.type === "laundry" ? "QuickPress Laundry" : "Captain Courier"}
-                        </span>
+                        <div className="flex flex-col">
+                          <span
+                            className={`text-xs font-black uppercase tracking-wider ${
+                              isDelivery ? "text-blue-950" : "text-neutral-600"
+                            }`}
+                          >
+                            {isDelivery
+                              ? "QuickPress Delivery"
+                              : offer.type === "laundry"
+                              ? "QuickPress Laundry"
+                              : "Captain Courier"}
+                          </span>
+                          {isDelivery && (
+                            <span className="text-[10px] font-bold text-blue-700">
+                              📦 स्टोर से डिलीवरी (Doorstep)
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Cash Fare Payout */}
-                      <div className="flex items-center gap-1.5 px-3 py-1 bg-[#E6F8EE] rounded-full text-xs font-black text-[#00C853] border border-[#00C853]/30">
-                        <span>💵 Cash</span>
-                        <span>₹{offer.fare?.toFixed(0) || "45"}</span>
+                      <div className="flex items-center gap-1.5">
+                        {/* 20% Reassignment Extra Bonus Tag */}
+                        {(offer.isReassignedBonus || (offer.extraBonusPercent && offer.extraBonusPercent > 0)) && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white rounded-full text-[10px] font-black shadow-xs animate-pulse">
+                            <span>🔥 +20% BONUS</span>
+                          </div>
+                        )}
+
+                        {/* Cash Fare Payout */}
+                        <div
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border ${
+                            isDelivery
+                              ? "bg-blue-100/90 text-blue-950 border-blue-300"
+                              : "bg-[#E6F8EE] text-[#00C853] border-[#00C853]/30"
+                          }`}
+                        >
+                          <span>💵 Cash</span>
+                          <span>₹{offer.fare?.toFixed(0) || "45"}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -521,7 +594,13 @@ export function RiderOrdersScreen() {
                     <div className="py-3.5 space-y-3">
                       {/* Pickup Point */}
                       <div className="flex items-start gap-2.5 text-xs">
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-[#00C853] font-black text-[9px] shrink-0 mt-0.5">
+                        <div
+                          className={`flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] shrink-0 mt-0.5 ${
+                            isDelivery
+                              ? "bg-blue-200 text-blue-900"
+                              : "bg-emerald-100 text-[#00C853]"
+                          }`}
+                        >
                           P
                         </div>
                         <div className="flex-1 min-w-0">
@@ -542,7 +621,13 @@ export function RiderOrdersScreen() {
 
                       {/* Drop Point */}
                       <div className="flex items-start gap-2.5 text-xs">
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-600 font-black text-[9px] shrink-0 mt-0.5">
+                        <div
+                          className={`flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] shrink-0 mt-0.5 ${
+                            isDelivery
+                              ? "bg-blue-600 text-white"
+                              : "bg-rose-100 text-rose-600"
+                          }`}
+                        >
                           D
                         </div>
                         <div className="flex-1 min-w-0">
@@ -559,7 +644,7 @@ export function RiderOrdersScreen() {
                       </div>
                     </div>
 
-                    {/* Action Buttons: [ Reject ] [ Accept (10) ] */}
+                    {/* Action Buttons: [ Reject ] [ Accept ] */}
                     <div className="flex items-center gap-2.5 pt-1">
                       {/* Reject Button (X) */}
                       <button
@@ -571,15 +656,25 @@ export function RiderOrdersScreen() {
                         <X className="w-5 h-5 stroke-[2.5]" />
                       </button>
 
-                      {/* Attention Yellow Accept Button */}
+                      {/* Attention Accept Button: Blue for delivery, Yellow for pickup */}
                       <button
                         type="button"
                         onClick={() => handleAccept(offer)}
-                        className="flex-1 flex items-center justify-center gap-2 h-12.5 bg-[#FFC400] hover:bg-[#FBBF24] active:bg-[#F59E0B] text-neutral-950 font-black text-base rounded-2xl shadow-md active:scale-98 transition-all"
+                        className={`flex-1 flex items-center justify-center gap-2 h-12.5 font-black text-base rounded-2xl shadow-md active:scale-98 transition-all ${
+                          isDelivery
+                            ? "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-blue-500/25"
+                            : "bg-[#FFC400] hover:bg-[#FBBF24] active:bg-[#F59E0B] text-neutral-950 shadow-amber-500/25"
+                        }`}
                       >
-                        <span>Accept</span>
+                        <span>{isDelivery ? "Accept Delivery 📦" : "Accept"}</span>
                         {isTop && (
-                          <span className="flex items-center justify-center min-w-[28px] h-6.5 px-1.5 bg-white text-neutral-950 text-xs font-black rounded-full border border-neutral-300 shadow-xs">
+                          <span
+                            className={`flex items-center justify-center min-w-[28px] h-6.5 px-1.5 text-xs font-black rounded-full border shadow-xs ${
+                              isDelivery
+                                ? "bg-white text-blue-700 border-blue-300"
+                                : "bg-white text-neutral-950 border-neutral-300"
+                            }`}
+                          >
                             {countdown}
                           </span>
                         )}

@@ -94,6 +94,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   const mapInstanceRef = useRef<any>(null);
 
   const isHandoverRide = order.rideType === "handover_delivery" || order.isHandoverTransfer;
+  const isDeliveryRide = order.rideType === "delivery" || order.rideType === "handover_delivery" || order.isHandoverTransfer || order.dropTitle?.toLowerCase().includes("customer");
   const [showUnableModal, setShowUnableModal] = useState(false);
   const [isVerifyingHandover, setIsVerifyingHandover] = useState(false);
   const [handoverVerifyOtpDigits, setHandoverVerifyOtpDigits] = useState<string[]>(["", "", "", ""]);
@@ -511,12 +512,12 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         </button>
 
         {/* Screen Title */}
-        <h1 className="text-base font-black text-neutral-950 tracking-tight">
-          {stage === "en_route_pickup" && (isHandoverRide ? "Go to Handover Point" : "Go to Pickup Zone")}
-          {stage === "arrived_pickup" && (isHandoverRide ? "At Handover Point" : "At Pickup Location")}
-          {stage === "in_trip" && (order.rideType === "pickup" ? "Heading to Partner Store" : "Heading to Drop Zone")}
+        <h1 className={`text-base font-black tracking-tight ${isDeliveryRide ? "text-blue-950" : "text-neutral-950"}`}>
+          {stage === "en_route_pickup" && (isDeliveryRide ? "📦 Go to Partner Store (Pick up)" : isHandoverRide ? "Go to Handover Point" : "Go to Pickup Zone")}
+          {stage === "arrived_pickup" && (isDeliveryRide ? "📦 At Partner Store" : isHandoverRide ? "At Handover Point" : "At Pickup Location")}
+          {stage === "in_trip" && (isDeliveryRide ? "📦 En Route to Customer Delivery" : order.rideType === "pickup" ? "Heading to Partner Store" : "Heading to Drop Zone")}
           {stage === "handover_waiting" && "Order Handover in Progress"}
-          {stage === "completed" && "Trip Completed"}
+          {stage === "completed" && (isDeliveryRide ? "🎉 Delivery Completed" : "Trip Completed")}
         </h1>
 
         {/* Support / Call Customer Button (Black circle with Yellow telephone icon) */}
@@ -529,6 +530,19 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           <Phone className="w-5 h-5 fill-[#FBBF24] stroke-none" />
         </button>
       </header>
+
+      {/* DELIVERY BLUE THEME BANNER */}
+      {isDeliveryRide && (
+        <div className="z-25 bg-blue-600 text-white px-4 py-1.5 flex items-center justify-between text-xs font-black shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5">
+            <Package className="w-4 h-4" />
+            <span>DELIVERY ORDER (स्टोर से ग्राहक तक डिलीवरी)</span>
+          </div>
+          <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide">
+            BLUE
+          </span>
+        </div>
+      )}
 
       {/* 1.1 ORDER TIMELINE STEP PROGRESS BAR */}
       <div className="z-25 bg-neutral-50 px-3.5 py-2 border-b border-neutral-200/80 shadow-2xs">
@@ -962,54 +976,77 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
             order.dropTitle?.toLowerCase().includes("store") ||
             order.dropTitle?.toLowerCase().includes("partner") ||
             order.dropTitle?.toLowerCase().includes("hub") ? (
-              <button
-                type="button"
-                onClick={handleCompleteTrip}
-                className="w-full h-14 flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-emerald-600/30 active:scale-[0.99] transition-all overflow-hidden"
-              >
-                <div className="flex items-center justify-center w-14 h-full bg-emerald-700/60 border-r border-emerald-400/30">
-                  <ArrowRight className="w-6 h-6 stroke-[3]" />
-                </div>
-                <div className="flex-1 text-center pr-14">
-                  <span>SWIPE: ARRIVAL TO STORE & HANDOVER 🧺</span>
-                </div>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleCompleteTrip}
+                  className="w-full h-14 flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-emerald-600/30 active:scale-[0.99] transition-all overflow-hidden"
+                >
+                  <div className="flex items-center justify-center w-14 h-full bg-emerald-700/60 border-r border-emerald-400/30">
+                    <ArrowRight className="w-6 h-6 stroke-[3]" />
+                  </div>
+                  <div className="flex-1 text-center pr-14">
+                    <span>ARRIVAL TO STORE & HANDOVER 🧺</span>
+                  </div>
+                </button>
+
+                {/* In-Trip Navigation Shortcut button */}
+                <button
+                  type="button"
+                  onClick={handleOpenGoogleMaps}
+                  className="w-full py-2.5 px-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+                >
+                  <Navigation className="w-4 h-4 text-emerald-600" />
+                  <span>Navigate to Partner Store (Google Maps)</span>
+                </button>
+
+                {/* Unable to Deliver: Opt-out at store with 25% fee */}
+                <button
+                  type="button"
+                  onClick={() => setShowUnableModal(true)}
+                  className="w-full py-2.5 px-3 rounded-xl border border-amber-300 bg-amber-50/90 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Unable to Deliver / Leave Trip at Store (25% Fee)</span>
+                </button>
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={handleCompleteTrip}
-                className="w-full h-14 flex items-center bg-[#EF4444] hover:bg-[#DC2626] text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-red-500/25 active:scale-[0.99] transition-all overflow-hidden"
-              >
-                <div className="flex items-center justify-center w-14 h-full bg-red-600/50 border-r border-red-400/30">
-                  <ArrowRight className="w-6 h-6 stroke-[3]" />
-                </div>
-                <div className="flex-1 text-center pr-14">
-                  <span>COMPLETE CUSTOMER DELIVERY</span>
-                </div>
-              </button>
+              <>
+                {/* Delivery Ride: Vibrant Royal Blue Theme */}
+                <button
+                  type="button"
+                  onClick={handleCompleteTrip}
+                  className="w-full h-14 flex items-center bg-blue-600 hover:bg-blue-700 text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all overflow-hidden"
+                >
+                  <div className="flex items-center justify-center w-14 h-full bg-blue-700/60 border-r border-blue-400/30">
+                    <ArrowRight className="w-6 h-6 stroke-[3]" />
+                  </div>
+                  <div className="flex-1 text-center pr-14">
+                    <span>COMPLETE CUSTOMER DELIVERY (OTP) 📦</span>
+                  </div>
+                </button>
+
+                {/* Navigation to Customer */}
+                <button
+                  type="button"
+                  onClick={handleOpenGoogleMaps}
+                  className="w-full py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+                >
+                  <Navigation className="w-4 h-4 text-blue-600" />
+                  <span>Navigate to Customer Location (Google Maps)</span>
+                </button>
+
+                {/* Unable to Complete Delivery */}
+                <button
+                  type="button"
+                  onClick={() => setShowUnableModal(true)}
+                  className="w-full py-2 px-3 rounded-xl border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 font-bold text-[11px] flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                  <span>Need Help / Emergency Transfer</span>
+                </button>
+              </>
             )}
-
-            {/* In-Trip Navigation Shortcut button */}
-            <button
-              type="button"
-              onClick={handleOpenGoogleMaps}
-              className="w-full py-2.5 px-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
-            >
-              <Navigation className="w-4 h-4 text-emerald-600" />
-              <span>
-                {order.rideType === "pickup" ? "Navigate to Partner Store (Google Maps)" : "Navigate to Customer Location (Google Maps)"}
-              </span>
-            </button>
-
-            {/* Unable to Complete Delivery (Emergency Transfer) */}
-            <button
-              type="button"
-              onClick={() => setShowUnableModal(true)}
-              className="w-full py-2 px-3 rounded-xl border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 font-bold text-[11px] flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-              <span>Need Help / Transfer Order</span>
-            </button>
           </div>
         )}
 
@@ -1031,17 +1068,35 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         {/* STAGE 4: Trip Completed & Payment Collected */}
         {stage === "completed" && (
           <div className="space-y-3 animate-in zoom-in-95 duration-200">
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-1">
+            <div
+              className={`p-4 rounded-2xl text-center space-y-1 border ${
+                isDeliveryRide
+                  ? "bg-blue-50 border-blue-200"
+                  : "bg-emerald-50 border-emerald-200"
+              }`}
+            >
               <span className="text-3xl">🎉</span>
-              <h3 className="text-lg font-black text-emerald-950">Trip Completed!</h3>
-              <p className="text-2xl font-black text-[#00C853]">₹{order.fare.toFixed(2)}</p>
-              <p className="text-xs font-semibold text-emerald-800">Payment Credited to Wallet</p>
+              <h3 className={`text-lg font-black ${isDeliveryRide ? "text-blue-950" : "text-emerald-950"}`}>
+                {isDeliveryRide ? "Delivery Completed!" : "Clothes Handed Over at Store!"}
+              </h3>
+              <p className={`text-2xl font-black ${isDeliveryRide ? "text-blue-600" : "text-[#00C853]"}`}>
+                ₹{order.fare.toFixed(2)}
+              </p>
+              <p className={`text-xs font-semibold ${isDeliveryRide ? "text-blue-800" : "text-emerald-800"}`}>
+                {isDeliveryRide
+                  ? "Customer Doorstep Payout Credited to Wallet"
+                  : "Pickup Leg Payout Credited · Partner Processing Unlocked"}
+              </p>
             </div>
 
             <button
               type="button"
               onClick={onTripCompleted}
-              className="w-full h-13 flex items-center justify-center bg-[#00C853] hover:bg-[#00B248] text-white font-black text-sm tracking-wide rounded-xl shadow-lg shadow-emerald-500/25 active:scale-98 transition-all"
+              className={`w-full h-13 flex items-center justify-center text-white font-black text-sm tracking-wide rounded-xl shadow-lg active:scale-98 transition-all ${
+                isDeliveryRide
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25"
+                  : "bg-[#00C853] hover:bg-[#00B248] shadow-emerald-500/25"
+              }`}
             >
               <span>Ready for Next Order 🚀</span>
             </button>

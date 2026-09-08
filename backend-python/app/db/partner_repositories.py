@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.db.client import database
@@ -599,18 +599,9 @@ class PartnerOrderRepository:
             raise PartnerAccessError(str(error)) from error
 
         current_status = lifecycle.order_status(order)
-        if current_status not in (lifecycle.AT_PARTNER, lifecycle.PICKED_UP):
+        if current_status != lifecycle.AT_PARTNER:
             raise InvalidTransitionError(
-                f"Cannot start processing before laundry is picked up from customer and received at store (Current status: {current_status})."
-            )
-
-        if current_status == lifecycle.PICKED_UP:
-            await lifecycle.transition(
-                order_id,
-                lifecycle.AT_PARTNER,
-                actor_id=partner_id,
-                actor_role="partner",
-                metadata={"receivedAtStoreAt": lifecycle.now_iso()},
+                f"Cannot start processing before Captain completes pickup and arrives at store (Current status: {current_status}). Captain must reach store and perform store arrival first."
             )
 
         from app.services.rider_dispatch import rider_dispatch_engine

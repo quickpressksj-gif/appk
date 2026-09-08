@@ -1891,11 +1891,25 @@ async def pickup_order(
 
 
 @router.post("/orders/{order_id}/drop-at-partner")
-async def drop_at_partner(order_id: str, user: User = Depends(current_user)) -> dict:
+async def drop_at_partner(
+    order_id: str, body: dict | None = None, user: User = Depends(current_user)
+) -> dict:
     rider_id = await _rider_id(user)
-    from app.services.smart_2ride_engine import RIDES_COLLECTION
+    payload = body or {}
+    from app.services.smart_2ride_engine import RIDES_COLLECTION, smart_2ride_engine
     ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
     target_order_id = ride.get("orderId") if ride else order_id
+
+    # If the Captain elects to opt out / leave the trip at store arrival:
+    if payload.get("opt_out") or payload.get("unable_to_deliver") or payload.get("leave_trip"):
+        return await smart_2ride_engine.request_delivery_reassignment(
+            order_id=target_order_id,
+            rider_id=rider_id,
+            reason=str(payload.get("reason") or "captain_opt_out_at_store"),
+            location=payload.get("location"),
+            remarks=payload.get("remarks") or "Captain opted out at store arrival",
+        )
+
     if ride:
         await database.collection(RIDES_COLLECTION).update_one(
             {"_id": ride["_id"]},

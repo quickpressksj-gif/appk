@@ -70,8 +70,11 @@ export async function fetchRiderOffers(): Promise<any[]> {
 }
 
 /** POST /api/rider/orders/{id}/drop-at-partner */
-export async function confirmDropAtPartner(orderId: string) {
-  const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/drop-at-partner`);
+export async function confirmDropAtPartner(orderId: string, optOut: boolean = false) {
+  const order = await apiPostJson<RiderOrder>(
+    `/api/rider/orders/${orderId}/drop-at-partner`,
+    optOut ? { opt_out: true, unable_to_deliver: true } : {}
+  );
   return { ok: true as const, orderId, order };
 }
 
