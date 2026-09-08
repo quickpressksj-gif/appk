@@ -643,6 +643,26 @@ async def verify_handover_otp(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
+@router.post("/orders/{order_id}/verify-dispatch-otp", response_model=PartnerOrderResponse)
+async def verify_dispatch_otp(
+    order_id: str, body: dict | None = None, partner_id: str = Depends(_verified_partner_id)
+) -> PartnerOrderResponse:
+    """Partner enters and verifies the 4-digit Dispatch OTP communicated by the Captain (Rider 2).
+    Custody moves from Partner to Captain and order transitions to OUT_FOR_DELIVERY.
+    """
+    otp = (body or {}).get("otp") or (body or {}).get("code")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        await smart_2ride_engine.verify_partner_dispatch_otp(order_id, str(otp or ""), partner_id)
+        doc = await partner_order_repository.by_id(partner_id, order_id)
+        return _order_response(doc)
+    except (PermissionError, ValueError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+
 # --------------------------------------------------------------------------
 # Services (rate card)
 # --------------------------------------------------------------------------

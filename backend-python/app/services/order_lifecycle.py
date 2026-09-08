@@ -109,9 +109,8 @@ TRANSITIONS: Dict[str, tuple] = {
     DELIVERY_RIDER_ACCEPTED: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
     DISPATCH_OTP_PENDING: (OUT_FOR_DELIVERY, CANCELLED),
     OUT_FOR_DELIVERY: (DELIVERY_OTP_PENDING, DELIVERED, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
-    DELIVERY_OTP_PENDING: (DELIVERED, CANCELLED),
-    DELIVERY_REASSIGNMENT_REQUIRED: (HANDOVER_RIDER_ASSIGNED, CANCELLED),
-    HANDOVER_RIDER_ASSIGNED: (HANDOVER_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
+    DELIVERY_REASSIGNMENT_REQUIRED: (DELIVERY_RIDER_ACCEPTED, DELIVERY_RIDER_ASSIGNED, HANDOVER_RIDER_ASSIGNED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
+    HANDOVER_RIDER_ASSIGNED: (HANDOVER_OTP_PENDING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
     HANDOVER_OTP_PENDING: (OUT_FOR_DELIVERY, CANCELLED),
     DELIVERED: (),
     CANCELLED: (),
@@ -782,6 +781,17 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
 
     p_code = pickup_otp.get("code") if isinstance(pickup_otp, dict) else str(pickup_otp or "")
     d_code = delivery_otp.get("code") if isinstance(delivery_otp, dict) else str(delivery_otp or "")
+    disp_code = (
+        dispatch_otp.get("code")
+        if isinstance(dispatch_otp, dict)
+        else str(
+            dispatch_otp
+            or order.get("dispatchOtp")
+            or (order.get("reassignment") or {}).get("dispatchOtp")
+            or (order.get("reassignment") or {}).get("handoverOtp")
+            or ""
+        )
+    )
 
     return {
         "id": order_id_of(order),
@@ -791,6 +801,7 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
         "status": RIDER_STATUS.get(status, "assigned"),
         "canonicalStatus": status,
+        "custody": order.get("custody", "customer"),
         "customerName": customer.get("name", "") or order.get("customerName", "") or "Customer",
         "customerPhone": customer.get("phone", "") or order.get("customerPhone", "") or "",
         "partnerName": partner.get("name", "") or order.get("partnerName", "") or "QuickPress Laundry Store",
@@ -810,7 +821,9 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
         "paymentMode": payment.get("mode", "cod"),
         "amount": order_amount,
         "pickupOtp": p_code,
+        "dispatchOtp": disp_code,
         "deliveryOtp": d_code,
+        "reassignment": order.get("reassignment"),
         "pickupOtpRequired": status in (RIDER_ASSIGNED, RIDER_ACCEPTED, PICKUP_OTP_PENDING) and not pickup_verified,
         "dispatchOtpRequired": status in (READY, COMPLETED, DISPATCH_OTP_PENDING) and not dispatch_verified,
         "deliveryOtpRequired": status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING) and not delivery_verified,

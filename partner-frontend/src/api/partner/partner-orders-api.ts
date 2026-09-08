@@ -81,3 +81,14 @@ export async function updateOrderStatus(
 
   return { ok: true, orderId, status: order.status, order };
 }
+
+/** POST /api/partner/orders/{id}/verify-dispatch-otp — verify 4-digit OTP told by Captain and dispatch */
+export async function verifyPartnerDispatchOtp(orderId: string, otp: string): Promise<PartnerOrder> {
+  return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/verify-dispatch-otp`, { otp });
+}
+
+/** POST /api/partner/orders/{id}/verify-handover-otp — verify pickup handover OTP from rider */
+export async function verifyPartnerHandoverOtp(orderId: string, otp: string): Promise<PartnerOrder> {
+  return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/verify-handover-otp`, { otp });
+}
+

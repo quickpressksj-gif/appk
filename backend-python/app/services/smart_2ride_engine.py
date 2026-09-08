@@ -942,6 +942,71 @@ class Smart2RideEngine:
             await broadcast_order_event(EVENT_ORDER_OUT_FOR_DELIVERY, updated)
         return {"ok": True, "status": "OUT_FOR_DELIVERY", "orderId": canonical_id}
 
+    async def verify_partner_dispatch_otp(self, order_id: str, otp: str, partner_id: str) -> Dict[str, Any]:
+        """Partner verifies the 4-digit Dispatch OTP told by Rider 2.
+        Custody transfers from Partner Store to Rider 2, advancing order to OUT_FOR_DELIVERY.
+        """
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise LookupError(f"Order {order_id} not found")
+
+        canonical_id = lifecycle.order_id_of(order)
+        otp_dict = order.get("otp") or {}
+        dispatch_record = otp_dict.get("dispatch")
+        if not dispatch_record:
+            dispatch_code = (
+                order.get("dispatchOtp")
+                or (order.get("reassignment") or {}).get("dispatchOtp")
+                or (order.get("reassignment") or {}).get("handoverOtp")
+                or otp
+            )
+            dispatch_record = {"code": str(dispatch_code), "attempts": 0, "verified": False}
+
+        self._verify_otp_record(dispatch_record, otp, "Partner Dispatch OTP")
+        dispatch_record["verified"] = True
+
+        now = lifecycle.now_iso()
+        assigned_rider_id = order.get("assignedRiderId") or order.get("riderId") or order.get("deliveryRiderId")
+
+        # Update order status to OUT_FOR_DELIVERY
+        await database.collection(ORDERS_COLLECTION).update_one(
+            {"_id": canonical_id},
+            {
+                "$set": {
+                    "status": lifecycle.OUT_FOR_DELIVERY,
+                    "otp.dispatch": dispatch_record,
+                    "dispatchOtpVerified": True,
+                    "dispatchedAt": now,
+                    "custody": "rider",
+                    "updatedAt": now,
+                }
+            },
+        )
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
+            {"$set": {"status": "OUT_FOR_DELIVERY", "otp.dispatch": dispatch_record, "updatedAt": now}},
+        )
+
+        updated = await lifecycle.find_order(canonical_id)
+        if updated:
+            await lifecycle.record_event(
+                updated,
+                "OUT_FOR_DELIVERY",
+                actor_id=partner_id,
+                actor_role="partner",
+                metadata={"dispatchedToRider": assigned_rider_id, "dispatchOtpVerified": True},
+                at=now,
+            )
+            await broadcast_order_event(EVENT_ORDER_OUT_FOR_DELIVERY, updated)
+
+        return {
+            "ok": True,
+            "status": lifecycle.OUT_FOR_DELIVERY,
+            "orderId": canonical_id,
+            "dispatchedTo": assigned_rider_id,
+            "message": "Dispatch OTP verified. Package custody transferred to Delivery Captain.",
+        }
+
     async def verify_delivery_otp(self, order_id: str, otp: str, rider_id: str) -> Dict[str, Any]:
         """Phase 3 OTP: Customer provides final Delivery OTP to Rider at doorstep."""
         order = await lifecycle.find_order(order_id)
@@ -961,6 +1026,7 @@ class Smart2RideEngine:
                     "status": lifecycle.DELIVERED,
                     "otp.delivery": delivery_record,
                     "deliveredAt": now,
+                    "completedAt": now,
                     "updatedAt": now,
                     "payment.paid": True,
                 }
@@ -999,7 +1065,7 @@ class Smart2RideEngine:
         return {"ok": True, "status": "DELIVERED", "orderId": canonical_id}
 
     # -------------------------------------------------------------------------
-    # 6. EMERGENCY REASSIGNMENT & HANDOVER TRANSFER
+    # 7. RIDER 1 UNABLE TO COMPLETE DELIVERY -> REASSIGNMENT & CUSTODY TRANSFER
     # -------------------------------------------------------------------------
     async def request_delivery_reassignment(
         self,
@@ -1009,9 +1075,10 @@ class Smart2RideEngine:
         location: Optional[Dict[str, Any]] = None,
         remarks: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Triggered by Rider 1 when unable to complete delivery.
-        Freezes handover location, creates 4-digit handover OTP, calculates pickup leg payout,
-        and broadcasts transfer offer to nearby available riders.
+        """Triggered when Rider 1 cannot complete delivery.
+        Core QuickPress Rule: Package remains in Partner Store custody.
+        Rider 1 is credited for Pickup Leg payout immediately and released.
+        Rider 2 is assigned for Delivery Leg from Partner Store to Customer.
         """
         order = await lifecycle.find_order(order_id)
         if not order:
@@ -1020,29 +1087,75 @@ class Smart2RideEngine:
         canonical_id = lifecycle.order_id_of(order)
         now = lifecycle.now_iso()
 
-        # Generate secure 4-digit handover OTP
-        handover_otp = generate_secure_4digit_otp()
-        handover_record = create_otp_record(handover_otp)
+        # Check authorization
+        curr_rider = order.get("assignedRiderId") or order.get("riderId")
+        if curr_rider and rider_id and str(curr_rider) != str(rider_id):
+            logger.info("Reassignment request from rider %s on order assigned to %s", rider_id, curr_rider)
 
-        # Capture handover GPS point
-        coords = location or {}
-        lat = float(coords.get("lat") or coords.get("latitude") or 27.8118)
-        lng = float(coords.get("lng") or coords.get("longitude") or 78.6477)
-        address = str(coords.get("address") or coords.get("name") or "Current Breakdown Location")
+        # Partner Store details (Package is stored safely in Partner custody)
+        partner_info = order.get("partner") or {}
+        partner_id = order.get("partnerId") or order.get("partner_id")
+        if partner_id and not partner_info.get("address"):
+            db_p = await database.find_one("partners", {"$or": [{"_id": partner_id}, {"partnerId": partner_id}]}) or {}
+            if db_p:
+                partner_info = {
+                    "name": db_p.get("storeName") or db_p.get("name") or "QuickPress Partner Store",
+                    "address": db_p.get("address") or "Partner Store",
+                    "lat": float(db_p.get("lat") or db_p.get("latitude") or 27.8118),
+                    "lng": float(db_p.get("lng") or db_p.get("longitude") or 78.6477),
+                    "phone": db_p.get("phone") or "",
+                }
 
-        # Estimate Rider 1 pickup payout: Base ₹25 + distance (e.g. min ₹25, typical ₹35-₹45)
-        pickup_loc = order.get("pickupLocation") or order.get("storeLocation") or {}
-        store_lat = float(pickup_loc.get("latitude") or pickup_loc.get("lat") or lat)
-        store_lng = float(pickup_loc.get("longitude") or pickup_loc.get("lng") or lng)
-        dist_km = haversine_distance_km(store_lat, store_lng, lat, lng)
-        pickup_payout = round(25.0 + max(0.0, dist_km * 8.0), 2)
+        p_lat = float(partner_info.get("lat") or partner_info.get("latitude") or 27.8118)
+        p_lng = float(partner_info.get("lng") or partner_info.get("longitude") or 78.6477)
+        p_addr = str(partner_info.get("address") or "QuickPress Partner Store")
+        p_name = str(partner_info.get("name") or order.get("partnerName") or "QuickPress Partner Store")
 
-        # Estimate Rider 2 remaining delivery payout
-        drop_loc = order.get("deliveryLocation") or order.get("customerAddress") or {}
-        drop_lat = float(drop_loc.get("latitude") or drop_loc.get("lat") or lat)
-        drop_lng = float(drop_loc.get("longitude") or drop_loc.get("lng") or lng)
-        remaining_dist_km = haversine_distance_km(lat, lng, drop_lat, drop_lng)
-        delivery_payout = round(25.0 + max(0.0, remaining_dist_km * 8.0), 2)
+        # Customer drop details
+        drop_loc = order.get("deliveryLocation") or order.get("address") or order.get("customerAddress") or {}
+        drop_lat = float(drop_loc.get("lat") or drop_loc.get("latitude") or 27.8180)
+        drop_lng = float(drop_loc.get("lng") or drop_loc.get("longitude") or 78.6550)
+        drop_addr = str(drop_loc.get("address") or drop_loc.get("line") or order.get("deliveryAddress") or "Customer Doorstep")
+
+        # Pickup leg payout (Customer -> Partner completed by Rider 1): Base ₹25 + distance
+        cust_loc = order.get("pickupLocation") or order.get("customerLocation") or {}
+        c_lat = float(cust_loc.get("lat") or cust_loc.get("latitude") or p_lat)
+        c_lng = float(cust_loc.get("lng") or cust_loc.get("longitude") or p_lng)
+        pickup_dist_km = max(0.5, haversine_distance_km(c_lat, c_lng, p_lat, p_lng))
+        pickup_payout = round(25.0 + max(0.0, pickup_dist_km * 8.0), 2)
+
+        # Delivery leg payout (Partner Store -> Customer Doorstep for Rider 2): Base ₹25 + distance
+        delivery_dist_km = max(0.5, haversine_distance_km(p_lat, p_lng, drop_lat, drop_lng))
+        delivery_payout = round(25.0 + max(0.0, delivery_dist_km * 8.0), 2)
+
+        # Generate secure 4-digit Dispatch OTP for Partner -> Rider 2 handover
+        dispatch_otp = generate_secure_4digit_otp()
+        dispatch_record = create_otp_record(dispatch_otp)
+
+        # 1. Immediately credit Rider 1 wallet with pickup payout
+        if rider_id:
+            try:
+                from app.db.rider_repositories import rider_wallet_repository, rider_notification_repository
+                await rider_wallet_repository.credit(
+                    rider_id=rider_id,
+                    amount=pickup_payout,
+                    title=f"Pickup leg payout for order #{order.get('code') or canonical_id[:8]}",
+                    order_code=order.get("code") or canonical_id[:8],
+                    kind="transfer_pickup",
+                )
+                await rider_notification_repository.create(
+                    rider_id=rider_id,
+                    title="🎉 Pickup Payout Credited to Wallet",
+                    message=f"Pickup leg for order #{order.get('code') or canonical_id[:8]} completed. ₹{pickup_payout:.2f} credited to your wallet. Package is safely in Partner custody.",
+                    kind="payment",
+                )
+                if reason in ("vehicle_breakdown", "accident_health", "medical_emergency"):
+                    await database.collection(RIDERS_COLLECTION).update_one(
+                        {"$or": [{"_id": rider_id}, {"riderId": rider_id}]},
+                        {"$set": {"isOnline": False, "dutyStatus": "OFF DUTY", "updatedAt": now}}
+                    )
+            except Exception as err:
+                logger.error(f"Error crediting Rider 1 pickup payout: {err}", exc_info=True)
 
         reassignment_data = {
             "requested": True,
@@ -1050,26 +1163,33 @@ class Smart2RideEngine:
             "originalRiderId": rider_id,
             "reason": reason,
             "remarks": remarks or "",
-            "handoverLocation": {
-                "lat": lat,
-                "lng": lng,
-                "address": address,
-            },
-            "handoverOtp": handover_otp,
+            "custody": "partner",
+            "dispatchOtp": dispatch_otp,
+            "handoverOtp": dispatch_otp,
             "pickupLegPayout": pickup_payout,
             "deliveryLegPayout": delivery_payout,
             "handoverCompleted": False,
             "assignedTransferRiderId": None,
+            "storeLocation": {
+                "name": p_name,
+                "address": p_addr,
+                "lat": p_lat,
+                "lng": p_lng,
+            },
         }
 
-        # Update order document
+        # Update order document with Partner custody and Dispatch OTP
         await database.collection(ORDERS_COLLECTION).update_one(
             {"_id": canonical_id},
             {
                 "$set": {
                     "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
                     "reassignment": reassignment_data,
-                    "otp.handover": handover_record,
+                    "otp.dispatch": dispatch_record,
+                    "otp.handover": dispatch_record,
+                    "dispatchOtp": dispatch_otp,
+                    "handoverOtp": dispatch_otp,
+                    "custody": "partner",
                     "updatedAt": now,
                 }
             },
@@ -1087,15 +1207,15 @@ class Smart2RideEngine:
                     "rideType": "handover_delivery",
                     "status": "SEARCHING",
                     "pickupLocation": {
-                        "name": f"Handover from Captain ({reason.replace('_', ' ').title()})",
-                        "address": address,
-                        "lat": lat,
-                        "lng": lng,
-                        "phone": order.get("customerPhone") or "",
+                        "name": f"Collect from Partner Store ({p_name})",
+                        "address": p_addr,
+                        "lat": p_lat,
+                        "lng": p_lng,
+                        "phone": partner_info.get("phone") or "",
                     },
                     "dropLocation": {
                         "name": order.get("customerName") or "Customer",
-                        "address": order.get("deliveryAddress") or order.get("dropAddress") or "Customer Doorstep",
+                        "address": drop_addr,
                         "lat": drop_lat,
                         "lng": drop_lng,
                         "phone": order.get("customerPhone") or "",
@@ -1103,6 +1223,8 @@ class Smart2RideEngine:
                     "fare": delivery_payout,
                     "estimatedEarning": delivery_payout,
                     "originalRiderId": rider_id,
+                    "dispatchOtp": dispatch_otp,
+                    "isReassigned": True,
                     "createdAt": now,
                     "updatedAt": now,
                 }
@@ -1117,10 +1239,10 @@ class Smart2RideEngine:
                 "DELIVERY_REASSIGNMENT_REQUIRED",
                 actor_id=rider_id,
                 actor_role="rider",
-                metadata={"reason": reason, "handoverLocation": {"lat": lat, "lng": lng}},
+                metadata={"reason": reason, "custody": "partner", "storeLocation": p_addr},
                 at=now,
             )
-            # Notify Customer, Admin, and Riders
+            # Notify Customer, Admin, and Partner
             await broadcast_order_event("order_reassignment_required", updated)
 
         # Send push & in-app notification to Customer
@@ -1131,23 +1253,27 @@ class Smart2RideEngine:
                 await send_customer_notification(
                     customer_id,
                     title="🛵 Delivery Partner Reassigned",
-                    description="Your previous delivery partner reported an emergency issue. A nearby QuickPress Captain is picking up your order to deliver on time.",
+                    description="Your previous delivery partner reported an emergency issue. A replacement QuickPress Captain is picking up your package from the Partner store.",
                     kind="reassignment",
                     order_id=canonical_id,
                 )
         except Exception as e:
             logger.warning(f"Customer notification error: {e}", exc_info=True)
 
-        # Start search for Rider 2
-        asyncio.create_task(self._search_transfer_riders(canonical_id, lat, lng, exclude_rider_id=rider_id))
+        # Start search for Rider 2 from Partner Store location
+        asyncio.create_task(self._search_transfer_riders(canonical_id, p_lat, p_lng, exclude_rider_id=rider_id))
 
         return {
             "ok": True,
             "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
             "orderId": canonical_id,
-            "handoverOtp": handover_otp,
-            "handoverLocation": {"lat": lat, "lng": lng, "address": address},
+            "handoverOtp": dispatch_otp,
+            "dispatchOtp": dispatch_otp,
+            "custody": "partner",
+            "storeLocation": {"lat": p_lat, "lng": p_lng, "address": p_addr},
             "pickupLegPayout": pickup_payout,
+            "deliveryLegPayout": delivery_payout,
+            "message": "Delivery reassignment confirmed. Package remains in Partner store custody.",
         }
 
     async def _search_transfer_riders(
@@ -1194,8 +1320,8 @@ class Smart2RideEngine:
                     "type": "handover_delivery",
                     "rideType": "handover_delivery",
                     "isTransfer": True,
-                    "pickupTitle": "Emergency Parcel Handover Point",
-                    "pickupAddress": (order.get("reassignment") or {}).get("handoverLocation", {}).get("address") or "Handover Location",
+                    "pickupTitle": "QuickPress Partner Store (Dispatch Handover)",
+                    "pickupAddress": (order.get("reassignment") or {}).get("storeLocation", {}).get("address") or (order.get("partner") or {}).get("address") or "Partner Store Address",
                     "dropTitle": order.get("customerName") or "Customer Drop",
                     "dropAddress": order.get("deliveryAddress") or order.get("dropAddress") or "Customer Address",
                     "distanceKm": dist,
@@ -1209,8 +1335,8 @@ class Smart2RideEngine:
                     from app.core.onesignal import send_onesignal_notification
                     await send_onesignal_notification(
                         rid,
-                        title="🛵 Emergency Order Transfer Available",
-                        body=f"Pickup parcel from nearby Captain ({dist:.1f}km) & deliver to customer. Earn ₹{payout:.0f}!",
+                        title="🛵 QuickPress Delivery Leg Available",
+                        body=f"Collect ready laundry from Partner Store ({dist:.1f}km) & deliver to customer. Earn ₹{payout:.0f}!",
                         data={"orderId": order_id, "kind": "handover_delivery"},
                         url="/orders",
                     )

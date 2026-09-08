@@ -1980,6 +1980,37 @@ async def get_handover_status(
     }
 
 
+@router.get("/orders/{order_id}/dispatch-otp")
+async def get_dispatch_otp(
+    order_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Rider fetches the 4-digit Dispatch OTP to communicate to the Partner Store."""
+    rider_id = await _rider_id(user)
+    order = await lifecycle.find_order(order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    otp_dict = order.get("otp") or {}
+    dispatch_code = (
+        (otp_dict.get("dispatch") or {}).get("code")
+        or order.get("dispatchOtp")
+        or (order.get("reassignment") or {}).get("dispatchOtp")
+        or (order.get("reassignment") or {}).get("handoverOtp")
+    )
+    partner_doc = order.get("partner") or {}
+    return {
+        "ok": True,
+        "orderId": lifecycle.order_id_of(order),
+        "dispatchOtp": str(dispatch_code) if dispatch_code else None,
+        "isVerified": bool((otp_dict.get("dispatch") or {}).get("verified")),
+        "partnerName": partner_doc.get("name") or order.get("partnerName") or "QuickPress Partner Store",
+        "partnerAddress": partner_doc.get("address") or order.get("partnerAddress") or "Partner Store Address",
+        "partnerPhone": partner_doc.get("phone") or order.get("partnerPhone") or "",
+        "custody": order.get("custody", "partner"),
+        "status": order.get("status"),
+    }
+
+
 @router.post("/orders/{order_id}/arrived")
 async def arrived_at_pickup(order_id: str, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)

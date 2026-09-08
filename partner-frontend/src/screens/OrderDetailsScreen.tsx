@@ -39,7 +39,7 @@ import { partnerRoutes } from "../navigation/partner-routes";
 import { STAGE_LABEL, type ManagedOrder } from "../data/partner-orders-mock";
 
 import { useEffect, useState } from "react";
-import { fetchPartnerOrder } from "@/api/partner/partner-orders-api";
+import { fetchPartnerOrder, verifyPartnerDispatchOtp } from "@/api/partner/partner-orders-api";
 
 function formatOrderTime(value?: string | number): string {
   if (!value) return "Recently";
@@ -195,6 +195,34 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
         ? (order as any)?.otp?.dispatch
         : (order as any)?.dispatchOtp || "";
 
+  const [dispatchInputOtp, setDispatchInputOtp] = useState("");
+  const [isVerifyingDispatch, setIsVerifyingDispatch] = useState(false);
+
+  const handleVerifyPartnerDispatch = async () => {
+    const targetOrderId = order?.id || orderId;
+    if (!targetOrderId) return;
+    const cleanOtp = dispatchInputOtp.trim();
+    if (cleanOtp.length !== 4) {
+      toast.error("Please enter the complete 4-digit Dispatch OTP told by the Captain.");
+      return;
+    }
+    setIsVerifyingDispatch(true);
+    try {
+      await verifyPartnerDispatchOtp(targetOrderId, cleanOtp);
+      toast.success("✓ Dispatch OTP Verified! Package handed over to Delivery Captain.");
+      setDispatchInputOtp("");
+      const remote = await fetchPartnerOrder(targetOrderId);
+      if (remote) {
+        setFetchedOrder((prev) => (prev ? { ...prev, stage: "out_for_delivery" } : null));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid Dispatch OTP. Please verify with Captain.");
+    } finally {
+      setIsVerifyingDispatch(false);
+    }
+  };
+
+
   return (
     <PartnerLayout
       activeTab="orders"
@@ -296,34 +324,67 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
             </div>
 
             {/* Dispatch OTP Card for Handover to Rider */}
-            {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed") && dispatchOtpCode) ? (
+            {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed" || (order as any)?.reassignment) && (dispatchOtpCode || order.stage === "ready" || order.stage === "dispatch_otp_pending")) ? (
               <div className="rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-xs">
                       <ShieldCheck className="size-4.5" />
                     </span>
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
-                      Store Dispatch OTP
-                    </span>
+                    <div>
+                      <span className="text-xs font-black uppercase tracking-wider text-emerald-800 block">
+                        Captain Handover Verification
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        Enter 4-digit Dispatch OTP told by Captain
+                      </span>
+                    </div>
                   </div>
                   <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
-                    Handover Code
+                    Handshake OTP
                   </span>
                 </div>
-                <div className="my-3 flex items-center justify-center gap-2.5">
-                  {dispatchOtpCode.split("").map((digit: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="flex size-11 items-center justify-center rounded-xl border border-emerald-300/80 bg-white font-mono text-xl font-black text-emerald-950 shadow-xs"
+
+                <div className="mt-3.5 space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="e.g. 5387"
+                      value={dispatchInputOtp}
+                      onChange={(e) => setDispatchInputOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      className="w-32 rounded-xl border-2 border-emerald-400 bg-white px-3 py-2 text-center font-mono text-lg font-black tracking-widest text-emerald-950 placeholder:text-zinc-300 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      disabled={dispatchInputOtp.trim().length !== 4 || isVerifyingDispatch}
+                      onClick={handleVerifyPartnerDispatch}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-200 disabled:text-zinc-400 px-3.5 py-2.5 text-xs font-black text-white shadow-xs transition-all"
                     >
-                      {digit}
-                    </span>
-                  ))}
+                      {isVerifyingDispatch ? (
+                        <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <CheckCircle2 className="size-4" />
+                      )}
+                      Verify & Release
+                    </button>
+                  </div>
+
+                  {dispatchOtpCode ? (
+                    <div className="flex items-center justify-between border-t border-emerald-500/20 pt-2 text-[10px]">
+                      <span className="font-semibold text-zinc-600">Store Reference Code:</span>
+                      <span className="font-mono font-black text-emerald-800 tracking-wider bg-white px-2 py-0.5 rounded border border-emerald-200">
+                        {dispatchOtpCode}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <p className="text-center text-[10px] font-medium text-zinc-500">
+                    Captain reads out the 4-digit code shown in their app upon arrival to collect clean laundry.
+                  </p>
                 </div>
-                <p className="text-center text-[11px] font-medium text-zinc-600">
-                  Share this 4-digit code with the rider when handing over clean laundry packages.
-                </p>
               </div>
             ) : null}
 
@@ -632,36 +693,73 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
               </section>
 
               {/* Desktop Dispatch OTP Card for Handover */}
-              {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed") && dispatchOtpCode) ? (
-                <section className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-6 shadow-sm">
+              {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed" || (order as any)?.reassignment) && (dispatchOtpCode || order.stage === "ready" || order.stage === "dispatch_otp_pending")) ? (
+                <section className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-xs">
-                        <ShieldCheck className="size-5" />
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-xs">
+                        <ShieldCheck className="size-5.5" />
                       </span>
                       <div>
-                        <h3 className="text-sm font-black uppercase tracking-wider text-emerald-800">
-                          Store Dispatch OTP for Handover
+                        <h3 className="text-base font-black uppercase tracking-wider text-emerald-900">
+                          Captain Handover & Dispatch Verification
                         </h3>
-                        <p className="text-xs font-medium text-zinc-600">
-                          Share this 4-digit code with the rider when handing over clean laundry packages.
+                        <p className="text-xs font-semibold text-emerald-700">
+                          Enter the 4-digit Dispatch OTP communicated by the Captain upon store arrival
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-700">
-                      Rider Handover Code
+                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-xs font-black text-emerald-800">
+                      Physical Handshake OTP
                     </span>
                   </div>
 
-                  <div className="my-5 flex items-center justify-center gap-3">
-                    {dispatchOtpCode.split("").map((digit: string, idx: number) => (
-                      <span
-                        key={idx}
-                        className="flex size-14 items-center justify-center rounded-2xl border border-emerald-300/80 bg-white font-mono text-2xl font-black text-emerald-950 shadow-xs"
-                      >
-                        {digit}
-                      </span>
-                    ))}
+                  <div className="my-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-bold text-zinc-700">
+                          Ask Delivery Captain for their 4-Digit Dispatch Code:
+                        </p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Verifying this code transfers custody to the Captain and starts live delivery to customer.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                        <input
+                          type="text"
+                          maxLength={4}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="e.g. 5387"
+                          value={dispatchInputOtp}
+                          onChange={(e) => setDispatchInputOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          className="w-36 rounded-xl border-2 border-emerald-400 bg-white px-4 py-2.5 text-center font-mono text-xl font-black tracking-widest text-emerald-950 placeholder:text-zinc-300 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                        />
+                        <button
+                          type="button"
+                          disabled={dispatchInputOtp.trim().length !== 4 || isVerifyingDispatch}
+                          onClick={handleVerifyPartnerDispatch}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-200 disabled:text-zinc-400 px-5 py-2.5 text-xs font-black text-white shadow-xs transition-all"
+                        >
+                          {isVerifyingDispatch ? (
+                            <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          ) : (
+                            <CheckCircle2 className="size-4.5" />
+                          )}
+                          Verify OTP & Dispatch
+                        </button>
+                      </div>
+                    </div>
+
+                    {dispatchOtpCode ? (
+                      <div className="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between text-xs">
+                        <span className="font-semibold text-zinc-600">Store Reference Handover Code:</span>
+                        <span className="font-mono font-black text-emerald-800 tracking-wider bg-white px-3 py-1 rounded-lg border border-emerald-200 shadow-xs">
+                          {dispatchOtpCode}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
               ) : null}

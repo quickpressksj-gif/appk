@@ -367,6 +367,7 @@ class RiderDispatchEngine:
             lifecycle.DELIVERY_RIDER_ASSIGNED,
             lifecycle.DELIVERY_RIDER_ACCEPTED,
             lifecycle.DISPATCH_OTP_PENDING,
+            lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
         )
 
         if is_delivery_phase:
@@ -380,6 +381,7 @@ class RiderDispatchEngine:
                         lifecycle.DELIVERY_RIDER_ASSIGNED,
                         lifecycle.DELIVERY_RIDER_ACCEPTED,
                         lifecycle.DISPATCH_OTP_PENDING,
+                        lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
                     ]
                 },
             }
@@ -389,9 +391,12 @@ class RiderDispatchEngine:
                 "riderId": rider_id,
                 "rider_id": rider_id,
                 "deliveryRider": rider_party,
+                "assignedRiderId": rider_id,
                 "status": target_status,
                 "updatedAt": now,
             }
+            if order.get("reassignment"):
+                update_fields["reassignment.assignedTransferRiderId"] = rider_id
             evt_label = "Delivery Rider accepted offer & heading to partner store"
         else:
             match_query = {

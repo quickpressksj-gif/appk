@@ -202,6 +202,22 @@ export async function fetchHandoverStatus(orderId: string) {
   }>(`/api/rider/orders/${orderId}/handover-status`);
 }
 
+/** GET /api/rider/orders/{id}/dispatch-otp — Rider 2 queries their 4-digit Dispatch OTP to show to Partner */
+export async function fetchDispatchOtp(orderId: string) {
+  return apiGetJson<{
+    ok: boolean;
+    orderId: string;
+    dispatchOtp?: string;
+    isVerified?: boolean;
+    partnerName?: string;
+    partnerAddress?: string;
+    partnerPhone?: string;
+    custody?: string;
+    status?: string;
+  }>(`/api/rider/orders/${orderId}/dispatch-otp`);
+}
+
 /** Re-exported so screens can show backend error copy without importing core. */
 export { ApiError };
+
 

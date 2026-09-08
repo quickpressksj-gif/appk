@@ -37,7 +37,7 @@ import {
 import { InAppVoiceNavigationModal } from "../navigation/InAppVoiceNavigationModal";
 import { RiderUnableToDeliverModal } from "../orders/RiderUnableToDeliverModal";
 import { RiderHandoverWaitingCard } from "../orders/RiderHandoverWaitingCard";
-import { verifyHandoverOtp } from "@/api/rider/rider-orders-api";
+import { verifyHandoverOtp, fetchDispatchOtp } from "@/api/rider/rider-orders-api";
 
 export interface ActiveOrderData {
   orderId: string;
@@ -53,6 +53,7 @@ export interface ActiveOrderData {
   dropDistanceKm?: number;
   fare: number;
   startOtp?: string;
+  dispatchOtp?: string;
   pickupCoords?: { lat: number; lng: number };
   dropCoords?: { lat: number; lng: number };
   status?: string;
@@ -60,6 +61,10 @@ export interface ActiveOrderData {
   isHandoverTransfer?: boolean;
   handoverOtp?: string;
   pickupLegPayout?: number;
+  partnerName?: string;
+  partnerAddress?: string;
+  partnerPhone?: string;
+  custody?: string;
 }
 
 interface GoToPickupHUDProps {
@@ -121,6 +126,58 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   ]);
   const [inputMsg, setInputMsg] = useState("");
   const [sliderProgress, setSliderProgress] = useState(0);
+
+  const [captainDispatchOtp, setCaptainDispatchOtp] = useState<string>(
+    order.dispatchOtp || order.handoverOtp || ""
+  );
+  const [partnerStoreName, setPartnerStoreName] = useState(order.partnerName || "QuickPress Partner Store");
+  const [partnerStoreAddress, setPartnerStoreAddress] = useState(
+    order.partnerAddress || order.pickupAddress || "Kasganj Partner Store"
+  );
+  const [showManualHandoverInput, setShowManualHandoverInput] = useState(false);
+
+  // Load dispatch OTP for Rider 2
+  useEffect(() => {
+    if (order.orderId) {
+      fetchDispatchOtp(order.orderId)
+        .then((res) => {
+          if (res?.dispatchOtp) setCaptainDispatchOtp(res.dispatchOtp);
+          if (res?.partnerName) setPartnerStoreName(res.partnerName);
+          if (res?.partnerAddress) setPartnerStoreAddress(res.partnerAddress);
+          if (res?.isVerified || res?.status === "out_for_delivery" || res?.status === "OUT_FOR_DELIVERY") {
+            if (stage === "arrived_pickup") {
+              unlockAudioContext();
+              playSuccessChime();
+              speakText("पार्टनर द्वारा डिस्पैच कोड सत्यापित। डिलीवरी शुरू करें।");
+              toast.success("✓ Dispatch OTP verified by Partner! Navigating to customer.");
+              setStage("in_trip");
+              setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [order.orderId, stage]);
+
+  // Periodic poll while at partner store for partner verification
+  useEffect(() => {
+    if (stage !== "arrived_pickup" || !isHandoverRide) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetchDispatchOtp(order.orderId);
+        if (res?.isVerified || res?.status === "out_for_delivery" || res?.status === "OUT_FOR_DELIVERY") {
+          unlockAudioContext();
+          playSuccessChime();
+          speakText("पार्टनर द्वारा डिस्पैच कोड सत्यापित। डिलीवरी शुरू करें।");
+          toast.success("✓ Dispatch OTP verified by Partner! Navigating to customer.");
+          setStage("in_trip");
+          setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+        }
+      } catch {}
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [stage, isHandoverRide, order.orderId]);
+
 
   const handleVerifyHandoverTransfer = async () => {
     const code = handoverVerifyOtpDigits.join("");
@@ -670,51 +727,108 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         {stage === "arrived_pickup" && (
           <div className="space-y-3 animate-in fade-in duration-200">
             {isHandoverRide ? (
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-2.5">
+              <div className="p-4 bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-amber-600" />
-                    <label className="text-xs font-black text-amber-950">
-                      Enter 4-Digit Handover OTP from Captain
-                    </label>
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    <div>
+                      <span className="text-xs font-black text-emerald-950 uppercase tracking-wide block">
+                        Partner Store Dispatch OTP
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        Tell this 4-digit code to Partner
+                      </span>
+                    </div>
                   </div>
+                  <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-xs">
+                    Handshake Code
+                  </span>
                 </div>
-                <p className="text-[11px] text-amber-800 font-medium">
-                  Collect package from transferring Captain and ask for their 4-digit Handover OTP.
+
+                <p className="text-xs text-emerald-900 font-medium">
+                  You have arrived at <b>{partnerStoreName}</b>. Tell this 4-digit code to the Partner to collect the clean laundry package:
                 </p>
 
-                <div className="flex gap-2 justify-center py-1">
-                  {[0, 1, 2, 3].map((idx) => (
-                    <input
+                {/* Big 4-digit OTP cards */}
+                <div className="flex justify-center gap-3 py-2">
+                  {(captainDispatchOtp || "----").padEnd(4, "-").slice(0, 4).split("").map((digit, idx) => (
+                    <span
                       key={idx}
-                      type="tel"
-                      maxLength={1}
-                      value={handoverVerifyOtpDigits[idx]}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        const next = [...handoverVerifyOtpDigits];
-                        next[idx] = val;
-                        setHandoverVerifyOtpDigits(next);
-                        if (val && idx < 3) {
-                          const nextEl = document.getElementById(`handover-otp-${idx + 1}`);
-                          nextEl?.focus();
-                        }
-                      }}
-                      id={`handover-otp-${idx}`}
-                      className="w-12 h-12 text-center font-black text-xl bg-white border-2 border-amber-300 rounded-xl focus:border-amber-500 focus:outline-none shadow-sm"
-                    />
+                      className="w-13 h-14 flex items-center justify-center text-2xl font-black font-mono bg-white border-2 border-emerald-400 text-emerald-950 rounded-xl shadow-md"
+                    >
+                      {digit}
+                    </span>
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleVerifyHandoverTransfer}
-                  disabled={isVerifyingHandover}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <ArrowRight className="w-4 h-4 stroke-[3]" />
-                  <span>{isVerifyingHandover ? "Verifying Transfer..." : "Verify Handover & Start Delivery"}</span>
-                </button>
+                <div className="bg-white/90 border border-emerald-200 rounded-xl p-2.5 flex items-center gap-2 text-[11px] text-emerald-900 font-semibold">
+                  <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">{partnerStoreAddress}</span>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      unlockAudioContext();
+                      playSuccessChime();
+                      speakText("डिलीवरी शुरू करें।");
+                      toast.success("Custody collected! Navigating to customer.");
+                      setStage("in_trip");
+                      setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+                    }}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4 stroke-[3]" />
+                    <span>Partner Verified · Start Customer Trip</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowManualHandoverInput(!showManualHandoverInput)}
+                    className="w-full text-center text-[10px] font-bold text-emerald-700 hover:underline"
+                  >
+                    {showManualHandoverInput ? "Hide direct Captain OTP input" : "Switch to Captain-to-Captain OTP verification"}
+                  </button>
+                </div>
+
+                {showManualHandoverInput && (
+                  <div className="pt-2 border-t border-emerald-200 space-y-2">
+                    <p className="text-[11px] text-zinc-600 font-medium">
+                      Enter 4-digit Handover OTP if receiving package directly from Captain 1:
+                    </p>
+                    <div className="flex gap-2 justify-center py-1">
+                      {[0, 1, 2, 3].map((idx) => (
+                        <input
+                          key={idx}
+                          type="tel"
+                          maxLength={1}
+                          value={handoverVerifyOtpDigits[idx]}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            const next = [...handoverVerifyOtpDigits];
+                            next[idx] = val;
+                            setHandoverVerifyOtpDigits(next);
+                            if (val && idx < 3) {
+                              const nextEl = document.getElementById(`handover-otp-${idx + 1}`);
+                              nextEl?.focus();
+                            }
+                          }}
+                          id={`handover-otp-${idx}`}
+                          className="w-11 h-11 text-center font-black text-xl bg-white border-2 border-zinc-300 rounded-xl focus:border-emerald-500 focus:outline-none shadow-sm"
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleVerifyHandoverTransfer}
+                      disabled={isVerifyingHandover}
+                      className="w-full py-2.5 bg-zinc-800 text-white font-bold text-xs rounded-xl"
+                    >
+                      {isVerifyingHandover ? "Verifying..." : "Verify Direct Handover"}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <>
