@@ -475,13 +475,47 @@ class OrderRepository:
 
         await dispatch_order_created_notifications(document)
 
-        # Automatically create pickup ride and dispatch to online captains immediately
-        try:
-            from app.services.smart_2ride_engine import smart_2ride_engine
-            import asyncio
-            asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(document["_id"]))
-        except Exception as ride_err:
-            logger.warning("Failed to auto-create pickup ride on order placement: %s", ride_err)
+        # Partner Auto-Accept & Captain Dispatch Gate
+        partner_obj = document.get("partner") or {}
+        partner_id = str(partner_obj.get("id") or document.get("partnerId") or document.get("partner_id") or "store-1")
+
+        p_profile = await database.find_one("partner_profiles", {"$or": [{"_id": partner_id}, {"partnerId": partner_id}]})
+        auto_accept = True
+        if p_profile and "businessSettings" in p_profile:
+            auto_accept = bool(p_profile["businessSettings"].get("autoAcceptOrders", True))
+        elif p_profile and "autoAccept" in p_profile:
+            auto_accept = bool(p_profile.get("autoAccept", True))
+
+        if auto_accept:
+            try:
+                from app.db.partner_repositories import partner_order_repository
+                await partner_order_repository.accept(partner_id, document["_id"])
+                await database.update("orders", {"_id": document["_id"]}, {"autoAccepted": True})
+                document["autoAccepted"] = True
+                from app.services.partner_activity_logger import log_partner_activity
+                import asyncio
+                asyncio.create_task(log_partner_activity(
+                    partner_id=partner_id,
+                    category="orders",
+                    event="ORDER_AUTO_ACCEPTED",
+                    title=f"Order #{code} Auto-Accepted",
+                    description="Store automatically accepted order. Dispatching pickup captain.",
+                    actor="Store Auto-Accept",
+                    order_id=document["_id"],
+                    order_code=code,
+                    tone="success",
+                ))
+                # Automatically create pickup ride and dispatch to online captains immediately
+                from app.services.smart_2ride_engine import smart_2ride_engine
+                asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(document["_id"]))
+            except Exception as auto_err:
+                logger.warning("Partner auto-accept notification: %s", auto_err)
+                from app.services.smart_2ride_engine import smart_2ride_engine
+                import asyncio
+                asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(document["_id"]))
+        else:
+            # Partner has auto-accept disabled: Captain dispatch will ONLY occur when partner manually clicks Accept
+            logger.info("Order %s awaiting manual partner acceptance before captain dispatch.", code)
 
         # The cart belongs to the order now.
         await cart_repository.clear(user.id)

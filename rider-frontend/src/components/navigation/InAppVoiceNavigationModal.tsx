@@ -247,12 +247,11 @@ export function InAppVoiceNavigationModal({
     }
   };
 
-  // 1-Tap Google Maps External App
-  const handleOpenExternalMaps = () => {
+  // Voice Guidance Audio Trigger
+  const handleRepeatGuidance = () => {
     triggerHaptic(50);
-    const destination = encodeURIComponent(targetAddress || `${targetCoords.lat},${targetCoords.lng}`);
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
-    window.open(mapsUrl, "_blank");
+    const text = currentInstruction || (language.startsWith("hi") ? `${targetName} की तरफ सीधे चलें।` : `Proceed towards ${targetName}.`);
+    voiceNavEngine.speak(text, true);
   };
 
   // Call Phone
@@ -379,13 +378,13 @@ export function InAppVoiceNavigationModal({
             <Locate className="w-6 h-6" />
           </button>
 
-          {/* External Google Maps Button */}
+          {/* In-App Voice Instruction Trigger Button */}
           <button
-            onClick={handleOpenExternalMaps}
-            className="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md border border-zinc-200 text-blue-600 shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-            title="Open Google Maps App"
+            onClick={handleRepeatGuidance}
+            className="w-12 h-12 rounded-2xl bg-white/95 backdrop-blur-md border border-emerald-200 text-emerald-700 shadow-lg flex items-center justify-center active:scale-90 transition-transform"
+            title="Speak Turn-by-Turn Instruction"
           >
-            <ExternalLink className="w-5 h-5" />
+            <Volume2 className="w-5 h-5" />
           </button>
         </div>
 

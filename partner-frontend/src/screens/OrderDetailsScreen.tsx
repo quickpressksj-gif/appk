@@ -21,6 +21,7 @@ import {
   Sparkles,
   Star,
   User,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -418,6 +419,29 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 </div>
               </div>
             </div>
+
+            {/* Auto-Accepted by Store Badge */}
+            {Boolean((order as any).autoAccepted || (order as any).isAutoAccepted || (order as any).partnerAutoAccepted) && (
+              <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-white p-3 border border-emerald-500/40 shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-7 items-center justify-center rounded-xl bg-[#00C853] text-white shadow-xs">
+                    <Zap className="size-4 fill-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                      <span>⚡ Store Auto-Accepted Order</span>
+                      <span className="flex size-2 rounded-full bg-[#00C853] animate-ping" />
+                    </h4>
+                    <p className="text-[10px] font-semibold text-emerald-800">
+                      Auto-accepted per store setting. Pickup captain dispatched.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800 border border-emerald-300">
+                  Auto
+                </span>
+              </div>
+            )}
 
             {/* Mutual Ratings Card for Partner to Rate Captain & Customer */}
             <div className="rounded-2xl border border-emerald-500/30 bg-white p-4 shadow-sm">
@@ -825,6 +849,29 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                   </div>
                 ) : null}
               </section>
+
+              {/* Desktop Auto-Accepted by Store Badge */}
+              {Boolean((order as any).autoAccepted || (order as any).isAutoAccepted || (order as any).partnerAutoAccepted) && (
+                <div className="flex items-center justify-between rounded-3xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-4 border border-emerald-500/40 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-2xl bg-[#00C853] text-white shadow-xs">
+                      <Zap className="size-5 fill-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-foreground flex items-center gap-2">
+                        <span>⚡ Store Auto-Accepted Order</span>
+                        <span className="flex size-2 rounded-full bg-[#00C853] animate-ping" />
+                      </h4>
+                      <p className="text-xs font-semibold text-muted-foreground mt-0.5">
+                        Order was automatically accepted per your store setting. Pickup captain has been dispatched.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase text-emerald-800 border border-emerald-300">
+                    Auto-Accepted
+                  </span>
+                </div>
+              )}
 
               {/* Desktop Dispatch OTP Card for Handover */}
               {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed" || (order as any)?.reassignment) && (dispatchOtpCode || order.stage === "ready" || order.stage === "dispatch_otp_pending")) ? (

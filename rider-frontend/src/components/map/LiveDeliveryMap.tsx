@@ -435,12 +435,14 @@ export function LiveDeliveryMap({
     mapInstanceRef.current?.zoomOut();
   };
 
-  // Open External Google Maps (Two-Wheeler Navigation Mode)
+  // Trigger In-App GPS Navigation Mode (No External Google Maps redirect)
   const handleOpenGoogleMapsApp = () => {
     triggerHaptic(50);
-    const dest = destinationLocation || storeLocation || defaultCenter;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
-    window.open(url, "_blank");
+    if (onOpenNavigation) {
+      onOpenNavigation();
+    } else {
+      handleRecenter();
+    }
   };
 
   return (

@@ -68,9 +68,13 @@ export interface ActiveOrderData {
   dropDistanceKm?: number;
   fare: number;
   startOtp?: string;
+  deliveryOtp?: string;
   dispatchOtp?: string;
   pickupCoords?: { lat: number; lng: number };
   dropCoords?: { lat: number; lng: number };
+  customerCoords?: { lat: number; lng: number };
+  partnerCoords?: { lat: number; lng: number };
+  currentLeg?: "pickup_to_store" | "store_to_customer";
   status?: string;
   rideType?: string;
   isHandoverTransfer?: boolean;
@@ -100,8 +104,37 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
 
+  // Two-Leg State Machine: "pickup_to_store" (Leg 1) vs "store_to_customer" (Leg 2)
+  const [currentLeg, setCurrentLeg] = useState<"pickup_to_store" | "store_to_customer">(() => {
+    if (order.currentLeg) return order.currentLeg;
+    const s = String(order.status || "").toLowerCase();
+    if (
+      s === "at_partner" ||
+      s === "at-partner" ||
+      s === "processing" ||
+      s === "ironing" ||
+      s === "ready_for_delivery" ||
+      s === "ready" ||
+      s === "out_for_delivery" ||
+      s === "ready-for-delivery"
+    ) {
+      return "store_to_customer";
+    }
+    if (order.rideType === "delivery" || order.rideType === "handover_delivery") {
+      return "store_to_customer";
+    }
+    return "pickup_to_store";
+  });
+
   const isHandoverRide = order.rideType === "handover_delivery" || order.isHandoverTransfer;
-  const isDeliveryRide = order.rideType === "delivery" || order.rideType === "handover_delivery" || order.isHandoverTransfer || order.dropTitle?.toLowerCase().includes("customer");
+  const isDeliveryRide = currentLeg === "store_to_customer" || order.rideType === "delivery" || order.rideType === "handover_delivery" || order.isHandoverTransfer;
+  const isPickupRide = currentLeg === "pickup_to_store";
+
+  const [isInAppNavActive, setIsInAppNavActive] = useState<boolean>(() => {
+    const s = String(order.status || "").toLowerCase();
+    return s === "out_for_delivery" || s === "in_trip" || s === "picked_up";
+  });
+  const [customerDeliveryOtpDigits, setCustomerDeliveryOtpDigits] = useState<string[]>(["", "", "", ""]);
   const [showUnableModal, setShowUnableModal] = useState(false);
   const [isVerifyingHandover, setIsVerifyingHandover] = useState(false);
   const [handoverVerifyOtpDigits, setHandoverVerifyOtpDigits] = useState<string[]>(["", "", "", ""]);
@@ -288,8 +321,39 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
   // Default coordinate (Kasganj Hub or order coordinates)
   const captainCoords = { lat: 27.8083, lng: 78.6477 };
-  const pickupCoords = order.pickupCoords || { lat: 27.8095, lng: 78.6490 };
-  const dropCoords = order.dropCoords || { lat: 27.8150, lng: 78.6520 };
+  const customerCoords = order.customerCoords || order.pickupCoords || { lat: 27.8095, lng: 78.6490 };
+  const storeCoords = order.partnerCoords || (order.rideType === "pickup" ? (order.dropCoords || { lat: 27.8118, lng: 78.6477 }) : (order.pickupCoords || { lat: 27.8118, lng: 78.6477 }));
+
+  // Target Destination based on current leg and stage:
+  // In Leg 1 (Pickup -> Store):
+  //   - en_route_pickup / arrived_pickup: destination is customerCoords
+  //   - in_trip: destination is storeCoords
+  // In Leg 2 (Store -> Customer):
+  //   - store_processing / ready_pickup_store: at storeCoords
+  //   - in_trip / completed: destination is customerCoords
+  const activeDestCoords =
+    currentLeg === "pickup_to_store"
+      ? stage === "in_trip"
+        ? storeCoords
+        : customerCoords
+      : customerCoords;
+
+  const activeDestTitle =
+    currentLeg === "pickup_to_store"
+      ? stage === "in_trip"
+        ? (partnerStoreName || "Partner Store")
+        : (order.pickupTitle || order.customerName || "Customer Pickup")
+      : (order.customerName || "Customer Delivery");
+
+  const activeDestAddress =
+    currentLeg === "pickup_to_store"
+      ? stage === "in_trip"
+        ? (partnerStoreAddress || "Partner Store Kasganj")
+        : (order.pickupAddress || "Customer Pickup Address")
+      : (order.dropAddress || order.pickupAddress || "Customer Delivery Address");
+
+  const pickupCoords = customerCoords;
+  const dropCoords = storeCoords;
 
   // Free waiting timer when arrived at pickup
   useEffect(() => {
@@ -364,8 +428,8 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     };
   }, []);
 
-  // Update map layers when stage changes
-  const updateMapLayers = (L: any, map: any, currentStage: TripStage) => {
+  // Update map layers when stage or leg changes
+  const updateMapLayers = (L: any, map: any, currentStage: TripStage, leg: "pickup_to_store" | "store_to_customer") => {
     if (!map || !L) return;
     try {
       // Clear previous overlay layers
@@ -394,16 +458,24 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
       L.marker([captainCoords.lat, captainCoords.lng], { icon: captainIcon }).addTo(map);
 
-      // 2. Customer Destination Target Pin (Green pin with User icon and glowing ring)
+      // Target coordinate based on leg and stage
+      const dest =
+        leg === "pickup_to_store"
+          ? currentStage === "in_trip"
+            ? storeCoords
+            : customerCoords
+          : customerCoords;
+
+      const isStoreDrop = leg === "pickup_to_store" && currentStage === "in_trip";
+
+      // 2. Destination Target Pin (Green pin with custom icon)
       const pickupIcon = L.divIcon({
         className: "custom-pickup-icon",
         html: `
           <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;">
-            <div style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(0, 200, 83, 0.25); animation: pulse 2s infinite;"></div>
-            <div style="position: relative; display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #00C853; color: white; box-shadow: 0 4px 12px rgba(0, 200, 83, 0.4); border: 2.5px solid white;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
+            <div style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background-color: ${isStoreDrop ? "rgba(16, 185, 129, 0.25)" : "rgba(0, 200, 83, 0.25)"}; animation: pulse 2s infinite;"></div>
+            <div style="position: relative; display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 9999px; background-color: ${isStoreDrop ? "#059669" : "#00C853"}; color: white; box-shadow: 0 4px 12px rgba(0, 200, 83, 0.4); border: 2.5px solid white; font-size: 15px;">
+              ${isStoreDrop ? "🧺" : "👤"}
             </div>
           </div>
         `,
@@ -411,7 +483,6 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         iconAnchor: [24, 24],
       });
 
-      const dest = currentStage === "in_trip" ? dropCoords : pickupCoords;
       L.marker([dest.lat, dest.lng], { icon: pickupIcon }).addTo(map);
 
       // 3. Dashed Green Route Line (Matching Screenshot)
@@ -422,10 +493,10 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       ];
 
       L.polyline(routePoints, {
-        color: "#00C853",
-        weight: 4,
+        color: isStoreDrop ? "#059669" : "#00C853",
+        weight: 5,
         dashArray: "6, 8",
-        opacity: 0.9,
+        opacity: 0.95,
       }).addTo(map);
 
       map.fitBounds(
@@ -440,15 +511,15 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     }
   };
 
-  // Trigger layer update on stage change
+  // Trigger layer update on stage or currentLeg change
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     void (async () => {
       const leafletModule = await import("leaflet");
       const L = leafletModule.default || leafletModule;
-      updateMapLayers(L, mapInstanceRef.current, stage);
+      updateMapLayers(L, mapInstanceRef.current, stage, currentLeg);
     })();
-  }, [stage]);
+  }, [stage, currentLeg]);
 
   // Recenter GPS
   const handleRecenter = () => {
@@ -457,11 +528,15 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     toast.info("Map centered on your location 📍");
   };
 
-  // Open External Google Maps Navigation
-  const handleOpenGoogleMaps = () => {
-    const dest = stage === "in_trip" ? dropCoords : pickupCoords;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
-    window.open(url, "_blank");
+  // In-App GPS Navigation Mode (No External Google Maps Redirect)
+  const handleStartInAppNavigation = () => {
+    unlockAudioContext();
+    triggerHaptic();
+    setIsInAppNavActive(true);
+    setShowVoiceNavModal(true);
+    const text = `नेविगेशन शुरू हुआ। ${activeDestTitle} की तरफ चलें।`;
+    speakText(text);
+    toast.info(`📍 In-App GPS Navigation active to ${activeDestTitle}`);
   };
 
   // Action Handlers
@@ -489,11 +564,12 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     unlockAudioContext();
     triggerHaptic();
     playSuccessChime();
-    speakText("पिकअप पूरा हुआ। स्टोर के लिए नेविगेशन शुरू हो रहा है।");
+    speakText("पिकअप पूरा हुआ। स्टोर के लिए इन-ऐप नेविगेशन शुरू हो रहा है।");
     setStage("in_trip");
     setIsWaitingTimerActive(false);
+    setIsInAppNavActive(true);
     setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    toast.success("Pickup Done! 🛵 Opening navigation to Partner Store...");
+    toast.success("Pickup Done! 🛵 In-App Navigation active to Partner Store...");
 
     // Real backend verification & status transition
     if (order.orderId) {
@@ -505,13 +581,6 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         } catch {}
       }
     }
-
-    // Auto-open store navigation immediately as requested
-    try {
-      const dest = dropCoords;
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
-      window.open(url, "_blank");
-    } catch {}
   };
 
   const handleCompleteTrip = async () => {
@@ -519,16 +588,34 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     triggerHaptic();
     playSuccessChime();
 
-    const isPickupRide =
-      order.rideType === "pickup" ||
-      order.dropTitle?.toLowerCase().includes("store") ||
-      order.dropTitle?.toLowerCase().includes("partner") ||
-      order.dropTitle?.toLowerCase().includes("hub");
-
-    if (isPickupRide && stage === "in_trip") {
+    if (currentLeg === "pickup_to_store" && stage === "in_trip") {
+      // --- LEG 1 COMPLETE: Dropped at Partner Store ---
       speakText("कपड़े स्टोर पर सौंप दिए गए हैं। वाशिंग और प्रेस के बाद डिलीवरी शुरू होगी।");
+      setCurrentLeg("store_to_customer");
       setStage("store_processing");
-      toast.success(`🎉 Clothes Dropped at Store! Pickup payout ₹${(order.pickupLegPayout || order.fare / 2 || 35).toFixed(2)} credited. Trip remains active!`);
+      setIsInAppNavActive(false);
+      toast.success(
+        `🎉 Clothes Dropped at Store! Pickup payout ₹${(order.pickupLegPayout || order.fare / 2 || 35).toFixed(2)} credited. Continuous ride active!`
+      );
+
+      // Persist transitioned Leg 2 state in localStorage
+      const updatedOrder: ActiveOrderData = {
+        ...order,
+        currentLeg: "store_to_customer",
+        rideType: "delivery",
+        status: "at_partner",
+        pickupAddress: partnerStoreAddress,
+        pickupTitle: partnerStoreName,
+        dropAddress: order.dropAddress || order.pickupAddress,
+        dropTitle: order.customerName,
+        pickupCoords: storeCoords,
+        dropCoords: customerCoords,
+        partnerCoords: storeCoords,
+        customerCoords: customerCoords,
+      };
+      try {
+        localStorage.setItem("qp_active_rider_order", JSON.stringify(updatedOrder));
+      } catch {}
 
       if (order.orderId) {
         try {
@@ -538,14 +625,20 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         }
       }
     } else {
+      // --- LEG 2 COMPLETE: Customer Doorstep Delivery ---
       speakTripComplete(order.fare);
       setStage("completed");
+      setIsInAppNavActive(false);
       setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       toast.success(`🎉 Delivery Completed! Collected ₹${order.fare.toFixed(2)} — Credited to Wallet`);
 
+      try {
+        localStorage.removeItem("qp_active_rider_order");
+      } catch {}
+
       if (order.orderId) {
         try {
-          const enteredOtp = otpDigits.join("") || "0000";
+          const enteredOtp = customerDeliveryOtpDigits.join("") || otpDigits.join("") || "0000";
           await confirmDelivery(order.orderId, enteredOtp);
         } catch (e) {
           console.warn("confirmDelivery error:", e);
@@ -558,9 +651,30 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     unlockAudioContext();
     triggerHaptic();
     playSuccessChime();
-    speakText("ग्राहक के लिए डिलीवरी शुरू हो रही है।");
+    speakText("ग्राहक के लिए इन-ऐप नेविगेशन शुरू हो रहा है।");
+    setCurrentLeg("store_to_customer");
     setStage("in_trip");
-    toast.success("🛵 Delivery Leg Started! Opening Google Maps to Customer...");
+    setIsInAppNavActive(true);
+    toast.success("🛵 Delivery Leg Started! In-App Navigation active to Customer Doorstep.");
+
+    const updatedOrder: ActiveOrderData = {
+      ...order,
+      currentLeg: "store_to_customer",
+      rideType: "delivery",
+      status: "out_for_delivery",
+      pickupAddress: partnerStoreAddress,
+      pickupTitle: partnerStoreName,
+      dropAddress: order.dropAddress || order.pickupAddress,
+      dropTitle: order.customerName,
+      pickupCoords: storeCoords,
+      dropCoords: customerCoords,
+      partnerCoords: storeCoords,
+      customerCoords: customerCoords,
+    };
+    try {
+      localStorage.setItem("qp_active_rider_order", JSON.stringify(updatedOrder));
+    } catch {}
+
     if (order.orderId) {
       try {
         await startDelivery(order.orderId);
@@ -568,11 +682,6 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         console.warn("startDelivery error:", e);
       }
     }
-    try {
-      const dest = dropCoords;
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
-      window.open(url, "_blank");
-    } catch {}
   };
 
   const handleSendChat = (text: string) => {
@@ -745,16 +854,16 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           </div>
         )}
 
-        {/* Floating Yellow/Amber Navigation CTA Button ("▲ Go to pickup") */}
+        {/* Floating In-App Turn-by-Turn GPS Navigation CTA Button */}
         {stage === "en_route_pickup" && (
           <div className="absolute top-[48%] left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
             <button
               type="button"
-              onClick={handleOpenGoogleMaps}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#F59E0B] hover:bg-[#D97706] text-neutral-950 font-black text-sm rounded-full shadow-xl border border-amber-300 active:scale-95 transition-all"
+              onClick={handleStartInAppNavigation}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#00C853] hover:bg-[#00B248] text-white font-black text-sm rounded-full shadow-xl border border-emerald-300 active:scale-95 transition-all"
             >
-              <Navigation className="w-4 h-4 fill-neutral-950 stroke-none" />
-              <span>Go to pickup</span>
+              <Navigation className="w-4 h-4 fill-white stroke-none" />
+              <span>Turn-by-Turn GPS 🧭</span>
             </button>
           </div>
         )}
@@ -762,16 +871,22 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         {/* Floating In-Trip Speed & Heading Banner */}
         {stage === "in_trip" && (
           <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between p-3 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200">
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-50 text-blue-600 font-black text-sm">
-                ⚡
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-50 text-blue-600 font-black text-sm shrink-0">
+                {currentLeg === "pickup_to_store" ? "🧺" : "⚡"}
               </div>
-              <div>
-                <p className="text-xs font-black text-neutral-900">Dropping at {order.dropTitle || "Saidabad"}</p>
-                <p className="text-[11px] text-neutral-500 font-medium">{order.dropDistanceKm || 3.6} km remaining</p>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-neutral-900 truncate">
+                  {currentLeg === "pickup_to_store"
+                    ? `Heading to Store: ${partnerStoreName}`
+                    : `Delivering to: ${order.customerName}`}
+                </p>
+                <p className="text-[11px] text-neutral-500 font-medium">
+                  {order.dropDistanceKm || 1.8} km remaining · In-App GPS Active
+                </p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0 pl-2">
               <span className="text-base font-black text-emerald-600">32 km/h</span>
               <p className="text-[10px] text-neutral-400">GPS Speed</p>
             </div>
@@ -840,7 +955,9 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-black text-neutral-950 leading-tight">
-                  {order.customerName || "Customer"}
+                  {stage === "in_trip" && currentLeg === "pickup_to_store"
+                    ? partnerStoreName
+                    : (order.customerName || "Customer")}
                 </h2>
                 <button
                   type="button"
@@ -851,9 +968,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                 </button>
               </div>
               <p className="text-xs font-medium text-neutral-600 leading-snug mt-1 line-clamp-2">
-                {stage === "in_trip"
-                  ? order.dropAddress || "Delivery Address"
-                  : order.pickupAddress || "Pickup Location"}
+                {activeDestAddress}
               </p>
             </div>
           </div>
@@ -1063,13 +1178,10 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           </div>
         )}
 
-        {/* STAGE 3: In Trip -> Drop at Store (Pickup Ride) OR Complete Delivery (Delivery Ride) */}
+        {/* STAGE 3: In Trip -> Drop at Store (Leg 1) OR Complete Delivery (Leg 2) */}
         {stage === "in_trip" && (
           <div className="space-y-2.5 animate-in fade-in duration-200">
-            {order.rideType === "pickup" ||
-            order.dropTitle?.toLowerCase().includes("store") ||
-            order.dropTitle?.toLowerCase().includes("partner") ||
-            order.dropTitle?.toLowerCase().includes("hub") ? (
+            {currentLeg === "pickup_to_store" ? (
               <>
                 <button
                   type="button"
@@ -1084,14 +1196,14 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                   </div>
                 </button>
 
-                {/* In-Trip Navigation Shortcut button */}
+                {/* In-Trip In-App Navigation Shortcut button */}
                 <button
                   type="button"
-                  onClick={handleOpenGoogleMaps}
+                  onClick={handleStartInAppNavigation}
                   className="w-full py-2.5 px-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
                 >
                   <Navigation className="w-4 h-4 text-emerald-600" />
-                  <span>Navigate to Partner Store (Google Maps)</span>
+                  <span>Start Turn-by-Turn GPS to Store</span>
                 </button>
 
                 {/* Unable to Deliver: Opt-out at store with 25% fee */}
@@ -1106,6 +1218,41 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
               </>
             ) : (
               <>
+                {/* 4-Digit Customer Delivery OTP Input */}
+                <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-blue-950">
+                      Enter Customer Delivery OTP
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-600">
+                      Demo OTP: {order.deliveryOtp || "7391"}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2 justify-center">
+                    {[0, 1, 2, 3].map((idx) => (
+                      <input
+                        key={idx}
+                        type="tel"
+                        maxLength={1}
+                        value={customerDeliveryOtpDigits[idx]}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          const next = [...customerDeliveryOtpDigits];
+                          next[idx] = val;
+                          setCustomerDeliveryOtpDigits(next);
+                          if (val && idx < 3) {
+                            const nextEl = document.getElementById(`customer-del-otp-${idx + 1}`);
+                            nextEl?.focus();
+                          }
+                        }}
+                        id={`customer-del-otp-${idx}`}
+                        className="w-12 h-11 text-center font-black text-lg bg-white border border-blue-300 rounded-lg focus:border-blue-600 focus:outline-none shadow-xs text-blue-950"
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 {/* Delivery Ride: Vibrant Royal Blue Theme */}
                 <button
                   type="button"
@@ -1120,14 +1267,14 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                   </div>
                 </button>
 
-                {/* Navigation to Customer */}
+                {/* In-App Navigation to Customer */}
                 <button
                   type="button"
-                  onClick={handleOpenGoogleMaps}
+                  onClick={handleStartInAppNavigation}
                   className="w-full py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
                 >
                   <Navigation className="w-4 h-4 text-blue-600" />
-                  <span>Navigate to Customer Location (Google Maps)</span>
+                  <span>Start Turn-by-Turn GPS to Customer</span>
                 </button>
 
                 {/* Unable to Complete Delivery */}
@@ -1770,12 +1917,18 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         isOpen={showVoiceNavModal}
         onClose={() => setShowVoiceNavModal(false)}
         riderCoords={captainCoords}
-        targetCoords={stage === "in_trip" ? dropCoords : pickupCoords}
-        targetName={stage === "in_trip" ? (order.dropTitle || "Drop Location") : (order.pickupTitle || "Pickup Location")}
-        targetAddress={stage === "in_trip" ? order.dropAddress : order.pickupAddress}
+        targetCoords={activeDestCoords}
+        targetName={activeDestTitle}
+        targetAddress={activeDestAddress}
         targetPhone={order.customerPhone}
         orderNumber={order.orderId}
-        phaseLabel={stage === "in_trip" ? "To Customer" : "To Pickup"}
+        phaseLabel={
+          currentLeg === "pickup_to_store"
+            ? stage === "in_trip"
+              ? "To Partner Store"
+              : "To Customer Pickup"
+            : "To Customer Delivery"
+        }
         onArrived={() => {
           setShowVoiceNavModal(false);
           if (stage === "en_route_pickup") {
