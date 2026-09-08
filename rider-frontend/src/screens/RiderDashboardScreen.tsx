@@ -222,15 +222,17 @@ export function RiderDashboardScreen() {
           }
         />
       ) : (
-        // Online Idle Map View with Leaflet & Radar Search
+        // Online Rapido Captain Full-Bleed Map View
         <CaptainOnlineMapView
           currentCoords={currentCoords}
           todayEarnings={todayEarnings}
           todayDeliveries={todayDeliveries}
           captainName={captainName}
+          pendingOrdersCount={pendingOrdersCount}
+          onOpenOrders={() => navigate({ to: "/orders" })}
           onRecenter={() => {
             if (currentCoords) {
-              toast.info("Map recentered at live location");
+              toast.info("Map centered at live location 📍");
             }
           }}
           onOpenWorkZoneInfo={() =>
