@@ -120,15 +120,20 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
     <>
       <div
         onClick={onClose}
-        className="fixed inset-0 z-50 flex justify-start bg-neutral-900/50 backdrop-blur-xs select-none animate-in fade-in duration-200"
+        className="fixed inset-0 z-50 flex justify-start bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-200"
       >
-        {/* Drawer Container (Pure White Background) */}
+        {/* Drawer Container (Pure White Background with Elegant Right Curve) */}
         <div
           onClick={(e) => e.stopPropagation()}
-          className="relative flex flex-col w-[85%] max-w-xs h-full bg-white text-neutral-900 shadow-2xl overflow-y-auto animate-in slide-in-from-left duration-300"
+          className="relative flex flex-col w-[84vw] max-w-[340px] h-[100dvh] bg-white text-neutral-900 shadow-2xl rounded-r-3xl border-r border-neutral-200/80 overflow-hidden animate-in slide-in-from-left duration-300"
         >
-          {/* 1. Header with Close Button & Profile Badge */}
-          <div className="p-4 bg-white border-b border-neutral-100">
+          {/* 1. Header with Close Button & Profile Badge (Fixed with Safe Area Padding) */}
+          <div
+            className="px-4 pb-3 bg-white border-b border-neutral-100 shrink-0"
+            style={{
+              paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 22px)",
+            }}
+          >
             <div className="flex items-center justify-between pb-3">
               <div className="flex items-center gap-2">
                 <img
@@ -136,7 +141,7 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
                   alt="QuickPress"
                   className="h-6 w-auto object-contain"
                 />
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-neutral-100 text-neutral-700 tracking-wider uppercase">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 tracking-wider uppercase">
                   Captain
                 </span>
               </div>
@@ -144,10 +149,10 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-full hover:bg-neutral-100 active:scale-95"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 hover:text-neutral-900 active:scale-90 transition-all"
                 aria-label="Close Drawer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5 stroke-[2.5]" />
               </button>
             </div>
 
@@ -155,10 +160,10 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
             <button
               type="button"
               onClick={handleOpenProfile}
-              className="w-full flex items-center justify-between p-3.5 bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200/90 rounded-2xl text-left active:scale-98 transition-all"
+              className="w-full flex items-center justify-between p-3 bg-amber-50/90 hover:bg-amber-100/80 border border-amber-200/90 rounded-2xl text-left active:scale-98 transition-all shadow-2xs"
             >
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-400 text-neutral-950 font-black text-base shadow-sm shrink-0">
+                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-400 text-neutral-950 font-black text-base shadow-xs shrink-0">
                   {captainName.slice(0, 1).toUpperCase()}
                 </div>
                 <div>
@@ -179,144 +184,152 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
             </button>
           </div>
 
-          {/* 2. Route Booking Toggles */}
-          <div className="p-3 border-b border-neutral-100 bg-neutral-50/50">
-            <div className="flex items-center justify-between p-3 bg-white rounded-2xl border border-neutral-200/80 shadow-2xs">
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-blue-50 text-blue-600">
-                  <Navigation className="w-4 h-4" />
+          {/* 2. Scrollable Middle Body (Route Booking + Navigation List) */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            {/* Route Booking Toggles */}
+            <div className="p-3 border-b border-neutral-100 bg-neutral-50/50">
+              <div className="flex items-center justify-between p-3 bg-white rounded-2xl border border-neutral-200/80 shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-blue-50 text-blue-600">
+                    <Navigation className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-neutral-900 leading-tight">
+                      My Route Booking
+                    </h4>
+                    <p className="text-[10px] text-neutral-500 font-medium">
+                      Deliveries only on your home route
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-neutral-900 leading-tight">
-                    My Route Booking
-                  </h4>
-                  <p className="text-[10px] text-neutral-500 font-medium">
-                    Deliveries only on your home route
-                  </p>
-                </div>
-              </div>
 
-              {/* iOS style toggle switch */}
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic();
-                  const next = !myRouteBooking;
-                  setMyRouteBooking(next);
-                  toast.success(
-                    next ? "Home Route Booking Enabled 🏠" : "Home Route Booking Disabled"
-                  );
-                }}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  myRouteBooking ? "bg-[#00C853]" : "bg-neutral-300"
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    myRouteBooking ? "translate-x-5" : "translate-x-0"
+                {/* iOS style toggle switch */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    const next = !myRouteBooking;
+                    setMyRouteBooking(next);
+                    toast.success(
+                      next ? "Home Route Booking Enabled 🏠" : "Home Route Booking Disabled"
+                    );
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    myRouteBooking ? "bg-[#00C853]" : "bg-neutral-300"
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      myRouteBooking ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation List */}
+            <div className="p-3 space-y-1">
+              {[
+                {
+                  icon: Wallet,
+                  title: "Earnings & Wallet",
+                  sub: "Instant daily UPI bank payout",
+                  onClick: () => {
+                    onClose();
+                    navigate({ to: "/wallet" });
+                  },
+                },
+                {
+                  icon: Award,
+                  title: "City Leaderboard",
+                  sub: "Rank #1 wins ₹500 Weekly Prize Pool",
+                  onClick: () => {
+                    onClose();
+                    navigate({ to: "/leaderboard" });
+                  },
+                },
+                {
+                  icon: TrendingUp,
+                  title: "Incentives & Targets",
+                  sub: "Daily milestone bonus tracker & quests",
+                  onClick: () => {
+                    onClose();
+                    navigate({ to: "/incentives" });
+                  },
+                },
+                {
+                  icon: Volume2,
+                  title: "Audio & Voice Guidance",
+                  sub: isMuted ? "Sound alerts are MUTED" : "Siren & voice prompts ACTIVE",
+                  onClick: () => {
+                    setShowAudioModal(true);
+                  },
+                },
+                {
+                  icon: Gift,
+                  title: "Rewards & Benefits",
+                  sub: "Super Captain fuel discounts",
+                  onClick: () => toast.info("Super Captain rewards active."),
+                },
+                {
+                  icon: ShieldCheck,
+                  title: "Captain Onboarding & Guidelines",
+                  sub: "Zero Commission & Smart Dispatch Tutorial",
+                  onClick: () => {
+                    if (onOpenOnboarding) {
+                      onOpenOnboarding();
+                    } else {
+                      toast.info("Captain Onboarding active.");
+                    }
+                  },
+                },
+                {
+                  icon: HelpCircle,
+                  title: "24/7 Captain Support & SOS",
+                  sub: "Helpline: 1800-123-QPAY",
+                  onClick: () => toast.info("Emergency Helpline connected: 1800-123-QPAY"),
+                },
+              ].map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={item.onClick}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-50 text-left active:scale-98 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-neutral-100 text-neutral-700 shrink-0">
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-neutral-900 leading-tight">
+                          {item.title}
+                        </h4>
+                        <p className="text-[10px] text-neutral-500 font-medium">
+                          {item.sub}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-neutral-300" />
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* 3. Navigation List (Exact Rapid/Zomato Drawer Structure) */}
-          <div className="flex-1 p-3 space-y-1">
-            {[
-              {
-                icon: Wallet,
-                title: "Earnings & Wallet",
-                sub: "Instant daily UPI bank payout",
-                onClick: () => {
-                  onClose();
-                  navigate({ to: "/wallet" });
-                },
-              },
-              {
-                icon: Award,
-                title: "City Leaderboard",
-                sub: "Rank #1 wins ₹500 Weekly Prize Pool",
-                onClick: () => {
-                  onClose();
-                  navigate({ to: "/leaderboard" });
-                },
-              },
-              {
-                icon: TrendingUp,
-                title: "Incentives & Targets",
-                sub: "Daily milestone bonus tracker & quests",
-                onClick: () => {
-                  onClose();
-                  navigate({ to: "/incentives" });
-                },
-              },
-              {
-                icon: Volume2,
-                title: "Audio & Voice Guidance",
-                sub: isMuted ? "Sound alerts are MUTED" : "Siren & voice prompts ACTIVE",
-                onClick: () => {
-                  setShowAudioModal(true);
-                },
-              },
-              {
-                icon: Gift,
-                title: "Rewards & Benefits",
-                sub: "Super Captain fuel discounts",
-                onClick: () => toast.info("Super Captain rewards active."),
-              },
-              {
-                icon: ShieldCheck,
-                title: "Captain Onboarding & Guidelines",
-                sub: "Zero Commission & Smart Dispatch Tutorial",
-                onClick: () => {
-                  if (onOpenOnboarding) {
-                    onOpenOnboarding();
-                  } else {
-                    toast.info("Captain Onboarding active.");
-                  }
-                },
-              },
-              {
-                icon: HelpCircle,
-                title: "24/7 Captain Support & SOS",
-                sub: "Helpline: 1800-123-QPAY",
-                onClick: () => toast.info("Emergency Helpline connected: 1800-123-QPAY"),
-              },
-            ].map((item, idx) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={item.onClick}
-                  className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-50 text-left active:scale-98 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-neutral-100 text-neutral-700 shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-neutral-900 leading-tight">
-                        {item.title}
-                      </h4>
-                      <p className="text-[10px] text-neutral-500 font-medium">
-                        {item.sub}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-neutral-300" />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 4. Language Switcher & Logout Footer */}
-          <div className="p-4 border-t border-neutral-100 bg-neutral-50/70 space-y-2.5">
+          {/* 3. Language Switcher & Logout Footer (Fixed with Safe Area Bottom Padding) */}
+          <div
+            className="shrink-0 border-t border-neutral-100 bg-neutral-50/95 space-y-2 px-4 pt-3"
+            style={{
+              paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 14px, 22px)",
+            }}
+          >
             {onOpenLanguage && (
               <button
                 type="button"
                 onClick={onOpenLanguage}
-                className="w-full flex items-center justify-between p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-bold text-neutral-800"
+                className="w-full flex items-center justify-between p-2.5 bg-white border border-neutral-200/90 rounded-xl text-xs font-bold text-neutral-800 shadow-2xs hover:bg-neutral-50 active:scale-98 transition-all"
               >
                 <span className="flex items-center gap-1.5">
                   <span>🌐</span>
@@ -329,7 +342,7 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
             <button
               type="button"
               onClick={handleLogoutAction}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-98"
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors active:scale-98"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout Captain Account</span>

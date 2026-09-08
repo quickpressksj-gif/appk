@@ -440,7 +440,10 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-2xl overflow-hidden text-neutral-900 select-none">
       {/* 1. Top Navigation Bar (Exact Match: ☰ Go to Pickup Zone 📞) */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-neutral-100 shadow-xs">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 pb-3 bg-white border-b border-neutral-100 shadow-xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         {/* Hamburger Menu Button */}
         <button
           type="button"

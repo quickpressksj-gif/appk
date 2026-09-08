@@ -234,7 +234,10 @@ export function RiderOrdersScreen() {
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-2xl overflow-y-auto text-neutral-900 select-none pb-20">
       {/* 1. Header (Exact Match: "2 Orders") */}
-      <div className="sticky top-0 z-30 px-5 pt-4 pb-3 bg-white border-b border-neutral-100 flex items-center justify-between shadow-xs">
+      <div
+        className="sticky top-0 z-30 px-5 pb-3 bg-white border-b border-neutral-100 flex items-center justify-between shadow-xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 16px)" }}
+      >
         <h1 className="text-2xl font-black text-neutral-950 tracking-tight">
           {totalOrders} {totalOrders > 1 ? "Orders" : "Order"}
         </h1>
