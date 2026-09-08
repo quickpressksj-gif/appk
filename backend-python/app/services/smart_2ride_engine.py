@@ -68,6 +68,21 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
     return round(r * c, 2)
 
 
+def normalize_city_name(city: Any) -> str:
+    """Normalize city name for strict matching (e.g. 'Kasganj, UP 207123' -> 'kasganj')."""
+    if not city:
+        return ""
+    import re
+    s = str(city).strip().lower()
+    # Take first segment before comma, dash or slash
+    s = s.split(",")[0].split("-")[0].split("/")[0].strip()
+    # Remove digits/pincodes
+    s = re.sub(r'\d+', '', s).strip()
+    s = re.sub(r'[^a-z\s]', '', s).strip()
+    return re.sub(r'\s+', ' ', s)
+
+
+
 def generate_secure_4digit_otp() -> str:
     """Cryptographically random 4-digit OTP (1000-9999)."""
     return f"{secrets.randbelow(9000) + 1000}"
@@ -146,8 +161,9 @@ class Smart2RideEngine:
 
         # Calculate trip distance and dynamic fare
         distance_km = max(0.5, haversine_distance_km(cust_lat, cust_lng, p_lat, p_lng))
-        city = str(addr.get("city") or "Kasganj")
-        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=distance_km, city=city)
+        city_raw = str(addr.get("city") or order.get("city") or (partner or {}).get("city") or "Kasganj")
+        clean_city = normalize_city_name(city_raw) or "kasganj"
+        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=distance_km, city=clean_city.title())
         pickup_earning = max(35, int(round(fare_calc.totalTripEarnings)))
 
         # Create pickup OTP (preserve existing OTP from customer checkout if present)
@@ -169,6 +185,9 @@ class Smart2RideEngine:
             "orderCode": order.get("code", canonical_id),
             "rideType": "pickup",
             "status": "SEARCHING_RIDER",
+            "city": clean_city.title(),
+            "pickupCity": clean_city.title(),
+            "dropCity": clean_city.title(),
             "createdAt": now,
             "updatedAt": now,
             "pickupLocation": {
@@ -284,8 +303,9 @@ class Smart2RideEngine:
         drop_addr = addr.get("line") or addr.get("address") or addr.get("formattedAddress") or "Customer Delivery Location"
 
         distance_km = max(0.5, haversine_distance_km(p_lat, p_lng, cust_lat, cust_lng))
-        city = str(addr.get("city") or "Kasganj")
-        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=distance_km, city=city)
+        city_raw = str(addr.get("city") or order.get("city") or (partner or {}).get("city") or "Kasganj")
+        clean_city = normalize_city_name(city_raw) or "kasganj"
+        fare_calc = financial_engine.compute_rider_trip_fare(distance_km=distance_km, city=clean_city.title())
         delivery_earning = max(35, int(round(fare_calc.totalTripEarnings)))
 
         # Partner Dispatch OTP & Final Delivery OTP (preserve if already existing on order)
@@ -319,6 +339,9 @@ class Smart2RideEngine:
             "orderCode": order.get("code", canonical_id),
             "rideType": "delivery",
             "status": "SEARCHING_RIDER",
+            "city": clean_city.title(),
+            "pickupCity": clean_city.title(),
+            "dropCity": clean_city.title(),
             "createdAt": now,
             "updatedAt": now,
             "pickupLocation": {
@@ -392,6 +415,7 @@ class Smart2RideEngine:
         preferred_rider_id: Optional[str] = None,
     ) -> List[Tuple[Dict[str, Any], float]]:
         """Find ONLINE, AVAILABLE riders within radius, ranked by distance to target."""
+        target_city_norm = normalize_city_name(city)
         all_riders = await database.find_many(RIDERS_COLLECTION, {})
         if not all_riders:
             all_riders = await database.find_many("riders", {})
@@ -412,6 +436,24 @@ class Smart2RideEngine:
             r_status = str(rider.get("status") or "").lower()
             if r_status in ("suspended", "blocked", "banned", "inactive", "offline"):
                 continue
+
+            # Strict City Matching: Captain must belong to the exact same city as the trip
+            r_city_raw = (
+                rider.get("city")
+                or rider.get("preferredCity")
+                or rider.get("operatingCity")
+                or rider.get("serviceCity")
+                or rider.get("workingCity")
+            )
+            if not r_city_raw:
+                r_prof = await database.find_one("rider_profiles", {"_id": r_id}) or await database.find_one("rider_profiles", {"userId": r_id}) or {}
+                r_city_raw = r_prof.get("city") or r_prof.get("preferredCity") or r_prof.get("operatingCity") or "Kasganj"
+
+            r_city_norm = normalize_city_name(r_city_raw)
+            if target_city_norm and r_city_norm:
+                if target_city_norm != r_city_norm and target_city_norm not in r_city_norm and r_city_norm not in target_city_norm:
+                    logger.info("Captain %s city '%s' does not match trip city '%s'. Skipping.", r_id, r_city_norm, target_city_norm)
+                    continue
 
             r_lat = rider.get("lat") or rider.get("latitude")
             r_lng = rider.get("lng") or rider.get("longitude")
@@ -463,23 +505,48 @@ class Smart2RideEngine:
 
         # Look for eligible riders within expanded radius (15 km)
         attempted = list(ride.get("attemptedRiderIds") or [])
+        target_city = str(ride.get("city") or (ride.get("pickupLocation") or {}).get("city") or "").strip()
+        if not target_city:
+            order = await database.find_one("customer_orders", {"_id": order_id}) or await database.find_one("orders", {"_id": order_id})
+            if order:
+                target_city = str((order.get("address") or {}).get("city") or order.get("city") or "Kasganj").strip()
+            else:
+                target_city = "Kasganj"
+
+        clean_target_city = normalize_city_name(target_city) or "kasganj"
+
         ranked_riders = await self.find_ranked_eligible_riders(
             target_lat=t_lat,
             target_lng=t_lng,
             radius_km=15.0,
-            city="Kasganj",
+            city=clean_target_city,
             excluded_rider_ids=attempted,
             preferred_rider_id=ride.get("preferredRiderId"),
         )
 
-        # If none found within 15km, search all online riders
+        # If none found within 15km, search all online riders STRICTLY in the same city
         if not ranked_riders:
             all_riders = await database.find_many(RIDERS_COLLECTION, {})
+            if not all_riders:
+                all_riders = await database.find_many("riders", {})
             for rider in all_riders:
-                is_online = rider.get("isOnline")
+                is_online = rider.get("isOnline") or rider.get("is_available")
                 if is_online in (True, 1, "true", "True") and not rider.get("isSuspended") and not rider.get("isBlocked"):
                     r_id = str(rider.get("_id") or rider.get("riderId") or rider.get("id") or "")
                     if r_id and r_id not in attempted:
+                        r_city = (
+                            rider.get("city")
+                            or rider.get("preferredCity")
+                            or rider.get("operatingCity")
+                            or rider.get("serviceCity")
+                        )
+                        if not r_city:
+                            rp = await database.find_one("rider_profiles", {"_id": r_id}) or {}
+                            r_city = rp.get("city") or rp.get("preferredCity") or "Kasganj"
+                        r_city_norm = normalize_city_name(r_city)
+                        if clean_target_city and r_city_norm:
+                            if clean_target_city != r_city_norm and clean_target_city not in r_city_norm and r_city_norm not in clean_target_city:
+                                continue
                         ranked_riders.append((rider, 2.5))
 
         if not ranked_riders:
@@ -630,6 +697,34 @@ class Smart2RideEngine:
 
         now = lifecycle.now_iso()
         rider_profile = await database.find_one(RIDERS_COLLECTION, {"_id": rider_id}) or {}
+        if not rider_profile:
+            rider_profile = await database.find_one("riders", {"_id": rider_id}) or {}
+
+        # Strict City Isolation Check: Captain must belong to the same city as the ride
+        ride_city_raw = str(ride.get("city") or (ride.get("pickupLocation") or {}).get("city") or "").strip()
+        if not ride_city_raw:
+            ord_doc = await database.find_one("customer_orders", {"_id": ride.get("orderId")}) or await database.find_one("orders", {"_id": ride.get("orderId")})
+            if ord_doc:
+                ride_city_raw = str((ord_doc.get("address") or {}).get("city") or ord_doc.get("city") or "")
+
+        rider_city_raw = (
+            rider_profile.get("city")
+            or rider_profile.get("preferredCity")
+            or rider_profile.get("operatingCity")
+            or rider_profile.get("serviceCity")
+        )
+        if not rider_city_raw:
+            rp = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
+            rider_city_raw = rp.get("city") or rp.get("preferredCity") or rp.get("operatingCity")
+
+        norm_ride_city = normalize_city_name(ride_city_raw)
+        norm_rider_city = normalize_city_name(rider_city_raw)
+        if norm_ride_city and norm_rider_city:
+            if norm_ride_city != norm_rider_city and norm_ride_city not in norm_rider_city and norm_rider_city not in norm_ride_city:
+                raise ValueError(
+                    f"CITY_MISMATCH: Trip belongs to {norm_ride_city.title()}, but you are registered in {norm_rider_city.title()}. Rides can only be accepted by Captains in the same city."
+                )
+
         r_name = rider_profile.get("fullName") or rider_profile.get("name") or "Delivery Captain"
         r_phone = rider_profile.get("phone") or "+91 98765 43210"
         r_vehicle = rider_profile.get("vehicleType") or "Bike"

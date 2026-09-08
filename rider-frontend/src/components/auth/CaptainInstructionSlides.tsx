@@ -72,9 +72,15 @@ export const CaptainInstructionSlides: React.FC<CaptainInstructionSlidesProps> =
   const isLast = currentSlide === slides.length - 1;
 
   return (
-    <div className="relative flex flex-col flex-1 w-full h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between p-6 overflow-hidden">
+    <div
+      className="relative flex flex-col flex-1 w-full min-h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between px-6 overflow-hidden"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 18px)",
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 12px, 18px)",
+      }}
+    >
       {/* 1. Top Bar: Language Switcher + Skip */}
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex items-center justify-between">
         {onChangeLanguage ? (
           <button
             type="button"

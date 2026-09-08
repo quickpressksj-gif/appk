@@ -348,7 +348,7 @@ class SettlementEngine:
         total_rider_payout = 0.0
         
         for r in rides:
-            r_id = r.get("assignedRiderId") or r.get("offeredRiderId")
+            r_id = r.get("riderId") or r.get("assignedRiderId") or r.get("offeredRiderId")
             r_fare = float(r.get("estimatedEarning") or 45.0)
             if r_id:
                 ride_payouts.append({
@@ -360,17 +360,18 @@ class SettlementEngine:
                 total_rider_payout += r_fare
         
         if not ride_payouts:
-            single_rider_id = str((order.get("rider") or {}).get("id") or order.get("rider_id") or order.get("riderId") or "rider-1")
-            single_rider_name = str((order.get("rider") or {}).get("name") or order.get("rider_name") or "QuickPress Captain")
-            fallback_fare = float(snap.get("estimatedRiderPayout") or 60.0)
-            ride_payouts.append({
-                "rideId": f"ride-{canonical_id}",
-                "riderId": single_rider_id,
-                "riderName": single_rider_name,
-                "rideType": "trip",
-                "fare": fallback_fare,
-            })
-            total_rider_payout = fallback_fare
+            single_rider_id = str((order.get("rider") or {}).get("id") or order.get("rider_id") or order.get("riderId") or "")
+            if single_rider_id:
+                single_rider_name = str((order.get("rider") or {}).get("name") or order.get("rider_name") or "QuickPress Captain")
+                fallback_fare = float(snap.get("estimatedRiderPayout") or (order.get("pricing") or {}).get("deliveryFee") or 60.0)
+                ride_payouts.append({
+                    "rideId": f"ride-{canonical_id}",
+                    "riderId": single_rider_id,
+                    "riderName": single_rider_name,
+                    "rideType": "trip",
+                    "fare": fallback_fare,
+                })
+                total_rider_payout = fallback_fare
 
         # 4. Platform Net Margin
         platform_net_margin = round(grand_total - partner_net - total_rider_payout, 2)
@@ -412,7 +413,9 @@ class SettlementEngine:
                 {
                     "$set": {
                         "wallet.balance": round(curr_bal + partner_net, 2),
+                        "wallet.currentBalance": round(curr_bal + partner_net, 2),
                         "wallet.totalEarned": round(curr_earned + partner_net, 2),
+                        "wallet.lastTripCredit": partner_net,
                         "wallet.lastSettledAt": now_iso,
                     }
                 }
@@ -443,13 +446,17 @@ class SettlementEngine:
             
             # Direct credit to rider_wallets collection
             w_doc = await database.find_one("rider_wallets", {"$or": [{"_id": rid}, {"riderId": rid}, {"rider_id": rid}]})
+            if not w_doc:
+                from app.db.rider_repositories import rider_wallet_repository
+                w_doc = await rider_wallet_repository.get(rid)
+
             if w_doc:
                 curr_w_bal = float(w_doc.get("balance", 0.0))
                 curr_w_life = float(w_doc.get("lifetimeEarnings", 0.0))
                 curr_w_today = float(w_doc.get("todayEarned", 0.0))
                 await database.update(
                     "rider_wallets",
-                    {"_id": w_doc["_id"]},
+                    {"$or": [{"_id": rid}, {"riderId": rid}, {"rider_id": rid}]},
                     {
                         "balance": round(curr_w_bal + fare, 2),
                         "lifetimeEarnings": round(curr_w_life + fare, 2),

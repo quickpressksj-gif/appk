@@ -28,7 +28,10 @@ export const CaptainHomeOfflineScreen: React.FC<CaptainHomeOfflineScreenProps> =
     hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   return (
-    <div className="flex flex-col flex-1 w-full h-full bg-white text-neutral-900 select-none overflow-y-auto pb-20">
+    <div
+      className="flex flex-col flex-1 w-full h-full bg-white text-neutral-900 select-none overflow-y-auto"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 76px, 90px)" }}
+    >
       {/* 1. Today's Earnings Strip (Screenshot: Light Blue / Lavender Bar) */}
       <div className="w-full">
         <button
@@ -167,7 +170,7 @@ export const CaptainHomeOfflineScreen: React.FC<CaptainHomeOfflineScreenProps> =
       </div>
 
       {/* 4. Bottom Work Zone Banner Card (Screenshot: Mint-green gradient banner with Know More) */}
-      <div className="px-4 mt-auto">
+      <div className="px-4 mt-6">
         <div
           onClick={onOpenWorkZoneInfo}
           className="relative flex items-center justify-between p-4 bg-gradient-to-r from-[#DFF8F4] to-[#CFF3ED] border border-[#A7E8DC] rounded-3xl shadow-sm cursor-pointer hover:shadow-md transition-all overflow-hidden"
@@ -205,6 +208,22 @@ export const CaptainHomeOfflineScreen: React.FC<CaptainHomeOfflineScreenProps> =
           </div>
         </div>
       </div>
+
+      {/* 5. Brand watermark footer (Matching Customer Panel watermark) */}
+      <section className="mt-10 select-none bg-muted/60 px-5 pb-10 pt-10 border-t border-border/70">
+        <h2 className="text-[2.6rem] font-black leading-[0.95] tracking-tight text-muted-foreground/35">
+          India&rsquo;s freshest
+          <br />
+          laundry app <span className="text-primary/35">🧺</span>
+        </h2>
+        <div className="mt-8 h-px w-full bg-border/70" />
+        <p className="mt-6 text-3xl font-black tracking-tight text-muted-foreground/25">
+          QuickPress
+        </p>
+        <p className="mt-6 text-[11px] font-medium tracking-wide text-muted-foreground/70">
+          Made In India · Crafted by Utter Pradesh 🚩
+        </p>
+      </section>
     </div>
   );
 };

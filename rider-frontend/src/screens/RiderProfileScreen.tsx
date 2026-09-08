@@ -213,9 +213,15 @@ export function RiderProfileScreen() {
   };
 
   return (
-    <div className="relative flex flex-col w-full min-h-[100dvh] max-w-md mx-auto bg-neutral-50 shadow-2xl text-neutral-900 select-none pb-24">
+    <div
+      className="relative flex flex-col w-full min-h-[100dvh] max-w-md mx-auto bg-neutral-50 shadow-2xl text-neutral-900 select-none"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 40px, 60px)" }}
+    >
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-neutral-100 shadow-2xs">
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-neutral-100 shadow-2xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <button
           type="button"
           onClick={() => navigate({ to: "/dashboard" })}

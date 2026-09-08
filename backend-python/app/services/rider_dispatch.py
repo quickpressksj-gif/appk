@@ -195,12 +195,18 @@ class RiderDispatchEngine:
                 {"status": "active", "$or": location_clauses},
             )
 
-        # Fallback 3: active online riders anywhere if local query missed
+        # Fallback 3: active online riders strictly in the same city
         if not eligible_riders:
-            eligible_riders = await database.find_many(
+            from app.services.smart_2ride_engine import normalize_city_name
+            all_online = await database.find_many(
                 RIDERS_COLLECTION,
                 {"status": "active", "$or": [{"isOnline": True}, {"is_available": True}]},
             )
+            target_city_norm = normalize_city_name(clean_city)
+            for r in all_online:
+                rc = normalize_city_name(r.get("city") or r.get("preferredCity") or r.get("operatingCity") or "Kasganj")
+                if target_city_norm and rc == target_city_norm:
+                    eligible_riders.append(r)
 
         if not eligible_riders:
             logger.info("No active riders available in %s to dispatch order %s", order_city, order_id)
@@ -336,6 +342,23 @@ class RiderDispatchEngine:
             rider_profile = await database.find_one(RIDERS_COLLECTION, {"riderId": rider_id})
         if rider_profile is None:
             rider_profile = {"_id": rider_id, "fullName": "QuickPress Delivery Partner"}
+
+        # Strict City Matching Check: Captain must belong to the order's city
+        from app.services.smart_2ride_engine import normalize_city_name
+        addr = order.get("address") or {}
+        o_city = normalize_city_name(addr.get("city") or order.get("city") or "Kasganj")
+        r_city = normalize_city_name(
+            rider_profile.get("city")
+            or rider_profile.get("preferredCity")
+            or rider_profile.get("operatingCity")
+        )
+        if not r_city:
+            rp = await database.find_one("rider_profiles", {"_id": rider_id}) or {}
+            r_city = normalize_city_name(rp.get("city") or rp.get("preferredCity") or "Kasganj")
+        if o_city and r_city and o_city != r_city and o_city not in r_city and r_city not in o_city:
+            raise ValueError(
+                f"CITY_MISMATCH: Order is in {o_city.title()}, but you are registered in {r_city.title()}. Rides can only be claimed by Captains in the same city."
+            )
 
         rider_party = {
             "id": rider_id,

@@ -75,7 +75,10 @@ export function RiderLeaderboardScreen() {
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-xl overflow-hidden text-slate-800 select-none font-sans">
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -109,7 +112,10 @@ export function RiderLeaderboardScreen() {
       </header>
 
       {/* 2. Scrollable Body Content */}
-      <div className="flex-1 overflow-y-auto pb-24 space-y-3.5 p-3.5 bg-slate-50/60">
+      <div
+        className="flex-1 overflow-y-auto space-y-3.5 p-3.5 bg-slate-50/60"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 84px, 100px)" }}
+      >
         {/* Time Scope Tabs (Today / Weekly / All Time) */}
         <div className="flex items-center p-1 bg-white border border-slate-200/80 rounded-2xl shadow-2xs">
           {[

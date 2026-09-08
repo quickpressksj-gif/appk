@@ -6,12 +6,17 @@ export const Route = createFileRoute("/orders")({
   beforeLoad: () => {
     requireRiderAuth();
   },
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    return {
+      tab: typeof search.tab === "string" ? search.tab : undefined,
+    };
+  },
   head: () => ({
     meta: [
-      { title: "My Orders — QuickPress Captain" },
+      { title: "My Orders & Ride History — QuickPress Captain" },
       {
         name: "description",
-        content: "QuickPress Captain Orders and Delivery History",
+        content: "QuickPress Captain Orders and Delivery Ride History",
       },
     ],
   }),

@@ -139,6 +139,8 @@ export type RiderHistoryEntry = {
   code: string;
   customerName: string;
   partnerName: string;
+  pickupAddress?: string;
+  dropAddress?: string;
   date: string;
   amount: number;
   distanceKm: number;

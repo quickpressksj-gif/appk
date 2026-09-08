@@ -467,7 +467,10 @@ export function RiderRegistrationScreen() {
   return (
     <div className="relative flex flex-col flex-1 w-full min-h-[100dvh] max-w-md mx-auto bg-[#F8FAFC] text-neutral-900 select-none pb-12">
       {/* 1. Sticky Top Navigation Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-neutral-100 shadow-xs">
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between px-4 pb-3 bg-white border-b border-neutral-100 shadow-xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <button
           type="button"
           onClick={handlePrevTask}
@@ -1305,7 +1308,10 @@ export function RiderRegistrationScreen() {
             </div>
 
             {/* Final Submit Button */}
-            <div className="pt-2 space-y-2.5">
+            <div
+              className="pt-2 space-y-2.5"
+              style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 16px, 24px)" }}
+            >
               <button
                 type="submit"
                 disabled={loading}
@@ -1328,7 +1334,10 @@ export function RiderRegistrationScreen() {
 
       {/* 4. Bottom Sticky Action Bar (For Tasks 1 to 4) */}
       {currentTask < 5 && (
-        <div className="sticky bottom-0 z-40 p-4 bg-white/95 backdrop-blur-xs border-t border-neutral-100 flex items-center justify-between gap-3 shadow-lg">
+        <div
+          className="sticky bottom-0 z-40 px-4 pt-3 bg-white/95 backdrop-blur-xs border-t border-neutral-100 flex items-center justify-between gap-3 shadow-lg"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 12px, 16px)" }}
+        >
           {currentTask > 1 ? (
             <button
               type="button"

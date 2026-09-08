@@ -270,7 +270,10 @@ export const RiderUnableToDeliverModal: React.FC<RiderUnableToDeliverModalProps>
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
+        <div
+          className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 16px, 16px)" }}
+        >
           <button
             type="button"
             onClick={onClose}

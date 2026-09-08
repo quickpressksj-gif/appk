@@ -175,17 +175,6 @@ export function RiderDashboardScreen() {
     }
   };
 
-  // Demo Trigger: Simulate incoming order and auto-switch to Orders tab
-  const handleSimulateAndSwitch = () => {
-    unlockAudioContext();
-    setOnline(true);
-    triggerHaptic([200, 100, 200, 100, 400]);
-    playOrderAlertSound();
-    speakOrderAlert(65, "कासगंज हब", "कस्टमर लोकेशन");
-    toast.info("🚨 New Orders Arrived! Switching to Orders Tab...");
-    navigate({ to: "/orders" });
-  };
-
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-2xl overflow-hidden text-neutral-900 select-none">
       {/* 1. Left Slide-Out Hamburger Drawer */}
@@ -220,18 +209,6 @@ export function RiderDashboardScreen() {
         loading={dutyLoading}
       />
 
-      {/* Trigger to test order arrival & auto-switch to Orders tab */}
-      <div className="z-30 flex items-center justify-between px-3.5 py-1.5 bg-neutral-50 border-b border-neutral-100 text-[11px]">
-        <span className="font-bold text-neutral-500">Live Ride Flow:</span>
-        <button
-          type="button"
-          onClick={handleSimulateAndSwitch}
-          className="px-2.5 py-1 bg-[#FFC400] text-neutral-950 font-black rounded-lg shadow-2xs hover:bg-[#FBBF24] active:scale-95"
-        >
-          ⚡ New Orders (Switch to Orders Tab)
-        </button>
-      </div>
-
       {/* 3. Screen Switcher: Offline Home vs Online Map (Order Queue is exclusively on /orders) */}
       {!isOnline ? (
         // Offline Home View (Exact match to uploaded screenshot)
@@ -248,6 +225,9 @@ export function RiderDashboardScreen() {
         // Online Idle Map View with Leaflet & Radar Search
         <CaptainOnlineMapView
           currentCoords={currentCoords}
+          todayEarnings={todayEarnings}
+          todayDeliveries={todayDeliveries}
+          captainName={captainName}
           onRecenter={() => {
             if (currentCoords) {
               toast.info("Map recentered at live location");

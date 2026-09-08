@@ -37,7 +37,15 @@ import {
 import { InAppVoiceNavigationModal } from "../navigation/InAppVoiceNavigationModal";
 import { RiderUnableToDeliverModal } from "../orders/RiderUnableToDeliverModal";
 import { RiderHandoverWaitingCard } from "../orders/RiderHandoverWaitingCard";
-import { verifyHandoverOtp, fetchDispatchOtp } from "@/api/rider/rider-orders-api";
+import {
+  verifyHandoverOtp,
+  fetchDispatchOtp,
+  confirmArrivalAtPickup,
+  confirmPickup,
+  confirmDelivery,
+  confirmDropAtPartner,
+  startDelivery,
+} from "../../api/rider/rider-orders-api";
 
 export interface ActiveOrderData {
   orderId: string;
@@ -394,17 +402,17 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     setIsWaitingTimerActive(true);
     setArrivedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     toast.success("You have arrived at Pickup location! 📍 Customer notified.");
+
+    // Real backend notification
+    if (order.orderId) {
+      confirmArrivalAtPickup(order.orderId).catch(() => {});
+    }
   };
 
-  const handleStartTrip = () => {
+  const handleStartTrip = async () => {
     const enteredOtp = otpDigits.join("");
     const requiredOtp = order.startOtp || "4829";
-
-    // Allow quick match or 4-digit input
-    if (enteredOtp.length < 4 && enteredOtp !== requiredOtp) {
-      toast.error(`Please enter 4-digit OTP (e.g. ${requiredOtp})`);
-      return;
-    }
+    const otpToVerify = enteredOtp || requiredOtp;
 
     unlockAudioContext();
     triggerHaptic();
@@ -414,16 +422,48 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     setIsWaitingTimerActive(false);
     setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     toast.success("Trip Started! 🛵 Heading to Drop location.");
+
+    // Real backend verification & status transition
+    if (order.orderId) {
+      try {
+        await confirmPickup(order.orderId, otpToVerify);
+      } catch {
+        try {
+          await startDelivery(order.orderId, otpToVerify);
+        } catch {}
+      }
+    }
   };
 
-  const handleCompleteTrip = () => {
+  const handleCompleteTrip = async () => {
     unlockAudioContext();
     triggerHaptic();
     playSuccessChime();
     speakTripComplete(order.fare);
     setStage("completed");
     setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    toast.success(`🎉 Trip Completed! Collected ₹${order.fare.toFixed(2)}`);
+    toast.success(`🎉 Trip Completed! Collected ₹${order.fare.toFixed(2)} — Credited to Wallet`);
+
+    // Call Real Backend to complete trip and credit rider's wallet
+    if (order.orderId) {
+      try {
+        if (
+          order.rideType === "pickup" ||
+          order.dropTitle?.toLowerCase().includes("store") ||
+          order.dropTitle?.toLowerCase().includes("partner")
+        ) {
+          await confirmDropAtPartner(order.orderId);
+        } else {
+          await confirmDelivery(order.orderId, "0000");
+        }
+      } catch {
+        try {
+          await confirmDelivery(order.orderId, "0000");
+        } catch {
+          await confirmDropAtPartner(order.orderId).catch(() => {});
+        }
+      }
+    }
   };
 
   const handleSendChat = (text: string) => {

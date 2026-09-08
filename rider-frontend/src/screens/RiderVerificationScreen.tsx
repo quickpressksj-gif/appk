@@ -141,7 +141,10 @@ export function RiderVerificationScreen() {
   return (
     <div className="relative flex flex-col w-full min-h-[100dvh] max-w-md mx-auto bg-white shadow-xl overflow-hidden text-slate-800 select-none font-sans">
       {/* 1. Top Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 pb-3 bg-white border-b border-slate-100 shadow-2xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <div className="flex items-center gap-2.5">
           <img
             src="/quickpress-brand-logo-transparent.png"
@@ -175,7 +178,10 @@ export function RiderVerificationScreen() {
       </header>
 
       {/* 2. Main Scrollable Content */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-12">
+      <main
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 20px, 32px)" }}
+      >
         {/* HERO STATUS CARD */}
         {isApproved ? (
           // Case 1: APPROVED

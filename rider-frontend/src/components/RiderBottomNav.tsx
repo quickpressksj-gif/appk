@@ -60,7 +60,8 @@ export function RiderBottomNav({ active = "dashboard", ordersBadgeCount = 0 }: R
   const bar = (
     <nav
       aria-label="Captain Primary Bottom Navigation"
-      className="fixed inset-x-0 bottom-0 z-40 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 transition-[transform,opacity] duration-300 select-none pointer-events-none"
+      className="fixed inset-x-0 bottom-0 z-40 pt-1 transition-[transform,opacity] duration-300 select-none pointer-events-none"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 8px, 14px)" }}
     >
       {/* Floating Glass Dock (Matching Customer Panel Style) */}
       <div className="mx-auto w-full max-w-md px-4 pointer-events-auto">

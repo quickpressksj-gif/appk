@@ -168,10 +168,16 @@ export function RiderOtpScreen() {
   const formattedPhone = (targetPhone || phone || "").replace("+91", "").trim();
 
   return (
-    <div className="relative flex flex-col flex-1 w-full h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between p-5 overflow-y-auto">
+    <div
+      className="relative flex flex-col flex-1 w-full min-h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between px-4 sm:px-5 overflow-y-auto"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 20px)",
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 12px, 20px)",
+      }}
+    >
       {/* 1. Top Header with Back Arrow & Official Logo */}
       <div>
-        <div className="flex items-center justify-between pt-1 pb-3">
+        <div className="flex items-center justify-between pb-3">
           <button
             type="button"
             onClick={() => navigate({ to: "/auth" })}
@@ -214,7 +220,7 @@ export function RiderOtpScreen() {
 
         {/* 2. 6-Digit Individual OTP Input Boxes */}
         <form onSubmit={handleVerify} className="space-y-6">
-          <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 px-0.5">
             {digits.map((digit, idx) => (
               <input
                 key={idx}
@@ -228,7 +234,7 @@ export function RiderOtpScreen() {
                 onChange={(e) => handleDigitChange(idx, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(idx, e)}
                 onPaste={handlePaste}
-                className={`w-12 h-14 text-center text-2xl font-black rounded-2xl border-2 transition-all outline-none ${
+                className={`w-11 sm:w-12 h-13 sm:h-14 text-center text-xl sm:text-2xl font-black rounded-2xl border-2 transition-all outline-none ${
                   digit
                     ? "border-[#00C853] bg-emerald-50/40 text-neutral-950 shadow-xs"
                     : "border-neutral-200 bg-white text-neutral-900 focus:border-[#00C853] focus:bg-emerald-50/20"

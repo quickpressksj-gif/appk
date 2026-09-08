@@ -474,6 +474,15 @@ class OrderRepository:
         from app.services.order_notifications import dispatch_order_created_notifications
 
         await dispatch_order_created_notifications(document)
+
+        # Automatically create pickup ride and dispatch to online captains immediately
+        try:
+            from app.services.smart_2ride_engine import smart_2ride_engine
+            import asyncio
+            asyncio.create_task(smart_2ride_engine.create_ride_1_pickup(document["_id"]))
+        except Exception as ride_err:
+            logger.warning("Failed to auto-create pickup ride on order placement: %s", ride_err)
+
         # The cart belongs to the order now.
         await cart_repository.clear(user.id)
         return self._to_order_response(document)

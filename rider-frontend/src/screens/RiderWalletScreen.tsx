@@ -40,6 +40,7 @@ import {
 import { useRiderContext } from "../context/RiderContext";
 import { RiderBottomNav } from "../components/RiderBottomNav";
 import { triggerHaptic } from "../lib/captain-audio";
+import { supabase } from "../integrations/supabase/client";
 
 export function RiderWalletScreen() {
   const navigate = useNavigate();
@@ -103,6 +104,48 @@ export function RiderWalletScreen() {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Real-time Supabase subscription for instant wallet balance & transactions updates
+  useEffect(() => {
+    let channel: any = null;
+    try {
+      channel = supabase
+        .channel("rider-wallet-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_wallets",
+          },
+          () => {
+            loadData(false);
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_wallet_transactions",
+          },
+          () => {
+            loadData(false);
+          }
+        )
+        .subscribe();
+    } catch {}
+
+    return () => {
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      }
+    };
   }, [loadData]);
 
   // Handle Instant Cashout
@@ -181,7 +224,10 @@ export function RiderWalletScreen() {
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-xl overflow-hidden text-slate-800 select-none font-sans">
       {/* 1. Header Bar (Pure White) */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -224,7 +270,10 @@ export function RiderWalletScreen() {
       </header>
 
       {/* 2. Scrollable Body Content */}
-      <div className="flex-1 overflow-y-auto pb-24 space-y-3.5 p-3.5 bg-slate-50/60">
+      <div
+        className="flex-1 overflow-y-auto space-y-3.5 p-3.5 bg-slate-50/60"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 84px, 100px)" }}
+      >
         {/* HERO BALANCE CARD (Pure White with Emerald & Gold Accent) */}
         <div className="relative overflow-hidden rounded-3xl bg-white text-slate-900 p-5 shadow-sm border border-slate-200/90">
           {/* Top Pill Row */}

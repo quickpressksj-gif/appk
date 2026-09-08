@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Gift,
   HelpCircle,
+  History,
   LogOut,
   MapPin,
   Navigation,
@@ -230,6 +231,15 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
             {/* Navigation List */}
             <div className="p-3 space-y-1">
               {[
+                {
+                  icon: History,
+                  title: "Ride History (सफ़र इतिहास)",
+                  sub: "Completed trips, routes & earnings",
+                  onClick: () => {
+                    onClose();
+                    navigate({ to: "/orders", search: { tab: "history" } as any });
+                  },
+                },
                 {
                   icon: Wallet,
                   title: "Earnings & Wallet",

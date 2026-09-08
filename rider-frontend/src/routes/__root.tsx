@@ -124,6 +124,8 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { GlobalOrderDispatchListener } from "@/components/orders/GlobalOrderDispatchListener";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -135,6 +137,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <RiderProvider>
+          <GlobalOrderDispatchListener />
           <Outlet />
         </RiderProvider>
       </LanguageProvider>

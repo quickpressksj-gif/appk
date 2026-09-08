@@ -185,6 +185,14 @@ class AdminOrderRepository:
         rider = await database.find_one("rider_profiles", {"_id": rider_id})
         if rider is None:
             raise LookupError(f"Rider {rider_id} does not exist")
+
+        # Strict City Isolation Check: Captain must belong to the same city as the order
+        from app.services.smart_2ride_engine import normalize_city_name
+        o_city = normalize_city_name((order.get("address") or {}).get("city") or order.get("city") or "Kasganj")
+        r_city = normalize_city_name(rider.get("city") or rider.get("preferredCity") or rider.get("operatingCity") or "Kasganj")
+        if o_city and r_city and o_city != r_city and o_city not in r_city and r_city not in o_city:
+            raise ValueError(f"City Mismatch: Captain belongs to {r_city.title()}, but order is in {o_city.title()}. Captains can only be assigned to orders in their registered city.")
+
         rider_party = {
             "id": rider["_id"],
             "name": rider.get("name", ""),

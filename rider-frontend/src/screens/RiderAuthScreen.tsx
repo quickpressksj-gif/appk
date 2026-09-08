@@ -56,10 +56,16 @@ export function RiderAuthScreen() {
   };
 
   return (
-    <div className="relative flex flex-col flex-1 w-full h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between p-5 overflow-y-auto">
+    <div
+      className="relative flex flex-col flex-1 w-full min-h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between px-5 overflow-y-auto"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 20px)",
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 12px, 20px)",
+      }}
+    >
       {/* 1. Header with Back Arrow & Official QuickPress Brand Logo */}
       <div>
-        <div className="flex items-center justify-between pt-1 pb-2">
+        <div className="flex items-center justify-between pb-2">
           <button
             type="button"
             onClick={() => navigate({ to: "/language" })}

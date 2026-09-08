@@ -132,7 +132,10 @@ export function RiderIncentivesScreen() {
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-xl overflow-hidden text-slate-800 select-none font-sans">
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-2xs"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 8px, 12px)" }}
+      >
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -166,7 +169,10 @@ export function RiderIncentivesScreen() {
       </header>
 
       {/* 2. Scrollable Body */}
-      <main className="flex-1 overflow-y-auto px-4 py-3 space-y-4 pb-28">
+      <main
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px) + 84px, 100px)" }}
+      >
         {/* HERO CARD: Daily Target Overview */}
         <section className="relative rounded-3xl bg-gradient-to-br from-emerald-50/90 via-white to-amber-50/60 border border-emerald-200/80 p-4 shadow-sm overflow-hidden">
           <div className="flex items-start justify-between">
