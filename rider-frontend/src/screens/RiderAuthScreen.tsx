@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Loader2, MessageSquare, X } from "lucide-react";
-import React, { useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, Loader2, X } from "lucide-react";
+import React, { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { useRiderContext } from "../context/RiderContext";
@@ -10,15 +10,12 @@ import { QuickPressLogo } from "../components/common/QuickPressLogo";
 
 export function RiderAuthScreen() {
   const navigate = useNavigate();
-  const { setPhone, session, hydrating } = useRiderContext();
+  const { setPhone } = useRiderContext();
   const { t, selectedLanguageObj } = useLanguage();
 
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [useWhatsApp, setUseWhatsApp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Do not auto-redirect so the user can freely see and interact with the login screen
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,12 +32,8 @@ export function RiderAuthScreen() {
 
     try {
       setPhone(cleanNumber);
-      await sendOtp(cleanNumber, useWhatsApp ? "whatsapp" : "sms");
-      toast.success(
-        useWhatsApp
-          ? "OTP has been sent to your WhatsApp! 💬"
-          : "OTP sent via SMS! 📱"
-      );
+      await sendOtp(cleanNumber);
+      toast.success(t("auth.otpSent", "6-digit OTP sent via SMS! 📱"));
       navigate({ to: "/otp" });
     } catch (err: any) {
       setError(err?.message || "Failed to send OTP. Please try again.");
@@ -147,42 +140,12 @@ export function RiderAuthScreen() {
             <p className="text-xs font-medium text-neutral-500 pt-0.5">
               {t("auth.lostPhone", "Lost your phone number?")}{" "}
               <span
-                onClick={() => toast.info("Captain Support Helpline: 1800-123-QPAY")}
+                onClick={() => toast.info("Captain Support Helpline: +91 92587 30561")}
                 className="text-blue-600 font-bold hover:underline cursor-pointer"
               >
                 {t("auth.reachUs", "Reach us")}
               </span>
             </p>
-          </div>
-
-          {/* WhatsApp Delivery Option Chip */}
-          <div
-            onClick={() => setUseWhatsApp(!useWhatsApp)}
-            className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl cursor-pointer hover:bg-emerald-100/60 transition-colors mt-3"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-[#00C853] text-white shrink-0">
-                <MessageSquare className="w-3.5 h-3.5 fill-white" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-neutral-900 leading-tight">
-                  {t("auth.whatsApp", "Get OTP on WhatsApp")}
-                </p>
-                <p className="text-[10px] text-emerald-800 font-medium">
-                  {t("auth.whatsAppSub", "Fast & instant verification")}
-                </p>
-              </div>
-            </div>
-
-            <div
-              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                useWhatsApp
-                  ? "bg-[#00C853] border-[#00C853] text-white"
-                  : "border-neutral-300 bg-white"
-              }`}
-            >
-              {useWhatsApp && <CheckCircle2 className="w-4 h-4" />}
-            </div>
           </div>
         </form>
       </div>

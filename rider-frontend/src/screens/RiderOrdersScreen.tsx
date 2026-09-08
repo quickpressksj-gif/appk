@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
-  History,
   MapPin,
   Navigation,
   Package,
@@ -17,11 +16,9 @@ import {
 import { RiderBottomNav } from "../components/RiderBottomNav";
 import {
   acceptRiderOrder,
-  fetchRiderHistory,
   fetchRiderOffers,
   rejectRiderOrder,
 } from "../api/rider/rider-orders-api";
-import type { RiderHistoryEntry } from "../shared/types/rider";
 import { useRiderContext } from "../context/RiderContext";
 import { useLanguage } from "../lib/i18n";
 import { subscribeRiderOffers } from "../lib/rider-socket";
@@ -83,76 +80,6 @@ export function RiderOrdersScreen() {
   const [offers, setOffers] = useState<OrderOfferItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(10);
-
-  type OrdersTab = "queue" | "history";
-  const [activeTab, setActiveTab] = useState<OrdersTab>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("tab") === "history") return "history";
-      } catch {}
-    }
-    return "queue";
-  });
-  const [historyItems, setHistoryItems] = useState<RiderHistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "cancelled">("all");
-
-  const loadHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      const items = await fetchRiderHistory();
-      setHistoryItems(items);
-    } catch {
-      setHistoryItems([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  // Sync tab with URL search parameter if changed
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("tab") === "history") {
-        setActiveTab("history");
-      }
-    } catch {}
-  }, []);
-
-  // Fetch history automatically whenever activeTab is history
-  useEffect(() => {
-    if (activeTab === "history" && historyItems.length === 0) {
-      loadHistory();
-    }
-  }, [activeTab]);
-
-  const formatHistoryDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const today = new Date();
-      const isToday =
-        d.getDate() === today.getDate() &&
-        d.getMonth() === today.getMonth() &&
-        d.getFullYear() === today.getFullYear();
-      const timePart = d.toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-      if (isToday) return `Today, ${timePart}`;
-      return `${d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}, ${timePart}`;
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const filteredHistory = historyItems.filter((item) => {
-    if (historyFilter === "completed") return item.outcome === "completed";
-    if (historyFilter === "cancelled") return item.outcome === "cancelled" || item.outcome === "failed";
-    return true;
-  });
 
   const loadOffers = async (isBackground = false) => {
     if (!isBackground) setIsLoading(true);
@@ -370,92 +297,44 @@ export function RiderOrdersScreen() {
 
   return (
     <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-2xl overflow-y-auto text-neutral-900 select-none pb-20">
-      {/* 1. Header with Tab Switcher */}
+      {/* 1. Header with Live Orders Title */}
       <div
-        className="sticky top-0 z-30 px-4 pb-2.5 bg-white border-b border-neutral-100 shadow-2xs"
+        className="sticky top-0 z-30 px-4 pb-3 bg-white border-b border-neutral-100 shadow-2xs"
         style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 12px, 16px)" }}
       >
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-black text-neutral-950 tracking-tight flex items-center gap-2">
-              <span>{activeTab === "queue" ? `${totalOrders} Orders Queue` : "Ride History"}</span>
-              {activeTab === "queue" && totalOrders > 0 && (
+              <span>{t("orders.liveQueue", "Live Order Queue")}</span>
+              {totalOrders > 0 && (
                 <span className="flex h-2.5 w-2.5 rounded-full bg-[#00C853] animate-pulse" />
               )}
             </h1>
             <p className="text-[11px] font-medium text-neutral-500">
-              {activeTab === "queue"
-                ? "Live customer ride dispatches"
-                : "Completed & past delivery records"}
+              {totalOrders > 0
+                ? `${totalOrders} ${t("orders.pendingDispatches", "active order(s) available")}`
+                : t("orders.waitingNotice", "Stay in your Work Zone to receive instant dispatches")}
             </p>
           </div>
 
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => {
-                if (activeTab === "queue") loadOffers();
-                else loadHistory();
-              }}
-              disabled={isLoading || historyLoading}
+              onClick={() => loadOffers()}
+              disabled={isLoading}
               className="p-2 text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100 rounded-full active:scale-95 transition-all"
-              title="Refresh"
+              title="Refresh Queue"
             >
               <RotateCw
-                className={`w-4 h-4 ${
-                  isLoading || historyLoading ? "animate-spin text-[#00C853]" : ""
-                }`}
+                className={`w-4 h-4 ${isLoading ? "animate-spin text-[#00C853]" : ""}`}
               />
             </button>
           </div>
         </div>
-
-        {/* Segmented Tab Switcher */}
-        <div className="flex items-center p-1 mt-2.5 bg-neutral-100/90 rounded-2xl border border-neutral-200/60">
-          <button
-            type="button"
-            onClick={() => setActiveTab("queue")}
-            className={`flex-1 py-1.5 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === "queue"
-                ? "bg-white text-neutral-950 shadow-xs"
-                : "text-neutral-500 hover:text-neutral-900"
-            }`}
-          >
-            <span>⚡ Live Orders</span>
-            {totalOrders > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-[#00C853] text-white text-[10px] font-black">
-                {totalOrders}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("history");
-              if (historyItems.length === 0) {
-                loadHistory();
-              }
-            }}
-            className={`flex-1 py-1.5 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === "history"
-                ? "bg-white text-neutral-950 shadow-xs"
-                : "text-neutral-500 hover:text-neutral-900"
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-neutral-600" />
-            <span>Ride History</span>
-            {historyItems.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-neutral-200 text-neutral-800 text-[10px] font-bold">
-                {historyItems.length}
-              </span>
-            )}
-          </button>
-        </div>
       </div>
 
-      {activeTab === "queue" ? (
-        totalOrders > 0 ? (
-          <div className="flex flex-1 px-3.5 py-3 gap-3">
+      {totalOrders > 0 ? (
+        <div className="flex flex-1 px-3.5 py-3 gap-3">
             {/* Left Vertical Queue Rail with Circular Progress Ring Timer */}
             <div className="flex flex-col items-center py-3 w-10 space-y-12 shrink-0">
               {offers.map((_, idx) => (
@@ -713,193 +592,7 @@ export function RiderOrdersScreen() {
               </button>
             </div>
           </div>
-        )
-      ) : (
-        // RIDE HISTORY TAB CONTENT
-        <div className="flex-1 px-4 py-3 space-y-3.5">
-          {/* Summary Metric Strip */}
-          <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/60 border border-emerald-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#00C853] text-white flex items-center justify-center font-black shadow-xs">
-                <Bike className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-emerald-800">Total Rides Completed</p>
-                <p className="text-base font-black text-emerald-950">
-                  {historyItems.filter((i) => i.outcome === "completed").length} Trips
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] font-bold text-emerald-800">Total Earnings</p>
-              <p className="text-base font-black text-emerald-950">
-                ₹{historyItems
-                  .filter((i) => i.outcome === "completed")
-                  .reduce((acc, i) => acc + (i.amount || 0), 0)
-                  .toFixed(0)}
-              </p>
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            {[
-              { id: "all", label: `All Trips (${historyItems.length})` },
-              {
-                id: "completed",
-                label: `Completed (${historyItems.filter((i) => i.outcome === "completed").length})`,
-              },
-              {
-                id: "cancelled",
-                label: `Cancelled (${historyItems.filter((i) => i.outcome === "cancelled" || i.outcome === "failed").length})`,
-              },
-            ].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setHistoryFilter(f.id as any)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
-                  historyFilter === f.id
-                    ? "bg-neutral-900 text-white shadow-xs"
-                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* History Cards List */}
-          {historyLoading ? (
-            <div className="py-12 flex flex-col items-center justify-center space-y-2 text-neutral-500">
-              <RotateCw className="w-6 h-6 animate-spin text-[#00C853]" />
-              <p className="text-xs font-semibold">Loading Ride History...</p>
-            </div>
-          ) : filteredHistory.length > 0 ? (
-            <div className="space-y-3 pb-8">
-              {filteredHistory.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 bg-white rounded-2xl border border-neutral-200 shadow-2xs space-y-3 hover:shadow-xs transition-shadow"
-                >
-                  {/* Top: Order Code + Date + Outcome Badge */}
-                  <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-neutral-900 font-mono">
-                        #{item.code}
-                      </span>
-                      <span className="text-[11px] font-medium text-neutral-400">·</span>
-                      <span className="text-[11px] font-medium text-neutral-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-neutral-400" />
-                        <span>{formatHistoryDate(item.date)}</span>
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                        item.outcome === "completed"
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : "bg-rose-50 text-rose-800 border-rose-200"
-                      }`}
-                    >
-                      {item.outcome === "completed" ? "Completed ✅" : "Cancelled ❌"}
-                    </span>
-                  </div>
-
-                  {/* Route Details */}
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[9px] shrink-0 mt-0.5">
-                        P
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
-                          PICKUP
-                        </p>
-                        <p className="font-bold text-neutral-800 truncate">
-                          {item.pickupAddress || item.partnerName || "Kasganj Hub"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="ml-2 w-0.5 h-3 bg-neutral-200" />
-
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700 font-bold text-[9px] shrink-0 mt-0.5">
-                        D
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
-                          DROP
-                        </p>
-                        <p className="font-bold text-neutral-800 truncate">
-                          {item.dropAddress || item.customerName || "Customer Address"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom: Customer, Distance & Payout */}
-                  <div className="flex items-center justify-between pt-2.5 border-t border-neutral-100 text-xs">
-                    <div className="flex items-center gap-2 text-neutral-600 font-medium">
-                      <span>👤 {item.customerName}</span>
-                      <span>·</span>
-                      <span className="font-bold text-neutral-700">{item.distanceKm} km</span>
-                    </div>
-
-                    <div className="text-right">
-                      <span
-                        className={`text-base font-black font-mono ${
-                          item.outcome === "completed" ? "text-[#00C853]" : "text-neutral-400"
-                        }`}
-                      >
-                        {item.outcome === "completed" ? `+₹${item.amount.toFixed(0)}` : "₹0"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            // Empty History State
-            <div className="flex flex-col items-center justify-center py-14 text-center space-y-3">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-neutral-100 text-neutral-500 font-bold text-xl">
-                <History className="w-7 h-7 text-neutral-400" />
-              </div>
-              <h3 className="text-sm font-black text-neutral-950">No Ride History Found</h3>
-              <p className="text-xs text-neutral-500 max-w-xs leading-relaxed">
-                {historyFilter !== "all"
-                  ? `No ${historyFilter} rides found in your records.`
-                  : "Trips you complete will appear here with live earnings, route details, and timestamps."}
-              </p>
-              <button
-                type="button"
-                onClick={loadHistory}
-                disabled={historyLoading}
-                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs rounded-xl shadow-2xs active:scale-95"
-              >
-                {historyLoading ? "Refreshing..." : "🔄 Refresh History"}
-              </button>
-            </div>
-          )}
-
-          {/* Brand Watermark Footer in History Tab */}
-          <section className="mt-8 select-none bg-muted/60 px-5 pb-10 pt-8 border-t border-border/70 rounded-3xl">
-            <h2 className="text-[2.2rem] font-black leading-[0.95] tracking-tight text-muted-foreground/35">
-              India&rsquo;s freshest
-              <br />
-              laundry app <span className="text-primary/35">🧺</span>
-            </h2>
-            <div className="mt-6 h-px w-full bg-border/70" />
-            <p className="mt-5 text-2xl font-black tracking-tight text-muted-foreground/25">
-              QuickPress
-            </p>
-            <p className="mt-4 text-[11px] font-medium tracking-wide text-muted-foreground/70">
-              Made In India · Crafted by Utter Pradesh 🚩
-            </p>
-          </section>
-        </div>
-      )}
+        )}
 
       {/* 3. Strictly 2-Tab Bottom Navigation */}
       <RiderBottomNav active="orders" ordersBadgeCount={totalOrders} />

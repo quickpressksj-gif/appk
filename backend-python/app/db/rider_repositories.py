@@ -397,8 +397,20 @@ class RiderDeliveryRepository:
         tasks = [lifecycle.to_rider_delivery(d) for d in await self._orders_for(rider_id)]
         today = _now()[:10]
         completed_today = [
-            t for t in tasks if t["status"] == "delivered" and (t["placedAt"] or "")[:10] == today
+            t for t in tasks if t.get("status") in ("delivered", "completed") and (str(t.get("deliveredAt") or t.get("updatedAt") or t.get("placedAt") or ""))[:10] == today
         ]
+        # Also check wallet transactions today for actual real earnings
+        txns = await database.find_sorted(
+            WALLET_TXNS, {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}]}, sort=[("date", -1)]
+        ) or []
+        today_credits = [
+            t for t in txns
+            if t.get("direction") == "credit" and str(t.get("date") or "")[:10] == today
+        ]
+        earnings_today = round(sum(float(t.get("amount") or 0) for t in today_credits), 2)
+        if earnings_today == 0.0 and completed_today:
+            earnings_today = round(sum(float(t.get("estimatedEarning") or 0) for t in completed_today), 2)
+
         return {
             "assigned": sum(1 for t in tasks if t["status"] == "assigned"),
             "active": sum(
@@ -407,7 +419,7 @@ class RiderDeliveryRepository:
                 if t["status"] in ("accepted", "picked", "at-partner", "ready-for-delivery")
             ),
             "completedToday": len(completed_today),
-            "earningsToday": sum(t["estimatedEarning"] for t in completed_today),
+            "earningsToday": earnings_today,
         }
 
 
@@ -501,7 +513,7 @@ class RiderEarningsRepository:
                     "reward": 100,
                     "target": 5,
                     "progress": min(5, completed_count),
-                    "expiresIn": "6:00 PM – 9:00 PM",
+                    "expiresIn": "2h 45m left",
                     "completed": completed_count >= 5,
                 },
             ],
@@ -536,7 +548,36 @@ class RiderWalletRepository:
             await database.insert(WALLETS, dict(base_doc))
             document = base_doc
 
-        return _public(document)
+        # Dynamically compute real today's and this week's earnings from credit transactions
+        txns = await database.find_sorted(
+            WALLET_TXNS, {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}]}, sort=[("date", -1)]
+        ) or []
+        today_prefix = _now()[:10]
+        now = datetime.now(timezone.utc)
+        seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+        today_credits = [
+            t for t in txns
+            if t.get("direction") == "credit" and str(t.get("date") or "")[:10] == today_prefix
+        ]
+        today_earned = round(sum(float(t.get("amount") or 0) for t in today_credits), 2)
+
+        week_credits = [
+            t for t in txns
+            if t.get("direction") == "credit" and str(t.get("date") or "") >= seven_days_ago
+        ]
+        this_week_earned = round(sum(float(t.get("amount") or 0) for t in week_credits), 2)
+
+        all_credits = [t for t in txns if t.get("direction") == "credit"]
+        total_lifetime = round(sum(float(t.get("amount") or 0) for t in all_credits), 2)
+        if total_lifetime == 0.0:
+            total_lifetime = float(document.get("lifetimeEarnings") or document.get("balance") or 0.0)
+
+        pub = _public(document)
+        pub["todayEarned"] = today_earned
+        pub["thisWeekEarned"] = this_week_earned
+        pub["lifetimeEarnings"] = max(total_lifetime, float(document.get("balance") or 0.0))
+        return pub
 
     async def withdraw(self, rider_id: str, amount: float, upi_id: str = "") -> Dict[str, Any]:
         wallet = await database.find_one(WALLETS, {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]})

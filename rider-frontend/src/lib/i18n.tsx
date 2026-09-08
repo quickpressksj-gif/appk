@@ -58,7 +58,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "By continuing, you agree to our Terms and Conditions",
 
     // OTP
-    "otp.title": "Enter 4-digit OTP",
+    "otp.title": "Enter 6-digit OTP",
     "otp.sentTo": "Sent to",
     "otp.changeNumber": "Change Number",
     "otp.didntReceive": "Didn't receive code?",
@@ -77,6 +77,65 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "dash.workZone": "More orders inside Work Zone",
     "dash.workZoneSub": "Stay within 2.5 km of Hub for faster dispatches",
     "dash.goOnDuty": "GO ON DUTY TO START EARNING",
+
+    // Navigation
+    "nav.dashboard": "Home",
+    "nav.orders": "Orders",
+    "nav.wallet": "Earnings",
+    "nav.leaderboard": "Leaderboard",
+    "nav.incentives": "Incentives",
+    "nav.profile": "Profile",
+
+    // Profile
+    "profile.title": "Captain Profile & Settings",
+    "profile.totalTrips": "Total Trips",
+    "profile.cityHub": "City Hub",
+    "profile.kycStatus": "KYC Status",
+    "profile.verified": "VERIFIED ✓",
+    "profile.underReview": "UNDER REVIEW ⏳",
+    "profile.vehicleDetails": "Vehicle & Documents",
+    "profile.bankDetails": "Bank & Settlement Payouts",
+    "profile.operationalSettings": "Operational Settings",
+    "profile.soundAlerts": "Audio & Siren Alerts",
+    "profile.routeBooking": "Home Route Booking",
+    "profile.guidelines": "Captain Guidelines & SOP",
+    "profile.support": "24/7 Captain Helpline & SOS",
+    "profile.logout": "Logout Captain Account",
+
+    // Orders
+    "orders.title": "Live Orders",
+    "orders.liveQueue": "Live Order Queue",
+    "orders.noOrders": "No orders in queue right now",
+    "orders.waitingNotice": "Stay in your Work Zone to receive instant dispatches",
+    "orders.accept": "Accept Ride",
+    "orders.reject": "Reject",
+
+    // Wallet & Earnings
+    "wallet.title": "Earnings & Wallet",
+    "wallet.balance": "Total Wallet Balance",
+    "wallet.today": "Today's Earnings",
+    "wallet.thisWeek": "This Week's Earnings",
+    "wallet.lifetime": "Lifetime Earnings",
+    "wallet.cashout": "Instant UPI Cashout",
+    "wallet.passbook": "Passbook Ledger",
+    "wallet.noTxn": "No transactions found",
+
+    // Leaderboard
+    "leaderboard.title": "City Leaderboard",
+    "leaderboard.sub": "Top Captains in City",
+    "leaderboard.today": "Today",
+    "leaderboard.weekly": "Weekly",
+    "leaderboard.allTime": "All Time",
+    "leaderboard.yourRank": "Your Rank",
+    "leaderboard.trips": "Trips",
+
+    // Incentives
+    "incentives.title": "Incentives & Targets",
+    "incentives.dailyMilestone": "Daily Milestone Slabs",
+    "incentives.weeklyStreak": "6-Day Duty Streak",
+    "incentives.specialQuests": "Special Quests & Surges",
+    "incentives.completed": "Completed",
+    "incentives.remaining": "Remaining",
   },
 
   // 2. Hindi
@@ -117,7 +176,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "जारी रखकर, आप हमारे नियम और शर्तों से सहमत होते हैं",
 
     // OTP
-    "otp.title": "4 अंकों का ओटीपी दर्ज करें",
+    "otp.title": "6 अंकों का ओटीपी दर्ज करें",
     "otp.sentTo": "भेजा गया नंबर:",
     "otp.changeNumber": "नंबर बदलें",
     "otp.didntReceive": "कोड नहीं मिला?",
@@ -136,6 +195,65 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "dash.workZone": "वर्क ज़ोन के अंदर अधिक ऑर्डर्स",
     "dash.workZoneSub": "तेज़ डिस्पैच के लिए हब के 2.5 किमी के दायरे में रहें",
     "dash.goOnDuty": "कमाई शुरू करने के लिए ऑन ड्यूटी जाएं",
+
+    // Navigation
+    "nav.dashboard": "होम",
+    "nav.orders": "ऑर्डर्स",
+    "nav.wallet": "कमाई (वॉलेट)",
+    "nav.leaderboard": "लीडरबोर्ड",
+    "nav.incentives": "टारगेट व बोनस",
+    "nav.profile": "प्रोफाइल",
+
+    // Profile
+    "profile.title": "कैप्टन प्रोफाइल व सेटिंग्स",
+    "profile.totalTrips": "कुल राइड्स",
+    "profile.cityHub": "शहर हब",
+    "profile.kycStatus": "केवाईसी स्थिति",
+    "profile.verified": "सत्यापित ✓",
+    "profile.underReview": "जांच जारी ⏳",
+    "profile.vehicleDetails": "वाहन व दस्तावेज विवरण",
+    "profile.bankDetails": "बैंक व यूपीआई भुगतान विवरण",
+    "profile.operationalSettings": "कार्य संचालन सेटिंग्स",
+    "profile.soundAlerts": "ऑडियो व सायरन अलर्ट",
+    "profile.routeBooking": "घर का रूट बुकिंग",
+    "profile.guidelines": "कैप्टन नियम व दिशानिर्देश",
+    "profile.support": "24/7 कैप्टन हेल्पलाइन व SOS",
+    "profile.logout": "कैप्टन अकाउंट लॉगआउट करें",
+
+    // Orders
+    "orders.title": "लाइव ऑर्डर्स",
+    "orders.liveQueue": "लाइव ऑर्डर कतार",
+    "orders.noOrders": "अभी कतार में कोई नया ऑर्डर नहीं है",
+    "orders.waitingNotice": "तुरंत ऑर्डर पाने के लिए वर्क ज़ोन में रहें",
+    "orders.accept": "राइड स्वीकार करें",
+    "orders.reject": "अस्वीकार",
+
+    // Wallet & Earnings
+    "wallet.title": "कमाई और पासबुक",
+    "wallet.balance": "कुल वॉलेट बैलेंस",
+    "wallet.today": "आज की कमाई",
+    "wallet.thisWeek": "इस सप्ताह की कमाई",
+    "wallet.lifetime": "कुल जीवन भर की कमाई",
+    "wallet.cashout": "तुरंत यूपीआई बैंक निकासी",
+    "wallet.passbook": "पासबुक खाता बही",
+    "wallet.noTxn": "कोई लेनदेन नहीं मिला",
+
+    // Leaderboard
+    "leaderboard.title": "सिटी लीडरबोर्ड",
+    "leaderboard.sub": "शहर के टॉप कैप्टन",
+    "leaderboard.today": "आज",
+    "leaderboard.weekly": "साप्ताहिक",
+    "leaderboard.allTime": "अब तक",
+    "leaderboard.yourRank": "आपकी रैंक",
+    "leaderboard.trips": "राइड्स",
+
+    // Incentives
+    "incentives.title": "इंसेंटिव व दैनिक टारगेट",
+    "incentives.dailyMilestone": "दैनिक माइलस्टोन स्लैब",
+    "incentives.weeklyStreak": "6-दिन ड्यूटी स्ट्रीक बोनस",
+    "incentives.specialQuests": "विशेष क्वेस्ट व सर्ज बोनस",
+    "incentives.completed": "पूरा हुआ",
+    "incentives.remaining": "बाकी",
   },
 
   // 3. Telugu
@@ -176,7 +294,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "కొనసాగించడం ద్వారా, మీరు నిబంధనలు మరియు షరతులకు అంగీకరిస్తున్నారు",
 
     // OTP
-    "otp.title": "4 అంకెల OTP నమోదు చేయండి",
+    "otp.title": "6 అంకెల OTP నమోదు చేయండి",
     "otp.sentTo": "పంపబడిన నంబర్:",
     "otp.changeNumber": "నంబర్ మార్చండి",
     "otp.didntReceive": "కోడ్ రాలేదా?",
@@ -235,7 +353,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "ಮುಂದುವರಿಯುವ ಮೂಲಕ, ನೀವು ನಿಯಮಗಳು ಮತ್ತು ಷರತ್ತುಗಳನ್ನು ಒಪ್ಪುತ್ತೀರಿ",
 
     // OTP
-    "otp.title": "4 ಅಂಕಿಗಳ OTP ನಮೂದಿಸಿ",
+    "otp.title": "6 ಅಂಕಿಗಳ OTP ನಮೂದಿಸಿ",
     "otp.sentTo": "ಕಳುಹಿಸಲಾದ ಸಂಖ್ಯೆ:",
     "otp.changeNumber": "ಸಂಖ್ಯೆ ಬದಲಾಯಿಸಿ",
     "otp.didntReceive": "ಕೋಡ್ ಬಂದಿಲ್ಲವೇ?",
@@ -294,7 +412,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "தொடர்வதன் மூலம், எங்கள் விதிமுறைகளை ஏற்கிறீர்கள்",
 
     // OTP
-    "otp.title": "4 இலக்க OTP ஐ உள்ளிடவும்",
+    "otp.title": "6 இலக்க OTP ஐ உள்ளிடவும்",
     "otp.sentTo": "அனுப்பப்பட்ட எண்:",
     "otp.changeNumber": "எண்ணை மாற்றவும்",
     "otp.didntReceive": "குறியீடு வரவில்லையா?",
@@ -353,7 +471,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "पुढे चालू ठेवून, आपण अटी आणि शर्तींशी सहमत आहात",
 
     // OTP
-    "otp.title": "4 अंकी OTP प्रविष्ट करा",
+    "otp.title": "6 अंकी OTP प्रविष्ट करा",
     "otp.sentTo": "पाठवलेला नंबर:",
     "otp.changeNumber": "नंबर बदला",
     "otp.didntReceive": "कोड मिळाला नाही?",
@@ -412,7 +530,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "চালিয়ে যাওয়ার মাধ্যমে, আপনি শর্তাবলী সম্মত হন",
 
     // OTP
-    "otp.title": "৪ সংখ্যার OTP লিখুন",
+    "otp.title": "৬ সংখ্যার OTP লিখুন",
     "otp.sentTo": "পাঠানো হয়েছে:",
     "otp.changeNumber": "নম্বর পরিবর্তন করুন",
     "otp.didntReceive": "কোড পাননি?",
@@ -471,7 +589,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "auth.termsNotice": "തുടരുന്നതിലൂടെ, നിങ്ങൾ നിബന്ധനകൾ അംഗീകരിക്കുന്നു",
 
     // OTP
-    "otp.title": "4 അക്ക OTP നൽകുക",
+    "otp.title": "6 അക്ക OTP നൽകുക",
     "otp.sentTo": "അയച്ച നമ്പർ:",
     "otp.changeNumber": "നമ്പർ മാറ്റുക",
     "otp.didntReceive": "കോഡ് ലഭിച്ചില്ലേ?",

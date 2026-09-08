@@ -1,18 +1,20 @@
 import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ArrowRight,
   Award,
+  Bell,
+  Bike,
+  CheckCircle2,
   ChevronRight,
   Gift,
   HelpCircle,
-  History,
   LogOut,
   MapPin,
   Navigation,
-  Phone,
+  Package,
   ShieldCheck,
   TrendingUp,
-  User,
   Volume2,
   VolumeX,
   Wallet,
@@ -32,12 +34,15 @@ import {
   stopOrderAlertSound,
   triggerHaptic,
 } from "../../lib/captain-audio";
+import { CaptainSupportModal } from "../support/CaptainSupportModal";
+import { CaptainGuidelinesModal } from "../support/CaptainGuidelinesModal";
 
 interface CaptainSidebarDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   captainName?: string;
   captainId?: string;
+  captainPhoto?: string;
   rating?: number;
   onLogout?: () => void;
   onOpenLanguage?: () => void;
@@ -49,19 +54,26 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
   onClose,
   captainName = "Captain",
   captainId = "RDR-8821",
+  captainPhoto,
   rating = 4.9,
   onLogout,
   onOpenLanguage,
   onOpenOnboarding,
 }) => {
   const navigate = useNavigate();
-  const { signOut } = useRiderContext();
-  const { selectedLanguageObj } = useLanguage();
+  const { signOut, session } = useRiderContext();
+  const { t, selectedLanguageObj } = useLanguage();
 
   const [myRouteBooking, setMyRouteBooking] = useState(false);
   const [showAudioModal, setShowAudioModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showGuidelinesModal, setShowGuidelinesModal] = useState(false);
   const [isMuted, setIsMutedState] = useState(() => isAudioMuted());
   const [audioLang, setAudioLangState] = useState(() => getAudioLanguage());
+
+  const effectivePhoto =
+    captainPhoto ||
+    (typeof window !== "undefined" ? window.localStorage.getItem("qp_rider_profile_photo") : null);
 
   if (!isOpen) return null;
 
@@ -164,9 +176,17 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
               className="w-full flex items-center justify-between p-3 bg-amber-50/90 hover:bg-amber-100/80 border border-amber-200/90 rounded-2xl text-left active:scale-98 transition-all shadow-2xs"
             >
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-400 text-neutral-950 font-black text-base shadow-xs shrink-0">
-                  {captainName.slice(0, 1).toUpperCase()}
-                </div>
+                {effectivePhoto ? (
+                  <img
+                    src={effectivePhoto}
+                    alt={captainName}
+                    className="w-11 h-11 rounded-full object-cover border border-amber-300 shadow-xs shrink-0"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-400 text-neutral-950 font-black text-base shadow-xs shrink-0">
+                    {captainName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-sm font-black text-neutral-950 leading-tight">
                     {captainName}
@@ -232,17 +252,17 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
             <div className="p-3 space-y-1">
               {[
                 {
-                  icon: History,
-                  title: "Ride History (सफ़र इतिहास)",
-                  sub: "Completed trips, routes & earnings",
+                  icon: Package,
+                  title: t("orders.liveQueue", "Live Orders Queue"),
+                  sub: "Instant customer laundry dispatches",
                   onClick: () => {
                     onClose();
-                    navigate({ to: "/orders", search: { tab: "history" } as any });
+                    navigate({ to: "/orders" });
                   },
                 },
                 {
                   icon: Wallet,
-                  title: "Earnings & Wallet",
+                  title: t("wallet.title", "Earnings & Wallet"),
                   sub: "Instant daily UPI bank payout",
                   onClick: () => {
                     onClose();
@@ -251,7 +271,7 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
                 },
                 {
                   icon: Award,
-                  title: "City Leaderboard",
+                  title: t("leaderboard.title", "City Leaderboard"),
                   sub: "Rank #1 wins ₹500 Weekly Prize Pool",
                   onClick: () => {
                     onClose();
@@ -260,7 +280,7 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
                 },
                 {
                   icon: TrendingUp,
-                  title: "Incentives & Targets",
+                  title: t("incentives.title", "Incentives & Targets"),
                   sub: "Daily milestone bonus tracker & quests",
                   onClick: () => {
                     onClose();
@@ -283,21 +303,19 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
                 },
                 {
                   icon: ShieldCheck,
-                  title: "Captain Onboarding & Guidelines",
-                  sub: "Zero Commission & Smart Dispatch Tutorial",
+                  title: t("profile.guidelines", "Captain Guidelines & SOP"),
+                  sub: "Zero Commission & SOP Workflow",
                   onClick: () => {
-                    if (onOpenOnboarding) {
-                      onOpenOnboarding();
-                    } else {
-                      toast.info("Captain Onboarding active.");
-                    }
+                    setShowGuidelinesModal(true);
                   },
                 },
                 {
                   icon: HelpCircle,
-                  title: "24/7 Captain Support & SOS",
-                  sub: "Helpline: 1800-123-QPAY",
-                  onClick: () => toast.info("Emergency Helpline connected: 1800-123-QPAY"),
+                  title: t("profile.support", "24/7 Captain Support & SOS"),
+                  sub: "Helpline: +91 92587 30561 · Live Support",
+                  onClick: () => {
+                    setShowSupportModal(true);
+                  },
                 },
               ].map((item, idx) => {
                 const Icon = item.icon;
@@ -477,6 +495,18 @@ export const CaptainSidebarDrawer: React.FC<CaptainSidebarDrawerProps> = ({
           </div>
         </div>
       )}
+
+      {/* 24/7 Support Modal */}
+      <CaptainSupportModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
+
+      {/* Guidelines & SOP Modal */}
+      <CaptainGuidelinesModal
+        isOpen={showGuidelinesModal}
+        onClose={() => setShowGuidelinesModal(false)}
+      />
     </>
   );
 };

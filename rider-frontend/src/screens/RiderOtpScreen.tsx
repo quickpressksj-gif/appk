@@ -113,7 +113,7 @@ export function RiderOtpScreen() {
   // Handle Verify with Real Backend & Database Check
   const handleVerify = async (e?: FormEvent) => {
     if (e) e.preventDefault();
-    if (otpCode.length < 4 || loading) return;
+    if (otpCode.length !== 6 || loading) return;
 
     setLoading(true);
 
@@ -272,7 +272,7 @@ export function RiderOtpScreen() {
         <button
           type="button"
           onClick={handleVerify}
-          disabled={loading || otpCode.length < 4}
+          disabled={loading || otpCode.length !== 6}
           className="w-full h-13.5 flex items-center justify-center bg-[#00C853] hover:bg-[#00B248] disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm tracking-wide rounded-2xl shadow-lg shadow-emerald-500/25 active:scale-98 transition-all"
         >
           {loading ? (

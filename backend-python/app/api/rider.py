@@ -1125,6 +1125,24 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
             "documents": [],
         }
 
+    # Calculate real total trips from completed orders
+    real_total_trips = 0
+    try:
+        all_orders = await rider_delivery_repository._orders_for(rider_id or user.id)
+        completed_orders = [o for o in all_orders if o.get("status") in ("delivered", "completed")]
+        real_total_trips = len(completed_orders)
+    except Exception:
+        pass
+    if real_total_trips == 0 and profile.get("totalTrips"):
+        try:
+            real_total_trips = int(profile.get("totalTrips"))
+        except Exception:
+            real_total_trips = 0
+
+    # Real Photo / Avatar from registration selfie
+    user_photo = getattr(user, "photo_url", "") or ""
+    reg_photo = profile.get("selfieUrl") or profile.get("photoUrl") or profile.get("avatar") or user_photo or ""
+
     pub = _public(profile)
     pub.setdefault("id", rider_id or user.id)
     pub.setdefault("riderId", rider_id or user.id)
@@ -1143,14 +1161,26 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
     pub.setdefault("phone", getattr(user, "phone", ""))
     pub.setdefault("email", getattr(user, "email", ""))
     pub.setdefault("city", pub.get("city") or getattr(user, "city", "") or "Kasganj")
-    pub.setdefault("rating", 5.0)
-    pub.setdefault("totalTrips", pub.get("trips") or 0)
+    pub.setdefault("rating", float(profile.get("rating") or 5.0))
+    pub["totalTrips"] = real_total_trips
+    pub["photoUrl"] = reg_photo
+    pub["selfieUrl"] = reg_photo
+    pub["avatar"] = reg_photo
     pub.setdefault("joinedOn", pub.get("joinedOn") or "August 2026")
     pub.setdefault("vehicleType", pub.get("vehicleType") or "Bike")
     pub.setdefault("vehicleNumber", pub.get("vehicleNumber") or "—")
-    pub.setdefault("bankName", pub.get("bankName") or "State Bank of India")
-    pub.setdefault("accountLast4", "4821")
-    pub.setdefault("ifsc", "SBIN0001234")
+    
+    # Real Bank Details without fake mock defaults
+    pub["bankName"] = profile.get("bankName") or ""
+    pub["accountNumber"] = profile.get("accountNumber") or ""
+    pub["accountLast4"] = str(profile.get("accountNumber") or "")[-4:] if profile.get("accountNumber") else ""
+    pub["ifsc"] = profile.get("ifsc") or ""
+    pub["accountHolder"] = profile.get("accountHolder") or candidate_name
+    pub["upiId"] = profile.get("upiId") or ""
+    pub["dlNumber"] = profile.get("dlNumber") or profile.get("license") or ""
+    pub["rcNumber"] = profile.get("rcNumber") or profile.get("vehicleNumber") or ""
+    pub["aadhaar"] = profile.get("aadhaar") or ""
+    pub["pan"] = profile.get("pan") or ""
     pub.setdefault("isOnline", False)
     pub.setdefault("onlineMinutes", 0)
     pub.setdefault("suspensionReason", getattr(user, "suspensionReason", None))
@@ -1158,6 +1188,97 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
     pub.setdefault("appealDetails", getattr(user, "appealDetails", ""))
     pub.setdefault("appealSubmittedAt", getattr(user, "appealSubmittedAt", ""))
     return pub
+
+
+# --------------------------------------------------------------------------
+# Dynamic Guidelines & 24/7 Support (Connected to Admin Settings)
+# --------------------------------------------------------------------------
+
+@public_router.get("/guidelines")
+@router.get("/guidelines")
+async def get_rider_guidelines() -> dict:
+    from app.db.admin_repositories import admin_settings_repository
+    settings = await admin_settings_repository.get(scope="global") or {}
+    platform_info = settings.get("platform") or {}
+
+    return {
+        "ok": True,
+        "platformName": platform_info.get("platformName") or "QuickPress Logistics",
+        "slides": [
+            {
+                "id": 1,
+                "badge": "0% COMMISSION",
+                "title": "Zero Commission, 100% Earnings",
+                "subtitle": "All trip fares and customer tips go straight to your wallet. Zero platform commission deductions!",
+                "highlight": "Daily Direct Bank Payouts 💰",
+                "color": "emerald",
+            },
+            {
+                "id": 2,
+                "badge": "SMART DISPATCH",
+                "title": "Live Ride & Delivery Dispatches",
+                "subtitle": "Receive instant orders on your mobile with live GPS tracking directly in your work zone.",
+                "highlight": "High Demand Work Zones 📍",
+                "color": "amber",
+            },
+            {
+                "id": 3,
+                "badge": "FULL FLEXIBILITY",
+                "title": "Flexible Working Hours",
+                "subtitle": "Work whenever you want. Turn ON DUTY and start earning on your own schedule.",
+                "highlight": "Be Your Own Boss 🛵",
+                "color": "blue",
+            },
+        ],
+        "guidelines": [
+            {
+                "title": "1. Customer Pickup & Verification 🧺",
+                "desc": "Reach customer doorstep on time. Verify items with customer and enter the 6-digit Customer Pickup OTP before picking up clothes.",
+            },
+            {
+                "title": "2. Store Drop & Washing Handover 🏪",
+                "desc": "Drop clothes safely at the partner store. Swipe 'Arrival to Store & Handover'. Partner cannot start washing until you reach store.",
+            },
+            {
+                "title": "3. Store Drop Opt-Out Choice 🔄",
+                "desc": "Need to leave after store drop? Select 'Leave Trip at Store' to collect 75% net pickup payout (25% fee deducted). The delivery leg is reassigned to a new captain with a +20% bonus incentive.",
+            },
+            {
+                "title": "4. Partner Dispatch OTP & Ready Delivery 📦",
+                "desc": "When clothes are washed and ironed, pick them from the partner store using the Partner Dispatch OTP.",
+            },
+            {
+                "title": "5. Customer Delivery OTP & Instant Payout 🚀",
+                "desc": "Deliver clean clothes to the customer, enter Customer Delivery OTP, and receive instant earnings credited to your wallet with 0% deduction.",
+            },
+        ],
+    }
+
+
+@public_router.get("/support")
+@router.get("/support")
+async def get_rider_support() -> dict:
+    from app.db.admin_repositories import admin_settings_repository
+    settings = await admin_settings_repository.get(scope="global") or {}
+    platform_info = settings.get("platform") or {}
+
+    helpline_phone = platform_info.get("supportPhone") or settings.get("supportPhone") or "+91 92587 30561"
+    if not helpline_phone or "90000 00000" in helpline_phone or "9000000000" in helpline_phone:
+        helpline_phone = "+91 92587 30561"
+    support_email = platform_info.get("supportEmail") or settings.get("supportEmail") or "support@quickpress.app"
+    clean_digits = "".join(ch for ch in helpline_phone if ch.isdigit())
+    if len(clean_digits) == 10:
+        clean_digits = f"91{clean_digits}"
+
+    return {
+        "ok": True,
+        "helplinePhone": helpline_phone,
+        "supportEmail": support_email,
+        "whatsappUrl": f"https://wa.me/{clean_digits}?text=Hi%20QuickPress%20Support,%20I%20am%20a%20Captain%20needing%20assistance",
+        "emergencySosNumber": "112",
+        "workingHours": "24 Hours · 7 Days a Week (24/7)",
+        "hubAddress": settings.get("business", {}).get("address") or "QuickPress Express Hub, Kasganj, Uttar Pradesh 207123",
+    }
 
 
 @public_router.get("/verification-status")
@@ -2657,11 +2778,13 @@ async def get_city_leaderboard(
         if not rid:
             continue
         rname = r.get("fullName") or r.get("name") or "Captain"
+        rphoto = r.get("selfieUrl") or r.get("photoUrl") or ""
         rider_stats[rid] = {
             "id": rid,
             "name": f"{rname} (You)" if (rider_id and rid == rider_id) else rname,
             "riderId": rid,
             "avatar": "".join([p[0].upper() for p in rname.split() if p][:2]) or "CP",
+            "photoUrl": rphoto,
             "trips": int(r.get("todayDeliveries" if period == "today" else "totalDeliveries", 0)),
             "earnings": float(r.get("todayEarnings" if period == "today" else "totalEarnings", 0.0)),
             "rating": float(r.get("rating", 4.9)),
@@ -2673,11 +2796,13 @@ async def get_city_leaderboard(
 
     # If current rider not in city_riders and rider_id exists, ensure they exist in stats
     if rider_id and rider_id not in rider_stats:
+        my_photo = my_profile.get("selfieUrl") or my_profile.get("photoUrl") or getattr(user, "photo_url", "") or ""
         rider_stats[rider_id] = {
             "id": rider_id,
             "name": f"{my_name} (You)",
             "riderId": rider_id,
             "avatar": "".join([p[0].upper() for p in my_name.split() if p][:2]) or "CP",
+            "photoUrl": my_photo,
             "trips": int(my_profile.get("todayDeliveries" if period == "today" else "totalDeliveries", 0)),
             "earnings": float(my_profile.get("todayEarnings" if period == "today" else "totalEarnings", 0.0)),
             "rating": my_rating,
