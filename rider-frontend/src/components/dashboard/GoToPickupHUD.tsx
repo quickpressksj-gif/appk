@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowRight,
   Bike,
   CheckCircle2,
@@ -34,9 +35,13 @@ import {
   unlockAudioContext,
 } from "../../lib/captain-audio";
 import { InAppVoiceNavigationModal } from "../navigation/InAppVoiceNavigationModal";
+import { RiderUnableToDeliverModal } from "../orders/RiderUnableToDeliverModal";
+import { RiderHandoverWaitingCard } from "../orders/RiderHandoverWaitingCard";
+import { verifyHandoverOtp } from "@/api/rider/rider-orders-api";
 
 export interface ActiveOrderData {
   orderId: string;
+  orderCode?: string;
   customerName: string;
   customerPhone?: string;
   pickupAddress: string;
@@ -50,6 +55,11 @@ export interface ActiveOrderData {
   startOtp?: string;
   pickupCoords?: { lat: number; lng: number };
   dropCoords?: { lat: number; lng: number };
+  status?: string;
+  rideType?: string;
+  isHandoverTransfer?: boolean;
+  handoverOtp?: string;
+  pickupLegPayout?: number;
 }
 
 interface GoToPickupHUDProps {
@@ -59,7 +69,7 @@ interface GoToPickupHUDProps {
   onCancelTrip?: () => void;
 }
 
-type TripStage = "en_route_pickup" | "arrived_pickup" | "in_trip" | "completed";
+type TripStage = "en_route_pickup" | "arrived_pickup" | "in_trip" | "handover_waiting" | "completed";
 
 export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   order,
@@ -70,7 +80,29 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
 
-  const [stage, setStage] = useState<TripStage>("en_route_pickup");
+  const isHandoverRide = order.rideType === "handover_delivery" || order.isHandoverTransfer;
+  const [showUnableModal, setShowUnableModal] = useState(false);
+  const [isVerifyingHandover, setIsVerifyingHandover] = useState(false);
+  const [handoverVerifyOtpDigits, setHandoverVerifyOtpDigits] = useState<string[]>(["", "", "", ""]);
+  const [handoverData, setHandoverData] = useState<{
+    handoverOtp: string;
+    pickupLegPayout: number;
+    deliveryLegPayout: number;
+  } | null>(() => {
+    if (order.handoverOtp) {
+      return {
+        handoverOtp: order.handoverOtp,
+        pickupLegPayout: order.pickupLegPayout || 28.0,
+        deliveryLegPayout: 25.0,
+      };
+    }
+    return null;
+  });
+
+  const [stage, setStage] = useState<TripStage>(() => {
+    if (order.status === "delivery_reassignment_required") return "handover_waiting";
+    return "en_route_pickup";
+  });
   const [distanceMeters, setDistanceMeters] = useState(order.distanceMeters || 258);
   const [waitingSeconds, setWaitingSeconds] = useState(300); // 5 mins free waiting
   const [isWaitingTimerActive, setIsWaitingTimerActive] = useState(false);
@@ -89,6 +121,33 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   ]);
   const [inputMsg, setInputMsg] = useState("");
   const [sliderProgress, setSliderProgress] = useState(0);
+
+  const handleVerifyHandoverTransfer = async () => {
+    const code = handoverVerifyOtpDigits.join("");
+    if (code.length < 4) {
+      toast.error("Please enter the complete 4-digit Handover OTP from Captain");
+      return;
+    }
+    try {
+      setIsVerifyingHandover(true);
+      triggerHaptic();
+      const res = await verifyHandoverOtp(order.orderId, code);
+      if (res && res.ok) {
+        unlockAudioContext();
+        playSuccessChime();
+        speakText("हैंडओवर सत्यापित। अब ग्राहक को ऑर्डर डिलीवर करें।");
+        toast.success("Handover verified! Custody transferred to you.");
+        setStage("in_trip");
+        setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      } else {
+        toast.error(res?.message || "Invalid Handover OTP. Please verify with Captain.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to verify Handover OTP. Please try again.");
+    } finally {
+      setIsVerifyingHandover(false);
+    }
+  };
 
   // Default coordinate (Kasganj Hub or order coordinates)
   const captainCoords = { lat: 27.8083, lng: 78.6477 };
@@ -337,9 +396,10 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
         {/* Screen Title */}
         <h1 className="text-base font-black text-neutral-950 tracking-tight">
-          {stage === "en_route_pickup" && "Go to Pickup Zone"}
-          {stage === "arrived_pickup" && "At Pickup Location"}
+          {stage === "en_route_pickup" && (isHandoverRide ? "Go to Handover Point" : "Go to Pickup Zone")}
+          {stage === "arrived_pickup" && (isHandoverRide ? "At Handover Point" : "At Pickup Location")}
           {stage === "in_trip" && "Heading to Drop Zone"}
+          {stage === "handover_waiting" && "Order Handover in Progress"}
           {stage === "completed" && "Trip Completed"}
         </h1>
 
@@ -606,85 +666,163 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           </button>
         )}
 
-        {/* STAGE 2: Arrived at Pickup -> Waiting Timer + 4-Digit OTP + START TRIP */}
+        {/* STAGE 2: Arrived at Pickup / Handover Point */}
         {stage === "arrived_pickup" && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            {/* Waiting Timer Card */}
-            <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="flex items-center gap-2 text-xs font-black text-amber-900">
-                <Timer className="w-4 h-4 text-amber-600 animate-spin duration-3000" />
-                <span>Free Waiting Time</span>
-              </div>
-              <span className="text-sm font-black text-amber-950 font-mono">
-                {formatTimer(waitingSeconds)}
-              </span>
-            </div>
+            {isHandoverRide ? (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-amber-600" />
+                    <label className="text-xs font-black text-amber-950">
+                      Enter 4-Digit Handover OTP from Captain
+                    </label>
+                  </div>
+                </div>
+                <p className="text-[11px] text-amber-800 font-medium">
+                  Collect package from transferring Captain and ask for their 4-digit Handover OTP.
+                </p>
 
-            {/* 4-Digit Start OTP Input */}
-            <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-neutral-800">
-                  Enter Customer Start OTP
-                </label>
-                <span className="text-[10px] font-bold text-neutral-400">
-                  Demo OTP: {order.startOtp || "4829"}
-                </span>
-              </div>
+                <div className="flex gap-2 justify-center py-1">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <input
+                      key={idx}
+                      type="tel"
+                      maxLength={1}
+                      value={handoverVerifyOtpDigits[idx]}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        const next = [...handoverVerifyOtpDigits];
+                        next[idx] = val;
+                        setHandoverVerifyOtpDigits(next);
+                        if (val && idx < 3) {
+                          const nextEl = document.getElementById(`handover-otp-${idx + 1}`);
+                          nextEl?.focus();
+                        }
+                      }}
+                      id={`handover-otp-${idx}`}
+                      className="w-12 h-12 text-center font-black text-xl bg-white border-2 border-amber-300 rounded-xl focus:border-amber-500 focus:outline-none shadow-sm"
+                    />
+                  ))}
+                </div>
 
-              <div className="flex gap-2 justify-center">
-                {[0, 1, 2, 3].map((idx) => (
-                  <input
-                    key={idx}
-                    type="tel"
-                    maxLength={1}
-                    value={otpDigits[idx]}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "");
-                      const next = [...otpDigits];
-                      next[idx] = val;
-                      setOtpDigits(next);
-                      if (val && idx < 3) {
-                        const nextEl = document.getElementById(`trip-otp-${idx + 1}`);
-                        nextEl?.focus();
-                      }
-                    }}
-                    id={`trip-otp-${idx}`}
-                    className="w-12 h-11 text-center font-black text-lg bg-white border border-neutral-300 rounded-lg focus:border-[#00C853] focus:outline-none shadow-xs"
-                  />
-                ))}
+                <button
+                  type="button"
+                  onClick={handleVerifyHandoverTransfer}
+                  disabled={isVerifyingHandover}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ArrowRight className="w-4 h-4 stroke-[3]" />
+                  <span>{isVerifyingHandover ? "Verifying Transfer..." : "Verify Handover & Start Delivery"}</span>
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Waiting Timer Card */}
+                <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-black text-amber-900">
+                    <Timer className="w-4 h-4 text-amber-600 animate-spin duration-3000" />
+                    <span>Free Waiting Time</span>
+                  </div>
+                  <span className="text-sm font-black text-amber-950 font-mono">
+                    {formatTimer(waitingSeconds)}
+                  </span>
+                </div>
 
-            {/* Bright Green [ → START TRIP ] Slider */}
+                {/* 4-Digit Start OTP Input */}
+                <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-neutral-800">
+                      Enter Customer Start OTP
+                    </label>
+                    <span className="text-[10px] font-bold text-neutral-400">
+                      Demo OTP: {order.startOtp || "4829"}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2 justify-center">
+                    {[0, 1, 2, 3].map((idx) => (
+                      <input
+                        key={idx}
+                        type="tel"
+                        maxLength={1}
+                        value={otpDigits[idx]}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          const next = [...otpDigits];
+                          next[idx] = val;
+                          setOtpDigits(next);
+                          if (val && idx < 3) {
+                            const nextEl = document.getElementById(`trip-otp-${idx + 1}`);
+                            nextEl?.focus();
+                          }
+                        }}
+                        id={`trip-otp-${idx}`}
+                        className="w-12 h-11 text-center font-black text-lg bg-white border border-neutral-300 rounded-lg focus:border-[#00C853] focus:outline-none shadow-xs"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bright Green [ → START TRIP ] Slider */}
+                <button
+                  type="button"
+                  onClick={handleStartTrip}
+                  className="w-full h-13.5 flex items-center bg-[#00C853] hover:bg-[#00B248] text-white font-black text-base tracking-wider rounded-xl shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition-all overflow-hidden"
+                >
+                  <div className="flex items-center justify-center w-14 h-full bg-emerald-600/50 border-r border-emerald-400/30">
+                    <ArrowRight className="w-6 h-6 stroke-[3]" />
+                  </div>
+                  <div className="flex-1 text-center pr-14">
+                    <span>START TRIP</span>
+                  </div>
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* STAGE 3: In Trip -> Red [ → COMPLETE TRIP ] Button + Unable to Deliver Reassignment */}
+        {stage === "in_trip" && (
+          <div className="space-y-2.5 animate-in fade-in duration-200">
             <button
               type="button"
-              onClick={handleStartTrip}
-              className="w-full h-13.5 flex items-center bg-[#00C853] hover:bg-[#00B248] text-white font-black text-base tracking-wider rounded-xl shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition-all overflow-hidden"
+              onClick={handleCompleteTrip}
+              className="w-full h-13.5 flex items-center bg-[#EF4444] hover:bg-[#DC2626] text-white font-black text-base tracking-wider rounded-xl shadow-lg shadow-red-500/25 active:scale-[0.99] transition-all overflow-hidden"
             >
-              <div className="flex items-center justify-center w-14 h-full bg-emerald-600/50 border-r border-emerald-400/30">
+              <div className="flex items-center justify-center w-14 h-full bg-red-600/50 border-r border-red-400/30">
                 <ArrowRight className="w-6 h-6 stroke-[3]" />
               </div>
               <div className="flex-1 text-center pr-14">
-                <span>START TRIP</span>
+                <span>COMPLETE TRIP</span>
               </div>
+            </button>
+
+            {/* Unable to Complete Delivery (Emergency Transfer) */}
+            <button
+              type="button"
+              onClick={() => setShowUnableModal(true)}
+              className="w-full py-2.5 px-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+            >
+              <AlertTriangle className="w-4 h-4 text-red-600 animate-pulse" />
+              <span>Unable to Complete Delivery? (Transfer Order)</span>
             </button>
           </div>
         )}
 
-        {/* STAGE 3: In Trip -> Red [ → COMPLETE TRIP ] Button */}
-        {stage === "in_trip" && (
-          <button
-            type="button"
-            onClick={handleCompleteTrip}
-            className="w-full h-13.5 flex items-center bg-[#EF4444] hover:bg-[#DC2626] text-white font-black text-base tracking-wider rounded-xl shadow-lg shadow-red-500/25 active:scale-[0.99] transition-all overflow-hidden"
-          >
-            <div className="flex items-center justify-center w-14 h-full bg-red-600/50 border-r border-red-400/30">
-              <ArrowRight className="w-6 h-6 stroke-[3]" />
-            </div>
-            <div className="flex-1 text-center pr-14">
-              <span>COMPLETE TRIP</span>
-            </div>
-          </button>
+        {/* STAGE: Handover Waiting Card (Rider 1 awaiting replacement Captain) */}
+        {stage === "handover_waiting" && (
+          <div className="animate-in fade-in duration-200">
+            <RiderHandoverWaitingCard
+              orderId={order.orderId}
+              orderCode={order.orderCode}
+              handoverOtp={handoverData?.handoverOtp}
+              pickupPayout={handoverData?.pickupLegPayout}
+              onHandoverCompleted={() => {
+                if (onTripCompleted) onTripCompleted();
+              }}
+            />
+          </div>
         )}
 
         {/* STAGE 4: Trip Completed & Payment Collected */}
@@ -1106,6 +1244,20 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           }
         }}
       />
+
+      {/* Unable to Complete Delivery Emergency Handover Modal */}
+      <RiderUnableToDeliverModal
+        isOpen={showUnableModal}
+        onClose={() => setShowUnableModal(false)}
+        orderId={order.orderId}
+        orderCode={order.orderCode}
+        currentCoords={captainCoords}
+        onSuccess={(data) => {
+          setHandoverData(data);
+          setStage("handover_waiting");
+        }}
+      />
     </div>
   );
 };
+

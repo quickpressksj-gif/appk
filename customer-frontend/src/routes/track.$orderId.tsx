@@ -492,6 +492,32 @@ function TrackOrderScreen() {
             {/* Live Order SLA Guarantee Tracker */}
             <LiveOrderSlaTracker detail={detail} />
 
+            {/* Delivery Reassignment Notification Card */}
+            {["delivery_reassignment_required", "handover_rider_assigned"].includes(
+              (detail?.status || "").toLowerCase()
+            ) && (
+              <section className="mt-4">
+                <div className="rounded-3xl border-2 border-amber-400 bg-amber-50/90 p-4.5 shadow-sm dark:bg-amber-950/40 dark:border-amber-500">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex size-9 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-xs">
+                      <Truck className="size-5 animate-pulse" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-950 dark:text-amber-200">
+                        Delivery Partner Reassigned
+                      </h4>
+                      <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                        Emergency Handover in Progress
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+                    Your previous delivery partner encountered a vehicle or emergency issue. A nearby QuickPress Captain has been prioritized to take over custody of your laundry to ensure safe and timely doorstep delivery.
+                  </p>
+                </div>
+              </section>
+            )}
+
             {/* Real OTP Display Card */}
             {(() => {
               const currentStatus = (detail?.status || "").toLowerCase();

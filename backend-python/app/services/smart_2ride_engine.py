@@ -684,18 +684,22 @@ class Smart2RideEngine:
         )
 
         order_id = ride.get("orderId")
-        target_status = (
-            lifecycle.PICKUP_RIDER_ACCEPTED
-            if ride.get("rideType") == "pickup"
-            else lifecycle.DELIVERY_RIDER_ACCEPTED
-        )
+        if ride.get("rideType") == "handover_delivery":
+            target_status = lifecycle.HANDOVER_RIDER_ASSIGNED
+        elif ride.get("rideType") == "pickup":
+            target_status = lifecycle.PICKUP_RIDER_ACCEPTED
+        else:
+            target_status = lifecycle.DELIVERY_RIDER_ACCEPTED
+
         await database.collection(ORDERS_COLLECTION).update_one(
             {"_id": order_id},
             {
                 "$set": {
-                    "rider": rider_party,
-                    "riderId": rider_id,
-                    "rider_id": rider_id,
+                    "transferRider": rider_party if ride.get("rideType") == "handover_delivery" else None,
+                    "transferRiderId": rider_id if ride.get("rideType") == "handover_delivery" else None,
+                    "rider": rider_party if ride.get("rideType") != "handover_delivery" else None,
+                    "riderId": rider_id if ride.get("rideType") != "handover_delivery" else None,
+                    "rider_id": rider_id if ride.get("rideType") != "handover_delivery" else None,
                     "status": target_status,
                     "updatedAt": now,
                 }
@@ -704,9 +708,14 @@ class Smart2RideEngine:
 
         order = await lifecycle.find_order(order_id)
         if order:
+            event_type = (
+                "HANDOVER_RIDER_ACCEPTED"
+                if ride.get("rideType") == "handover_delivery"
+                else ("PICKUP_RIDER_ACCEPTED" if ride.get("rideType") == "pickup" else "DELIVERY_RIDER_ACCEPTED")
+            )
             await lifecycle.record_event(
                 order,
-                "PICKUP_RIDER_ACCEPTED" if ride.get("rideType") == "pickup" else "DELIVERY_RIDER_ACCEPTED",
+                event_type,
                 actor_id=rider_id,
                 actor_role="rider",
                 at=now,
@@ -988,6 +997,353 @@ class Smart2RideEngine:
             )
             await broadcast_order_event(EVENT_ORDER_DELIVERED, updated)
         return {"ok": True, "status": "DELIVERED", "orderId": canonical_id}
+
+    # -------------------------------------------------------------------------
+    # 6. EMERGENCY REASSIGNMENT & HANDOVER TRANSFER
+    # -------------------------------------------------------------------------
+    async def request_delivery_reassignment(
+        self,
+        order_id: str,
+        rider_id: str,
+        reason: str,
+        location: Optional[Dict[str, Any]] = None,
+        remarks: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Triggered by Rider 1 when unable to complete delivery.
+        Freezes handover location, creates 4-digit handover OTP, calculates pickup leg payout,
+        and broadcasts transfer offer to nearby available riders.
+        """
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise LookupError(f"Order {order_id} not found")
+
+        canonical_id = lifecycle.order_id_of(order)
+        now = lifecycle.now_iso()
+
+        # Generate secure 4-digit handover OTP
+        handover_otp = generate_secure_4digit_otp()
+        handover_record = create_otp_record(handover_otp)
+
+        # Capture handover GPS point
+        coords = location or {}
+        lat = float(coords.get("lat") or coords.get("latitude") or 27.8118)
+        lng = float(coords.get("lng") or coords.get("longitude") or 78.6477)
+        address = str(coords.get("address") or coords.get("name") or "Current Breakdown Location")
+
+        # Estimate Rider 1 pickup payout: Base ₹25 + distance (e.g. min ₹25, typical ₹35-₹45)
+        pickup_loc = order.get("pickupLocation") or order.get("storeLocation") or {}
+        store_lat = float(pickup_loc.get("latitude") or pickup_loc.get("lat") or lat)
+        store_lng = float(pickup_loc.get("longitude") or pickup_loc.get("lng") or lng)
+        dist_km = haversine_distance_km(store_lat, store_lng, lat, lng)
+        pickup_payout = round(25.0 + max(0.0, dist_km * 8.0), 2)
+
+        # Estimate Rider 2 remaining delivery payout
+        drop_loc = order.get("deliveryLocation") or order.get("customerAddress") or {}
+        drop_lat = float(drop_loc.get("latitude") or drop_loc.get("lat") or lat)
+        drop_lng = float(drop_loc.get("longitude") or drop_loc.get("lng") or lng)
+        remaining_dist_km = haversine_distance_km(lat, lng, drop_lat, drop_lng)
+        delivery_payout = round(25.0 + max(0.0, remaining_dist_km * 8.0), 2)
+
+        reassignment_data = {
+            "requested": True,
+            "requestedAt": now,
+            "originalRiderId": rider_id,
+            "reason": reason,
+            "remarks": remarks or "",
+            "handoverLocation": {
+                "lat": lat,
+                "lng": lng,
+                "address": address,
+            },
+            "handoverOtp": handover_otp,
+            "pickupLegPayout": pickup_payout,
+            "deliveryLegPayout": delivery_payout,
+            "handoverCompleted": False,
+            "assignedTransferRiderId": None,
+        }
+
+        # Update order document
+        await database.collection(ORDERS_COLLECTION).update_one(
+            {"_id": canonical_id},
+            {
+                "$set": {
+                    "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
+                    "reassignment": reassignment_data,
+                    "otp.handover": handover_record,
+                    "updatedAt": now,
+                }
+            },
+        )
+
+        # Update or create handover ride in rides collection
+        handover_ride_id = f"ride-transfer-{canonical_id}"
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"_id": handover_ride_id},
+            {
+                "$set": {
+                    "_id": handover_ride_id,
+                    "orderId": canonical_id,
+                    "orderCode": order.get("code") or canonical_id[:8],
+                    "rideType": "handover_delivery",
+                    "status": "SEARCHING",
+                    "pickupLocation": {
+                        "name": f"Handover from Captain ({reason.replace('_', ' ').title()})",
+                        "address": address,
+                        "lat": lat,
+                        "lng": lng,
+                        "phone": order.get("customerPhone") or "",
+                    },
+                    "dropLocation": {
+                        "name": order.get("customerName") or "Customer",
+                        "address": order.get("deliveryAddress") or order.get("dropAddress") or "Customer Doorstep",
+                        "lat": drop_lat,
+                        "lng": drop_lng,
+                        "phone": order.get("customerPhone") or "",
+                    },
+                    "fare": delivery_payout,
+                    "estimatedEarning": delivery_payout,
+                    "originalRiderId": rider_id,
+                    "createdAt": now,
+                    "updatedAt": now,
+                }
+            },
+            upsert=True,
+        )
+
+        updated = await lifecycle.find_order(canonical_id)
+        if updated:
+            await lifecycle.record_event(
+                updated,
+                "DELIVERY_REASSIGNMENT_REQUIRED",
+                actor_id=rider_id,
+                actor_role="rider",
+                metadata={"reason": reason, "handoverLocation": {"lat": lat, "lng": lng}},
+                at=now,
+            )
+            # Notify Customer, Admin, and Riders
+            await broadcast_order_event("order_reassignment_required", updated)
+
+        # Send push & in-app notification to Customer
+        try:
+            from app.services.order_notifications import send_customer_notification
+            customer_id = order.get("customerId") or order.get("userId")
+            if customer_id:
+                await send_customer_notification(
+                    customer_id,
+                    title="🛵 Delivery Partner Reassigned",
+                    description="Your previous delivery partner reported an emergency issue. A nearby QuickPress Captain is picking up your order to deliver on time.",
+                    kind="reassignment",
+                    order_id=canonical_id,
+                )
+        except Exception as e:
+            logger.warning(f"Customer notification error: {e}", exc_info=True)
+
+        # Start search for Rider 2
+        asyncio.create_task(self._search_transfer_riders(canonical_id, lat, lng, exclude_rider_id=rider_id))
+
+        return {
+            "ok": True,
+            "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
+            "orderId": canonical_id,
+            "handoverOtp": handover_otp,
+            "handoverLocation": {"lat": lat, "lng": lng, "address": address},
+            "pickupLegPayout": pickup_payout,
+        }
+
+    async def _search_transfer_riders(
+        self, order_id: str, handover_lat: float, handover_lng: float, exclude_rider_id: str
+    ) -> None:
+        """Finds nearby available online riders (excluding Rider 1) and broadcasts handover offer."""
+        await asyncio.sleep(1.0)
+        try:
+            # Query online riders
+            online_riders = await database.find_many(
+                RIDERS_COLLECTION,
+                {"$or": [{"isOnline": True}, {"status": "online"}, {"dutyStatus": "ON DUTY"}]}
+            )
+            candidates = []
+            for r in online_riders:
+                rid = r.get("riderId") or r.get("_id")
+                if not rid or rid == exclude_rider_id:
+                    continue
+                loc = r.get("location") or r.get("lastLocation") or {}
+                rlat = float(loc.get("lat") or loc.get("latitude") or 0.0)
+                rlng = float(loc.get("lng") or loc.get("longitude") or 0.0)
+                if rlat and rlng:
+                    dist = haversine_distance_km(handover_lat, handover_lng, rlat, rlng)
+                else:
+                    dist = 2.0  # fallback nearby
+                candidates.append((dist, rid, r))
+
+            candidates.sort(key=lambda x: x[0])
+
+            order = await lifecycle.find_order(order_id)
+            if not order:
+                return
+
+            payout = float((order.get("reassignment") or {}).get("deliveryLegPayout") or 35.0)
+
+            # Broadcast offer to candidates
+            for dist, rid, r in candidates[:5]:
+                offer_payload = {
+                    "offerId": f"offer-transfer-{order_id}-{rid}",
+                    "id": f"offer-transfer-{order_id}-{rid}",
+                    "orderId": order_id,
+                    "rideId": f"ride-transfer-{order_id}",
+                    "orderCode": order.get("code") or order_id[:8],
+                    "type": "handover_delivery",
+                    "rideType": "handover_delivery",
+                    "isTransfer": True,
+                    "pickupTitle": "Emergency Parcel Handover Point",
+                    "pickupAddress": (order.get("reassignment") or {}).get("handoverLocation", {}).get("address") or "Handover Location",
+                    "dropTitle": order.get("customerName") or "Customer Drop",
+                    "dropAddress": order.get("deliveryAddress") or order.get("dropAddress") or "Customer Address",
+                    "distanceKm": dist,
+                    "fare": payout,
+                    "expiresInSeconds": 35,
+                }
+                await broadcast_order_event(f"rider_offer_{rid}", offer_payload)
+
+                # Send OneSignal notification to candidate rider
+                try:
+                    from app.core.onesignal import send_onesignal_notification
+                    await send_onesignal_notification(
+                        rid,
+                        title="🛵 Emergency Order Transfer Available",
+                        body=f"Pickup parcel from nearby Captain ({dist:.1f}km) & deliver to customer. Earn ₹{payout:.0f}!",
+                        data={"orderId": order_id, "kind": "handover_delivery"},
+                        url="/orders",
+                    )
+                except Exception:
+                    pass
+
+        except Exception as err:
+            logger.warning(f"Error searching transfer riders: {err}")
+
+    async def verify_handover_transfer(
+        self, order_id: str, otp: str, new_rider_id: str
+    ) -> Dict[str, Any]:
+        """Invoked by Rider 2 when meeting Rider 1 to verify 4-digit Handover OTP.
+        Transfers custody, credits Rider 1 wallet with pickup payout, releases Rider 1,
+        and transitions order to OUT_FOR_DELIVERY for Rider 2.
+        """
+        order = await lifecycle.find_order(order_id)
+        if not order:
+            raise LookupError(f"Order {order_id} not found")
+
+        canonical_id = lifecycle.order_id_of(order)
+        reassignment = order.get("reassignment") or {}
+        expected_otp = reassignment.get("handoverOtp")
+
+        if not expected_otp or str(otp).strip() != str(expected_otp).strip():
+            raise ValueError("Invalid Handover OTP. Please verify the 4-digit code provided by Captain.")
+
+        now = lifecycle.now_iso()
+        original_rider_id = reassignment.get("originalRiderId")
+        pickup_payout = float(reassignment.get("pickupLegPayout") or 35.0)
+
+        # 1. Credit Rider 1 wallet with pickup leg payout
+        if original_rider_id:
+            try:
+                from app.db.rider_repositories import rider_wallet_repository, rider_notification_repository
+                await rider_wallet_repository.credit(
+                    rider_id=original_rider_id,
+                    amount=pickup_payout,
+                    title=f"Order Pickup Leg Payout (#{order.get('code') or canonical_id[:8]})",
+                    order_code=order.get("code") or canonical_id[:8],
+                    kind="transfer_pickup",
+                )
+                await rider_notification_repository.create(
+                    rider_id=original_rider_id,
+                    title="🎉 Handover Complete & Wallet Credited",
+                    message=f"Custody of order #{order.get('code') or canonical_id[:8]} transferred. ₹{pickup_payout:.2f} credited to your wallet for pickup leg.",
+                    kind="payment",
+                )
+                # If reason was medical or vehicle breakdown, set Rider 1 offline for safety
+                reason = reassignment.get("reason")
+                if reason in ("vehicle_breakdown", "accident_health", "medical_emergency"):
+                    await database.collection(RIDERS_COLLECTION).update_one(
+                        {"$or": [{"_id": original_rider_id}, {"riderId": original_rider_id}]},
+                        {"$set": {"isOnline": False, "dutyStatus": "OFF DUTY", "updatedAt": now}}
+                    )
+            except Exception as e:
+                logger.error(f"Error crediting Rider 1: {e}", exc_info=True)
+
+        # 2. Update order with Rider 2 as the new assigned rider
+        reassignment["handoverCompleted"] = True
+        reassignment["handoverCompletedAt"] = now
+        reassignment["assignedTransferRiderId"] = new_rider_id
+
+        # Get Rider 2 profile info for Customer display
+        r2_profile = await database.find_one(
+            RIDERS_COLLECTION,
+            {"$or": [{"_id": new_rider_id}, {"riderId": new_rider_id}]}
+        ) or {}
+
+        r2_party = {
+            "id": new_rider_id,
+            "name": r2_profile.get("fullName") or r2_profile.get("name") or "QuickPress Captain",
+            "phone": r2_profile.get("phone") or "",
+            "vehicle": r2_profile.get("vehicleType") or "Bike",
+            "plate": r2_profile.get("vehicleNumber") or "UP-87-QP-1001",
+            "rating": float(r2_profile.get("rating", 4.9)),
+        }
+
+        await database.collection(ORDERS_COLLECTION).update_one(
+            {"_id": canonical_id},
+            {
+                "$set": {
+                    "status": lifecycle.OUT_FOR_DELIVERY,
+                    "assignedRiderId": new_rider_id,
+                    "riderId": new_rider_id,
+                    "rider_id": new_rider_id,
+                    "rider": r2_party,
+                    "riderName": r2_party["name"],
+                    "riderPhone": r2_party["phone"],
+                    "reassignment": reassignment,
+                    "updatedAt": now,
+                }
+            },
+        )
+
+        # Update handover ride in rides collection
+        handover_ride_id = f"ride-transfer-{canonical_id}"
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"_id": handover_ride_id},
+            {
+                "$set": {
+                    "status": "COMPLETED",
+                    "riderId": new_rider_id,
+                    "handoverVerified": True,
+                    "handoverVerifiedAt": now,
+                    "updatedAt": now,
+                }
+            },
+        )
+
+        updated = await lifecycle.find_order(canonical_id)
+        if updated:
+            await lifecycle.record_event(
+                updated,
+                "HANDOVER_COMPLETED",
+                actor_id=new_rider_id,
+                actor_role="rider",
+                metadata={
+                    "transferredFrom": original_rider_id,
+                    "transferredTo": new_rider_id,
+                    "pickupPayoutCredited": pickup_payout,
+                },
+                at=now,
+            )
+            await broadcast_order_event(EVENT_ORDER_OUT_FOR_DELIVERY, updated)
+
+        return {
+            "ok": True,
+            "status": lifecycle.OUT_FOR_DELIVERY,
+            "orderId": canonical_id,
+            "transferredTo": new_rider_id,
+            "message": "Handover verified. You now have custody of this order.",
+        }
 
 
 # Singleton export

@@ -152,6 +152,56 @@ export async function rateCustomerOrder(orderId: string, rating: number, tags: s
   });
 }
 
+/** POST /api/rider/orders/{id}/unable-to-deliver */
+export async function reportUnableToDeliver(
+  orderId: string,
+  payload: {
+    reason: string;
+    remarks?: string;
+    location?: { lat: number; lng: number; address?: string };
+  }
+) {
+  return apiPostJson<{
+    ok: boolean;
+    status: string;
+    handoverOtp: string;
+    pickupLegPayout: number;
+    deliveryLegPayout: number;
+    message: string;
+  }>(`/api/rider/orders/${orderId}/unable-to-deliver`, payload);
+}
+
+/** POST /api/rider/orders/{id}/verify-handover-otp */
+export async function verifyHandoverOtp(orderId: string, otp: string) {
+  return apiPostJson<{
+    ok: boolean;
+    status: string;
+    orderId: string;
+    transferredTo: string;
+    deliveryPayout?: number;
+    message: string;
+  }>(`/api/rider/orders/${orderId}/verify-handover-otp`, { otp });
+}
+
+/** GET /api/rider/orders/{id}/handover-status */
+export async function fetchHandoverStatus(orderId: string) {
+  return apiGetJson<{
+    ok: boolean;
+    orderId: string;
+    status: string;
+    handoverOtp?: string;
+    reason?: string;
+    pickupLegPayout?: number;
+    deliveryLegPayout?: number;
+    transferRider?: {
+      id: string;
+      name: string;
+      phone: string;
+      vehicleNumber?: string;
+    } | null;
+  }>(`/api/rider/orders/${orderId}/handover-status`);
+}
+
 /** Re-exported so screens can show backend error copy without importing core. */
 export { ApiError };
 

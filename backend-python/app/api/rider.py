@@ -1905,6 +1905,81 @@ async def deliver_order(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
+@router.post("/orders/{order_id}/unable-to-deliver")
+async def report_unable_to_deliver(
+    order_id: str, payload: dict | None = None, user: User = Depends(current_user)
+) -> dict:
+    rider_id = await _rider_id(user)
+    body = payload or {}
+    reason = str(body.get("reason") or "vehicle_breakdown")
+    remarks = body.get("remarks")
+    location = body.get("location")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        return await smart_2ride_engine.request_delivery_reassignment(
+            order_id=order_id,
+            rider_id=rider_id,
+            reason=reason,
+            location=location,
+            remarks=remarks,
+        )
+    except (ValueError, PermissionError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+@router.post("/orders/{order_id}/verify-handover-otp")
+async def verify_handover_otp(
+    order_id: str, payload: dict | None = None, user: User = Depends(current_user)
+) -> dict:
+    rider_id = await _rider_id(user)
+    body = payload or {}
+    otp = str(body.get("otp") or body.get("code") or "")
+    if not otp:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Handover OTP code is required.")
+    from app.services.smart_2ride_engine import smart_2ride_engine
+    try:
+        return await smart_2ride_engine.verify_handover_transfer(
+            order_id=order_id,
+            otp=otp,
+            new_rider_id=rider_id,
+        )
+    except (ValueError, PermissionError) as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+
+
+@router.get("/orders/{order_id}/handover-status")
+async def get_handover_status(
+    order_id: str, user: User = Depends(current_user)
+) -> dict:
+    rider_id = await _rider_id(user)
+    order = await lifecycle.find_order(order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    reassignment = order.get("reassignment") or {}
+    transfer_rider_id = reassignment.get("assignedTransferRiderId") or order.get("transferRiderId")
+    transfer_rider = None
+    if transfer_rider_id:
+        r_doc = await database.find_one("rider_profiles", {"$or": [{"_id": transfer_rider_id}, {"riderId": transfer_rider_id}]}) or {}
+        transfer_rider = {
+            "id": transfer_rider_id,
+            "name": r_doc.get("fullName") or r_doc.get("name") or "QuickPress Captain",
+            "phone": r_doc.get("phone") or "",
+            "vehicle": r_doc.get("vehicleType") or "Bike",
+            "plate": r_doc.get("vehicleNumber") or "UP-87-QP-1001",
+        }
+    return {
+        "ok": True,
+        "status": order.get("status"),
+        "reassignment": reassignment,
+        "transferRider": transfer_rider,
+        "handoverOtp": reassignment.get("handoverOtp") if reassignment.get("originalRiderId") == rider_id else None,
+    }
+
+
 @router.post("/orders/{order_id}/arrived")
 async def arrived_at_pickup(order_id: str, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
