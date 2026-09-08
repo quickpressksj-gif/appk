@@ -597,7 +597,12 @@ class RiderDispatchEngine:
             actor_id=rider_id,
             actor_role="rider",
             metadata={"droppedAt": now},
-            changes={"droppedAtPartnerAt": now},
+            changes={
+                "droppedAtPartnerAt": now,
+                "assignedRiderId": rider_id,
+                "originalRiderId": rider_id,
+                "custody": "partner",
+            },
         )
 
         await broadcast_order_event(

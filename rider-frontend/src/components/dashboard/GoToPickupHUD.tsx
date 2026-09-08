@@ -10,21 +10,25 @@ import {
   Crosshair,
   DollarSign,
   ExternalLink,
+  Info,
   KeyRound,
   Layers,
   MapPin,
   Menu,
   MessageSquare,
   Navigation,
+  Package,
   Phone,
   PhoneCall,
   Send,
   ShieldCheck,
+  Sparkles,
   Timer,
   X,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { initRiderSocket } from "../../lib/rider-socket";
 import {
   playArrivalChime,
   playSuccessChime,
@@ -82,7 +86,7 @@ interface GoToPickupHUDProps {
   onCancelTrip?: () => void;
 }
 
-type TripStage = "en_route_pickup" | "arrived_pickup" | "in_trip" | "handover_waiting" | "completed";
+type TripStage = "en_route_pickup" | "arrived_pickup" | "in_trip" | "store_processing" | "ready_pickup_store" | "handover_waiting" | "completed";
 
 export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   order,
@@ -114,7 +118,17 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
   });
 
   const [stage, setStage] = useState<TripStage>(() => {
-    if (order.status === "delivery_reassignment_required") return "handover_waiting";
+    const s = String(order.status || "").toLowerCase();
+    if (s === "delivery_reassignment_required") return "handover_waiting";
+    if (s === "at_partner" || s === "at-partner" || s === "processing" || s === "ironing") {
+      return "store_processing";
+    }
+    if (s === "ready_for_delivery" || s === "ready") {
+      return "ready_pickup_store";
+    }
+    if (s === "out_for_delivery" || s === "ready-for-delivery") {
+      return "in_trip";
+    }
     return "en_route_pickup";
   });
   const [distanceMeters, setDistanceMeters] = useState(order.distanceMeters || 258);
@@ -186,6 +200,58 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     }, 3500);
     return () => clearInterval(interval);
   }, [stage, isHandoverRide, order.orderId]);
+
+  // Periodic poll while in "store_processing" waiting for partner to finish cleaning
+  useEffect(() => {
+    if (stage !== "store_processing" || !order.orderId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetchDispatchOtp(order.orderId);
+        if (
+          res?.status === "ready_for_delivery" ||
+          res?.status === "READY_FOR_DELIVERY" ||
+          res?.status === "out_for_delivery" ||
+          res?.status === "OUT_FOR_DELIVERY" ||
+          res?.status === "ready" ||
+          res?.isVerified
+        ) {
+          unlockAudioContext();
+          playSuccessChime();
+          speakText("ऑर्डर पैक हो गया है। स्टोर से कपड़े लेकर ग्राहक को डिलीवर करें।");
+          toast.success("🎉 Order Packed & Ready! Collect from Store & Deliver to Customer");
+          setStage("ready_pickup_store");
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [stage, order.orderId]);
+
+  // Real-time socket listener for order ready event
+  useEffect(() => {
+    if (!order.orderId) return;
+    const handleOrderEvent = (data: any) => {
+      const oid = data?.orderId || data?.id || data?._id;
+      if (oid === order.orderId) {
+        const stat = String(data?.status || "").toLowerCase();
+        if (stat === "ready_for_delivery" || stat === "ready" || stat === "out_for_delivery") {
+          unlockAudioContext();
+          playSuccessChime();
+          speakText("ऑर्डर पैक हो गया है। स्टोर से कपड़े लेकर ग्राहक को डिलीवर करें।");
+          toast.success("🎉 Order Packed & Ready! Collect from Store & Deliver to Customer");
+          setStage("ready_pickup_store");
+        }
+      }
+    };
+    try {
+      const socket = initRiderSocket();
+      socket?.on("order.ready", handleOrderEvent);
+      socket?.on("order.status_changed", handleOrderEvent);
+      return () => {
+        socket?.off("order.ready", handleOrderEvent);
+        socket?.off("order.status_changed", handleOrderEvent);
+      };
+    } catch {}
+  }, [order.orderId]);
 
 
   const handleVerifyHandoverTransfer = async () => {
@@ -454,15 +520,14 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       order.dropTitle?.toLowerCase().includes("partner") ||
       order.dropTitle?.toLowerCase().includes("hub");
 
-    if (isPickupRide) {
-      speakText("कपड़े स्टोर पर सौंप दिए गए हैं। पिकअप पूरा हुआ।");
-      setStage("completed");
-      setCompletedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-      toast.success(`🎉 Clothes Dropped at Partner Store! Earned ₹${order.fare.toFixed(2)}`);
+    if (isPickupRide && stage === "in_trip") {
+      speakText("कपड़े स्टोर पर सौंप दिए गए हैं। वाशिंग और प्रेस के बाद डिलीवरी शुरू होगी।");
+      setStage("store_processing");
+      toast.success(`🎉 Clothes Dropped at Store! Pickup payout ₹${(order.pickupLegPayout || order.fare / 2 || 35).toFixed(2)} credited. Trip remains active!`);
 
       if (order.orderId) {
         try {
-          await confirmDropAtPartner(order.orderId);
+          await confirmDropAtPartner(order.orderId, false);
         } catch (e) {
           console.warn("confirmDropAtPartner error:", e);
         }
@@ -475,12 +540,34 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
       if (order.orderId) {
         try {
-          await confirmDelivery(order.orderId, "0000");
+          const enteredOtp = otpDigits.join("") || "0000";
+          await confirmDelivery(order.orderId, enteredOtp);
         } catch (e) {
           console.warn("confirmDelivery error:", e);
         }
       }
     }
+  };
+
+  const handleStartCustomerDelivery = async () => {
+    unlockAudioContext();
+    triggerHaptic();
+    playSuccessChime();
+    speakText("ग्राहक के लिए डिलीवरी शुरू हो रही है।");
+    setStage("in_trip");
+    toast.success("🛵 Delivery Leg Started! Opening Google Maps to Customer...");
+    if (order.orderId) {
+      try {
+        await startDelivery(order.orderId);
+      } catch (e) {
+        console.warn("startDelivery error:", e);
+      }
+    }
+    try {
+      const dest = dropCoords;
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
+      window.open(url, "_blank");
+    } catch {}
   };
 
   const handleSendChat = (text: string) => {
@@ -516,6 +603,8 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           {stage === "en_route_pickup" && (isDeliveryRide ? "📦 Go to Partner Store (Pick up)" : isHandoverRide ? "Go to Handover Point" : "Go to Pickup Zone")}
           {stage === "arrived_pickup" && (isDeliveryRide ? "📦 At Partner Store" : isHandoverRide ? "At Handover Point" : "At Pickup Location")}
           {stage === "in_trip" && (isDeliveryRide ? "📦 En Route to Customer Delivery" : order.rideType === "pickup" ? "Heading to Partner Store" : "Heading to Drop Zone")}
+          {stage === "store_processing" && "🧺 Washing & Ironing in Progress"}
+          {stage === "ready_pickup_store" && "📦 Collect from Store & Deliver"}
           {stage === "handover_waiting" && "Order Handover in Progress"}
           {stage === "completed" && (isDeliveryRide ? "🎉 Delivery Completed" : "Trip Completed")}
         </h1>
@@ -1047,6 +1136,160 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {/* STAGE: Clothes Dropped at Store & In Cleaning (Single Continuous Ride Active) */}
+        {stage === "store_processing" && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            <div className="p-4 bg-white rounded-2xl border-2 border-emerald-500/40 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <Sparkles className="w-4 h-4 animate-spin duration-3000" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-black tracking-tight">
+                      Washing & Steam Ironing at Store
+                    </h3>
+                    <p className="text-[11px] font-bold text-emerald-700">
+                      Trip is continuously active on your cockpit
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-300 text-[10px] font-black text-emerald-800 animate-pulse">
+                  IN CLEANING
+                </span>
+              </div>
+
+              {/* Partner Store Info */}
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                      Partner Laundry Store
+                    </span>
+                    <p className="text-xs font-black text-black">
+                      {partnerStoreName}
+                    </p>
+                    <p className="text-[11px] font-semibold text-neutral-600 line-clamp-1">
+                      {partnerStoreAddress}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCallModal(true)}
+                    className="p-2 rounded-lg bg-white border border-neutral-200 text-neutral-800 hover:bg-neutral-100 active:scale-95 shadow-2xs"
+                    aria-label="Call Store"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-neutral-800" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Real Earnings Settlement Badge */}
+              <div className="grid grid-cols-2 gap-2 text-center pt-1">
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-[10px] font-black text-neutral-600 uppercase">
+                    Pickup Leg Fare
+                  </span>
+                  <p className="text-sm font-black text-emerald-700">
+                    ₹{(order.pickupLegPayout || order.fare / 2 || 35).toFixed(2)}
+                  </p>
+                  <span className="text-[9px] font-bold text-emerald-600">✓ Credited to Wallet</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200">
+                  <span className="text-[10px] font-black text-neutral-600 uppercase">
+                    Delivery Leg Fare
+                  </span>
+                  <p className="text-sm font-black text-black">
+                    ₹{(order.fare / 2 || 35).toFixed(2)}
+                  </p>
+                  <span className="text-[9px] font-bold text-neutral-500">Upon Customer Drop</span>
+                </div>
+              </div>
+
+              {/* Informational Guidance */}
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-950">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] font-bold leading-tight">
+                  Aapko naya order accept karne ki zaroorat nahi hai. Kapde pack hote hi delivery navigation automatically start ho jayegi!
+                </p>
+              </div>
+
+              {/* Exit Gate Action: Unable to Deliver / Leave Trip at Store */}
+              <button
+                type="button"
+                onClick={() => setShowUnableModal(true)}
+                className="w-full py-2.5 px-3 rounded-xl border border-amber-300 bg-amber-50/90 hover:bg-amber-100 text-amber-950 font-black text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-xs"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>Unable to Deliver / Leave Trip at Store (Exit Gate)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STAGE: Ready for Store Pickup & Delivery to Customer */}
+        {stage === "ready_pickup_store" && (
+          <div className="space-y-3 animate-in zoom-in-95 duration-200">
+            <div className="p-4 bg-white rounded-2xl border-2 border-[#00C853] shadow-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-[#00C853]">
+                    <Package className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-black tracking-tight">
+                      Order Packed & Ready!
+                    </h3>
+                    <p className="text-[11px] font-bold text-emerald-700">
+                      Collect clean garments & deliver to customer
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black">
+                  PACKED
+                </span>
+              </div>
+
+              {/* Customer Drop Location Card */}
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                  Deliver To Customer
+                </span>
+                <p className="text-xs font-black text-black">
+                  {order.customerName}
+                </p>
+                <p className="text-[11px] font-semibold text-neutral-600 line-clamp-1">
+                  {order.dropAddress || "Customer Address, Kasganj"}
+                </p>
+              </div>
+
+              {/* Action Button: Start Customer Delivery */}
+              <button
+                type="button"
+                onClick={handleStartCustomerDelivery}
+                className="w-full h-14 flex items-center bg-[#00C853] hover:bg-[#00B248] text-white font-black text-sm sm:text-base tracking-wider rounded-2xl shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition-all overflow-hidden"
+              >
+                <div className="flex items-center justify-center w-14 h-full bg-emerald-600/50 border-r border-emerald-400/30">
+                  <ArrowRight className="w-6 h-6 stroke-[3]" />
+                </div>
+                <div className="flex-1 text-center pr-14">
+                  <span>START CUSTOMER DELIVERY 🛵</span>
+                </div>
+              </button>
+
+              {/* Emergency Exit Gate if still needed */}
+              <button
+                type="button"
+                onClick={() => setShowUnableModal(true)}
+                className="w-full py-2 px-3 rounded-xl border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700 font-bold text-[11px] flex items-center justify-center gap-1.5 active:scale-98 transition-all"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-neutral-500" />
+                <span>Unable to Deliver / Reassign to Another Captain</span>
+              </button>
+            </div>
           </div>
         )}
 

@@ -2034,7 +2034,13 @@ async def drop_at_partner(
     if ride:
         await database.collection(RIDES_COLLECTION).update_one(
             {"_id": ride["_id"]},
-            {"$set": {"status": "COMPLETED", "completedAt": lifecycle.now_iso()}}
+            {
+                "$set": {
+                    "status": "STORE_PROCESSING",
+                    "droppedAtStoreAt": lifecycle.now_iso(),
+                    "updatedAt": lifecycle.now_iso(),
+                }
+            }
         )
     result = await _rider_action(rider_delivery_repository.drop_at_partner, target_order_id, user)
 

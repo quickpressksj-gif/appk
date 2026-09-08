@@ -215,6 +215,9 @@ class RiderDeliveryRepository:
             if (d.get("rider") or {}).get("id") == rider_id
             or d.get("riderId") == rider_id
             or d.get("rider_id") == rider_id
+            or d.get("assignedRiderId") == rider_id
+            or (d.get("originalRiderId") == rider_id and not d.get("riderDeliveryOptOut"))
+            or (d.get("reassignment") and (d.get("reassignment", {}).get("assignedTransferRiderId") == rider_id or (d.get("reassignment", {}).get("originalRiderId") == rider_id and not d.get("riderDeliveryOptOut"))))
         ]
         assigned_ids = {str(d.get("_id") or "") for d in assigned_docs}
 
@@ -673,6 +676,42 @@ class RiderWalletRepository:
             "date": now_iso,
             "amount": amount,
             "direction": "credit",
+            "status": "success",
+            "kind": kind,
+            "orderCode": order_code,
+        }
+        await database.insert(WALLET_TXNS, txn_doc)
+        return {"ok": True, "amount": amount, "balance": new_balance}
+
+    async def debit(self, rider_id: str, amount: float, title: str = "Debit Adjustment", kind: str = "penalty", order_code: str = "") -> Dict[str, Any]:
+        wallet = await database.find_one(WALLETS, {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]})
+        if wallet is None:
+            wallet = await self.get(rider_id)
+        if wallet is None:
+            raise LookupError("Wallet not found")
+
+        curr_balance = float(wallet.get("balance", 0.0))
+        new_balance = round(max(0.0, curr_balance - amount), 2)
+        now_iso = _now()
+
+        await database.update(
+            WALLETS,
+            {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]},
+            {
+                "balance": new_balance,
+                "updatedAt": now_iso,
+            },
+            upsert=True,
+        )
+
+        txn_doc = {
+            "_id": f"rwtx-{rider_id}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+            "rider_id": rider_id,
+            "riderId": rider_id,
+            "title": title,
+            "date": now_iso,
+            "amount": amount,
+            "direction": "debit",
             "status": "success",
             "kind": kind,
             "orderCode": order_code,

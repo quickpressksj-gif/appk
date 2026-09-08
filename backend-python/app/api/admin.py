@@ -167,7 +167,7 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
     rider2_info = None
 
     if reassignment:
-        r1_id = reassignment.get("originalRiderId")
+        r1_id = reassignment.get("originalRiderId") or order.get("originalRiderId")
         if r1_id:
             r1_doc = await database.find_one("rider_profiles", {"$or": [{"_id": r1_id}, {"riderId": r1_id}]}) or {}
             rider1_info = {
@@ -177,6 +177,7 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
                 "vehicle": r1_doc.get("vehicleType") or "Bike",
                 "plate": r1_doc.get("vehicleNumber") or "UP-87-QP-1001",
                 "payout": float(reassignment.get("pickupLegPayout") or 35.0),
+                "role": "Pickup Only (Opted out at store)",
             }
         r2_id = reassignment.get("assignedTransferRiderId") or order.get("transferRiderId") or order.get("assignedRiderId")
         if r2_id and r2_id != r1_id:
@@ -188,6 +189,27 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
                 "vehicle": r2_doc.get("vehicleType") or "Bike",
                 "plate": r2_doc.get("vehicleNumber") or "UP-87-QP-1002",
                 "payout": float(reassignment.get("deliveryLegPayout") or 35.0),
+                "role": "Delivery Only (+20% Bonus)",
+            }
+    else:
+        # Single Continuous Ride: Captain 1 handles both pickup and delivery legs!
+        c1_id = order.get("assignedRiderId") or order.get("riderId") or (order.get("rider") or {}).get("id")
+        if not c1_id and rides:
+            for r in rides:
+                if r.get("riderId"):
+                    c1_id = r["riderId"]
+                    break
+        if c1_id:
+            c1_doc = await database.find_one("rider_profiles", {"$or": [{"_id": c1_id}, {"riderId": c1_id}]}) or {}
+            total_fare = float(order.get("pricing", {}).get("deliveryFee") or 70.0)
+            rider1_info = {
+                "id": c1_id,
+                "name": c1_doc.get("fullName") or c1_doc.get("name") or "Captain 1 (Continuous Ride)",
+                "phone": c1_doc.get("phone") or "",
+                "vehicle": c1_doc.get("vehicleType") or "Bike",
+                "plate": c1_doc.get("vehicleNumber") or "UP-87-QP-1001",
+                "payout": total_fare,
+                "role": "Continuous Ride (Full Pickup & Doorstep Delivery)",
             }
 
     # Sanitize ObjectIds in rides
@@ -236,6 +258,12 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
         "custody": order.get("custody", "partner" if reassignment else "customer"),
         "reassignment": reassignment,
         "isReassigned": bool(reassignment),
+        "isContinuousRide": not bool(reassignment),
+        "continuousRideStatus": (
+            "Split Handover Ride (Captain 1 ➔ Captain 2)"
+            if reassignment
+            else "Full Continuous Ride (Captain 1)"
+        ),
         "dispatchOtp": dispatch_otp,
         "rider1": rider1_info,
         "rider2": rider2_info,

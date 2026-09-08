@@ -103,15 +103,15 @@ TRANSITIONS: Dict[str, tuple] = {
     RIDER_ACCEPTED: (PICKUP_OTP_PENDING, PICKED_UP, CANCELLED),
     PICKUP_OTP_PENDING: (PICKED_UP, CANCELLED),
     PICKED_UP: (AT_PARTNER, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
-    AT_PARTNER: (PROCESSING, CANCELLED),
-    PROCESSING: (IRONING, READY_FOR_DELIVERY, READY, COMPLETED, CANCELLED),
-    IRONING: (READY_FOR_DELIVERY, READY, COMPLETED, CANCELLED),
-    READY_FOR_DELIVERY: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    READY: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    COMPLETED: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    DELIVERY_RIDER_ASSIGNED: (DELIVERY_RIDER_ACCEPTED, RIDER_ACCEPTED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    DELIVERY_RIDER_ACCEPTED: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
-    DISPATCH_OTP_PENDING: (OUT_FOR_DELIVERY, CANCELLED),
+    AT_PARTNER: (PROCESSING, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    PROCESSING: (IRONING, READY_FOR_DELIVERY, READY, COMPLETED, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    IRONING: (READY_FOR_DELIVERY, READY, COMPLETED, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    READY_FOR_DELIVERY: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    READY: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    COMPLETED: (DELIVERY_RIDER_ASSIGNED, DELIVERY_RIDER_ACCEPTED, RIDER_ASSIGNED, RIDER_ACCEPTED, RIDER_SEARCHING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    DELIVERY_RIDER_ASSIGNED: (DELIVERY_RIDER_ACCEPTED, RIDER_ACCEPTED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    DELIVERY_RIDER_ACCEPTED: (DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
+    DISPATCH_OTP_PENDING: (OUT_FOR_DELIVERY, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
     OUT_FOR_DELIVERY: (DELIVERY_OTP_PENDING, DELIVERED, DELIVERY_REASSIGNMENT_REQUIRED, CANCELLED),
     DELIVERY_REASSIGNMENT_REQUIRED: (DELIVERY_RIDER_ACCEPTED, DELIVERY_RIDER_ASSIGNED, HANDOVER_RIDER_ASSIGNED, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
     HANDOVER_RIDER_ASSIGNED: (HANDOVER_OTP_PENDING, DISPATCH_OTP_PENDING, OUT_FOR_DELIVERY, CANCELLED),
@@ -347,10 +347,14 @@ def assert_partner(order: Dict[str, Any], partner_id: str) -> None:
 
 def assert_rider(order: Dict[str, Any], rider_id: str) -> None:
     rider = order.get("rider") or {}
-    if not rider.get("id"):
+    assigned_id = str(rider.get("id") or order.get("assignedRiderId") or order.get("riderId") or "")
+    if not assigned_id:
         raise OrderAuthorizationError("No rider is assigned to this order yet")
-    if rider.get("id") != rider_id:
-        raise OrderAuthorizationError("This order is assigned to another rider")
+    if assigned_id != str(rider_id):
+        orig_id = str(order.get("originalRiderId") or (order.get("reassignment") or {}).get("originalRiderId") or "")
+        transfer_id = str((order.get("reassignment") or {}).get("assignedTransferRiderId") or "")
+        if str(rider_id) not in (orig_id, transfer_id):
+            raise OrderAuthorizationError("This order is assigned to another rider")
 
 
 def assert_customer(order: Dict[str, Any], user_id: str) -> None:
@@ -800,9 +804,9 @@ def to_rider_delivery(order: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": order_id_of(order),
         "orderId": order_id_of(order),
-        "riderId": (order.get("rider") or {}).get("id", "") or str(order.get("riderId") or ""),
+        "riderId": (order.get("rider") or {}).get("id", "") or str(order.get("assignedRiderId") or order.get("riderId") or ""),
         "code": order.get("code", "") or order.get("orderCode", ""),
-        "taskType": "delivery" if status in (OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
+        "taskType": "delivery" if status in (READY_FOR_DELIVERY, READY, OUT_FOR_DELIVERY, DELIVERY_OTP_PENDING, DELIVERED) else "pickup",
         "status": RIDER_STATUS.get(status, "assigned"),
         "canonicalStatus": status,
         "custody": order.get("custody", "customer"),

@@ -342,18 +342,39 @@ class Smart2RideEngine:
         extra_bonus_amount = 0.0
         is_reassigned = False
 
-        if has_opted_out:
+        orig_rider_profile: Dict[str, Any] = {}
+        if orig_rider_id:
+            orig_rider_profile = (
+                await database.find_one(RIDERS_COLLECTION, {"$or": [{"_id": orig_rider_id}, {"riderId": orig_rider_id}, {"id": orig_rider_id}]})
+                or await database.find_one("riders", {"$or": [{"_id": orig_rider_id}, {"riderId": orig_rider_id}, {"id": orig_rider_id}]})
+                or {}
+            )
+
+        if has_opted_out or not orig_rider_id:
+            # Reassignment Flow: Captain 1 opted out at store arrival. Captain 2 gets +20% extra bonus!
             preferred_rider_id = None
             attempted_rider_ids = [str(orig_rider_id)] if orig_rider_id else []
-            # User Rule: New rider assigned for delivery gets +20% extra bonus
             extra_bonus_percent = 20
             extra_bonus_amount = round(delivery_earning * 0.20, 2)
             delivery_earning = round(delivery_earning + extra_bonus_amount, 2)
             is_reassigned = True
+            ride_status = "SEARCHING_RIDER"
+            assigned_rider_id = None
+            assigned_rider_obj = None
         else:
-            # Captain did not opt out: retain full order for the original Captain
-            preferred_rider_id = orig_rider_id
-            attempted_rider_ids = []
+            # Single Continuous Ride Flow: Captain 1 retains trip continuously from pickup to doorstep!
+            preferred_rider_id = str(orig_rider_id)
+            attempted_rider_ids = [str(orig_rider_id)]
+            is_reassigned = False
+            ride_status = "ACCEPTED"
+            assigned_rider_id = str(orig_rider_id)
+            assigned_rider_obj = {
+                "id": str(orig_rider_id),
+                "name": orig_rider_profile.get("fullName") or orig_rider_profile.get("name") or "Captain",
+                "phone": orig_rider_profile.get("phone") or "",
+                "vehicleNumber": orig_rider_profile.get("vehicleNumber") or "",
+                "status": "accepted",
+            }
 
         ride_doc = {
             "_id": f"ride-dl-{canonical_id}",
@@ -361,7 +382,7 @@ class Smart2RideEngine:
             "orderId": canonical_id,
             "orderCode": order.get("code", canonical_id),
             "rideType": "delivery",
-            "status": "SEARCHING_RIDER",
+            "status": ride_status,
             "city": clean_city.title(),
             "pickupCity": clean_city.title(),
             "dropCity": clean_city.title(),
@@ -394,10 +415,18 @@ class Smart2RideEngine:
             },
             "preferredRiderId": preferred_rider_id,
             "currentRadiusStage": 0,
-            "riderId": None,
-            "rider": None,
+            "riderId": assigned_rider_id,
+            "rider": assigned_rider_obj,
             "attemptedRiderIds": attempted_rider_ids,
-            "assignmentHistory": [],
+            "assignmentHistory": (
+                [{
+                    "riderId": str(orig_rider_id),
+                    "action": "continuous_ride_retained",
+                    "timestamp": now,
+                }]
+                if not has_opted_out and orig_rider_id
+                else []
+            ),
         }
 
         await database.collection(RIDES_COLLECTION).update_one(
@@ -407,27 +436,52 @@ class Smart2RideEngine:
         )
 
         # Update canonical order status
+        order_update: Dict[str, Any] = {
+            "ride2Id": ride_doc["_id"],
+            "status": lifecycle.READY_FOR_DELIVERY,
+            "updatedAt": now,
+            "otp.dispatch": dispatch_otp,
+            "otp.delivery": delivery_otp,
+        }
+        if not has_opted_out and orig_rider_id:
+            order_update["assignedRiderId"] = str(orig_rider_id)
+            order_update["riderId"] = str(orig_rider_id)
+            order_update["rider"] = assigned_rider_obj
+            order_update["deliveryRider"] = assigned_rider_obj
+
         await database.collection(ORDERS_COLLECTION).update_one(
             {"_id": canonical_id},
-            {
-                "$set": {
-                    "ride2Id": ride_doc["_id"],
-                    "status": lifecycle.READY_FOR_DELIVERY,
-                    "updatedAt": now,
-                    "otp.dispatch": dispatch_otp,
-                    "otp.delivery": delivery_otp,
-                }
-            },
+            {"$set": order_update},
         )
 
         await broadcast_order_event(
             EVENT_ORDER_READY,
             order,
-            extra_data={"rideType": "delivery", "rideId": ride_doc["_id"]},
+            extra_data={
+                "rideType": "delivery",
+                "rideId": ride_doc["_id"],
+                "autoAssignedRiderId": assigned_rider_id,
+                "continuousRide": not has_opted_out and bool(orig_rider_id),
+            },
         )
 
-        # Start auto-dispatch
-        asyncio.create_task(self.dispatch_next_offer(ride_doc["_id"]))
+        if not has_opted_out and orig_rider_id:
+            # Send in-app notification to the original Captain
+            try:
+                from app.db.rider_repositories import rider_notification_repository
+                await rider_notification_repository.create(
+                    rider_id=str(orig_rider_id),
+                    title="📦 Order Packed & Ready for Delivery!",
+                    message=f"Order #{order.get('code') or canonical_id[:8]} packed by partner store. Pick up parcel and deliver to customer doorstep.",
+                    kind="order_ready",
+                )
+            except Exception:
+                pass
+            logger.info("Single Continuous Ride retained for Captain %s on order %s", orig_rider_id, canonical_id)
+        else:
+            # Start sequential auto-dispatch for Captain 2 with +20% bonus
+            asyncio.create_task(self.dispatch_next_offer(ride_doc["_id"]))
+
         return ride_doc
 
     # -------------------------------------------------------------------------
@@ -689,9 +743,9 @@ class Smart2RideEngine:
             room="riders",
         )
 
-        # Update ride record state
+        # Update ride record state only if still searching/unclaimed (do not overwrite if already ACCEPTED)
         await database.collection(RIDES_COLLECTION).update_one(
-            {"_id": ride_id},
+            {"_id": ride_id, "status": {"$in": ["SEARCHING_RIDER", "SEARCHING", "OFFER_SENT"]}},
             {
                 "$set": {
                     "status": "OFFER_SENT",
@@ -820,10 +874,15 @@ class Smart2RideEngine:
         else:
             target_status = lifecycle.DELIVERY_RIDER_ACCEPTED
 
+        existing_order = await lifecycle.find_order(order_id) or {}
+        orig_r_id = rider_id if ride.get("rideType") == "pickup" else (existing_order.get("originalRiderId") or existing_order.get("assignedRiderId") or rider_id)
+
         await database.collection(ORDERS_COLLECTION).update_one(
             {"_id": order_id},
             {
                 "$set": {
+                    "assignedRiderId": rider_id,
+                    "originalRiderId": orig_r_id,
                     "transferRider": rider_party if ride.get("rideType") == "handover_delivery" else None,
                     "transferRiderId": rider_id if ride.get("rideType") == "handover_delivery" else None,
                     "rider": rider_party if ride.get("rideType") != "handover_delivery" else None,
@@ -1006,9 +1065,9 @@ class Smart2RideEngine:
             {"orderId": canonical_id, "rideType": "pickup"},
             {
                 "$set": {
-                    "status": "COMPLETED",
+                    "status": "STORE_PROCESSING",
                     "otp.handover": handover_record,
-                    "completedAt": now,
+                    "droppedAtStoreAt": now,
                     "updatedAt": now,
                 }
             },
@@ -1269,21 +1328,37 @@ class Smart2RideEngine:
         dispatch_otp = generate_secure_4digit_otp()
         dispatch_record = create_otp_record(dispatch_otp)
 
-        # 1. Credit Rider 1 wallet with 75% net pickup payout (25% opt-out deduction applied)
+        # 1. Settle Rider 1 wallet with 75% net pickup payout (25% opt-out deduction applied)
         if rider_id:
             try:
                 from app.db.rider_repositories import rider_wallet_repository, rider_notification_repository
-                await rider_wallet_repository.credit(
-                    rider_id=rider_id,
-                    amount=net_pickup_payout,
-                    title=f"Pickup leg payout (75% net after 25% opt-out fee) · #{order.get('code') or canonical_id[:8]}",
-                    order_code=order.get("code") or canonical_id[:8],
-                    kind="transfer_pickup",
+                code_str = order.get('code') or canonical_id[:8]
+                existing_credit = await database.find_one(
+                    "rider_wallet_transactions",
+                    {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}], "orderCode": code_str, "kind": "pickup_fare"}
                 )
+                if existing_credit:
+                    # 100% gross was already credited upon store drop; apply 25% opt-out deduction
+                    await rider_wallet_repository.debit(
+                        rider_id=rider_id,
+                        amount=penalty_deduction,
+                        title=f"Delivery Opt-Out Fee (25%) · #{code_str}",
+                        order_code=code_str,
+                        kind="opt_out_deduction",
+                    )
+                else:
+                    # Direct opt-out at store: credit 75% net pickup payout
+                    await rider_wallet_repository.credit(
+                        rider_id=rider_id,
+                        amount=net_pickup_payout,
+                        title=f"Pickup leg payout (75% net after 25% opt-out fee) · #{code_str}",
+                        order_code=code_str,
+                        kind="transfer_pickup",
+                    )
                 await rider_notification_repository.create(
                     rider_id=rider_id,
-                    title="🎉 Pickup Payout Credited (75% Net)",
-                    message=f"Pickup for order #{order.get('code') or canonical_id[:8]} completed. ₹{net_pickup_payout:.2f} credited to your wallet (Gross ₹{pickup_gross_payout:.2f} minus 25% delivery opt-out fee ₹{penalty_deduction:.2f}). Package safe in Partner Store custody.",
+                    title="🎉 Pickup Payout Settled (75% Net)",
+                    message=f"Pickup for order #{code_str} completed. ₹{net_pickup_payout:.2f} settled to your wallet (Gross ₹{pickup_gross_payout:.2f} minus 25% delivery opt-out fee ₹{penalty_deduction:.2f}). Package safe in Partner Store custody.",
                     kind="payment",
                 )
                 if reason in ("vehicle_breakdown", "accident_health", "medical_emergency"):
@@ -1421,6 +1496,8 @@ class Smart2RideEngine:
 
         return {
             "ok": True,
+            "requested": True,
+            "reason": reason,
             "status": lifecycle.DELIVERY_REASSIGNMENT_REQUIRED,
             "orderId": canonical_id,
             "handoverOtp": dispatch_otp,
@@ -1430,6 +1507,7 @@ class Smart2RideEngine:
             "pickupLegPayout": net_pickup_payout,
             "pickupGrossPayout": pickup_gross_payout,
             "pickupOptOutDeduction": penalty_deduction,
+            "pickupPenaltyDeduction": penalty_deduction,
             "deliveryLegPayout": new_rider_delivery_payout,
             "extraBonusPercent": 20,
             "extraBonusAmount": bonus_20,
