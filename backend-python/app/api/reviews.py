@@ -49,3 +49,22 @@ async def get_order_review(
 async def get_partner_reviews(partner_id: str) -> List[Dict[str, Any]]:
     """Get all reviews for a partner store."""
     return await review_repository.list_partner_reviews(partner_id)
+
+
+@router.get("/riders/{rider_id}/reviews")
+async def get_rider_reviews(rider_id: str) -> List[Dict[str, Any]]:
+    """Get all reviews for a delivery captain."""
+    return await review_repository.list_rider_reviews(rider_id)
+
+
+@router.get("/orders/{order_id}/reviews-360")
+async def get_360_order_reviews(order_id: str) -> Dict[str, Any]:
+    """Get full 360-degree mutual ratings and reviews exchanged between Customer, Partner, and Captain."""
+    return await review_repository.get_360_reviews_by_order(order_id)
+
+
+@router.get("/reviews/admin")
+async def get_all_reviews_admin(limit: int = 100) -> List[Dict[str, Any]]:
+    """Admin endpoint to audit all mutual reviews across Customer, Partner, and Captain."""
+    return await review_repository.list_all_reviews(limit=limit)
+

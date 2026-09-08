@@ -155,6 +155,32 @@ export async function rateCustomerOrder(orderId: string, rating: number, tags: s
   });
 }
 
+export interface RiderReviewPayload {
+  customerRating: number;
+  customerFeedback?: string;
+  customerTags?: string[];
+  storeRating?: number;
+  storeFeedback?: string;
+  storeTags?: string[];
+}
+
+/** POST /api/rider/orders/{id}/review — Captain rates Customer & Partner Store */
+export async function submitRiderOrderReview(
+  orderId: string,
+  payload: RiderReviewPayload
+): Promise<{ ok: boolean; message: string; review: any }> {
+  return apiPostJson<{ ok: boolean; message: string; review: any }>(
+    `/api/rider/orders/${encodeURIComponent(orderId)}/review`,
+    payload
+  );
+}
+
+/** GET /api/rider/orders/{id}/review — check if Captain has reviewed */
+export async function fetchRiderOrderReview(orderId: string): Promise<any> {
+  return apiGetJson<any>(`/api/rider/orders/${encodeURIComponent(orderId)}/review`);
+}
+
+
 /** POST /api/rider/orders/{id}/unable-to-deliver */
 export async function reportUnableToDeliver(
   orderId: string,

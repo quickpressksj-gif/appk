@@ -92,3 +92,29 @@ export async function verifyPartnerHandoverOtp(orderId: string, otp: string): Pr
   return apiPostJson<PartnerOrder>(`/api/partner/orders/${orderId}/verify-handover-otp`, { otp });
 }
 
+export interface PartnerReviewPayload {
+  riderRating: number;
+  riderFeedback?: string;
+  riderTags?: string[];
+  customerRating?: number;
+  customerFeedback?: string;
+  customerTags?: string[];
+}
+
+/** POST /api/partner/orders/{id}/review — partner rates captain & customer */
+export async function submitPartnerOrderReview(
+  orderId: string,
+  payload: PartnerReviewPayload
+): Promise<{ ok: boolean; message: string; review: any }> {
+  return apiPostJson<{ ok: boolean; message: string; review: any }>(
+    `/api/partner/orders/${encodeURIComponent(orderId)}/review`,
+    payload
+  );
+}
+
+/** GET /api/partner/orders/{id}/review — check if partner has reviewed */
+export async function fetchPartnerOrderReview(orderId: string): Promise<any> {
+  return apiGetJson<any>(`/api/partner/orders/${encodeURIComponent(orderId)}/review`);
+}
+
+

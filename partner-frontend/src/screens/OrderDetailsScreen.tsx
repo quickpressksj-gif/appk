@@ -40,6 +40,8 @@ import { STAGE_LABEL, type ManagedOrder } from "../data/partner-orders-mock";
 
 import { useEffect, useState } from "react";
 import { fetchPartnerOrder, verifyPartnerDispatchOtp } from "@/api/partner/partner-orders-api";
+import { PartnerReviewModal } from "../components/orders/PartnerReviewModal";
+
 
 function formatOrderTime(value?: string | number): string {
   if (!value) return "Recently";
@@ -83,6 +85,7 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
   const [fetchedOrder, setFetchedOrder] = useState<ManagedOrder | null>(null);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [showRiderLocationModal, setShowRiderLocationModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const matchedOrder = orders.find(
     (item) =>
@@ -322,6 +325,37 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                 </div>
               </div>
             </div>
+
+            {/* Mutual Ratings Card for Partner to Rate Captain & Customer */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-amber-50 text-amber-500 border border-amber-200">
+                    <Star className="size-4.5 fill-amber-400 text-amber-400" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-black text-black uppercase tracking-wide">
+                      Mutual Ratings & Reputation
+                    </h4>
+                    <p className="text-[11px] font-semibold text-neutral-600">
+                      {(order as any)?.partnerReviewed ? "✓ You rated Captain & Customer" : "Rate Captain & Customer for this order"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(true)}
+                  className={`text-xs font-black px-3.5 py-1.5 rounded-xl active:scale-95 transition-all ${
+                    (order as any)?.partnerReviewed
+                      ? "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                      : "bg-[#00C853] hover:bg-[#00B248] text-white shadow-xs"
+                  }`}
+                >
+                  {(order as any)?.partnerReviewed ? "View Rating" : "⭐ Rate Now"}
+                </button>
+              </div>
+            </div>
+
 
             {/* Dispatch OTP Card for Handover to Rider */}
             {((order.stage === "ready" || order.stage === "dispatch_otp_pending" || order.stage === "completed" || (order as any)?.reassignment) && (dispatchOtpCode || order.stage === "ready" || order.stage === "dispatch_otp_pending")) ? (
@@ -887,7 +921,28 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
       {sheetNode}
       {overlay}
+
+      {order ? (
+        <PartnerReviewModal
+          isOpen={showReviewModal}
+          onClose={() => setShowReviewModal(false)}
+          orderId={order.id}
+          orderCode={order.code}
+          customerName={order.customerName}
+          riderName={order.assignedRider?.name || "Delivery Captain"}
+          onSuccess={() => {
+            if (matchedOrder) {
+              (matchedOrder as any).partnerReviewed = true;
+            }
+            if (fetchedOrder) {
+              (fetchedOrder as any).partnerReviewed = true;
+            }
+          }}
+        />
+      ) : null}
+
       <Toaster />
     </PartnerLayout>
+
   );
 }

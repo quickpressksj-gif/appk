@@ -249,6 +249,9 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
         or (order.get("otp", {}).get("dispatch") if isinstance(order.get("otp", {}).get("dispatch"), str) else (order.get("otp", {}).get("dispatch") or {}).get("code"))
     )
 
+    from app.db.review_repositories import review_repository
+    reviews_360 = await review_repository.get_360_reviews_by_order(canonical_id)
+
     return {
         **{k: v for k, v in order.items() if k != "_id"},
         "id": canonical_id,
@@ -267,6 +270,7 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
         "dispatchOtp": dispatch_otp,
         "rider1": rider1_info,
         "rider2": rider2_info,
+        "reviews360": reviews_360,
     }
 
 

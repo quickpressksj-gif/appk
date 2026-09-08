@@ -23,6 +23,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Star,
   Timer,
   X,
   Zap,
@@ -41,6 +42,8 @@ import {
 import { InAppVoiceNavigationModal } from "../navigation/InAppVoiceNavigationModal";
 import { RiderUnableToDeliverModal } from "../orders/RiderUnableToDeliverModal";
 import { RiderHandoverWaitingCard } from "../orders/RiderHandoverWaitingCard";
+import { CaptainReviewModal } from "./CaptainReviewModal";
+
 import {
   verifyHandoverOtp,
   fetchDispatchOtp,
@@ -158,6 +161,8 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     order.partnerAddress || order.pickupAddress || "Kasganj Partner Store"
   );
   const [showManualHandoverInput, setShowManualHandoverInput] = useState(false);
+  const [showCaptainReviewModal, setShowCaptainReviewModal] = useState(false);
+  const [hasRatedTrip, setHasRatedTrip] = useState(false);
 
   // Load dispatch OTP for Rider 2
   useEffect(() => {
@@ -1334,6 +1339,15 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
             <button
               type="button"
+              onClick={() => setShowCaptainReviewModal(true)}
+              className="w-full h-12 flex items-center justify-center gap-2 bg-white hover:bg-neutral-50 text-black border-2 border-emerald-500 font-black text-xs rounded-xl shadow-xs active:scale-98 transition-all"
+            >
+              <Star className="size-4 fill-amber-400 text-amber-400" />
+              <span>{hasRatedTrip ? "✓ Rated Customer & Store" : "⭐ Rate Customer & Store (Build Trust)"}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onTripCompleted}
               className={`w-full h-13 flex items-center justify-center text-white font-black text-sm tracking-wide rounded-xl shadow-lg active:scale-98 transition-all ${
                 isDeliveryRide
@@ -1344,6 +1358,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
               <span>Ready for Next Order 🚀</span>
             </button>
           </div>
+
         )}
       </div>
 
@@ -1758,7 +1773,21 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
           setStage("handover_waiting");
         }}
       />
+
+      {/* 360-Degree Mutual Review Modal: Captain rates Customer & Partner Store */}
+      <CaptainReviewModal
+        isOpen={showCaptainReviewModal}
+        onClose={() => setShowCaptainReviewModal(false)}
+        orderId={order.orderId}
+        orderCode={order.orderCode}
+        customerName={order.customerName}
+        storeName={partnerStoreName}
+        onSuccess={() => {
+          setHasRatedTrip(true);
+        }}
+      />
     </div>
   );
 };
+
 

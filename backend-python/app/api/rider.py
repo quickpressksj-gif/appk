@@ -2254,30 +2254,39 @@ async def collect_cash_order(order_id: str, user: User = Depends(current_user)) 
     return {"ok": True, "message": "Cash payment recorded successfully", "orderId": target_order_id}
 
 
+@router.post("/orders/{order_id}/review")
 @router.post("/orders/{order_id}/rate-customer")
 @router.post("/orders/{order_id}/rate")
-async def rate_customer(order_id: str, body: dict, user: User = Depends(current_user)) -> dict:
+async def submit_rider_order_review(order_id: str, body: dict, user: User = Depends(current_user)) -> dict:
+    """Captain submits mutual rating for Customer and Partner Store."""
     rider_id = await _rider_id(user)
-    from app.services.smart_2ride_engine import RIDES_COLLECTION
-    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
-    target_order_id = ride.get("orderId") if ride else order_id
-    rating = int(body.get("rating", 5))
-    tags = body.get("tags") or body.get("feedbackTags") or []
-    feedback = body.get("feedback") or body.get("comment") or ""
-    now_iso = lifecycle.now_iso()
-    
-    await database.update(
-        "customer_orders",
-        {"_id": target_order_id},
-        {
-            "customerRatingByRider": rating,
-            "riderFeedbackTags": tags,
-            "riderFeedbackComment": feedback,
-            "riderRatedAt": now_iso,
-            "updatedAt": now_iso,
-        }
+    from app.db.review_repositories import SubmitRiderReviewPayload, review_repository
+    payload = SubmitRiderReviewPayload(
+        customerRating=int(body.get("customerRating") or body.get("rating", 5)),
+        customerFeedback=body.get("customerFeedback") or body.get("feedback") or body.get("comment") or "",
+        customerTags=body.get("customerTags") or body.get("tags") or body.get("feedbackTags") or [],
+        storeRating=int(body.get("storeRating", 5)) if body.get("storeRating") is not None else None,
+        storeFeedback=body.get("storeFeedback") or body.get("storeComment") or "",
+        storeTags=body.get("storeTags") or [],
     )
-    return {"ok": True, "message": "Customer rating saved successfully", "orderId": target_order_id}
+    try:
+        doc = await review_repository.submit_rider_review(order_id, rider_id, payload)
+        return {"ok": True, "message": "Captain mutual review saved successfully", "review": doc}
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+
+@router.get("/orders/{order_id}/review")
+async def get_rider_order_review(order_id: str, user: User = Depends(current_user)) -> Optional[dict]:
+    """Check if Captain has already reviewed this order."""
+    rider_id = await _rider_id(user)
+    from app.db.review_repositories import review_repository
+    return await review_repository.get_rider_review(order_id, rider_id)
+
 
 
 # --------------------------------------------------------------------------

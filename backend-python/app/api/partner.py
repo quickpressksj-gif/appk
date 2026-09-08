@@ -820,6 +820,44 @@ async def reviews(partner_id: str = Depends(_partner_id)) -> List[PartnerReviewR
     return [PartnerReviewResponse(**{k: v for k, v in doc.items() if k in PartnerReviewResponse.model_fields}) for doc in docs]
 
 
+@router.post("/orders/{order_id}/review")
+async def submit_partner_order_review(
+    order_id: str,
+    body: dict,
+    partner_id: str = Depends(_partner_id),
+) -> dict:
+    """Partner store submits mutual rating for Delivery Captain and Customer."""
+    from app.db.review_repositories import SubmitPartnerReviewPayload, review_repository
+    payload = SubmitPartnerReviewPayload(
+        riderRating=int(body.get("riderRating", 5)),
+        riderFeedback=body.get("riderFeedback") or body.get("riderComment") or "",
+        riderTags=body.get("riderTags") or [],
+        customerRating=int(body.get("customerRating", 5)) if body.get("customerRating") is not None else None,
+        customerFeedback=body.get("customerFeedback") or body.get("customerComment") or "",
+        customerTags=body.get("customerTags") or [],
+    )
+    try:
+        doc = await review_repository.submit_partner_review(order_id, partner_id, payload)
+        return {"ok": True, "message": "Partner review submitted successfully", "review": doc}
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+
+@router.get("/orders/{order_id}/review")
+async def get_partner_order_review(
+    order_id: str,
+    partner_id: str = Depends(_partner_id),
+) -> Optional[dict]:
+    """Check if partner store has reviewed this order."""
+    from app.db.review_repositories import review_repository
+    return await review_repository.get_partner_review(order_id, partner_id)
+
+
+
 @router.get("/notifications", response_model=List[PartnerNotificationResponse])
 async def notifications(user: User = Depends(current_user)) -> List[PartnerNotificationResponse]:
     feed = await notification_repository.list(user.id, page=1, limit=50, search="", type_filter="all")
