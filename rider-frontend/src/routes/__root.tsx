@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { RiderProvider } from "../context/RiderContext";
+import { LanguageProvider } from "../lib/i18n";
 
 function NotFoundComponent() {
   return (
@@ -132,9 +133,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RiderProvider>
-        <Outlet />
-      </RiderProvider>
+      <LanguageProvider>
+        <RiderProvider>
+          <Outlet />
+        </RiderProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

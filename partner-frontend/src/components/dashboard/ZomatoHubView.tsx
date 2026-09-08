@@ -50,6 +50,7 @@ import { useLanguage } from "../../lib/i18n";
 import type { ManagedOrder, PartnerOrderFilterTab } from "../../data/partner-orders-mock";
 import { STAGE_LABEL, isOrderMatchingTab } from "../../data/partner-orders-mock";
 import { OrderTimeline } from "../orders/OrderTimeline";
+import { OrderSlaCountdown } from "../orders/OrderSlaCountdown";
 
 function getStageTimelineIndex(stage: string): number {
   switch (stage) {
@@ -79,7 +80,7 @@ const PERFORMANCE_METRIC_TABS = [
 
 export function ZomatoHubView() {
   const navigate = useNavigate();
-  const { session } = usePartnerContext();
+  const { session, isOnline, toggleOnline } = usePartnerContext();
   const cachedProfile = useMemo(getCachedPartnerProfile, []);
   const cachedSummary = useMemo(getCachedDashboardSummary, []);
 
@@ -94,7 +95,6 @@ export function ZomatoHubView() {
   const [locationName, setLocationName] = useState(() =>
     cachedProfile?.city || session?.city || "Kasganj"
   );
-  const [isOnline, setIsOnline] = useState(() => cachedSummary?.isStoreOpen ?? true);
   const [todayEarnings, setTodayEarnings] = useState(() => cachedSummary?.todayEarnings ?? 0);
   const [todayOrdersCount, setTodayOrdersCount] = useState(() =>
     cachedSummary ? (cachedSummary.newOrders + cachedSummary.inProcess + cachedSummary.readyForDelivery + cachedSummary.completedToday) : 0
@@ -125,7 +125,6 @@ export function ZomatoHubView() {
         setLocationName(profile.city ? `${profile.city}` : (session?.city || "Kasganj"));
       }
       if (summary) {
-        setIsOnline(summary.isStoreOpen);
         setTodayOrdersCount(
           summary.newOrders + summary.inProcess + summary.readyForDelivery + summary.completedToday
         );
@@ -143,11 +142,9 @@ export function ZomatoHubView() {
 
   const handleToggleStore = async () => {
     try {
-      const next = !isOnline;
-      setIsOnline(next);
-      await setStoreOpen(next);
+      await toggleOnline();
+      toast.success(!isOnline ? "Store is now Online & Accepting Orders" : "Store is now Offline");
     } catch {
-      setIsOnline(!isOnline);
       toast.error("Failed to update store status");
     }
   };
@@ -373,17 +370,27 @@ export function ZomatoHubView() {
                             {order.pickupTime ? ` · ${order.pickupTime}` : ""}
                           </p>
                         </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
-                            isNew
-                              ? "bg-amber-500/15 text-amber-800 border border-amber-500/30"
-                              : order.stage === "ready"
-                                ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
-                                : "bg-blue-500/15 text-blue-800 border border-blue-500/30"
-                          }`}
-                        >
-                          {STAGE_LABEL[order.stage] || order.stage}
-                        </span>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                              isNew
+                                ? "bg-amber-500/15 text-amber-800 border border-amber-500/30"
+                                : order.stage === "ready"
+                                  ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
+                                  : "bg-blue-500/15 text-blue-800 border border-blue-500/30"
+                            }`}
+                          >
+                            {STAGE_LABEL[order.stage] || order.stage}
+                          </span>
+                          <OrderSlaCountdown
+                            placedAt={(order as any).placedAt || (order as any).placedAtRaw}
+                            deadline={(order as any).partnerAcceptDeadline || (order as any).riderAcceptDeadline}
+                            acceptedAt={(order as any).partnerAcceptedAt}
+                            stage={order.stage}
+                            autoCancelled={(order as any).autoCancelled}
+                            cancellationReason={(order as any).cancellationReason || (order as any).cancelledReason}
+                          />
+                        </div>
                       </div>
 
                       {/* Live Horizontal Timeline Stepper */}

@@ -101,13 +101,15 @@ export async function onesignalLogin(riderId: string): Promise<void> {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async function (OneSignal: any) {
     try {
-      await OneSignal.login(riderId);
-      const subscriptionId = OneSignal.User?.PushSubscription?.id;
-      if (subscriptionId) {
-        await syncPlayerIdWithBackend(subscriptionId);
+      if (typeof OneSignal?.login === "function") {
+        await OneSignal.login(riderId);
+        const subscriptionId = OneSignal.User?.PushSubscription?.id;
+        if (subscriptionId) {
+          await syncPlayerIdWithBackend(subscriptionId);
+        }
       }
-    } catch (err) {
-      console.warn("[OneSignal-Rider] Login error:", err);
+    } catch {
+      // quiet fallback in local development
     }
   });
 }

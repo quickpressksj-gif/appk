@@ -72,6 +72,7 @@ import {
 } from "../api/riders";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
+import { onRealtimeEvent } from "../api/core/socket-client";
 
 function formatTimestamp(ts?: string): string {
   if (!ts) return "—";
@@ -121,6 +122,28 @@ export function RidersPage() {
   const queryClient = useQueryClient();
   const ridersQuery = useQuery({ queryKey: ["admin", "riders"], queryFn: fetchRiders });
   const statsQuery = useQuery({ queryKey: ["admin", "riders", "stats"], queryFn: fetchRiderStats });
+
+  // Real-time fleet synchronization
+  useEffect(() => {
+    const unsubStatus = onRealtimeEvent("rider.status_changed", (payload) => {
+      console.log("[AdminRiders] Realtime status event:", payload);
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    });
+    const unsubOnline = onRealtimeEvent("rider.online_status", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders", "stats"] });
+    });
+    const unsubLoc = onRealtimeEvent("location.updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+    });
+    return () => {
+      unsubStatus();
+      unsubOnline();
+      unsubLoc();
+    };
+  }, [queryClient]);
 
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");

@@ -8,10 +8,10 @@ export const Route = createFileRoute("/profile")({
   },
   head: () => ({
     meta: [
-      { title: "Captain Profile — QuickPress" },
+      { title: "Captain Profile — QuickPress Partner" },
       {
         name: "description",
-        content: "QuickPress Captain Account, Vehicle, KYC & Settings",
+        content: "QuickPress Captain Delivery Partner Profile, Vehicle KYC, and Bank Settlement",
       },
     ],
   }),

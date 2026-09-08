@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   ClipboardList,
+  Trophy,
   Wallet,
   UserRound,
   LogOut,
@@ -27,6 +28,7 @@ export function RiderSidebar({
   const links = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
     { id: "orders", label: "Assigned Orders", icon: ClipboardList, to: "/orders" },
+    { id: "leaderboard", label: "City Leaderboard", icon: Trophy, to: "/leaderboard" },
     { id: "wallet", label: "Earnings & Payouts", icon: Wallet, to: "/wallet" },
     { id: "profile", label: "Captain Profile", icon: UserRound, to: "/profile" },
   ];

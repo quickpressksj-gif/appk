@@ -73,6 +73,7 @@ import {
 } from "../api/partners";
 import { adminHead } from "../lib/head";
 import { requireAdminSession } from "../lib/require-admin-session";
+import { onRealtimeEvent } from "../api/core/socket-client";
 
 export const Route = createFileRoute("/partners")({
   beforeLoad: requireAdminSession,
@@ -93,6 +94,24 @@ function PartnersPage() {
   const queryClient = useQueryClient();
   const partnersQuery = useQuery({ queryKey: ["admin", "partners"], queryFn: () => fetchPartners(1, 100) });
   const statsQuery = useQuery({ queryKey: ["admin", "partners", "stats"], queryFn: fetchPartnerStats });
+
+  // Real-time partner store status listener
+  useEffect(() => {
+    const unsubStatus = onRealtimeEvent("partner.status_changed", (payload) => {
+      console.log("[AdminPartners] Realtime partner status event:", payload);
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    });
+    const unsubOnline = onRealtimeEvent("partner.online_status", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners", "stats"] });
+    });
+    return () => {
+      unsubStatus();
+      unsubOnline();
+    };
+  }, [queryClient]);
 
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
@@ -285,6 +304,7 @@ function PartnersPage() {
       const matchesQuery = !q || [p.id, p.businessName, p.ownerName, p.phone, p.email, p.city].filter(Boolean).join(" ").toLowerCase().includes(q);
       const matchesStatus =
         statusTab === "all" ||
+        (statusTab === "ONLINE" && Boolean(p.isOnline || (p as any).isOpen)) ||
         (statusTab === "ACTIVE" && p.status === "ACTIVE") ||
         (statusTab === "PENDING_APPROVAL" && p.status === "PENDING_APPROVAL") ||
         (statusTab === "TEMPORARILY_SUSPENDED" && p.status === "TEMPORARILY_SUSPENDED") ||
@@ -452,7 +472,7 @@ function PartnersPage() {
         <div
           role="button"
           tabIndex={0}
-          onClick={() => setStatusTab("ACTIVE")}
+          onClick={() => setStatusTab("ONLINE")}
           className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
         >
           <KpiCard
@@ -635,6 +655,7 @@ function PartnersPage() {
         <div className="flex items-center gap-1 border-b border-zinc-100 pb-3 mb-4 overflow-x-auto text-xs">
           {[
             { id: "all", label: `All Stores (${allPartners.length})` },
+            { id: "ONLINE", label: `🟢 Live Online (${allPartners.filter((p) => p?.isOnline || (p as any).isOpen).length})` },
             { id: "ACTIVE", label: `Active (${allPartners.filter((p) => p?.status === "ACTIVE").length})` },
             { id: "PENDING_APPROVAL", label: `Pending Review (${allPartners.filter((p) => p?.status === "PENDING_APPROVAL").length})` },
             { id: "TEMPORARILY_SUSPENDED", label: `Suspended (${allPartners.filter((p) => p?.status === "TEMPORARILY_SUSPENDED").length})` },
@@ -657,13 +678,21 @@ function PartnersPage() {
           headers={["Partner Store", "Owner / Phone", "City / Zone", "Orders", "Revenue", "Earnings", "Commission", "Rating", "KYC", "Status", "Actions"]}
           loading={partnersQuery.isLoading}
           rows={filteredRows.map((r) => [
-            <div key="store" className="flex items-center gap-2">
-              <div className="size-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center font-black text-emerald-700 text-xs shrink-0">
+            <div key="store" className="flex items-center gap-2.5">
+              <div className="relative size-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center font-black text-emerald-700 text-xs shrink-0">
                 {(r.businessName || "KP").substring(0, 2).toUpperCase()}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-white ${
+                    r.isOnline || (r as any).isOpen
+                      ? "bg-emerald-500 ring-2 ring-emerald-200 animate-pulse"
+                      : "bg-zinc-300"
+                  }`}
+                  title={r.isOnline || (r as any).isOpen ? "Store Online & Open" : "Store Offline / Closed"}
+                />
               </div>
               <div>
-                <p className="font-bold text-zinc-900 leading-tight">{r.businessName}</p>
-                <p className="text-[10px] text-zinc-500 font-mono">ID: {r.id}</p>
+                <p className="font-bold text-zinc-900 text-xs leading-tight">{r.businessName}</p>
+                <p className="text-[10px] text-zinc-400 font-mono font-medium">#{r.id.slice(0, 16)}</p>
               </div>
             </div>,
             <div key="owner">
@@ -689,7 +718,21 @@ function PartnersPage() {
             <span key="kyc" className={`rounded-full px-2 py-0.5 text-[10px] font-black ${r.kycStatus === "Verified" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
               {r.kycStatus}
             </span>,
-            <StatusPill key="st" status={r.status} />,
+            <span
+              key="st"
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                r.isOnline || (r as any).isOpen
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+              }`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${
+                  r.isOnline || (r as any).isOpen ? "bg-emerald-600 animate-pulse" : "bg-zinc-400"
+                }`}
+              />
+              {r.isOnline || (r as any).isOpen ? "Online" : "Offline"}
+            </span>,
             <div key="actions" className="flex items-center gap-1.5">
               <Button
                 size="sm"

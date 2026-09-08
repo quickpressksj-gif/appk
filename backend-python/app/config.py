@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     admin_2fa_enabled: bool = True
     resend_api_key: str = ""
     resend_from_email: str = "QuickPress Security <onboarding@resend.dev>"
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    smtp_user: str = "official.quickpress@gmail.com"
+    smtp_password: str = "lleomkgsxtjxngbb"
+    smtp_from_name: str = "QuickPress"
     # --- OneSignal Push Notifications ------------------------------------
     onesignal_app_id: str = "184bda82-7c5b-4319-a977-4fcffbcca270"
     onesignal_rest_api_key: str = ""

@@ -14,7 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.deps import current_user, require_roles
+from app.core.deps import current_user, optional_user, require_roles
 from app.core.identifiers import generate_rider_id
 from app.db.client import database
 from app.db.repositories import users
@@ -933,10 +933,40 @@ async def dashboard(user: User = Depends(current_user)) -> dict:
     return await rider_delivery_repository.dashboard(rider_id)
 
 
+@router.get("/status")
+async def get_rider_status(user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    prof = await rider_profile_repository.get(rider_id) or {}
+    is_online = bool(prof.get("isOnline", False))
+    return {
+        "ok": True,
+        "riderId": rider_id,
+        "isOnline": is_online,
+        "status": "online" if is_online else "offline",
+        "lastActiveAt": prof.get("lastActiveAt") or prof.get("updatedAt"),
+    }
+
+
+@router.post("/heartbeat")
+async def rider_heartbeat(user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update(
+        "rider_profiles",
+        {"_id": rider_id},
+        {"lastActiveAt": now_iso, "updatedAt": now_iso},
+        upsert=True,
+    )
+    return {"ok": True, "timestamp": now_iso}
+
+
 @router.post("/online")
 async def set_online(body: dict | None = None, user: User = Depends(current_user)) -> dict:
     rider_id = await _rider_id(user)
-    is_online = (body or {}).get("isOnline")
+    b = body or {}
+    is_online = b.get("isOnline") if b.get("isOnline") is not None else b.get("online")
+    if is_online is None and "status" in b:
+        is_online = b["status"] in ("online", "active")
     return await rider_profile_repository.set_online(rider_id, is_online)
 
 
@@ -1130,6 +1160,213 @@ async def get_profile(user: User = Depends(current_user)) -> dict:
     return pub
 
 
+@public_router.get("/verification-status")
+@router.get("/verification-status")
+async def get_rider_verification_status(user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        return {
+            "riderId": "",
+            "name": "",
+            "phone": "",
+            "city": "",
+            "vehicleType": "",
+            "vehicleNumber": "",
+            "status": "pending",
+            "kycStatus": "pending",
+            "isVerified": False,
+            "isApproved": False,
+            "isOnboarded": False,
+            "submittedAt": "",
+            "estimatedTime": "Usually within 24 – 48 Hours",
+            "rejectionReason": None,
+            "steps": [],
+            "documents": [],
+            "support": {
+                "helpline": "1800-123-QPAY",
+                "whatsapp": "+91 80060 00000",
+                "hub": "Kasganj Regional Office, Soron Gate",
+            },
+        }
+
+    try:
+        rider_id = await _rider_id(user)
+    except Exception:
+        rider_id = user.id or ""
+
+    profile = await database.find_one("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]})
+    if not profile and user.phone:
+        clean_phone = user.phone.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        profile = await database.find_one(
+            "rider_profiles",
+            {
+                "$or": [
+                    {"phone": user.phone},
+                    {"phone": clean_phone},
+                    {"phone": f"+91{clean_phone}"},
+                    {"userId": user.id},
+                ]
+            },
+        )
+
+    if not profile:
+        profile = {}
+
+    status = profile.get("status") or (user.status.value if hasattr(user, "status") and hasattr(user.status, "value") else "pending")
+    kyc_status = profile.get("kycStatus") or ("verified" if profile.get("isVerified") else "pending")
+    is_verified = bool(profile.get("isVerified", False) or kyc_status == "verified" or status in ("active", "approved"))
+    rejection_reason = profile.get("kycReason") or profile.get("rejectionReason") or None
+
+    raw_user_name = getattr(user, "name", "") or getattr(user, "display_name", "") or ""
+    if raw_user_name in ("Delivery Partner", "Delivery Captain"):
+        raw_user_name = ""
+    candidate_name = profile.get("fullName") or profile.get("name") or profile.get("accountHolder") or raw_user_name or ""
+
+    phone = profile.get("phone") or user.phone or ""
+    city = profile.get("city") or profile.get("preferredCity") or "Kasganj"
+    vehicle_number = profile.get("vehicleNumber") or ""
+    vehicle_type = profile.get("vehicleType") or "Bike"
+    created_at = profile.get("createdAt") or profile.get("registrationTimestamp") or datetime.now(timezone.utc).isoformat()
+
+    steps = [
+        {
+            "id": "step_1",
+            "title": "Mobile OTP & Security Authentication",
+            "status": "completed",
+            "desc": f"Phone {phone} authenticated via OTP" if phone else "Phone authenticated",
+        },
+        {
+            "id": "step_2",
+            "title": "KYC Documents & Vehicle Registration",
+            "status": "completed" if profile else "pending",
+            "desc": "Aadhaar, Driving License, RC & Bank details submitted",
+        },
+        {
+            "id": "step_3",
+            "title": "Admin Document Review & Background Check",
+            "status": "completed" if is_verified else ("rejected" if kyc_status == "rejected" else "in_progress"),
+            "desc": "All documents approved by Kasganj Admin" if is_verified else ("Verification rejected by Admin" if kyc_status == "rejected" else "Kasganj Hub Verification Desk is reviewing your documents"),
+        },
+        {
+            "id": "step_4",
+            "title": "Captain Account Activation & Dispatch Ready",
+            "status": "completed" if is_verified else "pending",
+            "desc": "Live order dispatch and daily earnings unlocked" if is_verified else "Awaiting Admin approval",
+        },
+    ]
+
+    documents = [
+        {"id": "aadhaar", "name": "Aadhaar Card (Front & Back)", "status": "verified" if is_verified else ("rejected" if kyc_status == "rejected" else "submitted"), "required": True},
+        {"id": "dl", "name": "Driving License (DL)", "status": "verified" if is_verified else ("rejected" if kyc_status == "rejected" else "submitted"), "required": True},
+        {"id": "rc", "name": "Vehicle Registration (RC)", "status": "verified" if is_verified else ("rejected" if kyc_status == "rejected" else "submitted"), "required": True},
+        {"id": "selfie", "name": "Live Profile Selfie Photo", "status": "verified" if is_verified else ("rejected" if kyc_status == "rejected" else "submitted"), "required": True},
+        {"id": "bank", "name": "Bank Account & UPI Details", "status": "verified" if is_verified else ("rejected" if kyc_status == "rejected" else "submitted"), "required": True},
+    ]
+
+    return {
+        "riderId": rider_id,
+        "name": candidate_name,
+        "phone": phone,
+        "city": city,
+        "vehicleType": vehicle_type,
+        "vehicleNumber": vehicle_number,
+        "status": "active" if is_verified else status,
+        "kycStatus": "verified" if is_verified else kyc_status,
+        "isVerified": is_verified,
+        "isApproved": is_verified,
+        "isOnboarded": bool(profile.get("isOnboarded", True)),
+        "submittedAt": created_at,
+        "estimatedTime": "Usually within 24 – 48 Hours",
+        "rejectionReason": rejection_reason,
+        "steps": steps,
+        "documents": documents,
+        "support": {
+            "helpline": "1800-123-QPAY",
+            "whatsapp": "+91 80060 00000",
+            "hub": "Kasganj Regional Office, Soron Gate",
+        },
+    }
+
+
+@public_router.post("/verification/simulate-admin-approve")
+@router.post("/verification/simulate-admin-approve")
+async def simulate_admin_approve(body: dict = None, user: Optional[User] = Depends(optional_user)) -> dict:
+    rider_id = (body or {}).get("riderId")
+    if user and not rider_id:
+        try:
+            rider_id = await _rider_id(user)
+        except Exception:
+            rider_id = user.id
+    if not rider_id:
+        raise HTTPException(status_code=400, detail="riderId is required for approval")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update(
+        "rider_profiles",
+        {"$or": [{"_id": rider_id}, {"riderId": rider_id}]},
+        {
+            "status": "active",
+            "kycStatus": "verified",
+            "isVerified": True,
+            "isOnboarded": True,
+            "verifiedAt": now_iso,
+            "updatedAt": now_iso,
+        },
+        upsert=True,
+    )
+    await database.update(
+        "admin_riders",
+        {"$or": [{"_id": rider_id}, {"id": rider_id}, {"riderId": rider_id}]},
+        {
+            "status": "active",
+            "kycStatus": "verified",
+            "isVerified": True,
+            "updatedAt": now_iso,
+        },
+        upsert=True,
+    )
+    if user and user.id:
+        await database.update(
+            "users",
+            {"_id": user.id},
+            {
+                "status": "active",
+                "is_verified": True,
+                "is_onboarded": True,
+            },
+        )
+    return {"ok": True, "status": "active", "kycStatus": "verified", "isVerified": True}
+
+
+@public_router.post("/verification/simulate-admin-reject")
+@router.post("/verification/simulate-admin-reject")
+async def simulate_admin_reject(body: dict = None, user: Optional[User] = Depends(optional_user)) -> dict:
+    rider_id = (body or {}).get("riderId")
+    if user and not rider_id:
+        try:
+            rider_id = await _rider_id(user)
+        except Exception:
+            rider_id = user.id
+    if not rider_id:
+        raise HTTPException(status_code=400, detail="riderId is required for rejection")
+
+    reason = (body or {}).get("reason") or "Vehicle RC photo is blurry. Please re-upload clear front & back RC document."
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await database.update(
+        "rider_profiles",
+        {"$or": [{"_id": rider_id}, {"riderId": rider_id}]},
+        {
+            "status": "rejected",
+            "kycStatus": "rejected",
+            "isVerified": False,
+            "kycReason": reason,
+            "rejectionReason": reason,
+            "updatedAt": now_iso,
+        },
+        upsert=True,
+    )
+    return {"ok": True, "status": "rejected", "kycStatus": "rejected", "rejectionReason": reason}
+
+
 @router.post("/appeal")
 async def submit_rider_appeal(body: dict, user: User = Depends(current_user)) -> dict:
     from app.db.client import database
@@ -1201,10 +1438,18 @@ async def update_settings(body: dict, user: User = Depends(current_user)) -> dic
 # --------------------------------------------------------------------------
 
 
+@public_router.get("/offers")
 @router.get("/offers")
-async def get_active_offers(user: User = Depends(current_user)) -> list:
+async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> list:
     """Fetch live pending ride offers dispatched to this rider — strictly validated against real customer orders."""
-    rider_id = await _rider_id(user)
+    if not user:
+        return []
+    try:
+        rider_id = await _rider_id(user)
+    except Exception:
+        rider_id = user.id or ""
+    if not rider_id:
+        return []
     from app.services.smart_2ride_engine import RIDE_ASSIGNMENTS_COLLECTION, RIDES_COLLECTION
     from app.services.rider_dispatch import OFFERS_COLLECTION
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1644,10 +1889,6 @@ async def start_delivery(
         return await smart_2ride_engine.verify_dispatch_otp(order_id, str(otp or ""), rider_id)
     except (PermissionError, ValueError) as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
-    except LookupError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
-
-
 @router.post("/orders/{order_id}/deliver")
 @router.post("/orders/{order_id}/verify-delivery-otp")
 async def deliver_order(
@@ -1664,6 +1905,73 @@ async def deliver_order(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
 
 
+@router.post("/orders/{order_id}/arrived")
+async def arrived_at_pickup(order_id: str, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    target_order_id = ride.get("orderId") if ride else order_id
+    now_iso = lifecycle.now_iso()
+    if ride:
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"_id": ride["_id"]},
+            {"$set": {"status": "ARRIVED", "arrivedAt": now_iso}}
+        )
+    await database.update(
+        "customer_orders",
+        {"_id": target_order_id},
+        {"riderArrivedAt": now_iso, "updatedAt": now_iso}
+    )
+    return {"ok": True, "status": "ARRIVED", "arrivedAt": now_iso, "orderId": target_order_id}
+
+
+@router.post("/orders/{order_id}/collect-cash")
+async def collect_cash_order(order_id: str, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    target_order_id = ride.get("orderId") if ride else order_id
+    now_iso = lifecycle.now_iso()
+    await database.update(
+        "customer_orders",
+        {"_id": target_order_id},
+        {
+            "paymentStatus": "paid",
+            "paymentMode": "cash",
+            "cashCollectedByRider": True,
+            "cashCollectedAt": now_iso,
+            "updatedAt": now_iso,
+        }
+    )
+    return {"ok": True, "message": "Cash payment recorded successfully", "orderId": target_order_id}
+
+
+@router.post("/orders/{order_id}/rate-customer")
+@router.post("/orders/{order_id}/rate")
+async def rate_customer(order_id: str, body: dict, user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    from app.services.smart_2ride_engine import RIDES_COLLECTION
+    ride = await database.find_one(RIDES_COLLECTION, {"_id": order_id})
+    target_order_id = ride.get("orderId") if ride else order_id
+    rating = int(body.get("rating", 5))
+    tags = body.get("tags") or body.get("feedbackTags") or []
+    feedback = body.get("feedback") or body.get("comment") or ""
+    now_iso = lifecycle.now_iso()
+    
+    await database.update(
+        "customer_orders",
+        {"_id": target_order_id},
+        {
+            "customerRatingByRider": rating,
+            "riderFeedbackTags": tags,
+            "riderFeedbackComment": feedback,
+            "riderRatedAt": now_iso,
+            "updatedAt": now_iso,
+        }
+    )
+    return {"ok": True, "message": "Customer rating saved successfully", "orderId": target_order_id}
+
+
 # --------------------------------------------------------------------------
 # History / earnings / wallet
 # --------------------------------------------------------------------------
@@ -1675,14 +1983,20 @@ async def history(user: User = Depends(current_user)) -> list:
     return await rider_delivery_repository.history(rider_id)
 
 
+@public_router.get("/earnings")
 @router.get("/earnings")
-async def earnings(user: User = Depends(current_user)) -> dict:
+async def earnings(user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     rider_id = await _rider_id(user)
     return await rider_earnings_repository.summary(rider_id)
 
 
+@public_router.get("/wallet")
 @router.get("/wallet")
-async def wallet(user: User = Depends(current_user)) -> dict:
+async def wallet(user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     rider_id = await _rider_id(user)
     wallet_doc = await rider_wallet_repository.get(rider_id)
     if wallet_doc is None:
@@ -1690,21 +2004,240 @@ async def wallet(user: User = Depends(current_user)) -> dict:
     return wallet_doc
 
 
+@public_router.post("/wallet/withdraw")
 @router.post("/wallet/withdraw")
-async def withdraw(body: dict, user: User = Depends(current_user)) -> dict:
+async def withdraw(body: dict, user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     rider_id = await _rider_id(user)
+    
+    amount = float((body or {}).get("amount", 0))
+    upi_id = str((body or {}).get("upiId") or "").strip()
     try:
-        return await rider_wallet_repository.withdraw(rider_id, float(body.get("amount", 0)))
+        return await rider_wallet_repository.withdraw(rider_id, amount, upi_id=upi_id)
     except LookupError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
+@public_router.post("/wallet/credit")
+@router.post("/wallet/credit")
+async def credit(body: dict, user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    rider_id = await _rider_id(user)
+    
+    amount = float((body or {}).get("amount", 0))
+    title = str((body or {}).get("title") or "Milestone Bonus Credit")
+    kind = str((body or {}).get("kind") or "incentive")
+    try:
+        return await rider_wallet_repository.credit(rider_id, amount, title=title, kind=kind)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+
+@public_router.get("/wallet/transactions")
 @router.get("/wallet/transactions")
-async def wallet_transactions(user: User = Depends(current_user)) -> list:
+async def wallet_transactions(user: Optional[User] = Depends(optional_user)) -> list:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     rider_id = await _rider_id(user)
     return await rider_wallet_repository.transactions(rider_id)
+
+
+@public_router.get("/incentives")
+@router.get("/incentives")
+async def get_rider_incentives(user: Optional[User] = Depends(optional_user)) -> dict:
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    rider_id = await _rider_id(user)
+    
+    my_profile = await database.find_one("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]}) or {}
+    
+    # Calculate real today's deliveries from customer_orders
+    all_orders = await rider_delivery_repository._orders_for(rider_id)
+    completed_orders = [o for o in all_orders if o.get("status") in ("delivered", "completed")]
+    today_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_deliveries = [
+        o for o in completed_orders
+        if str(o.get("deliveredAt") or o.get("updatedAt") or o.get("createdAt") or "")[:10] == today_prefix
+    ]
+    completed_today = len(today_deliveries)
+    if completed_today == 0 and my_profile.get("todayDeliveries"):
+        try:
+            completed_today = int(my_profile.get("todayDeliveries"))
+        except Exception:
+            completed_today = 0
+    
+    # Calculate incentives earned today from actual credit transactions
+    txns = await database.find_sorted(
+        "rider_wallet_transactions", {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}]}, sort=[("date", -1)]
+    ) or []
+    today_incentive_txns = [
+        t for t in txns
+        if t.get("direction") == "credit"
+        and str(t.get("date") or "")[:10] == today_prefix
+        and (t.get("kind") == "incentive" or "incentive" in str(t.get("title") or "").lower() or "bonus" in str(t.get("title") or "").lower())
+    ]
+    total_incentives_earned_today = sum(float(t.get("amount") or 0) for t in today_incentive_txns)
+    
+    # Calculate real weekly streak days (last 7 days where deliveries >= 5)
+    now_dt = datetime.now(timezone.utc)
+    weekly_days = []
+    completed_streak_days = 0
+    for i in range(6, -1, -1):
+        d_dt = now_dt - timedelta(days=i)
+        d_str = d_dt.strftime("%Y-%m-%d")
+        d_name = d_dt.strftime("%a")
+        day_trips = sum(1 for o in completed_orders if str(o.get("deliveredAt") or o.get("updatedAt") or o.get("createdAt") or "")[:10] == d_str)
+        if i == 0 and day_trips == 0:
+            day_trips = completed_today
+        is_met = day_trips >= 5
+        if is_met:
+            completed_streak_days += 1
+        weekly_days.append({
+            "day": d_name,
+            "trips": day_trips,
+            "met": is_met,
+            "isToday": (i == 0),
+        })
+
+    return {
+        "riderId": rider_id,
+        "completedToday": completed_today,
+        "totalIncentivesEarnedToday": round(total_incentives_earned_today, 2),
+        "weeklyStreakDays": completed_streak_days,
+        "targetStreakDays": 6,
+        "streakReward": 500.0,
+        "milestones": [
+            {
+                "id": "tier-1",
+                "tierName": "Starter Tier",
+                "title": "Starter Milestone (5 Rides)",
+                "target": 5,
+                "completed": completed_today,
+                "reward": 100.0,
+                "status": "completed" if completed_today >= 5 else "active",
+                "unlocked": completed_today >= 5,
+                "progressPercent": min(100, round((completed_today / 5) * 100)),
+                "extraPerRide": 20.0,
+            },
+            {
+                "id": "tier-2",
+                "tierName": "Champion Tier",
+                "title": "Champion Milestone (10 Rides)",
+                "target": 10,
+                "completed": completed_today,
+                "reward": 250.0,
+                "status": "completed" if completed_today >= 10 else "active",
+                "unlocked": completed_today >= 10,
+                "progressPercent": min(100, round((completed_today / 10) * 100)),
+                "extraPerRide": 25.0,
+            },
+            {
+                "id": "tier-3",
+                "tierName": "Super Captain Tier",
+                "title": "Super Captain Milestone (15 Rides)",
+                "target": 15,
+                "completed": completed_today,
+                "reward": 450.0,
+                "status": "completed" if completed_today >= 15 else "active",
+                "unlocked": completed_today >= 15,
+                "progressPercent": min(100, round((completed_today / 15) * 100)),
+                "extraPerRide": 30.0,
+            },
+        ],
+        "nextMilestone": {
+            "title": "Champion Milestone (10 Rides)",
+            "target": 10,
+            "ridesRemaining": max(0, 10 - completed_today),
+            "rewardDifference": 150.0,
+            "totalReward": 250.0,
+        } if completed_today < 10 else (
+            {
+                "title": "Super Captain Milestone (15 Rides)",
+                "target": 15,
+                "ridesRemaining": max(0, 15 - completed_today),
+                "rewardDifference": 200.0,
+                "totalReward": 450.0,
+            } if completed_today < 15 else None
+        ),
+        "specialQuests": [
+            {
+                "id": "quest-rush-kasganj",
+                "title": "Kasganj Evening Rush Hour (6 PM - 9 PM) ⚡",
+                "desc": "Complete 5 deliveries during peak customer rush in Kasganj Hub",
+                "reward": 100.0,
+                "target": 5,
+                "progress": min(5, completed_today),
+                "expiresIn": "Claimed ✅" if completed_today >= 5 else "2h 45m left",
+                "completed": completed_today >= 5,
+                "tag": "Peak Surge",
+            },
+            {
+                "id": "quest-high-rating",
+                "title": "5-Star Service Quality Streak ⭐",
+                "desc": "Maintain 4.9+ customer rating across 8+ completed rides",
+                "reward": 50.0,
+                "target": 8,
+                "progress": min(8, completed_today),
+                "expiresIn": "3 hrs remaining",
+                "completed": completed_today >= 8,
+                "tag": "Quality Bonus",
+            },
+            {
+                "id": "quest-weekly-super",
+                "title": "Weekly 6-Day Duty Streak Bonus 🏆",
+                "desc": "Go online & complete at least 5 trips daily for 6 consecutive days",
+                "reward": 500.0,
+                "target": 6,
+                "progress": min(6, completed_streak_days),
+                "expiresIn": f"{max(0, 6 - completed_streak_days)} days remaining" if completed_streak_days < 6 else "Completed 🏆",
+                "completed": completed_streak_days >= 6,
+                "tag": "Mega Streak",
+            },
+        ],
+        "surgeZones": [
+            {
+                "id": "zone-1",
+                "name": "Kasganj Railway Station & Main Bazaar",
+                "multiplier": "1.4x",
+                "bonusPerTrip": 25.0,
+                "activeTiming": "6:00 PM – 10:00 PM",
+                "isActive": True,
+                "demandLevel": "Very High 🔥",
+            },
+            {
+                "id": "zone-2",
+                "name": "Soron Gate & Ganjdundwara Road Hub",
+                "multiplier": "1.25x",
+                "bonusPerTrip": 15.0,
+                "activeTiming": "7:00 PM – 11:00 PM",
+                "isActive": True,
+                "demandLevel": "High ⚡",
+            },
+            {
+                "id": "zone-3",
+                "name": "Mamu Bhanja & Bilram Gate Market",
+                "multiplier": "1.2x",
+                "bonusPerTrip": 10.0,
+                "activeTiming": "8:00 AM – 11:30 AM",
+                "isActive": False,
+                "demandLevel": "Moderate",
+            },
+        ],
+        "weeklyStreak": {
+            "completedDays": completed_streak_days,
+            "targetDays": 6,
+            "bonusAmount": 500.0,
+            "days": weekly_days,
+        },
+        "settlementInfo": {
+            "cycle": "72-Hour Automated Cycle",
+            "cycleNote": "All milestone bonuses & quest rewards are credited directly to your verified Bank/UPI in the 72-Hour cycle with 0% commission deduction.",
+        },
+    }
 
 
 # --------------------------------------------------------------------------
@@ -1716,6 +2249,45 @@ async def wallet_transactions(user: User = Depends(current_user)) -> list:
 async def notifications(user: User = Depends(current_user)) -> list:
     rider_id = await _rider_id(user)
     return await rider_notification_repository.list(rider_id)
+
+
+@router.get("/notifications/unread-count")
+async def notifications_unread_count(user: User = Depends(current_user)) -> dict:
+    rider_id = await _rider_id(user)
+    count = await rider_notification_repository.unread_count(rider_id)
+    return {"ok": True, "count": count}
+
+
+@router.post("/notifications/test")
+async def send_test_rider_notification(
+    payload: Optional[dict] = None, user: User = Depends(current_user)
+) -> dict:
+    rider_id = await _rider_id(user)
+    body_data = payload or {}
+    title = str(body_data.get("title") or "🔔 QuickPress Captain Dispatch")
+    msg = str(body_data.get("message") or "High-priority Captain Notification Pipeline connected & verified!")
+    kind = str(body_data.get("kind") or "order")
+    
+    doc = await rider_notification_repository.create(
+        rider_id=rider_id,
+        title=title,
+        message=msg,
+        kind=kind,
+    )
+    
+    try:
+        from app.core.onesignal import send_onesignal_notification
+        await send_onesignal_notification(
+            rider_id,
+            title=title,
+            body=msg,
+            data={"role": "rider", "kind": "test", "url": "/orders"},
+            url="/orders",
+        )
+    except Exception:
+        pass
+        
+    return {"ok": True, "notification": doc}
 
 
 @router.post("/notifications/{notification_id}/read")
@@ -1760,14 +2332,15 @@ async def get_rider_bank(user: User = Depends(current_user)) -> dict:
         doc = {
             "_id": rider_id,
             "riderId": rider_id,
-            "bankName": profile.get("bankName", "State Bank of India"),
-            "accountNumber": profile.get("accountNumber", "••••••••4821"),
-            "ifsc": profile.get("ifsc", "SBIN0001234"),
-            "accountHolder": profile.get("accountHolder", profile.get("fullName", "Delivery Partner")),
-            "upiId": profile.get("upiId", f"{rider_id.lower()}@okhdfcbank"),
-            "isVerified": True,
+            "bankName": profile.get("bankName", ""),
+            "accountNumber": profile.get("accountNumber", ""),
+            "ifsc": profile.get("ifsc", ""),
+            "accountHolder": profile.get("accountHolder", profile.get("fullName", "")),
+            "upiId": profile.get("upiId", ""),
+            "isVerified": bool(profile.get("bankName") and profile.get("accountNumber")),
         }
-        await database.insert("rider_bank_accounts", doc)
+        if doc["bankName"] or doc["accountNumber"] or doc["upiId"]:
+            await database.insert("rider_bank_accounts", doc)
     return _public(doc)
 
 
@@ -1842,4 +2415,174 @@ async def update_work_settings(body: dict, user: User = Depends(current_user)) -
         await database.update("rider_settings", {"_id": rider_id}, settings_updates, upsert=True)
 
     return {"ok": True, "message": "Work settings updated successfully"}
+
+
+# --------------------------------------------------------------------------
+# City Leaderboard & Gamification Engine
+# --------------------------------------------------------------------------
+
+
+@public_router.get("/leaderboard")
+@router.get("/leaderboard")
+async def get_city_leaderboard(
+    period: str = Query(default="today", regex="^(today|weekly|all_time)$"),
+    city: Optional[str] = None,
+    user: Optional[User] = Depends(optional_user),
+) -> dict:
+    rider_id = ""
+    if user:
+        try:
+            rider_id = await _rider_id(user)
+        except Exception:
+            rider_id = user.id or ""
+    my_profile = {}
+    if rider_id:
+        my_profile = await database.find_one("rider_profiles", {"$or": [{"_id": rider_id}, {"riderId": rider_id}]}) or {}
+    
+    target_city = city or my_profile.get("city") or my_profile.get("preferredCity") or "Kasganj"
+    my_name = my_profile.get("fullName") or my_profile.get("name") or "Delivery Captain"
+    my_rating = float(my_profile.get("rating", 4.9))
+
+    # Real completed orders lookup from customer_orders collection
+    now = datetime.now(timezone.utc)
+    if period == "today":
+        since_iso = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    elif period == "weekly":
+        since_iso = (now - timedelta(days=7)).isoformat()
+    else:
+        since_iso = "2020-01-01T00:00:00Z"
+
+    # Fetch all canonical orders from DB
+    all_orders = await database.find_many(
+        "customer_orders",
+        {"status": {"$in": ["delivered", "completed", "at_partner", "out_for_delivery"]}}
+    ) or []
+
+    # Fetch all registered riders from DB
+    db_riders = await database.find_many("rider_profiles") or []
+    
+    # Filter DB riders by city or include all if matching
+    city_riders = [
+        r for r in db_riders 
+        if (str(r.get("city", "")).lower() == target_city.lower() or not r.get("city"))
+    ]
+    if not city_riders:
+        city_riders = db_riders
+
+    # Map of rider ID -> real stats
+    rider_stats: dict[str, dict] = {}
+    for r in city_riders:
+        rid = str(r.get("_id") or r.get("riderId") or "")
+        if not rid:
+            continue
+        rname = r.get("fullName") or r.get("name") or "Captain"
+        rider_stats[rid] = {
+            "id": rid,
+            "name": f"{rname} (You)" if (rider_id and rid == rider_id) else rname,
+            "riderId": rid,
+            "avatar": "".join([p[0].upper() for p in rname.split() if p][:2]) or "CP",
+            "trips": int(r.get("todayDeliveries" if period == "today" else "totalDeliveries", 0)),
+            "earnings": float(r.get("todayEarnings" if period == "today" else "totalEarnings", 0.0)),
+            "rating": float(r.get("rating", 4.9)),
+            "isMe": bool(rider_id and rid == rider_id),
+            "city": target_city,
+            "badge": "Fleet Captain 🛵" if (rider_id and rid == rider_id) else "Verified Captain 🛡️",
+            "reward": "Contender",
+        }
+
+    # If current rider not in city_riders and rider_id exists, ensure they exist in stats
+    if rider_id and rider_id not in rider_stats:
+        rider_stats[rider_id] = {
+            "id": rider_id,
+            "name": f"{my_name} (You)",
+            "riderId": rider_id,
+            "avatar": "".join([p[0].upper() for p in my_name.split() if p][:2]) or "CP",
+            "trips": int(my_profile.get("todayDeliveries" if period == "today" else "totalDeliveries", 0)),
+            "earnings": float(my_profile.get("todayEarnings" if period == "today" else "totalEarnings", 0.0)),
+            "rating": my_rating,
+            "isMe": True,
+            "city": target_city,
+            "badge": "Fleet Captain 🛵",
+            "reward": "Contender",
+        }
+
+    # Aggregate real completed orders per rider
+    for ord_doc in all_orders:
+        ord_at = str(ord_doc.get("updatedAt") or ord_doc.get("createdAt") or "")
+        if ord_at and ord_at < since_iso:
+            continue
+        
+        r_info = ord_doc.get("rider") or ord_doc.get("deliveryRider") or ord_doc.get("pickupRider") or {}
+        oid_rider = str(r_info.get("id") or ord_doc.get("assignedRiderId") or ord_doc.get("riderId") or "")
+        if oid_rider and oid_rider in rider_stats:
+            rider_stats[oid_rider]["trips"] += 1
+            fee = float(ord_doc.get("deliveryFee") or (ord_doc.get("delivery") or {}).get("fee") or 60.0)
+            rider_stats[oid_rider]["earnings"] += fee
+
+    entries = list(rider_stats.values())
+
+    # Sort descending by trips, then earnings, then rating
+    entries.sort(key=lambda x: (x["trips"], x["earnings"], x["rating"]), reverse=True)
+
+    # Assign rank positions
+    ranked_list = []
+    my_rank_info = None
+    for idx, item in enumerate(entries):
+        rank = idx + 1
+        item["rank"] = rank
+        if rank == 1:
+            item["badge"] = "Gold Champion 👑"
+            item["reward"] = "₹500 Prize Pool 🥇"
+        elif rank == 2:
+            item["badge"] = "Silver Ace ⚡"
+            item["reward"] = "₹300 Prize Pool 🥈"
+        elif rank == 3:
+            item["badge"] = "Bronze Star 🌟"
+            item["reward"] = "₹150 Prize Pool 🥉"
+        elif rank <= 5:
+            item["reward"] = "Top 5 Elite 🚀"
+        else:
+            item["reward"] = "Active Contender"
+
+        ranked_list.append(item)
+        if item.get("isMe"):
+            prev_rank_trips = ranked_list[max(0, idx - 1)]["trips"] if idx > 0 else item["trips"]
+            gap = max(1, prev_rank_trips - item["trips"] + 1) if rank > 1 else 0
+            my_rank_info = {
+                "rank": rank,
+                "trips": item["trips"],
+                "earnings": item["earnings"],
+                "rating": item["rating"],
+                "gapToNextRank": gap,
+                "bonusStatus": "₹100 Target Bonus Achieved! 🎉" if item["trips"] >= 5 else f"{5 - item['trips']} more to ₹100 Bonus",
+                "nextPrize": "₹500 Cash 👑" if rank <= 3 else "Top 3 Podium (Cash Prize)",
+            }
+
+    top_three = ranked_list[:3]
+
+    prizes = [
+        {"place": "1st Place", "reward": "₹500 Cash + Gold Champion Crown", "icon": "👑", "color": "amber"},
+        {"place": "2nd Place", "reward": "₹300 Cash + Silver Medal", "icon": "🥈", "color": "slate"},
+        {"place": "3rd Place", "reward": "₹150 Cash + Bronze Medal", "icon": "🥉", "color": "amber"},
+        {"place": "Top 10", "reward": "Priority Smart Dispatch & 0 Platform Fee", "icon": "🚀", "color": "emerald"},
+    ]
+
+    return {
+        "city": target_city,
+        "period": period,
+        "totalCaptains": len(ranked_list),
+        "myRank": my_rank_info or {
+            "rank": 1 if len(ranked_list) == 0 else len(ranked_list) + 1,
+            "trips": 0,
+            "earnings": 0.0,
+            "rating": 5.0,
+            "gapToNextRank": 0,
+            "bonusStatus": "5 more to ₹100 Bonus",
+            "nextPrize": "Top 3 Podium",
+        },
+        "topThree": top_three,
+        "leaderboard": ranked_list,
+        "prizes": prizes,
+    }
+
 

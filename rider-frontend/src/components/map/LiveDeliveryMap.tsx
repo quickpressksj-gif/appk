@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, ExternalLink, Navigation, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, ExternalLink, Layers, Navigation, ZoomIn, ZoomOut } from "lucide-react";
+import { triggerHaptic } from "../../lib/captain-audio";
 
 export type MapCoordinate = {
   lat: number;
@@ -17,6 +18,14 @@ export type LiveDeliveryMapProps = {
   heightClassName?: string;
   showControls?: boolean;
   onOpenNavigation?: () => void;
+};
+
+export type GoogleMapLayerType = "roadmap" | "satellite" | "traffic";
+
+const GOOGLE_TILE_URLS: Record<GoogleMapLayerType, string> = {
+  roadmap: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+  satellite: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+  traffic: "https://mt1.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}",
 };
 
 // Calculate Haversine distance in Kilometres
@@ -46,36 +55,39 @@ export function LiveDeliveryMap({
 }: LiveDeliveryMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const tileLayerRef = useRef<any>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
   const polylineRef = useRef<any>(null);
 
   const [mapReady, setMapReady] = useState(false);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [etaMins, setEtaMins] = useState<number | null>(null);
+  const [activeLayer, setActiveLayer] = useState<GoogleMapLayerType>("roadmap");
 
   // Default coordinate (Center of Kasganj, UP if no coordinates available)
   const defaultCenter = { lat: 27.8118, lng: 78.6477 };
 
   // Calculate distance & ETA whenever positions update
   useEffect(() => {
-    if (riderLocation && destinationLocation) {
+    const dest = destinationLocation || storeLocation;
+    if (riderLocation && dest) {
       const dist = getDistanceKm(
         riderLocation.lat,
         riderLocation.lng,
-        destinationLocation.lat,
-        destinationLocation.lng
+        dest.lat,
+        dest.lng
       );
       setDistanceKm(dist);
-      // Approx 20 km/h average city courier speed
-      const eta = Math.max(2, Math.round((dist / 20) * 60));
+      // Approx 22 km/h average city courier bike speed
+      const eta = Math.max(1, Math.round((dist / 22) * 60));
       setEtaMins(eta);
     } else {
       setDistanceKm(null);
       setEtaMins(null);
     }
-  }, [riderLocation, destinationLocation]);
+  }, [riderLocation, destinationLocation, storeLocation]);
 
-  // Initialize Leaflet map safely on client
+  // Initialize Leaflet map with Google Maps tiles on client
   useEffect(() => {
     let isMounted = true;
 
@@ -97,15 +109,13 @@ export function LiveDeliveryMap({
           attributionControl: false,
         });
 
-        // Add CartoDB Voyager Retina Tiles
-        L.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-          {
-            maxZoom: 19,
-            subdomains: "abcd",
-          }
-        ).addTo(map);
+        // Add Google Maps High-Resolution Tile Layer
+        const tile = L.tileLayer(GOOGLE_TILE_URLS[activeLayer], {
+          maxZoom: 20,
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        }).addTo(map);
 
+        tileLayerRef.current = tile;
         mapInstanceRef.current = map;
         setMapReady(true);
       }
@@ -122,6 +132,22 @@ export function LiveDeliveryMap({
     };
   }, []);
 
+  // Update Google Maps Tile Layer when layer type toggles
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    void (async () => {
+      const L = (await import("leaflet")).default;
+      if (tileLayerRef.current) {
+        mapInstanceRef.current.removeLayer(tileLayerRef.current);
+      }
+      const newTile = L.tileLayer(GOOGLE_TILE_URLS[activeLayer], {
+        maxZoom: 20,
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+      }).addTo(mapInstanceRef.current);
+      tileLayerRef.current = newTile;
+    })();
+  }, [activeLayer]);
+
   // Update Markers & Polyline when coordinates change
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
@@ -131,7 +157,7 @@ export function LiveDeliveryMap({
         const L = (await import("leaflet")).default;
         const map = mapInstanceRef.current;
         if (!map) return;
-        const bounds: any[] = [];
+        const bounds: [number, number][] = [];
 
         // 1. Rider Marker (Pulsing Emerald Bike)
         if (riderLocation && riderLocation.lat && riderLocation.lng) {
@@ -154,14 +180,14 @@ export function LiveDeliveryMap({
             iconAnchor: [22, 22],
           });
 
-          if (markersRef.current.rider) {
-            markersRef.current.rider.setLatLng([riderLocation.lat, riderLocation.lng]);
+          if (markersRef.current["rider"]) {
+            markersRef.current["rider"].setLatLng([riderLocation.lat, riderLocation.lng]);
           } else {
-            markersRef.current.rider = L.marker([riderLocation.lat, riderLocation.lng], {
+            markersRef.current["rider"] = L.marker([riderLocation.lat, riderLocation.lng], {
               icon: riderIcon,
               zIndexOffset: 1000,
             }).addTo(map);
-            markersRef.current.rider.bindPopup(
+            markersRef.current["rider"].bindPopup(
               `<b>${riderLocation.label || "QuickPress Captain"}</b><br/>Live GPS Telemetry`
             );
           }
@@ -186,20 +212,19 @@ export function LiveDeliveryMap({
             iconAnchor: [20, 20],
           });
 
-          if (markersRef.current.dest) {
-            markersRef.current.dest.setLatLng([destinationLocation.lat, destinationLocation.lng]);
+          if (markersRef.current["dest"]) {
+            markersRef.current["dest"].setLatLng([destinationLocation.lat, destinationLocation.lng]);
           } else {
-            markersRef.current.dest = L.marker(
-              [destinationLocation.lat, destinationLocation.lng],
-              { icon: destIcon }
-            ).addTo(map);
-            markersRef.current.dest.bindPopup(
-              `<b>${destinationLocation.label || "Customer Location"}</b><br/>${destinationLocation.sublabel || ""}`
+            markersRef.current["dest"] = L.marker([destinationLocation.lat, destinationLocation.lng], {
+              icon: destIcon,
+            }).addTo(map);
+            markersRef.current["dest"].bindPopup(
+              `<b>${destinationLocation.label || "Customer Destination"}</b><br/>${destinationLocation.sublabel || targetAddressName || ""}`
             );
           }
         }
 
-        // 3. Store Marker (Partner Laundry Store)
+        // 3. Store / Pickup Location Marker
         if (storeLocation && storeLocation.lat && storeLocation.lng) {
           bounds.push([storeLocation.lat, storeLocation.lng]);
 
@@ -207,9 +232,9 @@ export function LiveDeliveryMap({
             className: "custom-store-icon",
             html: `
               <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
-                <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #4f46e5; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
+                <div style="position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 9999px; background-color: #2563eb; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); border: 2.5px solid white;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                    <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/>
                   </svg>
                 </div>
               </div>
@@ -218,36 +243,45 @@ export function LiveDeliveryMap({
             iconAnchor: [20, 20],
           });
 
-          if (markersRef.current.store) {
-            markersRef.current.store.setLatLng([storeLocation.lat, storeLocation.lng]);
+          if (markersRef.current["store"]) {
+            markersRef.current["store"].setLatLng([storeLocation.lat, storeLocation.lng]);
           } else {
-            markersRef.current.store = L.marker([storeLocation.lat, storeLocation.lng], {
+            markersRef.current["store"] = L.marker([storeLocation.lat, storeLocation.lng], {
               icon: storeIcon,
             }).addTo(map);
-            markersRef.current.store.bindPopup(
-              `<b>${storeLocation.label || "QuickPress Partner Store"}</b><br/>${storeLocation.sublabel || ""}`
+            markersRef.current["store"].bindPopup(
+              `<b>${storeLocation.label || "Pickup Partner Store"}</b><br/>${storeLocation.sublabel || ""}`
             );
           }
         }
 
-        // 4. Live Route Polyline between Rider and Target Destination
-        if (riderLocation && destinationLocation) {
-          const routePoints = [
+        // 4. Draw Route Polyline
+        const targetPoint = destinationLocation || storeLocation;
+        if (riderLocation && targetPoint) {
+          const polylineCoords: [number, number][] = [
             [riderLocation.lat, riderLocation.lng],
-            [destinationLocation.lat, destinationLocation.lng],
+            [
+              (riderLocation.lat + targetPoint.lat) / 2 + 0.0006,
+              (riderLocation.lng + targetPoint.lng) / 2 - 0.0004,
+            ],
+            [targetPoint.lat, targetPoint.lng],
           ];
 
           if (polylineRef.current) {
-            polylineRef.current.setLatLngs(routePoints);
+            polylineRef.current.setLatLngs(polylineCoords);
           } else {
-            polylineRef.current = L.polyline(routePoints, {
-              color: "#059669",
-              weight: 4,
-              opacity: 0.85,
-              dashArray: "8, 8",
+            polylineRef.current = L.polyline(polylineCoords, {
+              color: "#00C853",
+              weight: 5,
+              opacity: 0.9,
+              dashArray: "6, 8",
+              lineJoin: "round",
               lineCap: "round",
             }).addTo(map);
           }
+        } else if (polylineRef.current) {
+          map.removeLayer(polylineRef.current);
+          polylineRef.current = null;
         }
 
         // Auto-Fit Bounds if multiple points exist
@@ -264,18 +298,43 @@ export function LiveDeliveryMap({
 
   // Recenter on Rider
   const handleRecenter = () => {
+    triggerHaptic(40);
     if (!mapInstanceRef.current) return;
     const focus = riderLocation || destinationLocation || storeLocation || defaultCenter;
     mapInstanceRef.current.flyTo([focus.lat, focus.lng], 16, { animate: true, duration: 1 });
   };
 
+  // Toggle Layer (Roadmap -> Satellite -> Traffic -> Roadmap)
+  const handleToggleLayer = () => {
+    triggerHaptic(40);
+    setActiveLayer((prev) => {
+      if (prev === "roadmap") return "satellite";
+      if (prev === "satellite") return "traffic";
+      return "roadmap";
+    });
+  };
+
   // Zoom In / Out
-  const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
-  const handleZoomOut = () => mapInstanceRef.current?.zoomOut();
+  const handleZoomIn = () => {
+    triggerHaptic(30);
+    mapInstanceRef.current?.zoomIn();
+  };
+  const handleZoomOut = () => {
+    triggerHaptic(30);
+    mapInstanceRef.current?.zoomOut();
+  };
+
+  // Open External Google Maps (Two-Wheeler Navigation Mode)
+  const handleOpenGoogleMapsApp = () => {
+    triggerHaptic(50);
+    const dest = destinationLocation || storeLocation || defaultCenter;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=two-wheeler`;
+    window.open(url, "_blank");
+  };
 
   return (
     <div className={`relative w-full overflow-hidden rounded-2xl border border-emerald-200 bg-slate-100 shadow-sm select-none ${heightClassName}`}>
-      {/* Actual Leaflet Container */}
+      {/* Actual Leaflet Container with Google Maps tiles */}
       <div ref={mapContainerRef} className="absolute inset-0 size-full z-0" />
 
       {/* Floating Telemetry Badge (Top Left) */}
@@ -283,7 +342,7 @@ export function LiveDeliveryMap({
         <div className="flex items-center gap-2 rounded-xl bg-white/95 backdrop-blur-md px-3 py-1.5 shadow-md border border-slate-200 text-xs">
           <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-bold text-slate-800">
-            {phase === "pickup" ? "To Pickup" : phase === "delivery" ? "To Store" : "Live Radar"}
+            {phase === "pickup" ? "To Pickup" : phase === "delivery" ? "To Customer" : "Live Google Radar"}
           </span>
           {distanceKm !== null ? (
             <>
@@ -311,6 +370,17 @@ export function LiveDeliveryMap({
           >
             <Crosshair className="size-4 text-emerald-700" />
           </button>
+
+          {/* Google Layer Switcher (Roadmap / Satellite / Traffic) */}
+          <button
+            type="button"
+            onClick={handleToggleLayer}
+            className="flex size-8 items-center justify-center rounded-xl bg-white/95 backdrop-blur-md text-slate-700 shadow-md border border-slate-200 hover:bg-slate-50 active:scale-95 transition-transform cursor-pointer"
+            title={`Layer: ${activeLayer} (Click to switch)`}
+          >
+            <Layers className="size-4 text-blue-600" />
+          </button>
+
           <button
             type="button"
             onClick={handleZoomIn}
@@ -330,20 +400,48 @@ export function LiveDeliveryMap({
         </div>
       ) : null}
 
-      {/* Floating Navigation Button (Bottom Right) */}
-      {onOpenNavigation ? (
-        <div className="absolute bottom-3 right-3 z-10">
+      {/* Official Google Maps Watermark Badge (Bottom Left) */}
+      <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-xs rounded-lg shadow-sm border border-slate-200 pointer-events-none text-[11px] font-bold">
+        <span className="text-[#4285F4]">G</span>
+        <span className="text-[#EA4335]">o</span>
+        <span className="text-[#FBBC05]">o</span>
+        <span className="text-[#4285F4]">g</span>
+        <span className="text-[#34A853]">l</span>
+        <span className="text-[#EA4335]">e</span>
+        <span className="text-slate-600 font-semibold ml-0.5">Maps</span>
+        <span className="text-[9px] uppercase px-1 py-0.2 bg-slate-100 text-slate-600 rounded">
+          {activeLayer}
+        </span>
+      </div>
+
+      {/* Action Buttons (Bottom Right) */}
+      <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+        {/* Google Maps External 2-Wheeler Navigation Button */}
+        {(destinationLocation || storeLocation) ? (
+          <button
+            type="button"
+            onClick={handleOpenGoogleMapsApp}
+            className="flex items-center gap-1.5 rounded-xl bg-white text-slate-900 border border-slate-200 px-3 py-1.5 text-xs font-black shadow-md hover:bg-slate-50 active:scale-95 transition-transform cursor-pointer"
+            title="Open Google Maps App in Bike Navigation Mode"
+          >
+            <span className="text-sm leading-none">🗺️</span>
+            <span>Google Maps</span>
+            <ExternalLink className="size-3 text-slate-400" />
+          </button>
+        ) : null}
+
+        {/* Turn-by-Turn In-App HUD Navigation Button */}
+        {onOpenNavigation ? (
           <button
             type="button"
             onClick={onOpenNavigation}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-800 px-3 py-1.5 text-xs font-black text-white shadow-md hover:bg-emerald-900 active:scale-95 transition-transform cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-[#00C853] px-3 py-1.5 text-xs font-black text-white shadow-md hover:bg-[#00B248] active:scale-95 transition-transform cursor-pointer"
           >
             <Navigation className="size-3.5 fill-white" />
             <span>Turn-by-Turn</span>
-            <ExternalLink className="size-3 opacity-70" />
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

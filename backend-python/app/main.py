@@ -80,9 +80,12 @@ async def lifespan(app: FastAPI):
         except Exception as err:
             logger.warning("Startup routine warning: %s", err)
 
-    asyncio.create_task(_run_startup_seeds())
+    # Start Background Order Timeline SLA Engine (5m Partner SLA / 3m Rider SLA)
+    from app.services.order_timeline_engine import order_timeline_engine
+    order_timeline_engine.start(interval_seconds=5)
 
     yield
+    order_timeline_engine.stop()
     await database.disconnect()
 
 

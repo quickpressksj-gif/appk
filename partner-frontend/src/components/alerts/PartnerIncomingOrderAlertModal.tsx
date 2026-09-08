@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  ArrowLeft,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
@@ -119,6 +120,11 @@ export function PartnerIncomingOrderAlertModal({
     }
   };
 
+  const handleBack = () => {
+    stopPartnerOrderAlertRing();
+    if (onClose) onClose();
+  };
+
   const progressPercent = (countdown / 60) * 100;
 
   return (
@@ -146,6 +152,16 @@ export function PartnerIncomingOrderAlertModal({
               >
                 {isMuted ? <VolumeX className="size-3.5 text-rose-400" /> : <Volume2 className="size-3.5 text-amber-400 animate-pulse" />}
                 <span>{isMuted ? "Muted" : "Ringing"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex items-center justify-center size-7 rounded-full bg-white/15 text-zinc-300 hover:bg-white/25 hover:text-white transition-all cursor-pointer"
+                title="Back to Dashboard / Dismiss Alert"
+                aria-label="Back to Dashboard"
+              >
+                <X className="size-4" />
               </button>
             </div>
           </div>
@@ -265,13 +281,24 @@ export function PartnerIncomingOrderAlertModal({
             </button>
 
             {!showRejectBox ? (
-              <button
-                type="button"
-                onClick={() => setShowRejectBox(true)}
-                className="flex h-11 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-xs font-bold text-zinc-400 hover:bg-white/10 hover:text-zinc-200 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Reject Order
-              </button>
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 text-xs font-bold text-zinc-300 hover:bg-white/10 hover:text-white active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>Back to Dashboard</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRejectBox(true)}
+                  className="flex h-11 flex-1 items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  Reject Order
+                </button>
+              </div>
             ) : (
               <div className="flex gap-2">
                 <button

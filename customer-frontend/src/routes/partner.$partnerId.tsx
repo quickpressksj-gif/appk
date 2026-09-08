@@ -43,6 +43,7 @@ import {
   type PartnerService,
 } from "@/api/customer/partner-api";
 import { readStaleScopedCache } from "@/api/customer/api/cache";
+import { onRealtimeEvent } from "@/api/core/socket-client";
 
 import store1 from "@/shared/assets/store-1.jpg";
 import store2 from "@/shared/assets/store-2.jpg";
@@ -177,6 +178,28 @@ function PartnerDetailScreen() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Real-time store status listener
+  useEffect(() => {
+    const unsub = onRealtimeEvent("partner.status_changed", (payload: any) => {
+      const pid = payload?.partnerId || payload?.id;
+      if (pid === partnerId && typeof payload.isOnline === "boolean") {
+        setData((prev) => {
+          if (!prev) return prev;
+          const open = Boolean(payload.isOnline && (payload.isStoreOpen ?? true));
+          return {
+            ...prev,
+            partner: {
+              ...prev.partner,
+              open,
+              status: open ? "open" : "closed",
+            },
+          };
+        });
+      }
+    });
+    return unsub;
+  }, [partnerId]);
 
   // Auto-scroll to highlighted service when opened from home screen popular services
   useEffect(() => {

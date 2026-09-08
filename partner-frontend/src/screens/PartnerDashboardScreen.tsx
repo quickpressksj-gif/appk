@@ -85,7 +85,7 @@ function getCachedDashboard(): {
 
 export function PartnerDashboardScreen() {
   const navigate = useNavigate();
-  const { session } = usePartnerContext();
+  const { session, isOnline, toggleOnline } = usePartnerContext();
   const { orders, isLoading: ordersLoading, refresh: refreshOrders } = usePartnerOrders();
   const { handleAction, sheetNode, overlay } = useOrderActionHandler();
 
@@ -107,7 +107,6 @@ export function PartnerDashboardScreen() {
   const [summary, setSummary] = useState<DashboardSummaryCard | null>(cached.summary);
   const [quickStats, setQuickStats] = useState<QuickStat[]>(cached.quickStats);
   const [earnings, setEarnings] = useState<EarningsSummary | null>(cached.earnings);
-  const [isOnline, setIsOnline] = useState(cached.isOnline);
   const [isLoading, setIsLoading] = useState(() => !cached.shop && !cached.summary && !session);
   const [error, setError] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<LiveOrder | null>(null);
@@ -156,7 +155,6 @@ export function PartnerDashboardScreen() {
       setSummary(newSummary);
       setQuickStats(newStats);
       setEarnings(earningsSummary);
-      setIsOnline(dashboard.isStoreOpen);
 
       // Save to localStorage for instant 0ms next load
       if (typeof window !== "undefined") {
@@ -289,17 +287,15 @@ export function PartnerDashboardScreen() {
 
   const handleToggleOnline = useCallback(async () => {
     try {
-      const next = !isOnline;
-      if (!next) {
+      if (isOnline) {
         stopPartnerOrderAlertRing();
       }
-      await setStoreOpen(next);
-      setIsOnline(next);
-      toast.success(next ? "Store is ONLINE & Accepting Orders" : "Store is now OFFLINE");
+      await toggleOnline();
+      toast.success(!isOnline ? "Store is ONLINE & Accepting Orders" : "Store is now OFFLINE");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update store status");
     }
-  }, [isOnline]);
+  }, [isOnline, toggleOnline]);
 
   const handleAccept = (order: LiveOrder) => {
     const full = findOrder(order.id);

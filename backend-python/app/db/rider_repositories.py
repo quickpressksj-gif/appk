@@ -17,7 +17,8 @@ preview app is never blank even before a real rider signs in.
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.db.client import database
@@ -107,11 +108,76 @@ class RiderProfileRepository:
         return await database.update(PROFILES, {"_id": rider_id}, changes)
 
     async def set_online(self, rider_id: str, is_online: Optional[bool]) -> Dict[str, Any]:
-        profile = await self.get(rider_id)
-        current = bool((profile or {}).get("isOnline", False))
+        from datetime import datetime, timezone
+        from app.services.socket_service import broadcast_rider_status
+
+        profile = await self.get(rider_id) or {}
+        current = bool(profile.get("isOnline", False))
         next_value = bool(is_online) if is_online is not None else (not current)
-        await database.update(PROFILES, {"_id": rider_id}, {"isOnline": next_value})
-        return {"ok": True, "isOnline": next_value}
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # 1. Update rider_profiles (Primary DB document)
+        profile_patch: Dict[str, Any] = {
+            "isOnline": next_value,
+            "status": "active" if next_value else "offline",
+            "lastActiveAt": now_iso,
+            "updatedAt": now_iso,
+        }
+        if next_value:
+            profile_patch["lastOnlineAt"] = now_iso
+        await database.update(PROFILES, {"_id": rider_id}, profile_patch, upsert=True)
+
+        # 2. Update riders collection (Legacy / multi-query sync)
+        await database.update(
+            "riders",
+            {"$or": [{"_id": rider_id}, {"id": rider_id}, {"rider_id": rider_id}]},
+            {
+                "is_available": next_value,
+                "isOnline": next_value,
+                "status": "active" if next_value else "offline",
+                "updated_at": now_iso,
+            },
+            upsert=True,
+        )
+
+        # 3. Update rider_settings
+        await database.update(SETTINGS, {"_id": rider_id}, {"isOnline": next_value, "updatedAt": now_iso}, upsert=True)
+
+        # 4. Update live_locations (For Admin Live Map Telemetry)
+        r_name = profile.get("fullName") or profile.get("name") or rider_id
+        r_lat = profile.get("lat") or profile.get("latitude")
+        r_lng = profile.get("lng") or profile.get("longitude")
+        await database.update(
+            "live_locations",
+            {"_id": f"rider:{rider_id}"},
+            {
+                "kind": "rider",
+                "label": r_name,
+                "isOnline": next_value,
+                "status": "online" if next_value else "offline",
+                "latitude": float(r_lat) if r_lat is not None else 27.8118,
+                "longitude": float(r_lng) if r_lng is not None else 78.6477,
+                "updatedAt": now_iso,
+            },
+            upsert=True,
+        )
+
+        # 5. Broadcast real-time event to Admin, Rider, and Global rooms
+        await broadcast_rider_status(
+            rider_id=rider_id,
+            is_online=next_value,
+            status="online" if next_value else "offline",
+            lat=float(r_lat) if r_lat is not None else None,
+            lng=float(r_lng) if r_lng is not None else None,
+            last_active_at=now_iso,
+        )
+
+        return {
+            "ok": True,
+            "isOnline": next_value,
+            "status": "online" if next_value else "offline",
+            "lastActiveAt": now_iso,
+        }
 
 
 class RiderSettingsRepository:
@@ -347,82 +413,349 @@ class RiderDeliveryRepository:
 
 class RiderEarningsRepository:
     async def summary(self, rider_id: str) -> Dict[str, Any]:
-        docs = await database.find_many(EARNINGS, {"riderId": rider_id})
+        wallet_doc = await rider_wallet_repository.get(rider_id) or {}
+        txns = await database.find_sorted(
+            WALLET_TXNS, {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}]}, sort=[("date", -1)]
+        ) or []
+        today_prefix = _now()[:10]
+        
+        today_credits = [
+            t for t in txns
+            if t.get("direction") == "credit" and str(t.get("date") or "")[:10] == today_prefix
+        ]
+        today_amount = sum(float(t.get("amount") or 0) for t in today_credits)
+        
+        # Calculate category breakdown
+        trip_fares = sum(float(t.get("amount") or 0) for t in today_credits if t.get("kind") == "trip")
+        surge_pay = sum(float(t.get("amount") or 0) for t in today_credits if "surge" in (t.get("title") or "").lower())
+        quest_bonus = sum(float(t.get("amount") or 0) for t in today_credits if t.get("kind") == "incentive" and "surge" not in (t.get("title") or "").lower())
+        tips = sum(float(t.get("amount") or 0) for t in today_credits if t.get("kind") == "tip")
+
+        # Query all orders assigned/completed by this rider
+        all_orders = await rider_delivery_repository._orders_for(rider_id)
+        completed_orders = [o for o in all_orders if o.get("status") in ("delivered", "completed")]
+        today_deliveries = [
+            o for o in completed_orders
+            if str(o.get("deliveredAt") or o.get("updatedAt") or o.get("createdAt") or "")[:10] == today_prefix
+        ]
+        
+        # Calculate this week's earnings (last 7 days)
+        now = datetime.now(timezone.utc)
+        seven_days_ago = (now - timedelta(days=7)).isoformat()
+        week_credits = [
+            t for t in txns
+            if t.get("direction") == "credit" and str(t.get("date") or "") >= seven_days_ago
+        ]
+        this_week = sum(float(t.get("amount") or 0) for t in week_credits)
+        if this_week == 0 and wallet_doc.get("thisWeekEarned"):
+            this_week = float(wallet_doc.get("thisWeekEarned", 0))
+
+        lifetime = float(wallet_doc.get("lifetimeEarnings") or sum(float(t.get("amount") or 0) for t in txns if t.get("direction") == "credit"))
+
+        # Generate real 7-day breakdown leading up to today
+        weekly_days = []
+        for i in range(6, -1, -1):
+            day_dt = now - timedelta(days=i)
+            day_str = day_dt.strftime("%Y-%m-%d")
+            day_name = day_dt.strftime("%a")
+            day_label = day_dt.strftime("%d %b")
+            day_txns = [t for t in txns if t.get("direction") == "credit" and str(t.get("date") or "")[:10] == day_str]
+            day_amount = sum(float(t.get("amount") or 0) for t in day_txns)
+            day_trips = sum(1 for o in completed_orders if str(o.get("deliveredAt") or o.get("updatedAt") or o.get("createdAt") or "")[:10] == day_str)
+            weekly_days.append({
+                "day": day_name,
+                "date": day_label,
+                "amount": round(day_amount, 2),
+                "trips": day_trips,
+                "isToday": (i == 0),
+            })
+
+        completed_count = len(today_deliveries)
+
         return {
-            "total": sum(d.get("amount", 0) for d in docs),
-            "orders": sum(1 for d in docs),
+            "total": round(lifetime, 2),
+            "today": round(today_amount, 2),
+            "thisWeek": round(this_week, 2),
+            "orders": len(completed_orders),
+            "todayDeliveries": completed_count,
+            "breakdown": {
+                "tripFares": round(trip_fares, 2),
+                "distancePay": round(tips, 2),
+                "surgePay": round(surge_pay, 2),
+                "questBonus": round(quest_bonus, 2),
+            },
+            "weeklyDays": weekly_days,
+            "activeQuests": [
+                {
+                    "id": "quest-1",
+                    "title": "Daily 10-Rides Milestone 🎯",
+                    "reward": 150,
+                    "target": 10,
+                    "progress": min(10, completed_count),
+                    "expiresIn": "Until midnight",
+                    "completed": completed_count >= 10,
+                },
+                {
+                    "id": "quest-2",
+                    "title": "Kasganj Evening Peak Rush (6-9 PM) ⚡",
+                    "reward": 100,
+                    "target": 5,
+                    "progress": min(5, completed_count),
+                    "expiresIn": "6:00 PM – 9:00 PM",
+                    "completed": completed_count >= 5,
+                },
+            ],
         }
 
 
 class RiderWalletRepository:
     async def get(self, rider_id: str) -> Optional[Dict[str, Any]]:
-        document = await database.find_one(WALLETS, {"_id": rider_id})
+        document = await database.find_one(WALLETS, {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]})
+        
         if document is None:
-            # A newly registered rider has no wallet yet — provision an empty one
-            # instead of 404ing the dashboard.
-            document = {
+            # Look up profile for real bank details if available
+            prof = await database.find_one(PROFILES, {"$or": [{"_id": rider_id}, {"riderId": rider_id}]}) or {}
+            base_doc = {
                 "_id": rider_id,
                 "rider_id": rider_id,
                 "riderId": rider_id,
                 "balance": 0.0,
                 "pending": 0.0,
                 "lifetimeEarnings": 0.0,
+                "todayEarned": 0.0,
+                "thisWeekEarned": 0.0,
+                "totalWithdrawn": 0.0,
+                "upiId": prof.get("upiId") or "",
+                "bankName": prof.get("bankName") or "",
+                "accountNumber": prof.get("accountNumber") or "",
+                "accountHolder": prof.get("accountHolder") or prof.get("fullName") or "",
+                "ifsc": prof.get("ifsc") or "",
+                "createdAt": _now(),
+                "updatedAt": _now(),
             }
-            await database.insert(WALLETS, dict(document))
+            await database.insert(WALLETS, dict(base_doc))
+            document = base_doc
+
         return _public(document)
 
-    async def withdraw(self, rider_id: str, amount: float) -> Dict[str, Any]:
-        wallet = await database.find_one(WALLETS, {"_id": rider_id})
+    async def withdraw(self, rider_id: str, amount: float, upi_id: str = "") -> Dict[str, Any]:
+        wallet = await database.find_one(WALLETS, {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]})
+        if wallet is None:
+            wallet = await self.get(rider_id)
         if wallet is None:
             raise LookupError("Wallet not found")
         if amount <= 0:
-            raise ValueError("Enter a valid withdrawal amount")
-        if wallet.get("balance", 0) < amount:
-            raise ValueError("Insufficient wallet balance")
-        new_balance = wallet.get("balance", 0) - amount
-        await database.update(WALLETS, {"_id": rider_id}, {"balance": new_balance})
-        await database.insert(
-            WALLET_TXNS,
-            {
-                "_id": f"rwtx-{rider_id}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
-                "rider_id": rider_id,
-                "riderId": rider_id,
-                "title": "Withdrawal to bank",
-                "date": _now(),
-                "amount": amount,
-                "direction": "debit",
-                "status": "success",
-                "kind": "withdrawal",
-            },
+            raise ValueError("Enter a valid withdrawal amount (minimum ₹10)")
+        curr_balance = float(wallet.get("balance", 0.0))
+        if curr_balance < amount:
+            raise ValueError(f"Insufficient wallet balance. Available: ₹{curr_balance:.2f}")
+
+        target_upi = upi_id or wallet.get("upiId") or ""
+        if not target_upi:
+            raise ValueError("No valid UPI ID provided or registered to this account.")
+        
+        new_balance = round(curr_balance - amount, 2)
+        curr_withdrawn = float(wallet.get("totalWithdrawn", 0.0))
+        new_withdrawn = round(curr_withdrawn + amount, 2)
+        
+        now_iso = _now()
+        await database.update(
+            WALLETS,
+            {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]},
+            {"balance": new_balance, "totalWithdrawn": new_withdrawn, "updatedAt": now_iso},
+            upsert=True,
         )
-        return {"ok": True, "amount": amount}
+        
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        random_suffix = random.randint(1000, 9999)
+        utr_number = f"REQ{now_ts}{random_suffix}"
+        
+        txn_doc = {
+            "_id": f"rwtx-{rider_id}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+            "rider_id": rider_id,
+            "riderId": rider_id,
+            "title": f"Payout Request (72 hrs) · {target_upi}",
+            "date": now_iso,
+            "amount": amount,
+            "direction": "debit",
+            "status": "pending",
+            "kind": "withdrawal",
+            "utr": utr_number,
+            "upiId": target_upi,
+            "method": "72-Hour Payout Cycle",
+        }
+        await database.insert(WALLET_TXNS, txn_doc)
+        
+        return {
+            "ok": True,
+            "amount": amount,
+            "balance": new_balance,
+            "totalWithdrawn": new_withdrawn,
+            "utr": utr_number,
+            "upiId": target_upi,
+            "message": f"Withdrawal request for ₹{amount:.2f} to {target_upi} received. Settled within 72 hours.",
+        }
+
+    async def credit(self, rider_id: str, amount: float, title: str = "Bonus Incentive Credit", kind: str = "incentive", order_code: str = "") -> Dict[str, Any]:
+        wallet = await database.find_one(WALLETS, {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]})
+        if wallet is None:
+            wallet = await self.get(rider_id)
+        if wallet is None:
+            raise LookupError("Wallet not found")
+        
+        curr_balance = float(wallet.get("balance", 0.0))
+        curr_lifetime = float(wallet.get("lifetimeEarnings", 0.0))
+        curr_today = float(wallet.get("todayEarned", 0.0))
+        
+        new_balance = round(curr_balance + amount, 2)
+        new_lifetime = round(curr_lifetime + amount, 2)
+        new_today = round(curr_today + amount, 2)
+        
+        now_iso = _now()
+        await database.update(
+            WALLETS,
+            {"$or": [{"_id": rider_id}, {"riderId": rider_id}, {"rider_id": rider_id}]},
+            {
+                "balance": new_balance,
+                "lifetimeEarnings": new_lifetime,
+                "todayEarned": new_today,
+                "updatedAt": now_iso,
+            },
+            upsert=True,
+        )
+        
+        txn_doc = {
+            "_id": f"rwtx-{rider_id}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+            "rider_id": rider_id,
+            "riderId": rider_id,
+            "title": title,
+            "date": now_iso,
+            "amount": amount,
+            "direction": "credit",
+            "status": "success",
+            "kind": kind,
+            "orderCode": order_code,
+        }
+        await database.insert(WALLET_TXNS, txn_doc)
+        return {"ok": True, "amount": amount, "balance": new_balance}
 
     async def transactions(self, rider_id: str) -> List[Dict[str, Any]]:
+        # Ensure wallet/seed txns are loaded
+        await self.get(rider_id)
         docs = await database.find_sorted(
-            WALLET_TXNS, {"riderId": rider_id}, sort=[("date", -1)]
+            WALLET_TXNS, {"$or": [{"riderId": rider_id}, {"rider_id": rider_id}]}, sort=[("date", -1)]
         )
         return [_public(d) for d in docs]
 
 
 class RiderNotificationRepository:
     async def list(self, rider_id: str) -> List[Dict[str, Any]]:
-        docs = await database.find_sorted(
-            NOTIFICATIONS, {"accountId": rider_id}, sort=[("date", -1)]
-        )
+        query = {"$or": [{"accountId": rider_id}, {"riderId": rider_id}, {"user_id": rider_id}]}
+        docs = await database.find_sorted(NOTIFICATIONS, query, sort=[("date", -1)])
+        if not docs:
+            now = _now()
+            welcome_docs = [
+                {
+                    "_id": f"rntf-welcome-{rider_id}",
+                    "accountId": rider_id,
+                    "riderId": rider_id,
+                    "title": "🎉 Welcome to QuickPress Captain!",
+                    "message": "Your Captain profile is verified. Complete deliveries to earn up to ₹800 daily bonuses!",
+                    "description": "Your Captain profile is verified. Complete deliveries to earn up to ₹800 daily bonuses!",
+                    "date": now,
+                    "time": "Just now",
+                    "read": False,
+                    "kind": "system",
+                    "category": "system",
+                },
+                {
+                    "_id": f"rntf-target-{rider_id}",
+                    "accountId": rider_id,
+                    "riderId": rider_id,
+                    "title": "⚡ ₹200 Super Surge Target Active",
+                    "message": "Complete 6 deliveries in Kasganj Hub today to claim ₹200 instant surge incentive.",
+                    "description": "Complete 6 deliveries in Kasganj Hub today to claim ₹200 instant surge incentive.",
+                    "date": now,
+                    "time": "1 hr ago",
+                    "read": False,
+                    "kind": "payment",
+                    "category": "payment",
+                },
+                {
+                    "_id": f"rntf-safety-{rider_id}",
+                    "accountId": rider_id,
+                    "riderId": rider_id,
+                    "title": "🛵 Helmet & Safe Ride Guidelines",
+                    "message": "Always wear helmet and follow speed limits. 24/7 SOS helpline is available in drawer menu.",
+                    "description": "Always wear helmet and follow speed limits. 24/7 SOS helpline is available in drawer menu.",
+                    "date": now,
+                    "time": "Today",
+                    "read": True,
+                    "kind": "system",
+                    "category": "system",
+                },
+            ]
+            for doc in welcome_docs:
+                await database.insert(NOTIFICATIONS, doc)
+            docs = welcome_docs
         return [_public(d) for d in docs]
 
+    async def unread_count(self, rider_id: str) -> int:
+        query = {
+            "$and": [
+                {"$or": [{"accountId": rider_id}, {"riderId": rider_id}, {"user_id": rider_id}]},
+                {"read": False},
+            ]
+        }
+        docs = await database.find_many(NOTIFICATIONS, query)
+        return len(docs)
+
     async def mark_read(self, notification_id: str) -> Optional[Dict[str, Any]]:
-        document = await database.find_one(NOTIFICATIONS, {"_id": notification_id})
+        document = await database.find_one(NOTIFICATIONS, {"$or": [{"_id": notification_id}, {"id": notification_id}]})
         if document is None:
             return None
-        await database.update(NOTIFICATIONS, {"_id": notification_id}, {"read": True})
-        return await database.find_one(NOTIFICATIONS, {"_id": notification_id})
+        doc_id = document.get("_id") or notification_id
+        await database.update(NOTIFICATIONS, {"_id": doc_id}, {"read": True})
+        return await database.find_one(NOTIFICATIONS, {"_id": doc_id})
 
     async def mark_all_read(self, rider_id: str) -> int:
-        docs = await database.find_many(NOTIFICATIONS, {"accountId": rider_id, "read": False})
+        query = {
+            "$and": [
+                {"$or": [{"accountId": rider_id}, {"riderId": rider_id}, {"user_id": rider_id}]},
+                {"read": False},
+            ]
+        }
+        docs = await database.find_many(NOTIFICATIONS, query)
         for document in docs:
             await database.update(NOTIFICATIONS, {"_id": document["_id"]}, {"read": True})
         return len(docs)
+
+    async def create(
+        self,
+        rider_id: str,
+        title: str,
+        message: str,
+        kind: str = "system",
+        order_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        now = _now()
+        doc = {
+            "_id": f"rntf-{uuid.uuid4().hex[:16]}",
+            "accountId": rider_id,
+            "riderId": rider_id,
+            "user_id": rider_id,
+            "title": title,
+            "message": message,
+            "description": message,
+            "date": now,
+            "time": "Just now",
+            "read": False,
+            "kind": kind,
+            "category": kind,
+            "orderId": order_id,
+        }
+        await database.insert(NOTIFICATIONS, doc)
+        return _public(doc)
 
 
 class RiderAnalyticsRepository:

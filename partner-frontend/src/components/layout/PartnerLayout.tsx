@@ -28,9 +28,8 @@ export function PartnerLayout({
   hideBottomNav?: boolean;
 }) {
   const navigate = useNavigate();
-  const { session, hydrating, signOut } = usePartnerContext();
+  const { session, hydrating, isOnline, toggleOnline, signOut } = usePartnerContext();
   const [shopName, setShopName] = useState<string>(() => session?.businessName || (session as any)?.name || "QuickPress Partner");
-  const [isOnline, setIsOnline] = useState<boolean>(true);
 
   // Strict Auth Guard: If not logged in, redirect to login screen
   useEffect(() => {
@@ -46,7 +45,6 @@ export function PartnerLayout({
       .then((p) => {
         if (!alive) return;
         setShopName(p.businessName || p.ownerName || "QuickPress Partner");
-        setIsOnline(p.isOnline ?? true);
       })
       .catch(() => {});
     return () => {
@@ -56,11 +54,9 @@ export function PartnerLayout({
 
   const handleToggleStatus = async () => {
     try {
-      const next = !isOnline;
-      setIsOnline(next);
-      await toggleStoreStatus(next);
+      await toggleOnline();
+      toast.success(!isOnline ? "Store is now Online & Accepting Orders" : "Store is now Offline");
     } catch {
-      setIsOnline(!isOnline);
       toast.error("Failed to update store status");
     }
   };

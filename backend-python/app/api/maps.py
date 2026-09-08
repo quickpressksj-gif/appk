@@ -439,6 +439,9 @@ async def live_map() -> LiveMapResponse:
     for doc in documents:
         if doc.get("kind") == "rider":
             r_id = str(doc.get("_id", "")).split(":", 1)[-1]
+            st = str(doc.get("status") or "online").lower()
+            if doc.get("isOnline") is False:
+                st = "offline"
             riders_map[r_id] = LiveLocation(
                 id=r_id,
                 kind="rider",
@@ -446,31 +449,35 @@ async def live_map() -> LiveMapResponse:
                 latitude=float(doc.get("latitude", 0.0)),
                 longitude=float(doc.get("longitude", 0.0)),
                 orderId=doc.get("orderId"),
-                status=doc.get("status") or "online",
+                status=st,
                 updatedAt=doc.get("updatedAt"),
             )
 
-    # 2. Enrich/Supplement from rider_profiles (Supabase) for any online riders
-    profiles = await database.find_many("rider_profiles", {"isOnline": True})
+    # 2. Enrich/Supplement from rider_profiles (Supabase) for all registered riders
+    profiles = await database.find_many("rider_profiles")
     for prof in profiles:
         p_id = str(prof.get("_id") or prof.get("riderId") or "")
         p_lat = prof.get("lat") or prof.get("latitude")
         p_lng = prof.get("lng") or prof.get("longitude")
+        is_online = bool(prof.get("isOnline", False))
         if p_lat is not None and p_lng is not None:
             p_label = prof.get("fullName") or prof.get("name") or p_id
+            existing = riders_map.get(p_id)
+            current_st = ("on-trip" if (existing and existing.orderId) else ("online" if is_online else "offline"))
             riders_map[p_id] = LiveLocation(
                 id=p_id,
                 kind="rider",
                 label=p_label,
                 latitude=float(p_lat),
                 longitude=float(p_lng),
-                status="online",
-                updatedAt=prof.get("lastLocationAt") or prof.get("updatedAt"),
+                orderId=existing.orderId if existing else None,
+                status=current_st,
+                updatedAt=prof.get("lastLocationAt") or prof.get("lastActiveAt") or prof.get("updatedAt"),
             )
 
     riders = list(riders_map.values())
 
-    # 3. Partner Store Hubs
+    # 3. Partner Store Hubs with accurate Open/Closed status
     partner_docs: List[Dict[str, Any]] = await database.find_many("partner_profiles")
     if not partner_docs:
         partner_docs = await database.find_many("partners")
@@ -479,15 +486,17 @@ async def live_map() -> LiveMapResponse:
     for partner in partner_docs:
         lat = partner.get("latitude") or partner.get("lat") or (partner.get("location") or {}).get("latitude")
         lng = partner.get("longitude") or partner.get("lng") or (partner.get("location") or {}).get("longitude")
+        is_store_open = bool(partner.get("isOnline", True) and partner.get("isStoreOpen", True))
         if lat is not None and lng is not None:
             partners.append(
                 LiveLocation(
                     id=str(partner.get("_id") or partner.get("id") or ""),
                     kind="partner",
-                    label=str(partner.get("storeName") or partner.get("name") or "QuickPress Store"),
+                    label=str(partner.get("businessName") or partner.get("storeName") or partner.get("name") or "QuickPress Store"),
                     latitude=float(lat),
                     longitude=float(lng),
-                    status=str(partner.get("status") or "open"),
+                    status="open" if is_store_open else "closed",
+                    updatedAt=partner.get("updatedAt"),
                 )
             )
 

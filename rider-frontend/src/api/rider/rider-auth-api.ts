@@ -38,7 +38,7 @@ function toE164(phone: string): string {
   return cleaned;
 }
 
-export async function requestOtp(phone: string) {
+export async function requestOtp(phone: string, channel?: "sms" | "whatsapp" | string) {
   const e164 = toE164(phone);
   return sendPhoneOtp(e164, ROLE);
 }

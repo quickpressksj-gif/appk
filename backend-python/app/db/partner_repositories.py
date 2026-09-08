@@ -214,8 +214,76 @@ class PartnerRepository:
         return doc
 
     async def toggle_status(self, partner_id: str, is_online: bool) -> Dict[str, Any]:
-        await database.update(PROFILES, {"_id": partner_id}, {"isOnline": is_online})
-        await database.update(SETTINGS, {"_id": partner_id}, {"isStoreOpen": is_online, "acceptingNewOrders": is_online})
+        from datetime import datetime, timezone
+        from app.services.socket_service import broadcast_partner_status
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        is_online_b = bool(is_online)
+
+        # 1. Update partner_profiles
+        patch: Dict[str, Any] = {
+            "isOnline": is_online_b,
+            "isStoreOpen": is_online_b,
+            "acceptingNewOrders": is_online_b,
+            "updatedAt": now_iso,
+        }
+        if is_online_b:
+            patch["lastOnlineAt"] = now_iso
+        await database.update(PROFILES, {"_id": partner_id}, patch, upsert=True)
+
+        # 2. Update partner_settings
+        await database.update(
+            SETTINGS,
+            {"_id": partner_id},
+            {"isStoreOpen": is_online_b, "acceptingNewOrders": is_online_b, "updatedAt": now_iso},
+            upsert=True,
+        )
+
+        # 3. Update partners collection (Legacy / admin sync)
+        await database.update(
+            "partners",
+            {"$or": [{"_id": partner_id}, {"id": partner_id}]},
+            {"isOnline": is_online_b, "isStoreOpen": is_online_b, "updated_at": now_iso},
+            upsert=True,
+        )
+
+        # 4. Update catalog_partners (Customer marketplace view)
+        await database.update(
+            "catalog_partners",
+            {"$or": [{"_id": partner_id}, {"id": partner_id}]},
+            {"isOnline": is_online_b, "isStoreOpen": is_online_b, "status": "open" if is_online_b else "closed"},
+            upsert=True,
+        )
+
+        # 5. Update live_locations (Admin Live Telemetry Map)
+        p_doc = await self.profile(partner_id) or {}
+        p_name = p_doc.get("businessName") or p_doc.get("name") or partner_id
+        p_lat = p_doc.get("latitude") or p_doc.get("lat")
+        p_lng = p_doc.get("longitude") or p_doc.get("lng")
+        if p_lat is not None and p_lng is not None:
+            await database.update(
+                "live_locations",
+                {"_id": f"partner:{partner_id}"},
+                {
+                    "kind": "partner",
+                    "label": p_name,
+                    "latitude": float(p_lat),
+                    "longitude": float(p_lng),
+                    "isOnline": is_online_b,
+                    "status": "open" if is_online_b else "closed",
+                    "updatedAt": now_iso,
+                },
+                upsert=True,
+            )
+
+        # 6. Realtime Socket.IO Broadcast to Admins, Partners, and Customers
+        await broadcast_partner_status(
+            partner_id=partner_id,
+            is_online=is_online_b,
+            is_store_open=is_online_b,
+            accepting_orders=is_online_b,
+        )
+
         return await self.profile(partner_id)
 
 
@@ -452,6 +520,13 @@ class PartnerOrderRepository:
         if existing_pid and existing_pid != partner_id and existing_pid.lower() != partner_id.lower():
             raise PartnerAccessError("This order is already accepted by another partner store.")
 
+        now_iso = lifecycle.now_iso()
+        rider_deadline = (
+            (datetime.now(timezone.utc) + timedelta(seconds=lifecycle.RIDER_ACCEPT_SLA_SECONDS))
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
         changes = {
             "partner": {
                 "id": partner_id,
@@ -461,6 +536,10 @@ class PartnerOrderRepository:
             "partnerId": partner_id,
             "partner_id": partner_id,
             "store_id": partner_id,
+            "partnerAcceptedAt": now_iso,
+            "riderDispatchStartedAt": now_iso,
+            "riderAcceptDeadline": rider_deadline,
+            "riderSlaSeconds": lifecycle.RIDER_ACCEPT_SLA_SECONDS,
         }
         res = await self._transition(partner_id, order_id, lifecycle.PARTNER_ACCEPTED, changes=changes)
 
@@ -672,12 +751,6 @@ class PartnerReviewRepository:
         return await database.find_sorted(
             REVIEWS, {"partnerId": partner_id}, sort=[("date", -1)]
         )
-
-
-    async def toggle_status(self, partner_id: str, is_online: bool) -> Dict[str, Any]:
-        await database.update("partner_profiles", {"_id": partner_id}, {"isOnline": is_online})
-        await database.update("partner_settings", {"_id": partner_id}, {"isStoreOpen": is_online, "acceptingNewOrders": is_online})
-        return await self.profile(partner_id)
 
 
 class PartnerCustomerRepository:

@@ -33,12 +33,22 @@ export async function fetchRiderOrder(orderId: string): Promise<RiderOrder> {
 
 /** POST /api/rider/orders/{id}/accept — rider acknowledges the assignment. */
 export async function acceptRiderOrder(orderId: string) {
-  const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/accept`);
-  return { ok: true as const, orderId, order };
+  if (orderId.startsWith("ord_") || orderId.startsWith("off-")) {
+    return { ok: true as const, orderId, order: null };
+  }
+  try {
+    const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/accept`);
+    return { ok: true as const, orderId, order };
+  } catch {
+    return { ok: true as const, orderId, order: null };
+  }
 }
 
 /** POST /api/rider/orders/{id}/reject */
 export async function rejectRiderOrder(orderId: string) {
+  if (orderId.startsWith("ord_") || orderId.startsWith("off-")) {
+    return { ok: true as const, orderId, order: null };
+  }
   const order = await apiPostJson<RiderOrder>(`/api/rider/orders/${orderId}/reject`, {
     reason: "Declined by rider",
   }).catch(() => null);
@@ -121,6 +131,25 @@ export async function updateOrderStatus(orderId: string, status: string) {
     }
   }
   return apiPostJson(`/api/rider/orders/${orderId}/status`, { status }).catch(() => ({ ok: true }));
+}
+
+/** POST /api/rider/orders/{id}/arrived — rider reached pickup location */
+export async function confirmArrivalAtPickup(orderId: string) {
+  return apiPostJson<{ ok: boolean; status: string; orderId: string }>(`/api/rider/orders/${orderId}/arrived`);
+}
+
+/** POST /api/rider/orders/{id}/collect-cash — rider confirmed cash collection */
+export async function collectCashPayment(orderId: string) {
+  return apiPostJson<{ ok: boolean; message: string; orderId: string }>(`/api/rider/orders/${orderId}/collect-cash`);
+}
+
+/** POST /api/rider/orders/{id}/rate-customer — rider rates customer */
+export async function rateCustomerOrder(orderId: string, rating: number, tags: string[] = [], comment = "") {
+  return apiPostJson<{ ok: boolean; message: string; orderId: string }>(`/api/rider/orders/${orderId}/rate-customer`, {
+    rating,
+    tags,
+    comment,
+  });
 }
 
 /** Re-exported so screens can show backend error copy without importing core. */

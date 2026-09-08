@@ -51,6 +51,7 @@ import { fetchLiveMap, fetchRiderLiveLocation, type LiveLocation } from "@/api/c
 import { fetchRiders, type AdminRider } from "@/api/riders";
 import { fetchPartners, type AdminPartner } from "@/api/partners";
 import { fetchOrders, type AdminOrder } from "@/api/orders";
+import { onRealtimeEvent } from "@/api/core/socket-client";
 import { Button } from "@/shared/ui/button";
 
 // Kasganj Operational Coordinates
@@ -100,6 +101,26 @@ export function AdminLiveMap({
   const [selectedUnit, setSelectedUnit] = useState<TelemetryUnit | null>(null);
   const [tileMode, setTileMode] = useState<"street" | "satellite">("street");
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Real-time telemetry events
+  useEffect(() => {
+    const unsubRider = onRealtimeEvent("rider.status_changed", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "maps", "live"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "riders"] });
+    });
+    const unsubPartner = onRealtimeEvent("partner.status_changed", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "maps", "live"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "partners"] });
+    });
+    const unsubLoc = onRealtimeEvent("location.updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "maps", "live"] });
+    });
+    return () => {
+      unsubRider();
+      unsubPartner();
+      unsubLoc();
+    };
+  }, [queryClient]);
 
   // 1. Fetch live telemetry fixes from backend
   const liveMap = useQuery({

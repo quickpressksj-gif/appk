@@ -831,6 +831,34 @@ async def get_analytics(
     return await partner_analytics_repository.get(partner_id, period=period)
 
 
+@router.get("/status")
+async def get_store_status(partner_id: str = Depends(_partner_id)) -> dict:
+    profile = await partner_repository.profile(partner_id) or {}
+    is_online = bool(profile.get("isOnline", True))
+    return {
+        "ok": True,
+        "partnerId": partner_id,
+        "isOnline": is_online,
+        "isStoreOpen": is_online,
+        "status": "open" if is_online else "closed",
+        "lastOnlineAt": profile.get("lastOnlineAt") or profile.get("updatedAt"),
+    }
+
+
+@router.post("/status")
+async def set_store_status(body: dict, partner_id: str = Depends(_partner_id)) -> dict:
+    is_online = bool(body.get("isOnline", body.get("isOpen", True)))
+    doc = await partner_repository.toggle_status(partner_id, is_online)
+    return {
+        "ok": True,
+        "partnerId": partner_id,
+        "isOnline": is_online,
+        "isStoreOpen": is_online,
+        "status": "open" if is_online else "closed",
+        "profile": {k: v for k, v in doc.items() if k in PartnerProfileResponse.model_fields},
+    }
+
+
 @router.patch("/store/status")
 async def update_store_status(
     body: dict, partner_id: str = Depends(_partner_id)

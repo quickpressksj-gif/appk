@@ -1,4 +1,4 @@
-import { Bell, Check, Clock, MapPin, Package, Phone, User, Volume2, X } from "lucide-react";
+import { Bell, Check, Clock, MapPin, Package, Phone, User, Volume2, X, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ManagedOrder } from "../../data/partner-orders-mock";
 import { stopOrderAlarm } from "../../lib/order-alarm";
@@ -98,14 +98,29 @@ export function IncomingOrderModal({
               </div>
             </div>
 
-            {/* Countdown Badge */}
-            <div className="flex flex-col items-end">
-              <span className="flex items-center gap-1 rounded-full bg-black/30 px-3 py-1 text-xs font-black text-white">
-                <Clock className="size-3.5" /> {countdown}s left
-              </span>
-              <span className="text-[10px] font-semibold text-primary-foreground/80 mt-0.5">
-                Auto-alert active
-              </span>
+            {/* Countdown Badge & Back Button */}
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end">
+                <span className="flex items-center gap-1 rounded-full bg-black/30 px-3 py-1 text-xs font-black text-white">
+                  <Clock className="size-3.5" /> {countdown}s left
+                </span>
+                <span className="text-[10px] font-semibold text-primary-foreground/80 mt-0.5">
+                  Auto-alert active
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  stopOrderAlarm();
+                  onDismiss();
+                }}
+                className="flex size-8 items-center justify-center rounded-full bg-black/30 text-white/90 hover:bg-black/50 hover:text-white transition-all cursor-pointer"
+                title="Back to Dashboard / Dismiss Alert"
+                aria-label="Back to Dashboard"
+              >
+                <X className="size-4" />
+              </button>
             </div>
           </div>
 
@@ -233,24 +248,38 @@ export function IncomingOrderModal({
 
         {/* Action Buttons */}
         {!rejecting ? (
-          <div className="border-t border-border/80 bg-card p-4 sm:p-6 flex gap-3">
-            <button
-              type="button"
-              onClick={() => setRejecting(true)}
-              disabled={isProcessing}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl border border-border/80 bg-muted/60 py-4 text-sm font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive active:scale-[0.98]"
-            >
-              <X className="size-4" /> Reject
-            </button>
+          <div className="border-t border-border/80 bg-card p-4 sm:p-6 space-y-2.5">
             <button
               type="button"
               onClick={() => void handleAccept()}
               disabled={isProcessing}
-              className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 text-base font-black text-white shadow-lg shadow-emerald-600/30 transition-all hover:bg-emerald-500 active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-base font-black text-white shadow-lg shadow-emerald-600/30 transition-all hover:bg-emerald-500 active:scale-[0.98] cursor-pointer"
             >
               <Check className="size-5 stroke-[3]" />
               {isProcessing ? "Accepting..." : "ACCEPT ORDER"}
             </button>
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  stopOrderAlarm();
+                  onDismiss();
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl border border-border bg-muted/60 py-3 text-xs font-bold text-foreground transition-colors hover:bg-muted active:scale-[0.98] cursor-pointer"
+              >
+                <ArrowLeft className="size-3.5" /> Back to Dashboard
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRejecting(true)}
+                disabled={isProcessing}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl border border-destructive/30 bg-destructive/10 py-3 text-xs font-bold text-destructive transition-colors hover:bg-destructive/20 active:scale-[0.98] cursor-pointer"
+              >
+                <X className="size-3.5" /> Reject Order
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

@@ -8,10 +8,10 @@ export const Route = createFileRoute("/wallet")({
   },
   head: () => ({
     meta: [
-      { title: "Finance & Wallet — QuickPress Captain" },
+      { title: "Earnings & Wallet — QuickPress Captain" },
       {
         name: "description",
-        content: "QuickPress Captain Payouts, Wallet & Bank Settlements",
+        content: "QuickPress Captain Wallet, Instant UPI Settlements, and Earnings Passbook",
       },
     ],
   }),

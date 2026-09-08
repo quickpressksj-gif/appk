@@ -15,18 +15,25 @@ import {
   restorePartnerSession,
   startPartnerAutoRefresh,
 } from "@/api/partner/partner-auth-api";
+import { toggleStoreStatus, fetchPartnerProfile } from "@/api/partner/partner-profile-api";
+import { initPartnerSocket, subscribePartnerStatus } from "@/lib/partner-socket";
 
 type PartnerContextValue = {
   session: PartnerSession | null;
   phone: string;
+  isOnline: boolean;
+  isStoreOpen: boolean;
   /** True while the stored Firebase + JWT session is being restored on boot. */
   hydrating: boolean;
   setPhone: (phone: string) => void;
+  setOnline: (next: boolean) => Promise<void>;
+  toggleOnline: () => Promise<void>;
   signIn: (session: PartnerSession) => void;
   signOut: () => void;
 };
 
 const PENDING_PHONE_KEY = "qp.partner.pendingPhone";
+const ONLINE_STORAGE_KEY = "qp.partner.isOnline";
 
 function getStoredPhone(): string {
   if (typeof window === "undefined") return "";
@@ -44,6 +51,11 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PartnerSession | null>(getStoredPartnerSession);
   const [phone, setPhoneState] = useState(() => getStoredPartnerSession()?.phone || getStoredPhone());
   const [hydrating, setHydrating] = useState(() => !getStoredPartnerSession());
+  const [isOnline, setIsOnlineState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(ONLINE_STORAGE_KEY);
+    return stored !== null ? stored === "1" : true;
+  });
 
   const setPhone = useCallback((newPhone: string) => {
     setPhoneState(newPhone);
@@ -76,10 +88,65 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
+  }, [setPhone]);
+
+  // Sync real store status from backend on session restore
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    void fetchPartnerProfile()
+      .then((prof) => {
+        if (!active || !prof) return;
+        const online = prof.isOnline ?? prof.isStoreOpen ?? true;
+        setIsOnlineState(online);
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(ONLINE_STORAGE_KEY, online ? "1" : "0");
+          } catch {}
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  // Realtime Socket.IO listener for store status
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    initPartnerSocket();
+    const unsub = subscribePartnerStatus((data) => {
+      if (data && typeof data.isOnline === "boolean") {
+        setIsOnlineState(data.isOnline);
+        try {
+          window.localStorage.setItem(ONLINE_STORAGE_KEY, data.isOnline ? "1" : "0");
+        } catch {}
+      }
+    });
+    return unsub;
   }, []);
 
   // Token refresh: keeps the access token valid while the app stays open.
   useEffect(() => startPartnerAutoRefresh(), []);
+
+  const setOnline = useCallback(async (next: boolean) => {
+    setIsOnlineState(next);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(ONLINE_STORAGE_KEY, next ? "1" : "0");
+      } catch {}
+    }
+    try {
+      await toggleStoreStatus(next);
+    } catch (err) {
+      console.warn("[PartnerContext] Failed to persist store status:", err);
+    }
+  }, []);
+
+  const toggleOnline = useCallback(async () => {
+    await setOnline(!isOnline);
+  }, [isOnline, setOnline]);
 
   const signIn = useCallback((next: PartnerSession) => setSession(next), []);
   const signOut = useCallback(() => {
@@ -91,6 +158,7 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem("qp.partner.cachedDashboard");
         window.localStorage.removeItem("qp.partner.profile_cache");
         window.localStorage.removeItem("qp.partner.pendingPhone");
+        window.localStorage.removeItem("qp.partner.isOnline");
         window.sessionStorage.removeItem("qp.partner.pendingPhone");
       } catch {}
     }
@@ -98,8 +166,19 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<PartnerContextValue>(
-    () => ({ session, phone, hydrating, setPhone, signIn, signOut }),
-    [session, phone, hydrating, signIn, signOut],
+    () => ({
+      session,
+      phone,
+      isOnline,
+      isStoreOpen: isOnline,
+      hydrating,
+      setPhone,
+      setOnline,
+      toggleOnline,
+      signIn,
+      signOut,
+    }),
+    [session, phone, isOnline, hydrating, setPhone, setOnline, toggleOnline, signIn, signOut],
   );
 
   return <PartnerContext.Provider value={value}>{children}</PartnerContext.Provider>;

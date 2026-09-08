@@ -20,19 +20,21 @@ export function useOrderAlertListener() {
     try {
       const orders = await fetchRiderOrders();
       const assigned = orders.filter(
-        (o) =>
-          (o.status === "assigned" || (o.stage as any) === "pickup_assigned") &&
+        (o: any) =>
+          (o.status === "assigned" || o.stage === "pickup_assigned") &&
           !seenOrderIds.current.has(o.id) &&
           !seenOrderIds.current.has(o.code || "")
       );
 
       if (assigned.length > 0 && !isAlertOpen) {
         const nextOrder = assigned[0];
-        seenOrderIds.current.add(nextOrder.id);
-        if (nextOrder.code) seenOrderIds.current.add(nextOrder.code);
+        if (nextOrder) {
+          seenOrderIds.current.add(nextOrder.id);
+          if (nextOrder.code) seenOrderIds.current.add(nextOrder.code);
 
-        setIncomingOrder(nextOrder);
-        setIsAlertOpen(true);
+          setIncomingOrder(nextOrder);
+          setIsAlertOpen(true);
+        }
       }
     } catch {
       /* ignore polling error */
@@ -61,7 +63,7 @@ export function useOrderAlertListener() {
         setIsAlertOpen(false);
         setIncomingOrder(null);
         toast.success(`Trip Offer #${order.code || order.id} Accepted! 🚀`);
-        navigate({
+        void (navigate as any)({
           to: riderRoutes.orderDetails,
           params: { orderId: order.code || order.id },
         });

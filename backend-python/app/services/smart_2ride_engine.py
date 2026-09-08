@@ -193,7 +193,8 @@ class Smart2RideEngine:
             },
             "currentRadiusStage": 0,
             "riderId": None,
-            "rider": None,
+            "riderAcceptDeadline": (datetime.now(timezone.utc) + timedelta(seconds=lifecycle.RIDER_ACCEPT_SLA_SECONDS)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "riderSlaSeconds": lifecycle.RIDER_ACCEPT_SLA_SECONDS,
             "attemptedRiderIds": [],
             "assignmentHistory": [],
         }
@@ -212,6 +213,9 @@ class Smart2RideEngine:
                     "ride1Id": ride_doc["_id"],
                     "status": lifecycle.RIDER_SEARCHING,
                     "updatedAt": now,
+                    "riderDispatchStartedAt": now,
+                    "riderAcceptDeadline": ride_doc["riderAcceptDeadline"],
+                    "riderSlaSeconds": lifecycle.RIDER_ACCEPT_SLA_SECONDS,
                     "otp.pickup": pickup_otp,
                     "otp.handover": handover_otp,
                 }

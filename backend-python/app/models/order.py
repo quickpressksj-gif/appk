@@ -168,6 +168,18 @@ class OrderResponse(BaseModel):
     otp: OrderOtp = OrderOtp()
     events: List[OrderEvent] = []
     cancelledReason: Optional[str] = None
+    cancellationReason: Optional[str] = None
+    placedAt: Optional[str] = None
+    partnerAcceptedAt: Optional[str] = None
+    partnerAcceptDeadline: Optional[str] = None
+    partnerSlaSeconds: Optional[int] = 300
+    partnerSlaRemainingSeconds: Optional[int] = None
+    riderDispatchStartedAt: Optional[str] = None
+    riderAcceptDeadline: Optional[str] = None
+    riderSlaSeconds: Optional[int] = 180
+    riderSlaRemainingSeconds: Optional[int] = None
+    slaBreached: Optional[str] = None
+    autoCancelled: Optional[bool] = False
 
 
 class PlaceOrderResponse(BaseModel):

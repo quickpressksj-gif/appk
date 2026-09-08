@@ -65,6 +65,10 @@ CANCELLED = "cancelled"
 
 TERMINAL = (DELIVERED, CANCELLED)
 
+# Platform SLA Guarantees (in seconds)
+PARTNER_ACCEPT_SLA_SECONDS = 300  # 5 minutes for Partner Store to accept
+RIDER_ACCEPT_SLA_SECONDS = 180    # 3 minutes for Delivery Partner to accept after partner acceptance
+
 #: Documents created before the canonical lifecycle used aliases.
 LEGACY_STATUS_ALIASES = {
     "placed": PLACED,
@@ -197,6 +201,60 @@ def order_status(order: Dict[str, Any]) -> str:
 
 def order_id_of(order: Dict[str, Any]) -> str:
     return str(order.get("_id") or order.get("id"))
+
+
+def compute_order_deadlines(order: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate remaining SLA seconds and ISO deadlines for Partner and Rider acceptance."""
+    now = datetime.now(timezone.utc)
+    created_at_str = order.get("createdAt") or order.get("placedAt") or order.get("created_at")
+    partner_accepted_at_str = (
+        order.get("partnerAcceptedAt")
+        or order.get("partner_accepted_at")
+        or order.get("riderDispatchStartedAt")
+    )
+
+    partner_deadline_str = order.get("partnerAcceptDeadline")
+    rider_deadline_str = order.get("riderAcceptDeadline")
+
+    partner_remaining: Optional[int] = None
+    rider_remaining: Optional[int] = None
+
+    if created_at_str:
+        try:
+            created_dt = datetime.fromisoformat(str(created_at_str).replace("Z", "+00:00"))
+            if not partner_deadline_str:
+                partner_deadline_dt = created_dt + timedelta(seconds=PARTNER_ACCEPT_SLA_SECONDS)
+                partner_deadline_str = partner_deadline_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            else:
+                partner_deadline_dt = datetime.fromisoformat(str(partner_deadline_str).replace("Z", "+00:00"))
+
+            diff = (partner_deadline_dt - now).total_seconds()
+            partner_remaining = max(0, int(diff))
+        except Exception:
+            pass
+
+    if partner_accepted_at_str:
+        try:
+            accepted_dt = datetime.fromisoformat(str(partner_accepted_at_str).replace("Z", "+00:00"))
+            if not rider_deadline_str:
+                rider_deadline_dt = accepted_dt + timedelta(seconds=RIDER_ACCEPT_SLA_SECONDS)
+                rider_deadline_str = rider_deadline_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            else:
+                rider_deadline_dt = datetime.fromisoformat(str(rider_deadline_str).replace("Z", "+00:00"))
+
+            diff = (rider_deadline_dt - now).total_seconds()
+            rider_remaining = max(0, int(diff))
+        except Exception:
+            pass
+
+    return {
+        "partnerAcceptDeadline": partner_deadline_str,
+        "partnerSlaSeconds": PARTNER_ACCEPT_SLA_SECONDS,
+        "partnerSlaRemainingSeconds": partner_remaining,
+        "riderAcceptDeadline": rider_deadline_str,
+        "riderSlaSeconds": RIDER_ACCEPT_SLA_SECONDS,
+        "riderSlaRemainingSeconds": rider_remaining,
+    }
 
 
 import re
@@ -385,7 +443,7 @@ async def transition(
         changes=changes,
     )
 
-    # Referral & Settlement engine hooks on order delivery
+    # Referral, Settlement, and Automated Email Invoice Dispatch hooks on order delivery
     if target in (DELIVERED, COMPLETED):
         try:
             from app.db.referral_repositories import referral_repository
@@ -397,6 +455,39 @@ async def transition(
             await settlement_engine.settle_order_on_completion(updated)
         except Exception as err:
             logger.warning(f"Settlement engine hook error: {err}")
+        try:
+            from app.core.email_service import send_order_completion_email
+            asyncio.create_task(send_order_completion_email(updated))
+        except Exception as err:
+            logger.warning(f"Email invoice automation hook error: {err}")
+
+    # Real Rider Delivery Stats & Earnings increment hook on order delivery / handover
+    if target in (DELIVERED, COMPLETED, AT_PARTNER):
+        try:
+            rider_info = updated.get("rider") or updated.get("deliveryRider") or updated.get("pickupRider") or {}
+            target_rider_id = rider_info.get("id") or updated.get("assignedRiderId") or updated.get("riderId")
+            if target_rider_id:
+                payout = float(updated.get("deliveryFee") or (updated.get("delivery") or {}).get("fee") or 60.0)
+                await database.update(
+                    "rider_profiles",
+                    {"$or": [{"_id": target_rider_id}, {"riderId": target_rider_id}, {"id": target_rider_id}]},
+                    {
+                        "$inc": {
+                            "todayDeliveries": 1,
+                            "totalDeliveries": 1,
+                            "lifetimeDeliveries": 1,
+                            "todayEarnings": payout,
+                            "totalEarnings": payout,
+                            "walletBalance": payout,
+                        },
+                        "$set": {
+                            "lastDeliveredAt": at,
+                        },
+                    },
+                    upsert=False,
+                )
+        except Exception as r_err:
+            logger.warning(f"Rider profile real stats update warning: {r_err}")
 
     return updated
 
@@ -578,6 +669,13 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         "rider": rider_obj,
         "dispatchOtp": dispatch_code if status in (READY, READY_FOR_DELIVERY, COMPLETED, DISPATCH_OTP_PENDING) else "",
         "cancelledReason": order.get("cancelledReason"),
+        "cancellationReason": order.get("cancellationReason") or order.get("cancelledReason"),
+        "partnerAcceptDeadline": order.get("partnerAcceptDeadline"),
+        "partnerSlaSeconds": order.get("partnerSlaSeconds", PARTNER_ACCEPT_SLA_SECONDS),
+        "riderAcceptDeadline": order.get("riderAcceptDeadline"),
+        "riderSlaSeconds": order.get("riderSlaSeconds", RIDER_ACCEPT_SLA_SECONDS),
+        "partnerAcceptedAt": order.get("partnerAcceptedAt"),
+        "autoCancelled": bool(order.get("autoCancelled")),
         "items": [
             {
                 "id": str(item.get("id") or item.get("_id") or ""),

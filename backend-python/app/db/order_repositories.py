@@ -167,6 +167,10 @@ class OrderRepository:
                 rider_dict["longitude"] = float(r_lng)
                 rider_dict["location"] = {"latitude": float(r_lat), "longitude": float(r_lng)}
 
+        # Enrich SLA deadlines and remaining seconds
+        deadlines = lifecycle.compute_order_deadlines(data)
+        data.update(deadlines)
+
         return OrderResponse(
             **{
                 k: v
@@ -388,6 +392,11 @@ class OrderRepository:
             "status": lifecycle.PENDING,
             "createdAt": created,
             "updatedAt": created,
+            "placedAt": created,
+            "partnerAcceptDeadline": (datetime.now(timezone.utc) + timedelta(seconds=lifecycle.PARTNER_ACCEPT_SLA_SECONDS)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "partnerSlaSeconds": lifecycle.PARTNER_ACCEPT_SLA_SECONDS,
+            "riderAcceptDeadline": None,
+            "riderSlaSeconds": lifecycle.RIDER_ACCEPT_SLA_SECONDS,
             "customerName": customer_name,
             "customerPhone": customer_phone,
             "customer": OrderParty(

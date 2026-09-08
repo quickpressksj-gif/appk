@@ -36,16 +36,23 @@ EVENT_ORDER_COMPLETED = "order.completed"
 EVENT_ORDER_CANCELLED = "order.cancelled"
 EVENT_LOCATION_UPDATED = "location.updated"
 
+# Online / Offline and Fleet Lifecycle Events
+EVENT_RIDER_STATUS_CHANGED = "rider.status_changed"
+EVENT_RIDER_ONLINE_STATUS = "rider.online_status"
+EVENT_PARTNER_STATUS_CHANGED = "partner.status_changed"
+EVENT_PARTNER_ONLINE_STATUS = "partner.online_status"
+
 
 @sio.event
 async def connect(sid: str, environ: dict, auth: Optional[dict] = None) -> None:
-    logger.info("Socket.IO client connected: sid=%s", sid)
+    logger.info("Socket.IO client connected: sid=%s, auth=%s", sid, auth)
     if auth:
-        user_id = auth.get("userId") or auth.get("id")
-        role = auth.get("role", "customer")
-        partner_id = auth.get("partnerId")
-        rider_id = auth.get("riderId")
-        
+        user_id = str(auth.get("userId") or auth.get("id") or "").strip()
+        role = str(auth.get("role") or "").lower().strip()
+        partner_id = str(auth.get("partnerId") or auth.get("partner_id") or "").strip()
+        rider_id = str(auth.get("riderId") or auth.get("rider_id") or "").strip()
+        phone = str(auth.get("phone") or "").replace("+", "").strip()
+
         if user_id:
             await sio.enter_room(sid, f"user:{user_id}")
             await sio.enter_room(sid, f"customer:{user_id}")
@@ -61,11 +68,42 @@ async def connect(sid: str, environ: dict, auth: Optional[dict] = None) -> None:
             await sio.enter_room(sid, f"partner:{partner_id}")
         if rider_id:
             await sio.enter_room(sid, f"rider:{rider_id}")
+        if phone:
+            await sio.enter_room(sid, f"phone:{phone}")
 
 
 @sio.event
 async def disconnect(sid: str) -> None:
     logger.info("Socket.IO client disconnected: sid=%s", sid)
+
+
+@sio.event
+async def join(sid: str, data: Any) -> None:
+    """Generic join room handler supporting string or dictionary payloads."""
+    room = data if isinstance(data, str) else (data or {}).get("room")
+    if room:
+        await sio.enter_room(sid, str(room))
+
+
+@sio.on("room.join")
+async def room_join(sid: str, data: Any) -> None:
+    room = data if isinstance(data, str) else (data or {}).get("room")
+    if room:
+        await sio.enter_room(sid, str(room))
+
+
+@sio.event
+async def leave(sid: str, data: Any) -> None:
+    room = data if isinstance(data, str) else (data or {}).get("room")
+    if room:
+        await sio.leave_room(sid, str(room))
+
+
+@sio.on("room.leave")
+async def room_leave(sid: str, data: Any) -> None:
+    room = data if isinstance(data, str) else (data or {}).get("room")
+    if room:
+        await sio.leave_room(sid, str(room))
 
 
 @sio.event
@@ -86,13 +124,115 @@ async def leave_order(sid: str, data: dict) -> None:
 async def update_location(sid: str, data: dict) -> None:
     rider_id = (data or {}).get("riderId")
     order_id = (data or {}).get("orderId")
-    coords = (data or {}).get("coords")
-    if order_id and coords:
-        await sio.emit(
-            EVENT_LOCATION_UPDATED,
-            {"riderId": rider_id, "orderId": order_id, "coords": coords},
-            room=f"order:{order_id}",
-        )
+    coords = (data or {}).get("coords") or {
+        "lat": (data or {}).get("lat") or (data or {}).get("latitude"),
+        "lng": (data or {}).get("lng") or (data or {}).get("longitude"),
+    }
+    payload = {
+        "riderId": rider_id,
+        "orderId": order_id,
+        "coords": coords,
+        "lat": coords.get("lat") if coords else None,
+        "lng": coords.get("lng") if coords else None,
+        "latitude": coords.get("lat") if coords else None,
+        "longitude": coords.get("lng") if coords else None,
+        "heading": (data or {}).get("heading"),
+        "speed": (data or {}).get("speed"),
+    }
+    if order_id:
+        await sio.emit(EVENT_LOCATION_UPDATED, payload, room=f"order:{order_id}")
+    # Also broadcast to admins telemetry room
+    await sio.emit(EVENT_LOCATION_UPDATED, payload, room="admins")
+
+
+async def broadcast_rider_status(
+    rider_id: str,
+    is_online: bool,
+    *,
+    status: str = "online",
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    last_active_at: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Broadcast real-time rider status transition across the entire platform."""
+    from datetime import datetime, timezone
+    now_iso = last_active_at or datetime.now(timezone.utc).isoformat()
+    payload = {
+        "riderId": str(rider_id),
+        "id": str(rider_id),
+        "isOnline": bool(is_online),
+        "status": "online" if is_online else "offline",
+        "liveState": "Online" if is_online else "Offline",
+        "lat": lat,
+        "lng": lng,
+        "latitude": lat,
+        "longitude": lng,
+        "lastActiveAt": now_iso,
+        "updatedAt": now_iso,
+        **(extra or {}),
+    }
+
+    try:
+        # 1. Emit to Admins (Fleet dashboard + live map)
+        await sio.emit(EVENT_RIDER_STATUS_CHANGED, payload, room="admins")
+        await sio.emit(EVENT_RIDER_ONLINE_STATUS, payload, room="admins")
+
+        # 2. Emit to Riders channel and Rider's own room
+        await sio.emit(EVENT_RIDER_STATUS_CHANGED, payload, room=f"rider:{rider_id}")
+        await sio.emit(EVENT_RIDER_ONLINE_STATUS, payload, room=f"rider:{rider_id}")
+        await sio.emit(EVENT_RIDER_STATUS_CHANGED, payload, room="riders")
+
+        # 3. Emit globally for live maps and customer tracking
+        await sio.emit(EVENT_RIDER_STATUS_CHANGED, payload)
+
+        logger.info("Broadcasted rider %s online status: %s", rider_id, is_online)
+    except Exception as exc:
+        logger.warning("Failed to broadcast rider status for %s: %s", rider_id, exc)
+
+
+async def broadcast_partner_status(
+    partner_id: str,
+    is_online: bool,
+    *,
+    is_store_open: Optional[bool] = None,
+    accepting_orders: Optional[bool] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Broadcast real-time partner store status transition across the entire platform."""
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    store_open = is_online if is_store_open is None else bool(is_store_open)
+    accepting = is_online if accepting_orders is None else bool(accepting_orders)
+
+    payload = {
+        "partnerId": str(partner_id),
+        "id": str(partner_id),
+        "isOnline": bool(is_online),
+        "isStoreOpen": store_open,
+        "isOpen": store_open,
+        "acceptingNewOrders": accepting,
+        "status": "open" if store_open else "closed",
+        "updatedAt": now_iso,
+        **(extra or {}),
+    }
+
+    try:
+        # 1. Emit to Admins (Partner directory + live map + KPIs)
+        await sio.emit(EVENT_PARTNER_STATUS_CHANGED, payload, room="admins")
+        await sio.emit(EVENT_PARTNER_ONLINE_STATUS, payload, room="admins")
+
+        # 2. Emit to Partner's room and Partners channel
+        await sio.emit(EVENT_PARTNER_STATUS_CHANGED, payload, room=f"partner:{partner_id}")
+        await sio.emit(EVENT_PARTNER_ONLINE_STATUS, payload, room=f"partner:{partner_id}")
+        await sio.emit(EVENT_PARTNER_STATUS_CHANGED, payload, room="partners")
+
+        # 3. Emit publicly so customer app store views update live
+        await sio.emit(EVENT_PARTNER_STATUS_CHANGED, payload)
+
+        logger.info("Broadcasted partner %s online status: %s (store_open=%s)", partner_id, is_online, store_open)
+    except Exception as exc:
+        logger.warning("Failed to broadcast partner status for %s: %s", partner_id, exc)
 
 
 async def broadcast_order_event(

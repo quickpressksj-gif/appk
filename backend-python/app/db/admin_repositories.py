@@ -120,6 +120,14 @@ def to_admin_order_row(order: Dict[str, Any]) -> Dict[str, Any]:
         "paymentStatus": payment.get("status", "pending"),
         "items": order.get("items") or [],
         "totals": totals,
+        "cancellationReason": order.get("cancellationReason") or order.get("cancelledReason") or order.get("refundReason") or (order.get("meta") or {}).get("reason") or "",
+        "cancelledReason": order.get("cancellationReason") or order.get("cancelledReason") or "",
+        "cancelledBy": order.get("cancelledBy") or "",
+        "slaBreached": order.get("slaBreached") or False,
+        "autoCancelled": bool(order.get("autoCancelled")),
+        "refundStatus": payment.get("refundStatus") or order.get("paymentStatus") or "",
+        "refundAmount": order.get("refundAmount") or 0.0,
+        "refundDate": order.get("refundDate") or "",
     }
 
 
@@ -151,12 +159,18 @@ class AdminOrderRepository:
         if status and status != "all":
             query["status"] = status
         docs = await database.find_sorted(self.collection, query, sort=[("createdAt", -1)])
+        if not docs:
+            docs = await database.find_sorted("orders", query, sort=[("createdAt", -1)])
         return [to_admin_order_row(d) for d in docs]
 
     async def find(self, order_id: str) -> Optional[Dict[str, Any]]:
         doc = await database.find_one(self.collection, {"_id": order_id})
         if doc is None:
             doc = await database.find_one(self.collection, {"code": order_id})
+        if doc is None:
+            doc = await database.find_one("orders", {"_id": order_id})
+        if doc is None:
+            doc = await database.find_one("orders", {"code": order_id})
         return doc
 
     async def assign_rider(self, order_id: str, rider_id: str) -> Dict[str, Any]:
@@ -859,6 +873,9 @@ class AdminPartnerRepository:
         cancellation_rate_pct = round(len(cancelled_orders) / max(1, len(all_orders)) * 100, 1) if all_orders else 0.0
         complaint_rate_pct = round(len(tickets) / max(1, len(all_orders)) * 100, 1) if all_orders else 0.0
 
+        online_p = sum(1 for p in raw_list if bool(p.get("isOnline", True)) and str(p.get("status") or "").lower() not in ("suspended", "blocked"))
+        offline_p = max(0, total_p - online_p)
+
         return {
             "totalPartners": total_p,
             "activePartners": active_p,
@@ -866,8 +883,8 @@ class AdminPartnerRepository:
             "suspendedPartners": suspended_p,
             "permanentlyBlocked": blocked_p,
             "temporarilyDisabled": suspended_p,
-            "onlinePartners": active_p,
-            "offlinePartners": max(0, total_p - active_p),
+            "onlinePartners": online_p,
+            "offlinePartners": offline_p,
             "processingOrders": sum(1 for o in all_orders if o.get("status") in ("partner_accepted", "processing", "ready_for_pickup")),
             "delayedOrders": sum(1 for o in all_orders if o.get("status") not in ("delivered", "cancelled") and (o.get("createdAt") or "") < now_str),
             "newPartnersToday": sum(1 for p in raw_list if str(p.get("createdAt") or "").startswith(now_str)),
@@ -1684,7 +1701,11 @@ class AdminRiderRepository:
             trips = len(completed) or int(p.get("trips") or r.get("trips") or 0)
             rating = float(p.get("rating") or r.get("rating") or 5.0)
 
-            is_online = bool(p.get("isOnline") or r.get("is_available") or active_deliv)
+            # Single source of truth for online state: rider_profiles.isOnline
+            raw_is_online = p.get("isOnline")
+            if raw_is_online is None:
+                raw_is_online = r.get("isOnline") or r.get("is_available")
+            is_online = bool(raw_is_online) or bool(active_deliv)
             current_live = "On delivery" if active_deliv else ("Online" if is_online else "Offline")
 
             # Determine true status: Rider is ONLY Active if their profile has been approved & verified!
@@ -2064,7 +2085,7 @@ class AdminRiderRepository:
             await database.update("riders", {"user_id": user_id}, {"is_verified": is_active, "status": status, "is_available": is_active})
 
         # 4. Update users table
-        user_changes = {"is_verified": is_active, "status": "active" if is_active else status}
+        user_changes = {"is_verified": is_active, "is_onboarded": True, "status": "active" if is_active else status}
         await database.update("users", {"_id": entity_id}, user_changes)
         await database.update("users", {"linked_id": entity_id}, user_changes)
         if user_id:

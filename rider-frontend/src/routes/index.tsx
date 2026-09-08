@@ -1,68 +1,31 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { RiderAuthScreen } from "../screens/RiderAuthScreen";
 import { readSession } from "../api/core/session-store";
-import { QuickPressCaptainLogo } from "../components/QuickPressCaptainLogo";
-import { Loader2 } from "lucide-react";
+import { isRiderApproved, isRiderOnboarded } from "../lib/auth-guard";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const sess = readSession("rider") || readSession();
+      if (sess && sess.token) {
+        if (isRiderApproved(sess)) {
+          throw redirect({ to: "/dashboard" });
+        }
+        if (isRiderOnboarded(sess)) {
+          throw redirect({ to: "/verification" });
+        }
+        throw redirect({ to: "/registration" });
+      }
+    }
+  },
   head: () => ({
     meta: [
-      { title: "QuickPress Captain" },
+      { title: "QuickPress Captain — Delivery Partner" },
       {
         name: "description",
-        content: "QuickPress Captain — Delivery Partner App",
+        content: "QuickPress Captain — Delivery Partner App with Zero Commission",
       },
     ],
   }),
-  component: CaptainRootSplash,
+  component: RiderAuthScreen,
 });
-
-function CaptainRootSplash() {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    let active = true;
-
-    void (async () => {
-      try {
-        const { restoreRiderSession } = await import("../api/rider/rider-auth-api");
-        const sess = await restoreRiderSession();
-
-        if (!active) return;
-        if (sess && sess.token) {
-          const isApproved = Boolean(
-            sess.isVerified ||
-            (sess as any).status === "active" ||
-            (sess as any).status === "approved" ||
-            (sess as any).account?.isVerified ||
-            (sess as any).account?.status === "active" ||
-            (sess as any).account?.status === "approved"
-          );
-          if (isApproved) {
-            void navigate({ to: "/dashboard" });
-          } else {
-            void navigate({ to: "/onboarding" });
-          }
-        } else {
-          void navigate({ to: "/auth" });
-        }
-      } catch {
-        if (active) void navigate({ to: "/auth" });
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [navigate]);
-
-  return (
-    <main className="min-h-dvh bg-white flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
-      <QuickPressCaptainLogo variant="stacked" size="lg" />
-      <div className="mt-8 flex items-center gap-2 text-xs font-bold text-slate-400">
-        <Loader2 className="size-4 animate-spin text-emerald-600" />
-        <span>Starting QuickPress Captain...</span>
-      </div>
-    </main>
-  );
-}

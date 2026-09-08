@@ -22,6 +22,7 @@ import {
   Mail,
   Store,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -350,7 +351,19 @@ export function OrdersPage() {
               {
                 key: "status",
                 label: "Order Status",
-                render: (r) => <StatusPill value={r.status} />,
+                render: (r) => (
+                  <div className="space-y-1">
+                    <StatusPill value={r.status} />
+                    {r.status === "Cancelled" && r.cancellationReason ? (
+                      <p
+                        className="text-[10.5px] font-bold text-rose-600 line-clamp-1 max-w-[220px]"
+                        title={r.cancellationReason}
+                      >
+                        ⚠️ {r.cancellationReason}
+                      </p>
+                    ) : null}
+                  </div>
+                ),
               },
               {
                 key: "payment",
@@ -464,12 +477,22 @@ function OrderDetailSheet({
   const currentStatus = data?.status ?? order?.status ?? "";
   const currentRank = STATUS_RANK[currentStatus] ?? 1;
   const isFinalized = currentRank >= 6;
+  const isCancelled = currentStatus === "Cancelled" || currentStatus === "cancelled" || order?.status === "Cancelled";
+  const cancellationReason =
+    (data as any)?.cancellationReason ||
+    order?.cancellationReason ||
+    (data as any)?.cancelledReason ||
+    (data as any)?.refundReason ||
+    "Cancelled by platform / SLA Timeout";
+  const cancelledBy = (data as any)?.cancelledBy || order?.cancelledBy || "system";
+  const autoCancelled = Boolean((data as any)?.autoCancelled || order?.autoCancelled);
+  const refundStatus = (data as any)?.refundStatus || order?.refundStatus || "Refund Processed (Wallet/Online)";
 
   const statusMutation = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: string }) => {
       const targetRank = STATUS_RANK[status] ?? 0;
       const latestRank = STATUS_RANK[data?.status ?? order?.status ?? ""] ?? 1;
-      if (status !== "cancelled" && targetRank <= latestRank) {
+      if (status.toLowerCase() !== "cancelled" && targetRank <= latestRank) {
         throw new Error("Cannot move order status backwards. Progression is strictly one-way.");
       }
       return changeOrderStatus(orderId, status);
@@ -501,6 +524,47 @@ function OrderDetailSheet({
         </SheetHeader>
 
         <div className="space-y-6 px-4 py-6">
+          {/* CANCELLATION & REFUND REASON BANNER */}
+          {isCancelled && (
+            <div className="rounded-2xl border-2 border-rose-300 bg-rose-50/90 p-4.5 shadow-xs animate-in fade-in space-y-3">
+              <div className="flex items-center justify-between border-b border-rose-200/80 pb-2.5">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-rose-950">
+                  <AlertTriangle className="size-4 text-rose-600 animate-pulse shrink-0" />
+                  <span>CANCELLATION &amp; REFUND DETAILS</span>
+                </div>
+                <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white tracking-wider shadow-xs">
+                  {autoCancelled ? "⚡ SLA Auto-Cancelled" : "Cancelled"}
+                </span>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wider text-rose-800 mb-1">
+                  Reason for Cancellation:
+                </div>
+                <div className="rounded-xl border border-rose-300/80 bg-white p-3 text-xs font-bold text-rose-950 leading-relaxed shadow-2xs">
+                  ⚠️ {cancellationReason}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                <div className="rounded-xl border border-rose-200 bg-rose-100/60 p-2.5">
+                  <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wide">Cancelled By</span>
+                  <div className="font-black text-rose-950 capitalize mt-0.5">
+                    {cancelledBy === "system" || autoCancelled ? "🤖 System (SLA Engine)" : cancelledBy}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-rose-200 bg-rose-100/60 p-2.5">
+                  <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wide">Customer Refund</span>
+                  <div className="font-black text-emerald-800 flex items-center gap-1 mt-0.5">
+                    <span>💳</span>
+                    <span className="truncate">Refunded ({order?.total || "Full Amount"})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4">
             <div className="flex items-center justify-between mb-3 border-b border-emerald-100 pb-2">
               <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">

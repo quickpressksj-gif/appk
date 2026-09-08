@@ -33,6 +33,13 @@ export type AdminOrder = {
   payment: "Paid" | "COD" | "Refunded";
   placedAt: string;
   total: string;
+  cancellationReason?: string;
+  cancelledBy?: string;
+  slaBreached?: boolean | string;
+  autoCancelled?: boolean;
+  refundStatus?: string;
+  refundAmount?: number;
+  refundDate?: string;
 };
 
 type AdminOrderRow = {
@@ -47,6 +54,13 @@ type AdminOrderRow = {
   placedOn: string;
   city: string;
   paymentMode: "online" | "cod";
+  cancellationReason?: string;
+  cancelledBy?: string;
+  slaBreached?: boolean | string;
+  autoCancelled?: boolean;
+  refundStatus?: string;
+  refundAmount?: number;
+  refundDate?: string;
 };
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -93,6 +107,13 @@ function toAdminOrder(row: AdminOrderRow): AdminOrder {
     payment: row.status === "cancelled" ? "Refunded" : row.paymentMode === "cod" ? "COD" : "Paid",
     placedAt: row.placedOn,
     total: money(row.amount),
+    cancellationReason: row.cancellationReason,
+    cancelledBy: row.cancelledBy,
+    slaBreached: row.slaBreached,
+    autoCancelled: row.autoCancelled,
+    refundStatus: row.refundStatus,
+    refundAmount: row.refundAmount,
+    refundDate: row.refundDate,
   };
 }
 
@@ -111,7 +132,7 @@ export type OrderDetail = AdminOrder & {
 
 /** GET /api/admin/orders/{id} */
 export async function fetchOrder(id: string): Promise<OrderDetail> {
-  const order = await apiGetJson<Order>(`/api/admin/orders/${id}`);
+  const order = await apiGetJson<any>(`/api/admin/orders/${id}`);
   const time = (iso: string) =>
     new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
 
@@ -126,31 +147,52 @@ export async function fetchOrder(id: string): Promise<OrderDetail> {
     { label: "Delivered", status: "delivered" },
   ];
 
+  const cancReason =
+    order.cancellationReason ||
+    order.cancelledReason ||
+    order.refundReason ||
+    order.meta?.reason ||
+    "";
+
   return {
     ...toAdminOrder({
-      id: order.id,
+      id: order.id || order._id,
       code: order.code,
-      customer: order.customer.name,
-      partner: order.partner.name,
+      customer: order.customer?.name || order.customerName || "Customer",
+      partner: order.partner?.name || "QuickPress Partner",
       rider: order.rider?.name ?? "Unassigned",
       status: order.status,
-      statusLabel: ORDER_STATUS_LABEL[order.status] ?? order.status,
-      amount: order.totals.grandTotal,
-      placedOn: new Date(order.createdAt).toLocaleDateString("en-CA"),
-      city: order.partner.city,
-      paymentMode: order.payment.mode,
+      statusLabel: ORDER_STATUS_LABEL[order.status as keyof typeof ORDER_STATUS_LABEL] ?? order.status,
+      amount: order.totals?.grandTotal || order.pricing?.total || 0,
+      placedOn: new Date(order.createdAt || Date.now()).toLocaleDateString("en-CA"),
+      city: order.partner?.city || order.address?.city || "Kasganj",
+      paymentMode: order.payment?.mode || order.payment?.method || "online",
+      cancellationReason: cancReason,
+      cancelledBy: order.cancelledBy,
+      slaBreached: order.slaBreached,
+      autoCancelled: order.autoCancelled,
+      refundStatus: order.payment?.refundStatus || order.paymentStatus,
+      refundAmount: order.refundAmount,
+      refundDate: order.refundDate,
     }),
-    phone: order.customer.phone,
-    service: order.serviceLabel,
-    address: `${order.address.line}, ${order.address.city}`,
-    slot: `${order.pickup.date} · ${order.pickup.slot}`,
-    items: order.items.map((item) => ({
+    phone: order.customer?.phone || order.customerPhone || "",
+    service: order.serviceLabel || "Laundry Service",
+    address: `${order.address?.line || order.address?.street || ""}, ${order.address?.city || ""}`,
+    slot: `${order.pickup?.date || "Today"} · ${order.pickup?.slot || order.slot || ""}`,
+    cancellationReason: cancReason,
+    cancelledBy: order.cancelledBy,
+    slaBreached: order.slaBreached,
+    autoCancelled: order.autoCancelled,
+    refundStatus: order.payment?.refundStatus || order.paymentStatus,
+    refundAmount: order.refundAmount,
+    refundDate: order.refundDate,
+    items: (order.items || []).map((item: any) => ({
       name: item.name,
-      qty: item.qty,
-      price: money(item.qty * item.price),
+      qty: item.qty || item.quantity || 1,
+      price: money((item.qty || item.quantity || 1) * (item.price || 0)),
     })),
     timeline: stages.map((stage) => {
-      const event = order.events.find((item) => item.status === stage.status);
+      const event = (order.events || []).find((item: any) => item.status === stage.status);
       return { label: stage.label, at: event ? time(event.at) : "—", done: Boolean(event) };
     }),
   };

@@ -1,55 +1,67 @@
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Edit2,
-  Loader2,
-  Lock,
-  Phone,
-  RotateCcw,
-  Shield,
-  Sparkles,
-} from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, Edit2, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
+import React, { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 
 import { useRiderContext } from "../context/RiderContext";
-import { requestOtp, verifyOtp } from "../api/rider/rider-auth-api";
-import { RiderAuthHeader } from "../components/RiderAuthHeader";
-import { writeSession, readSession } from "../api/core/session-store";
-import type { AuthSession } from "../shared/types/auth";
+import { sendOtp, verifyOtp } from "../api/rider/rider-auth-api";
+import { QuickPressLogo } from "../components/common/QuickPressLogo";
+import { useLanguage } from "../lib/i18n";
+import { isRiderApproved, isRiderOnboarded } from "../lib/auth-guard";
 
 export function RiderOtpScreen() {
   const navigate = useNavigate();
-  const { phone, signIn } = useRiderContext();
-  const [digits, setDigits] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [verified, setVerified] = useState(false);
+  const { phone, setPhone, signIn } = useRiderContext();
+  const { t } = useLanguage();
+
+  // 6-digit OTP array
+  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(30);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const targetPhone =
-    phone ||
-    (typeof window !== "undefined"
-      ? window.sessionStorage.getItem("qp.rider.pendingPhone") ||
-        window.localStorage.getItem("qp.rider.pendingPhone") ||
-        window.localStorage.getItem("qp.rider.rememberedPhone") ||
-        ""
-      : "");
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const displayPhone = () => {
-    const digitsOnly = targetPhone.replace(/\D/g, "");
-    if (!digitsOnly) return "+91 98765 43210";
-    const last10 = digitsOnly.slice(-10);
-    return `+91 ${last10.slice(0, 5)} ${last10.slice(5)}`;
-  };
+  // Safe phone resolution: check context, then search params, then sessionStorage / localStorage
+  const [targetPhone, setTargetPhone] = useState<string>(() => {
+    if (phone && phone.trim()) return phone.trim();
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qPhone = urlParams.get("phone");
+        if (qPhone && qPhone.trim()) return qPhone.trim();
+        const stored =
+          window.sessionStorage.getItem("qp.rider.pendingPhone") ||
+          window.localStorage.getItem("qp.rider.pendingPhone");
+        if (stored && stored.trim()) return stored.trim();
+      } catch {
+        /* ignore */
+      }
+    }
+    return "";
+  });
 
+  // Sync back to context if context didn't have it
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!phone && targetPhone) {
+      setPhone(targetPhone);
+    } else if (phone && phone !== targetPhone) {
+      setTargetPhone(phone);
+    }
+  }, [phone, targetPhone, setPhone]);
 
-  // 30s countdown
+  // If no phone at all, redirect to /auth (NEVER to non-existent /login)
+  useEffect(() => {
+    if (!targetPhone && !phone) {
+      const timerId = setTimeout(() => {
+        navigate({ to: "/auth" });
+      }, 100);
+      return () => clearTimeout(timerId);
+    }
+    inputRefs.current[0]?.focus();
+  }, [targetPhone, phone, navigate]);
+
+  // 30s countdown timer
   useEffect(() => {
     if (timer <= 0) return;
     const interval = setInterval(() => {
@@ -58,207 +70,215 @@ export function RiderOtpScreen() {
     return () => clearInterval(interval);
   }, [timer]);
 
-  // Auto-submit when 6 digits are typed
-  useEffect(() => {
-    if (digits.length === 6 && !busy && !verified) {
-      void handleVerify();
-    }
-  }, [digits, busy, verified]);
+  // Combined OTP code string
+  const otpCode = digits.join("");
 
-  const handleVerify = async (event?: FormEvent) => {
-    event?.preventDefault();
-    if (busy || verified) return;
-    if (digits.length !== 6) {
-      toast.error("Please enter the complete 6-digit code");
+  // Handle individual digit change
+  const handleDigitChange = (index: number, value: string) => {
+    const cleanDigit = value.replace(/\D/g, "").slice(-1);
+    const newDigits = [...digits];
+    newDigits[index] = cleanDigit;
+    setDigits(newDigits);
+
+    // Auto-advance to next box if digit entered
+    if (cleanDigit && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Handle backspace navigation
+  const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // Handle paste full OTP
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pastedData) return;
+
+    const newDigits = ["", "", "", "", "", ""];
+    for (let i = 0; i < pastedData.length; i++) {
+      newDigits[i] = pastedData[i] || "";
+    }
+    setDigits(newDigits);
+
+    // Focus on the next empty box or the last box
+    const nextIndex = Math.min(pastedData.length, 5);
+    inputRefs.current[nextIndex]?.focus();
+  };
+
+  // Handle Verify with Real Backend & Database Check
+  const handleVerify = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    if (otpCode.length < 4 || loading) return;
+
+    setLoading(true);
+
+    try {
+      // 1. Real Backend Phone OTP verification
+      const effectivePhone = targetPhone || phone;
+      const sessionResult = await verifyOtp(effectivePhone, otpCode);
+      signIn(sessionResult);
+
+      // 2. Check Database: Is rider already onboarded and approved?
+      const onboarded = isRiderOnboarded(sessionResult);
+      const approved = isRiderApproved(sessionResult);
+
+      if (!onboarded) {
+        toast.success("Phone verified! Please complete Captain Registration 🛵");
+        navigate({ to: "/registration" });
+      } else if (!approved) {
+        toast.info("Your application is under verification ⏳");
+        navigate({ to: "/verification" });
+      } else {
+        toast.success("Welcome back, Captain! Redirecting to Dashboard... 🚀");
+        navigate({ to: "/dashboard" });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid OTP code. Please enter valid 6-digit OTP.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Resend OTP
+  const handleResend = async () => {
+    if (timer > 0 || resending) return;
+    const effectivePhone = targetPhone || phone;
+    if (!effectivePhone) {
+      toast.error("Phone number missing. Please login again.");
+      navigate({ to: "/auth" });
       return;
     }
-    setBusy(true);
-
-    const cleanDigits = targetPhone.replace(/\D/g, "").slice(-10) || "9876543210";
-
+    setResending(true);
     try {
-      const sessionResult = await verifyOtp(targetPhone || cleanDigits, digits);
-
-      signIn(sessionResult);
-      setVerified(true);
-      toast.success("Mobile number verified successfully!");
-
-      window.setTimeout(() => {
-        const isApproved = Boolean(
-          sessionResult.isVerified ||
-          (sessionResult as any).status === "active" ||
-          (sessionResult as any).status === "approved"
-        );
-        if (isApproved) {
-          navigate({ to: "/dashboard" });
-        } else {
-          navigate({ to: "/onboarding" });
-        }
-      }, 400);
-    } catch (cause) {
-      setBusy(false);
-      setDigits("");
-      inputRef.current?.focus();
-      toast.error(
-        cause instanceof Error ? cause.message : "That OTP is incorrect. Please try again.",
-      );
+      await sendOtp(effectivePhone);
+      setTimer(30);
+      toast.success("New 6-digit OTP sent to your phone! 📱");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to resend OTP");
+    } finally {
+      setResending(false);
     }
   };
 
-  const handleResend = async () => {
-    if (timer > 0 || busy) return;
-    setTimer(30);
-    try {
-      await requestOtp(targetPhone);
-      toast.success("New OTP sent to your mobile number");
-    } catch {
-      toast.success("New OTP sent");
-    }
-  };
+  const formattedPhone = (targetPhone || phone || "").replace("+91", "").trim();
 
   return (
-    <div className="min-h-screen bg-white text-[#111827] flex flex-col justify-between font-sans selection:bg-[#F4B400]/30">
-      {/* Background Ambience */}
-      <div className="pointer-events-none fixed -top-32 left-1/2 size-[30rem] -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
-      <div className="pointer-events-none fixed -bottom-40 left-1/2 size-[26rem] -translate-x-1/2 rounded-full bg-emerald-600/5 blur-3xl" />
+    <div className="relative flex flex-col flex-1 w-full h-[100dvh] max-w-md mx-auto bg-white text-neutral-900 select-none justify-between p-5 overflow-y-auto">
+      {/* 1. Top Header with Back Arrow & Official Logo */}
+      <div>
+        <div className="flex items-center justify-between pt-1 pb-3">
+          <button
+            type="button"
+            onClick={() => navigate({ to: "/auth" })}
+            className="flex items-center justify-center w-10 h-10 -ml-2 rounded-full hover:bg-neutral-100 text-neutral-900 active:scale-95 transition-transform"
+            aria-label="Go Back"
+          >
+            <ArrowLeft className="w-6 h-6 stroke-[2.4]" />
+          </button>
 
-      {/* Main Container */}
-      <div className="relative flex flex-col justify-between min-h-screen p-4 sm:p-6 max-w-md mx-auto w-full">
-        {/* Top Header */}
-        <div className="pt-2 flex flex-col items-center">
-          <div className="w-full flex justify-start mb-2">
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/auth" })}
-              className="flex items-center gap-1.5 rounded-full border border-zinc-200/90 bg-white/90 px-3 py-1.5 text-xs font-bold text-zinc-700 shadow-2xs active:scale-95 transition-all cursor-pointer"
-            >
-              <ArrowLeft className="size-3.5" />
-              <span>Back</span>
-            </button>
-          </div>
-
-          <RiderAuthHeader badge="CAPTAIN" withTagline={false} />
+          <span className="text-[11px] font-black px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full">
+            Step 2 of 2
+          </span>
         </div>
 
-        {/* Verification Card */}
-        <div className="my-auto py-4">
-          <div className="rounded-3xl border border-zinc-200/80 bg-white/95 backdrop-blur-md p-6 sm:p-7 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.07)]">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10.5px] font-black text-amber-900 border border-amber-200/80 mb-2">
-              <Sparkles className="size-3 text-amber-600" />
-              <span>SECURE VERIFICATION</span>
-            </div>
+        {/* Official QuickPress Brand Logo */}
+        <div className="pt-2 pb-6">
+          <QuickPressLogo size="lg" showSubtitle={true} subtitleText="DELIVERY PARTNER" />
+        </div>
 
-            <h2 className="text-2xl font-black tracking-tight text-[#111827]">
-              Enter 6-Digit Code 🔐
-            </h2>
+        {/* Heading & Subtitle */}
+        <div className="text-center pb-6">
+          <h2 className="text-xl font-black text-neutral-950 tracking-tight">
+            {t("otp.title", "Enter 6-digit OTP")}
+          </h2>
+          <p className="text-xs font-semibold text-neutral-500 mt-1">
+            {t("otp.sentTo", "Sent to")}{" "}
+            <span className="text-neutral-950 font-bold">
+              +91 {formattedPhone || "••••••••••"}
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate({ to: "/auth" })}
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#00C853] hover:underline mt-1.5"
+          >
+            <Edit2 className="w-3 h-3" />
+            <span>{t("otp.changeNumber", "Change Number")}</span>
+          </button>
+        </div>
 
-            {/* Target phone with edit button */}
-            <div className="mt-2 flex items-center justify-between rounded-xl bg-zinc-50 border border-zinc-200/80 px-3 py-2 text-xs">
-              <div className="flex items-center gap-2">
-                <Phone className="size-3.5 text-zinc-500" />
-                <span className="font-bold text-zinc-900">{displayPhone()}</span>
-              </div>
+        {/* 2. 6-Digit Individual OTP Input Boxes */}
+        <form onSubmit={handleVerify} className="space-y-6">
+          <div className="flex items-center justify-between gap-2 px-1">
+            {digits.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => {
+                  inputRefs.current[idx] = el;
+                }}
+                type="tel"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitChange(idx, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                onPaste={handlePaste}
+                className={`w-12 h-14 text-center text-2xl font-black rounded-2xl border-2 transition-all outline-none ${
+                  digit
+                    ? "border-[#00C853] bg-emerald-50/40 text-neutral-950 shadow-xs"
+                    : "border-neutral-200 bg-white text-neutral-900 focus:border-[#00C853] focus:bg-emerald-50/20"
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Resend Timer Row */}
+          <div className="flex items-center justify-between px-2 text-xs pt-1">
+            <span className="text-neutral-500 font-medium">
+              {t("otp.didntReceive", "Didn't receive code?")}
+            </span>
+            {timer > 0 ? (
+              <span className="font-bold text-neutral-700">
+                {t("otp.resendIn", "Resend in")} {timer}s
+              </span>
+            ) : (
               <button
                 type="button"
-                onClick={() => navigate({ to: "/auth" })}
-                className="flex items-center gap-1 text-[11px] font-black text-emerald-700 hover:underline cursor-pointer"
+                onClick={handleResend}
+                disabled={resending}
+                className="flex items-center gap-1 font-black text-[#00C853] hover:underline active:scale-95"
               >
-                <Edit2 className="size-3" />
-                <span>Edit</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{resending ? "Sending..." : t("otp.resendOtp", "Resend OTP")}</span>
               </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleVerify} className="mt-6 space-y-4">
-              {/* 6 Boxes Visual Layer with hidden real input */}
-              <div className="relative">
-                <input
-                  ref={inputRef}
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={digits}
-                  onChange={(e) => setDigits(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="absolute inset-0 size-full opacity-0 cursor-pointer"
-                  autoFocus
-                />
-
-                <div className="flex justify-between gap-2 pointer-events-none">
-                  {[0, 1, 2, 3, 4, 5].map((i) => {
-                    const char = digits[i];
-                    const isCurrent = i === digits.length;
-                    return (
-                      <div
-                        key={i}
-                        className={`flex size-11 sm:size-12 items-center justify-center rounded-2xl border-2 text-lg font-black transition-all ${
-                          char
-                            ? "border-emerald-600 bg-emerald-50/20 text-slate-950"
-                            : isCurrent
-                              ? "border-black bg-white shadow-xs"
-                              : "border-zinc-200 bg-zinc-50/70 text-zinc-400"
-                        }`}
-                      >
-                        {char || ""}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Resend Timer */}
-              <div className="flex items-center justify-between text-xs pt-2">
-                <span className="text-zinc-500 font-medium">Didn&apos;t receive code?</span>
-                {timer > 0 ? (
-                  <span className="font-bold text-zinc-400">
-                    Resend in <span className="text-zinc-900">00:{timer < 10 ? `0${timer}` : timer}</span>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleResend}
-                    className="flex items-center gap-1 font-black text-emerald-700 hover:underline cursor-pointer"
-                  >
-                    <RotateCcw className="size-3" />
-                    <span>Resend Code</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={busy || digits.length !== 6 || verified}
-                className="btn-ripple relative mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#111827] text-sm font-black tracking-wide text-white shadow-md hover:bg-black active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {busy ? (
-                  <>
-                    <Loader2 className="size-4.5 animate-spin" />
-                    <span>Verifying Code...</span>
-                  </>
-                ) : verified ? (
-                  <>
-                    <CheckCircle2 className="size-4.5 text-emerald-400" />
-                    <span>Verified! Opening Hub...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Verify &amp; Enter Hub</span>
-                    <ArrowRight className="size-4.5" />
-                  </>
-                )}
-              </button>
-            </form>
+            )}
           </div>
-        </div>
+        </form>
+      </div>
 
-        {/* Footer */}
-        <div className="space-y-3 pb-2 text-center">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
-            <Shield className="size-3.5 text-emerald-600" />
-            <span>Secured with 256-bit SSL encryption</span>
-          </div>
-          <p className="text-[11px] text-zinc-400">QuickPress Captain © 2024</p>
+      {/* 3. Bottom Green Action Button */}
+      <div className="pt-4 pb-2 space-y-3">
+        <button
+          type="button"
+          onClick={handleVerify}
+          disabled={loading || otpCode.length < 4}
+          className="w-full h-13.5 flex items-center justify-center bg-[#00C853] hover:bg-[#00B248] disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm tracking-wide rounded-2xl shadow-lg shadow-emerald-500/25 active:scale-98 transition-all"
+        >
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-white" />
+          ) : (
+            <span>{t("otp.verifyContinue", "Verify & Continue")}</span>
+          )}
+        </button>
+
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-neutral-500 font-medium">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#00C853]" />
+          <span>QuickPress Captain 100% Secure Verification</span>
         </div>
       </div>
     </div>

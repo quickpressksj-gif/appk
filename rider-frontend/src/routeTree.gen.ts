@@ -12,11 +12,19 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DeliveriesRouteImport } from './routes/deliveries'
+import { Route as IncentivesRouteImport } from './routes/incentives'
+import { Route as InstructionRouteImport } from './routes/instruction'
+import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as LanguageRouteImport } from './routes/language'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as OtpRouteImport } from './routes/otp'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RegistrationRouteImport } from './routes/registration'
+import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as WalletRouteImport } from './routes/wallet'
-import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,9 +41,44 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeliveriesRoute = DeliveriesRouteImport.update({
+  id: '/deliveries',
+  path: '/deliveries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IncentivesRoute = IncentivesRouteImport.update({
+  id: '/incentives',
+  path: '/incentives',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstructionRoute = InstructionRouteImport.update({
+  id: '/instruction',
+  path: '/instruction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstructionsRoute = InstructionsRouteImport.update({
+  id: '/instructions',
+  path: '/instructions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LanguageRoute = LanguageRouteImport.update({
+  id: '/language',
+  path: '/language',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersRoute = OrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OtpRoute = OtpRouteImport.update({
@@ -48,14 +91,19 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegistrationRoute = RegistrationRouteImport.update({
+  id: '/registration',
+  path: '/registration',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerificationRoute = VerificationRouteImport.update({
+  id: '/verification',
+  path: '/verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WalletRoute = WalletRouteImport.update({
   id: '/wallet',
   path: '/wallet',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrdersIndexRoute = OrdersIndexRouteImport.update({
-  id: '/orders/',
-  path: '/orders/',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -63,32 +111,56 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/incentives': typeof IncentivesRoute
+  '/instruction': typeof InstructionRoute
+  '/instructions': typeof InstructionsRoute
+  '/language': typeof LanguageRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
+  '/orders': typeof OrdersRoute
   '/otp': typeof OtpRoute
   '/profile': typeof ProfileRoute
+  '/registration': typeof RegistrationRoute
+  '/verification': typeof VerificationRoute
   '/wallet': typeof WalletRoute
-  '/orders/': typeof OrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/incentives': typeof IncentivesRoute
+  '/instruction': typeof InstructionRoute
+  '/instructions': typeof InstructionsRoute
+  '/language': typeof LanguageRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
+  '/orders': typeof OrdersRoute
   '/otp': typeof OtpRoute
   '/profile': typeof ProfileRoute
+  '/registration': typeof RegistrationRoute
+  '/verification': typeof VerificationRoute
   '/wallet': typeof WalletRoute
-  '/orders': typeof OrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/incentives': typeof IncentivesRoute
+  '/instruction': typeof InstructionRoute
+  '/instructions': typeof InstructionsRoute
+  '/language': typeof LanguageRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/onboarding': typeof OnboardingRoute
+  '/orders': typeof OrdersRoute
   '/otp': typeof OtpRoute
   '/profile': typeof ProfileRoute
+  '/registration': typeof RegistrationRoute
+  '/verification': typeof VerificationRoute
   '/wallet': typeof WalletRoute
-  '/orders/': typeof OrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,42 +168,74 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/deliveries'
+    | '/incentives'
+    | '/instruction'
+    | '/instructions'
+    | '/language'
+    | '/leaderboard'
     | '/onboarding'
+    | '/orders'
     | '/otp'
     | '/profile'
+    | '/registration'
+    | '/verification'
     | '/wallet'
-    | '/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/deliveries'
+    | '/incentives'
+    | '/instruction'
+    | '/instructions'
+    | '/language'
+    | '/leaderboard'
     | '/onboarding'
+    | '/orders'
     | '/otp'
     | '/profile'
+    | '/registration'
+    | '/verification'
     | '/wallet'
-    | '/orders'
   id:
     | '__root__'
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/deliveries'
+    | '/incentives'
+    | '/instruction'
+    | '/instructions'
+    | '/language'
+    | '/leaderboard'
     | '/onboarding'
+    | '/orders'
     | '/otp'
     | '/profile'
+    | '/registration'
+    | '/verification'
     | '/wallet'
-    | '/orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
+  DeliveriesRoute: typeof DeliveriesRoute
+  IncentivesRoute: typeof IncentivesRoute
+  InstructionRoute: typeof InstructionRoute
+  InstructionsRoute: typeof InstructionsRoute
+  LanguageRoute: typeof LanguageRoute
+  LeaderboardRoute: typeof LeaderboardRoute
   OnboardingRoute: typeof OnboardingRoute
+  OrdersRoute: typeof OrdersRoute
   OtpRoute: typeof OtpRoute
   ProfileRoute: typeof ProfileRoute
+  RegistrationRoute: typeof RegistrationRoute
+  VerificationRoute: typeof VerificationRoute
   WalletRoute: typeof WalletRoute
-  OrdersIndexRoute: typeof OrdersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -157,11 +261,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deliveries': {
+      id: '/deliveries'
+      path: '/deliveries'
+      fullPath: '/deliveries'
+      preLoaderRoute: typeof DeliveriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/incentives': {
+      id: '/incentives'
+      path: '/incentives'
+      fullPath: '/incentives'
+      preLoaderRoute: typeof IncentivesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/instruction': {
+      id: '/instruction'
+      path: '/instruction'
+      fullPath: '/instruction'
+      preLoaderRoute: typeof InstructionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/instructions': {
+      id: '/instructions'
+      path: '/instructions'
+      fullPath: '/instructions'
+      preLoaderRoute: typeof InstructionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/language': {
+      id: '/language'
+      path: '/language'
+      fullPath: '/language'
+      preLoaderRoute: typeof LanguageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/otp': {
@@ -178,18 +331,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/registration': {
+      id: '/registration'
+      path: '/registration'
+      fullPath: '/registration'
+      preLoaderRoute: typeof RegistrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verification': {
+      id: '/verification'
+      path: '/verification'
+      fullPath: '/verification'
+      preLoaderRoute: typeof VerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/wallet': {
       id: '/wallet'
       path: '/wallet'
       fullPath: '/wallet'
       preLoaderRoute: typeof WalletRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/orders/': {
-      id: '/orders/'
-      path: '/orders'
-      fullPath: '/orders/'
-      preLoaderRoute: typeof OrdersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -199,11 +359,19 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
+  DeliveriesRoute: DeliveriesRoute,
+  IncentivesRoute: IncentivesRoute,
+  InstructionRoute: InstructionRoute,
+  InstructionsRoute: InstructionsRoute,
+  LanguageRoute: LanguageRoute,
+  LeaderboardRoute: LeaderboardRoute,
   OnboardingRoute: OnboardingRoute,
+  OrdersRoute: OrdersRoute,
   OtpRoute: OtpRoute,
   ProfileRoute: ProfileRoute,
+  RegistrationRoute: RegistrationRoute,
+  VerificationRoute: VerificationRoute,
   WalletRoute: WalletRoute,
-  OrdersIndexRoute: OrdersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

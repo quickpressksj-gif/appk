@@ -66,6 +66,153 @@ export const Route = createFileRoute("/track/$orderId")({
   component: TrackOrderScreen,
 });
 
+function LiveOrderSlaTracker({ detail }: { detail: any }) {
+  const status = (detail?.status || "").toLowerCase();
+  const isPartnerPending = ["placed", "pending_partner_acceptance", "new", "order_created"].includes(status);
+  const isRiderPending =
+    ["partner_accepted", "rider_searching", "pickup_rider_assigned", "rider_assigned"].includes(status) &&
+    (!detail?.rider?.name ||
+      detail?.rider?.name === "Rider not assigned yet" ||
+      detail?.rider?.name === "Assigning rider" ||
+      !detail?.rider?.assigned);
+  const isCancelled = status === "cancelled";
+
+  const [remaining, setRemaining] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isPartnerPending && !isRiderPending) return;
+
+    const computeDiff = () => {
+      const now = Date.now();
+      if (isPartnerPending) {
+        const base = detail?.placedAt || detail?.createdAt ? new Date(detail.placedAt || detail.createdAt).getTime() : now;
+        const target = detail?.partnerAcceptDeadline ? new Date(detail.partnerAcceptDeadline).getTime() : base + 5 * 60 * 1000;
+        return Math.max(0, Math.floor((target - now) / 1000));
+      }
+      if (isRiderPending) {
+        const base =
+          detail?.partnerAcceptedAt || detail?.riderDispatchStartedAt || detail?.updatedAt
+            ? new Date(detail.partnerAcceptedAt || detail.riderDispatchStartedAt || detail.updatedAt).getTime()
+            : now;
+        const target = detail?.riderAcceptDeadline ? new Date(detail.riderAcceptDeadline).getTime() : base + 3 * 60 * 1000;
+        return Math.max(0, Math.floor((target - now) / 1000));
+      }
+      return 0;
+    };
+
+    setRemaining(computeDiff());
+    const interval = setInterval(() => {
+      setRemaining(computeDiff());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [detail, isPartnerPending, isRiderPending]);
+
+  if (isCancelled) {
+    const reason = detail?.cancellationReason || detail?.cancelledReason || "";
+    const isSlaBreach =
+      reason.toLowerCase().includes("sla") ||
+      reason.toLowerCase().includes("auto-cancelled") ||
+      detail?.autoCancelled;
+    if (isSlaBreach) {
+      return (
+        <div className="mt-4 rounded-3xl border-2 border-rose-500/40 bg-rose-500/10 p-5 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-7 items-center justify-center rounded-xl bg-rose-600 text-white font-black text-xs shrink-0">
+              ✕
+            </span>
+            <p className="text-xs font-black text-rose-950 dark:text-rose-200">
+              Order Auto-Cancelled (SLA Guarantee)
+            </p>
+          </div>
+          <p className="mt-2 text-xs text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
+            {reason || "The response SLA window for this order expired, so it was automatically cancelled."}
+          </p>
+          <div className="mt-3.5 rounded-2xl bg-white/90 dark:bg-zinc-900/90 p-3 text-[11.5px] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 flex items-center gap-2">
+            <span className="text-sm">💳</span>
+            <span>Full refund has been credited back to your QuickPress Wallet / Payment method.</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  if (isPartnerPending) {
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    const isUrgent = remaining <= 60;
+
+    return (
+      <div
+        className={`mt-4 rounded-3xl border p-4.5 transition-all shadow-xs ${
+          isUrgent
+            ? "border-rose-400/90 bg-rose-500/10 ring-1 ring-rose-400"
+            : "border-amber-400/80 bg-amber-500/10"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className={`size-4.5 ${isUrgent ? "text-rose-600 animate-spin" : "text-amber-600"}`} />
+            <span className="text-xs font-black tracking-wide text-amber-950 dark:text-amber-100">
+              Store Acceptance Guarantee
+            </span>
+          </div>
+          <span
+            className={`font-mono text-xs font-black rounded-xl px-2.5 py-1 ${
+              isUrgent ? "bg-rose-600 text-white animate-pulse" : "bg-amber-600 text-white"
+            }`}
+          >
+            ⏱️ {formatted}
+          </span>
+        </div>
+        <p className="mt-2 text-[11.5px] font-medium text-amber-900/85 dark:text-amber-200/85 leading-relaxed">
+          Store is reviewing your laundry items. If not accepted within 5 minutes, it will be automatically cancelled and refunded immediately.
+        </p>
+      </div>
+    );
+  }
+
+  if (isRiderPending) {
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    const isUrgent = remaining <= 30;
+
+    return (
+      <div
+        className={`mt-4 rounded-3xl border p-4.5 transition-all shadow-xs ${
+          isUrgent
+            ? "border-rose-400/90 bg-rose-500/10 ring-1 ring-rose-400"
+            : "border-sky-400/80 bg-sky-500/10"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className={`size-4.5 ${isUrgent ? "text-rose-600 animate-spin" : "text-sky-600"}`} />
+            <span className="text-xs font-black tracking-wide text-sky-950 dark:text-sky-100">
+              Delivery Captain Dispatch Window
+            </span>
+          </div>
+          <span
+            className={`font-mono text-xs font-black rounded-xl px-2.5 py-1 ${
+              isUrgent ? "bg-rose-600 text-white animate-pulse" : "bg-sky-600 text-white"
+            }`}
+          >
+            ⏱️ {formatted}
+          </span>
+        </div>
+        <p className="mt-2 text-[11.5px] font-medium text-sky-900/85 dark:text-sky-200/85 leading-relaxed">
+          Store accepted! Finding the nearest available delivery captain. If not confirmed within 3 minutes, order is automatically cancelled & refunded.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function TrackOrderScreen() {
   useAuthGuard();
   const { orderId } = Route.useParams();
@@ -341,6 +488,9 @@ function TrackOrderScreen() {
                 </p>
               </div>
             </section>
+
+            {/* Live Order SLA Guarantee Tracker */}
+            <LiveOrderSlaTracker detail={detail} />
 
             {/* Real OTP Display Card */}
             {(() => {

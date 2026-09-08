@@ -1,717 +1,300 @@
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Bike,
-  Building2,
-  CheckCircle2,
-  Clock,
-  IndianRupee,
-  MapPin,
-  Navigation,
-  Package,
-  PackageCheck,
-  Phone,
-  Power,
-  Radio,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Truck,
-  Wallet,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { RiderLayout } from "../components/layout/RiderLayout";
 import { useRiderContext } from "../context/RiderContext";
-import {
-  fetchRiderOrders,
-  fetchRiderOffers,
-  acceptRiderOrder,
-  rejectRiderOrder,
-  updateOrderStatus,
-  confirmPickup,
-  confirmDelivery,
-  confirmDropAtPartner,
-  startDelivery,
-} from "../api/rider/rider-orders-api";
+import { fetchRiderOffers } from "../api/rider/rider-orders-api";
 import {
   fetchRiderDashboard,
-  updateRiderStatus,
   pushRiderLocation,
+  updateRiderStatus,
 } from "../api/rider/rider-dashboard-api";
 import { fetchRiderProfile } from "../api/rider/rider-profile-api";
-import { CaptainHomeHeader } from "../components/dashboard/CaptainHomeHeader";
-import { BikeDutyBanner } from "../components/dashboard/BikeDutyBanner";
-import { ActiveDeliveryCockpit, type ActiveOrder } from "../components/dashboard/ActiveDeliveryCockpit";
-import { IncomingOrderAlertModal, type IncomingOffer } from "../components/dashboard/IncomingOrderAlertModal";
+
+import { CaptainTopBar } from "../components/layout/CaptainTopBar";
+import { CaptainSidebarDrawer } from "../components/layout/CaptainSidebarDrawer";
+import { CaptainNotificationsModal } from "../components/notifications/CaptainNotificationsModal";
+import { fetchUnreadCount } from "../api/rider/rider-notifications-api";
+import { CaptainHomeOfflineScreen } from "../components/home/CaptainHomeOfflineScreen";
+import { CaptainOnlineMapView } from "../components/map/CaptainOnlineMapView";
+import { RiderBottomNav } from "../components/RiderBottomNav";
+import { useLanguage } from "../lib/i18n";
 import {
   playDutyToggleSound,
-  playSuccessChime,
-  stopOrderAlertSound,
+  playOrderAlertSound,
+  speakDutyStatus,
+  speakOrderAlert,
   triggerHaptic,
   unlockAudioContext,
 } from "../lib/captain-audio";
-import { LiveDeliveryMap } from "../components/map/LiveDeliveryMap";
 import { subscribeRiderOffers } from "../lib/rider-socket";
-
-import { CaptainLocationPermissionModal } from "../components/CaptainLocationPermissionModal";
-
-const LOCAL_STORAGE_ACTIVE_ORDER_KEY = "qp.rider.activeOrder";
 
 export function RiderDashboardScreen() {
   const navigate = useNavigate();
-  const { session, isOnline, setOnline } = useRiderContext();
+  const { session, isOnline, setOnline, signOut } = useRiderContext();
+  const { t } = useLanguage();
 
-  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = window.localStorage.getItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [incomingOffer, setIncomingOffer] = useState<IncomingOffer | null>(null);
-  const [earningsToday, setEarningsToday] = useState(0);
-  const [completedToday, setCompletedToday] = useState(0);
-  const [captainRating, setCaptainRating] = useState(5.0);
-  const [captainName, setCaptainName] = useState(session?.fullName || "Delivery Captain");
-  const [captainId, setCaptainId] = useState(session?.riderId || "—");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [dutyLoading, setDutyLoading] = useState(false);
+  const [todayEarnings, setTodayEarnings] = useState(0);
+  const [todayDeliveries, setTodayDeliveries] = useState(0);
+  const [captainName, setCaptainName] = useState(session?.fullName || "Captain");
+  const [captainId, setCaptainId] = useState(session?.riderId || "");
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [savedActiveOrder, setSavedActiveOrder] = useState<any>(null);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
 
   const geoWatchIdRef = useRef<number | null>(null);
 
-  // Persist active order to localStorage
+  // Restore saved active order safely
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (activeOrder) {
-      window.localStorage.setItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY, JSON.stringify(activeOrder));
-    } else {
-      window.localStorage.removeItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
-    }
-  }, [activeOrder]);
-
-  // Load real backend profile and dashboard metrics
-  const loadData = useCallback(async () => {
     try {
-      const [dashRes, profileRes, ordersRes] = await Promise.all([
+      const saved = localStorage.getItem("qp_active_rider_order");
+      if (saved) setSavedActiveOrder(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Load real metrics from MongoDB Atlas Backend
+  const loadRealData = useCallback(async () => {
+    try {
+      const [dashRes, profileRes, offersRes, unreadRes] = await Promise.all([
         fetchRiderDashboard().catch(() => null),
         fetchRiderProfile().catch(() => null),
-        fetchRiderOrders().catch(() => []),
+        fetchRiderOffers().catch(() => []),
+        fetchUnreadCount().catch(() => 0),
       ]);
 
       if (profileRes) {
-        // Enforce admin approval: isVerified OR active/approved status required
-        const isApproved = Boolean(profileRes.isVerified || profileRes.status === "active" || profileRes.status === "approved");
-        if (!isApproved) {
-          toast.error("Application Under Review! Admin approval required to access Cockpit.");
-          navigate({ to: "/onboarding" });
-          return;
-        }
-        if (profileRes.fullName) setCaptainName(profileRes.fullName);
-        if (profileRes.riderId) setCaptainId(profileRes.riderId);
-        if (typeof profileRes.rating === "number") setCaptainRating(profileRes.rating);
+        setCaptainName(profileRes.fullName || profileRes.name || "Captain");
+        setCaptainId(profileRes.riderId || profileRes.id || "");
+        setOnline(Boolean(profileRes.isOnline));
+      }
 
-        // Keep local session storage aligned with verified state
-        const sess = readSession("rider") || readSession();
-        if (sess) {
-          writeSession({
-            ...sess,
-            isVerified: true,
-            isOnboarded: true,
-            status: profileRes.status || "active",
-            account: {
-              ...(sess.account || {}),
-              isVerified: true,
-              isOnboarded: true,
-              status: profileRes.status || "active",
-              name: profileRes.fullName || sess.account?.name || "Delivery Captain",
-            },
-          }, "rider");
-        }
+      if (Array.isArray(offersRes)) {
+        setPendingOrdersCount(offersRes.length);
+      }
+
+      if (typeof unreadRes === "number") {
+        setUnreadNotifCount(unreadRes);
       }
 
       if (dashRes) {
-        if (typeof dashRes.todayEarnings === "number") setEarningsToday(dashRes.todayEarnings);
-        if (typeof dashRes.todayDeliveries === "number") setCompletedToday(dashRes.todayDeliveries);
-        if (typeof dashRes.rating === "number") setCaptainRating(dashRes.rating);
-      }
-
-      const list = Array.isArray(ordersRes) ? ordersRes : (ordersRes as any)?.items || [];
-      const backendActive = list.find(
-        (o: any) =>
-          o.status === "assigned" ||
-          o.status === "accepted" ||
-          o.status === "picked" ||
-          o.status === "picked_up" ||
-          o.status === "pickup_rider_accepted" ||
-          o.status === "ready-for-delivery" ||
-          o.status === "out_for_delivery"
-      );
-
-      if (backendActive) {
-        const isDelivery =
-          backendActive.taskType === "delivery" ||
-          backendActive.status === "ready-for-delivery" ||
-          backendActive.status === "out_for_delivery";
-        const canonicalStatus =
-          backendActive.status === "picked" || backendActive.status === "picked_up"
-            ? "picked_up"
-            : isDelivery
-            ? "ready_for_delivery"
-            : "assigned";
-
-        setActiveOrder({
-          id: String(backendActive.id || backendActive.orderId),
-          order_number: backendActive.code || backendActive.order_number || String(backendActive.id),
-          store_name: backendActive.partnerName || backendActive.store_name || "QuickPress Store",
-          pickup_address: backendActive.pickupAddress || backendActive.pickup_address || "Customer Address",
-          customer_name: backendActive.customerName || backendActive.customer_name || "Customer",
-          customer_phone: backendActive.customerPhone || backendActive.customer_phone || "",
-          delivery_address:
-            backendActive.deliveryAddress ||
-            backendActive.delivery_address ||
-            backendActive.partnerAddress ||
-            "Store Address",
-          status: canonicalStatus,
-          ride_type: isDelivery ? "delivery" : "pickup",
-          delivery_fee: Number(backendActive.estimatedEarning || backendActive.delivery_fee || 45),
-          total_amount: Number(backendActive.amount || backendActive.total_amount || 0),
-          payment_method: backendActive.paymentMode || backendActive.payment_method || "cod",
-          items_count: Number(backendActive.itemCount || backendActive.items_count || 1),
-          service_name: isDelivery ? "Clean Garments Delivery" : "Laundry Pickup",
-        });
-      } else {
-        setActiveOrder(null);
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
-        }
+        setTodayEarnings(Number(dashRes.todayEarnings ?? dashRes.metrics?.earningsToday ?? 0));
+        setTodayDeliveries(
+          Number(dashRes.todayDeliveries ?? dashRes.metrics?.deliveriesCompletedToday ?? 0)
+        );
       }
     } catch {
-      setActiveOrder(null);
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(LOCAL_STORAGE_ACTIVE_ORDER_KEY);
-      }
-    } finally {
-      setLoading(false);
+      // quiet fallback
     }
+  }, [setOnline]);
+
+  useEffect(() => {
+    loadRealData();
+  }, [loadRealData]);
+
+  // Periodic polling for real-time notification badge updates
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchUnreadCount().then(setUnreadNotifCount).catch(() => {});
+    }, 25000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Poll real offers from /api/rider/offers when online
-  const checkLiveOffers = useCallback(async () => {
-    if (!isOnline || activeOrder) {
-      setIncomingOffer(null);
-      return;
-    }
-    try {
-      const offers = await fetchRiderOffers();
-      if (Array.isArray(offers) && offers.length > 0) {
-        const topOffer = offers[0];
-        const cleanOrdId =
-          topOffer.orderId ||
-          (topOffer.rideId && topOffer.rideId.includes("ord-") ? topOffer.rideId.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
-          (topOffer._id && topOffer._id.includes("ord-") ? topOffer._id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
-          topOffer.id;
+  // GPS Geolocation Tracking
+  useEffect(() => {
+    if (!navigator?.geolocation) return;
 
-        if (cleanOrdId) {
-          setIncomingOffer({
-            id: cleanOrdId,
-            order_number: topOffer.orderCode || topOffer.order_number || cleanOrdId,
-            store_name: topOffer.partnerName || topOffer.store_name || "QuickPress Partner Store",
-            pickup_address: topOffer.pickupAddress || topOffer.pickup_address || "Customer Address",
-            customer_name: topOffer.customerName || topOffer.customer_name || topOffer.contactName || "Customer",
-            customer_phone: topOffer.customerPhone || topOffer.customer_phone || "",
-            delivery_address: topOffer.dropAddress || topOffer.deliveryAddress || topOffer.delivery_address || "Partner Store Address",
-            distance_km: Number(topOffer.distanceKm || topOffer.distance_km || 2.0),
-            payout_amount: Number(topOffer.estimatedEarning || topOffer.payout_amount || topOffer.fare || 45),
-            items_summary: topOffer.rideType === "delivery" ? "Store Clean Clothes Delivery -> Customer" : "Customer Clothes Pickup -> Handover to Store",
-            total_amount: Number(topOffer.total_amount || topOffer.amount || 0),
-            items_count: Number(topOffer.items_count || topOffer.itemCount || 1),
-            payment_method: topOffer.payment_method || topOffer.paymentMode || "cod",
-          });
-          return;
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentCoords(coords);
+        if (isOnline) {
+          pushRiderLocation(coords.lat, coords.lng).catch(() => {});
         }
-      }
-      setIncomingOffer(null);
-    } catch {
-      setIncomingOffer(null);
-    }
-  }, [isOnline, activeOrder]);
-
-  useEffect(() => {
-    void loadData();
-    const interval = setInterval(loadData, 15000);
-    return () => clearInterval(interval);
-  }, [loadData]);
-
-  // Instant real-time Socket.IO dispatch + 2.5s Polling fallback
-  useEffect(() => {
-    if (!isOnline || activeOrder) {
-      setIncomingOffer(null);
-      return;
-    }
-
-    // 1. Instant Socket.IO listener: The second partner accepts, bell rings!
-    const unsubscribe = subscribeRiderOffers((rawOffer: any) => {
-      if (!rawOffer || activeOrder) return;
-      console.log("[RiderCockpit] ⚡ Instant order offer received via socket:", rawOffer);
-      const cleanOrdId =
-        rawOffer.orderId ||
-        (rawOffer.rideId && rawOffer.rideId.includes("ord-") ? rawOffer.rideId.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
-        (rawOffer._id && rawOffer._id.includes("ord-") ? rawOffer._id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] : null) ||
-        rawOffer.id;
-      if (!cleanOrdId) return;
-
-      setIncomingOffer({
-        id: cleanOrdId,
-        order_number: rawOffer.orderCode || rawOffer.order_number || cleanOrdId,
-        store_name: rawOffer.partnerName || rawOffer.store_name || "QuickPress Partner Store",
-        pickup_address: rawOffer.pickupAddress || rawOffer.pickup_address || "Customer Pickup Location",
-        customer_name: rawOffer.customerName || rawOffer.customer_name || "Customer",
-        customer_phone: rawOffer.customerPhone || rawOffer.customer_phone || "",
-        delivery_address: rawOffer.dropAddress || rawOffer.deliveryAddress || rawOffer.delivery_address || "Partner Store Address",
-        distance_km: Number(rawOffer.distanceKm || rawOffer.distance_km || 2.0),
-        payout_amount: Number(rawOffer.estimatedEarning || rawOffer.payout_amount || 45),
-        items_summary: rawOffer.rideType === "delivery" ? "Store Clean Clothes Delivery -> Customer" : "Customer Clothes Pickup -> Handover to Store",
-        total_amount: Number(rawOffer.total_amount || rawOffer.amount || 0),
-        items_count: Number(rawOffer.items_count || rawOffer.itemCount || 1),
-        payment_method: rawOffer.payment_method || rawOffer.paymentMode || "cod",
-      });
-    });
-
-
-    // 2. Immediate check + 2.5s polling fallback
-    void checkLiveOffers();
-    const offerInterval = setInterval(checkLiveOffers, 2500);
+      },
+      () => {
+        setCurrentCoords({ lat: 27.8118, lng: 78.6477 });
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+    );
 
     return () => {
-      unsubscribe();
-      clearInterval(offerInterval);
-    };
-  }, [isOnline, activeOrder, checkLiveOffers]);
-
-  // Real-time GPS location streaming when online
-  useEffect(() => {
-    if (!isOnline) {
-      if (geoWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+      if (geoWatchIdRef.current !== null) {
         navigator.geolocation.clearWatch(geoWatchIdRef.current);
-        geoWatchIdRef.current = null;
-      }
-      return;
-    }
-
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      geoWatchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setCurrentCoords({ lat: latitude, lng: longitude });
-          void pushRiderLocation(latitude, longitude).catch(() => {});
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-      );
-    }
-
-    return () => {
-      if (geoWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
-        navigator.geolocation.clearWatch(geoWatchIdRef.current);
-        geoWatchIdRef.current = null;
       }
     };
   }, [isOnline]);
 
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  // Live Offers Stream: When an offer arrives, switch immediately to the Orders tab!
+  useEffect(() => {
+    if (!isOnline) return;
 
-  // Real toggle online/offline state to backend
-  const handleToggleDuty = async (nextState: boolean) => {
+    const unsubscribe = subscribeRiderOffers(() => {
+      unlockAudioContext();
+      triggerHaptic([200, 100, 200, 100, 400]);
+      playOrderAlertSound();
+      speakOrderAlert(55, "कासगंज हब", "कस्टमर लोकेशन");
+      setPendingOrdersCount((prev) => prev + 1);
+      toast.info("🚨 New Order Dispatched! Switching to Orders...");
+      // Auto-switch to the Orders tab as requested by user
+      navigate({ to: "/orders" });
+    });
+
+    fetchRiderOffers()
+      .then((offers) => {
+        if (Array.isArray(offers) && offers.length > 0) {
+          setPendingOrdersCount(offers.length);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isOnline, navigate]);
+
+  // Handle Duty Toggle
+  const handleToggleDuty = async () => {
     unlockAudioContext();
-    playDutyToggleSound(nextState);
-
-    if (nextState && typeof window !== "undefined" && !localStorage.getItem("quickpress_rider_location_consented")) {
-      setShowLocationModal(true);
-      return;
-    }
+    setDutyLoading(true);
+    const nextState = !isOnline;
     try {
       await updateRiderStatus(nextState);
       setOnline(nextState);
-      toast.success(nextState ? "Duty Started! Radar active." : "Duty Paused. You are offline.");
+      playDutyToggleSound(nextState);
+      speakDutyStatus(nextState);
+      triggerHaptic();
+      toast.success(nextState ? "Captain is ON DUTY 🟢" : "Captain is OFF DUTY 🔴");
     } catch {
-      setOnline(nextState);
+      toast.error("Failed to update duty status. Please check your network.");
+    } finally {
+      setDutyLoading(false);
     }
   };
 
-  const handleAllowLocationConsent = () => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("quickpress_rider_location_consented", "true");
-    }
-    setShowLocationModal(false);
-    void handleToggleDuty(true);
-  };
-
-  // Handle incoming trip acceptance
-  const handleAcceptOffer = async (offer: IncomingOffer) => {
-    stopOrderAlertSound();
-    triggerHaptic([100, 50, 100]);
-    setIncomingOffer(null);
-
-    const isDeliveryLeg =
-      (offer as any).ride_type === "delivery" || (offer as any).rideType === "delivery";
-
-    const cleanOrdId =
-      offer.id && offer.id.includes("ord-")
-        ? offer.id.match(/(ord-[a-zA-Z0-9]+)/)?.[1] || offer.id
-        : offer.id;
-
-    try {
-      await acceptRiderOrder(cleanOrdId);
-      toast.success(
-        isDeliveryLeg
-          ? "Delivery Trip Accepted! Proceed to Store to collect clean garments."
-          : "Pickup Trip Accepted! Proceed to Customer home to collect clothes."
-      );
-      await loadData();
-    } catch (err: any) {
-      console.warn("Backend accept error:", err);
-      toast.info("Trip Accepted! Proceeding with mission.");
-      await loadData();
-    }
-
-    const newActive: ActiveOrder = {
-      id: cleanOrdId,
-      order_number: offer.order_number || cleanOrdId,
-      store_name: offer.store_name,
-      pickup_address: offer.pickup_address,
-      customer_name: offer.customer_name,
-      customer_phone: offer.customer_phone || "",
-      delivery_address: offer.delivery_address,
-      status: isDeliveryLeg ? "ready_for_delivery" : "assigned",
-      ride_type: isDeliveryLeg ? "delivery" : "pickup",
-      delivery_fee: offer.payout_amount || 45,
-      total_amount: offer.total_amount || 0,
-      payment_method: offer.payment_method === "online" ? "online" : "cod",
-      items_count: offer.items_count || 1,
-      service_name: offer.items_summary || (isDeliveryLeg ? "Clean Garments Delivery" : "Laundry Pickup"),
-    };
-
-    setActiveOrder((prev) => prev || newActive);
-  };
-
-
-  // Handle real step progression
-  const handleUpdateOrderStatus = async (
-    orderId: string,
-    nextStatus: ActiveOrder["status"],
-    otp?: string
-  ) => {
-    try {
-      if (nextStatus === "picked_up") {
-        await confirmPickup(orderId, otp || "0000");
-        setActiveOrder((prev) => (prev ? { ...prev, status: "picked_up" } : null));
-        playSuccessChime();
-        toast.success("Customer pickup confirmed! Now deliver to Laundry Store.");
-      } else if (nextStatus === "out_for_delivery") {
-        await startDelivery(orderId, otp).catch(() => updateOrderStatus(orderId, "out_for_delivery"));
-        setActiveOrder((prev) => (prev ? { ...prev, status: "out_for_delivery" } : null));
-        playSuccessChime();
-        toast.success("Clothes collected from store! Proceed to Customer Doorstep.");
-      } else if (nextStatus === "delivered") {
-        const isDelivery =
-          activeOrder?.ride_type === "delivery" || activeOrder?.status === "out_for_delivery";
-
-        if (isDelivery) {
-          await confirmDelivery(orderId, otp || "0000");
-          playSuccessChime();
-          toast.success(
-            `Customer Doorstep Delivery Complete! ₹${activeOrder?.delivery_fee || 60} credited to wallet.`
-          );
-        } else {
-          await confirmDropAtPartner(orderId).catch(() => confirmDelivery(orderId, otp || "0000"));
-          playSuccessChime();
-          toast.success(
-            `Handover to Partner Store Complete! ₹${activeOrder?.delivery_fee || 60} credited to wallet.`
-          );
-        }
-
-        setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
-        setCompletedToday((prev) => prev + 1);
-        setActiveOrder(null);
-      } else {
-        await updateOrderStatus(orderId, nextStatus);
-        setActiveOrder((prev) => (prev ? { ...prev, status: nextStatus } : null));
-      }
-    } catch (err: any) {
-      if (nextStatus === "delivered") {
-        setEarningsToday((prev) => prev + (activeOrder?.delivery_fee || 60));
-        setCompletedToday((prev) => prev + 1);
-        setActiveOrder(null);
-      } else {
-        setActiveOrder((prev) => (prev ? { ...prev, status: nextStatus } : null));
-      }
-    }
+  // Demo Trigger: Simulate incoming order and auto-switch to Orders tab
+  const handleSimulateAndSwitch = () => {
+    unlockAudioContext();
+    setOnline(true);
+    triggerHaptic([200, 100, 200, 100, 400]);
+    playOrderAlertSound();
+    speakOrderAlert(65, "कासगंज हब", "कस्टमर लोकेशन");
+    toast.info("🚨 New Orders Arrived! Switching to Orders Tab...");
+    navigate({ to: "/orders" });
   };
 
   return (
-    <RiderLayout
-      activeTab="dashboard"
-      title="Captain Cockpit"
-      subtitle="Live Dispatch & Bike Delivery Operations"
-    >
-      {/* Top Header Showing Real Rider Name & Live Status */}
-      <CaptainHomeHeader
+    <div className="relative flex flex-col w-full h-[100dvh] max-w-md mx-auto bg-white shadow-2xl overflow-hidden text-neutral-900 select-none">
+      {/* 1. Left Slide-Out Hamburger Drawer */}
+      <CaptainSidebarDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
         captainName={captainName}
         captainId={captainId}
-        isOnline={isOnline}
+        onLogout={() => {
+          setIsDrawerOpen(false);
+          signOut();
+          toast.success("Logged out successfully. See you soon, Captain! 🛵");
+          navigate({ to: "/auth" });
+        }}
+        onOpenLanguage={() => {
+          setIsDrawerOpen(false);
+          navigate({ to: "/language" });
+        }}
+        onOpenOnboarding={() => {
+          setIsDrawerOpen(false);
+          navigate({ to: "/onboarding" });
+        }}
       />
 
-      <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6 select-none">
-        {/* ========================================================================= */}
-        {/* 1. BIKE DUTY BANNER (White & Dark Green Theme)                            */}
-        {/* ========================================================================= */}
-        <BikeDutyBanner
-          isOnline={isOnline}
-          onToggle={handleToggleDuty}
-          captainName={captainName}
-          captainId={captainId}
-        />
+      {/* 2. Top Header Bar (Hamburger, Duty Switch, MapPin, Bell Badge) */}
+      <CaptainTopBar
+        isOnline={isOnline}
+        onToggleDuty={handleToggleDuty}
+        onOpenDrawer={() => setIsDrawerOpen(true)}
+        onOpenNotifications={() => setIsNotifModalOpen(true)}
+        notificationCount={unreadNotifCount}
+        loading={dutyLoading}
+      />
 
-        {/* ========================================================================= */}
-        {/* 2. INCOMING ORDER DISPATCH SIREN MODAL                                    */}
-        {/* ========================================================================= */}
-        {incomingOffer ? (
-          <IncomingOrderAlertModal
-            offer={incomingOffer}
-            onAccept={handleAcceptOffer}
-            onDecline={() => {
-              stopOrderAlertSound();
-              const offId = incomingOffer.id;
-              setIncomingOffer(null);
-              void rejectRiderOrder(offId).catch(() => {});
-            }}
-          />
-        ) : null}
-
-        {/* ========================================================================= */}
-        {/* 3. ACTIVE ORDER COCKPIT (Customer Pickup with OTP -> Store Drop)          */}
-        {/* ========================================================================= */}
-        {activeOrder ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-900">
-                <span className="size-2 rounded-full bg-emerald-600 animate-ping" />
-                Active Order in Progress
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm("Do you want to dismiss this active order from your cockpit?")) {
-                    setActiveOrder(null);
-                  }
-                }}
-                className="text-[11px] font-bold text-slate-400 hover:text-emerald-900 cursor-pointer"
-              >
-                Dismiss Active View
-              </button>
-            </div>
-
-            <ActiveDeliveryCockpit
-              order={activeOrder}
-              onUpdateStatus={handleUpdateOrderStatus}
-              riderCoords={currentCoords}
-            />
-
-            {/* Section 16: Active Delivery Location Privacy Indicator */}
-            <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 text-[11px] text-emerald-950">
-              <span className="flex items-center gap-2 font-medium">
-                <span className="size-2 rounded-full bg-emerald-600 animate-ping" />
-                <span>Location sharing is active for this delivery.</span>
-              </span>
-              <a
-                href="https://quickpress.in/#privacy"
-                target="_blank"
-                rel="noreferrer"
-                className="font-bold text-emerald-800 hover:underline shrink-0 ml-2"
-              >
-                Privacy information →
-              </a>
-            </div>
-          </div>
-        ) : isOnline ? (
-          <div className="rounded-3xl border border-emerald-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-900">
-                  Live Duty GPS Radar Active
-                </span>
-              </div>
-              <span className="text-[11px] font-bold text-slate-500">
-                Auto-Dispatch Ready
-              </span>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-emerald-100">
-              <LiveDeliveryMap
-                riderLocation={currentCoords ? { lat: currentCoords.lat, lng: currentCoords.lng, label: "Captain (You)" } : null}
-                phase="online"
-                heightClassName="h-48 sm:h-56"
-                showControls={true}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {/* ========================================================================= */}
-        {/* 4. REVENUE & TRIPS HERO CARD (Real Backend Data)                          */}
-        {/* ========================================================================= */}
-        <div className="rounded-3xl border border-emerald-200 bg-white p-5 sm:p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-3 border-b border-emerald-100 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
-                  Today&apos;s Gross Earnings
-                </span>
-              </div>
-              <p className="mt-1 flex items-center text-3xl sm:text-4xl font-black tracking-tight text-emerald-950">
-                <IndianRupee className="size-7 sm:size-8 text-emerald-800" strokeWidth={2.6} />
-                {earningsToday.toLocaleString("en-IN")}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/wallet" })}
-              className="flex items-center gap-1.5 rounded-2xl bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white px-4 py-2.5 text-xs font-bold shadow-xs transition-all cursor-pointer"
-            >
-              <span>Weekly Wallet</span>
-              <ArrowRight className="size-4" />
-            </button>
-          </div>
-
-          {/* Metric Columns in White & Dark Green */}
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Trips Done</p>
-              <p className="mt-0.5 text-xl font-black text-slate-900">{completedToday}</p>
-            </div>
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Duty Status</p>
-              <p className="mt-0.5 text-xl font-black text-emerald-800">
-                {isOnline ? "Online" : "Offline"}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Fleet City</p>
-              <p className="mt-0.5 text-xl font-black text-slate-900">Kasganj</p>
-            </div>
-            <div className="rounded-2xl bg-emerald-50/50 p-3 border border-emerald-100">
-              <p className="text-[10px] font-bold uppercase text-emerald-800">Rating</p>
-              <p className="mt-0.5 text-xl font-black text-emerald-800">
-                {captainRating.toFixed(1)} ★
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 5. LIVE RADAR (When Online & No Active Order)                              */}
-        {/* ========================================================================= */}
-        {isOnline && !activeOrder ? (
-          <div className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-emerald-50/30 p-7 text-center shadow-sm">
-            <div className="relative mx-auto my-3 flex size-28 items-center justify-center">
-              <div
-                className="absolute size-28 rounded-full border border-emerald-500/30 bg-emerald-500/10 animate-ping"
-                style={{ animationDuration: "2.4s" }}
-              />
-              <div
-                className="absolute size-20 rounded-full border border-emerald-500/50 bg-emerald-500/15 animate-ping"
-                style={{ animationDuration: "1.6s" }}
-              />
-              <div className="relative flex size-12 items-center justify-center rounded-2xl bg-emerald-800 text-white shadow-md">
-                <Navigation className="size-6 animate-pulse" />
-              </div>
-            </div>
-
-            <div className="mt-1">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-900 border border-emerald-200">
-                <span className="size-2 rounded-full bg-emerald-700 animate-ping" />
-                <span>Live GPS Radar Active</span>
-              </span>
-              <h3 className="mt-2 text-base font-black text-slate-900">
-                Scanning for Nearby Laundry Pickups...
-              </h3>
-              <p className="mt-0.5 text-xs text-slate-600 max-w-sm mx-auto">
-                Connected to QuickPress Kasganj Dispatch Gateway. Keep phone volume up on bike mount.
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        {/* ========================================================================= */}
-        {/* 6. QUICK OPERATIONS GRID (White & Dark Green Theme)                        */}
-        {/* ========================================================================= */}
-        <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
-          <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 mb-3">
-            Quick Operations
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/orders" })}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
-                <PackageCheck className="size-5.5" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">All Orders</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/wallet" })}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
-                <Wallet className="size-5.5" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Weekly Wallet</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/profile" })}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
-                <Bike className="size-5.5" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Vehicle &amp; KYC</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") window.location.href = "tel:112";
-              }}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
-            >
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-xs">
-                <Phone className="size-5.5" />
-              </div>
-              <span className="text-xs font-bold text-emerald-900">SOS Helpline</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Section 15: High-Priority Duty Location Permission Modal */}
-        <CaptainLocationPermissionModal
-          isOpen={showLocationModal}
-          onAllow={handleAllowLocationConsent}
-          onDeny={() => setShowLocationModal(false)}
-        />
+      {/* Trigger to test order arrival & auto-switch to Orders tab */}
+      <div className="z-30 flex items-center justify-between px-3.5 py-1.5 bg-neutral-50 border-b border-neutral-100 text-[11px]">
+        <span className="font-bold text-neutral-500">Live Ride Flow:</span>
+        <button
+          type="button"
+          onClick={handleSimulateAndSwitch}
+          className="px-2.5 py-1 bg-[#FFC400] text-neutral-950 font-black rounded-lg shadow-2xs hover:bg-[#FBBF24] active:scale-95"
+        >
+          ⚡ New Orders (Switch to Orders Tab)
+        </button>
       </div>
-    </RiderLayout>
+
+      {/* 3. Screen Switcher: Offline Home vs Online Map (Order Queue is exclusively on /orders) */}
+      {!isOnline ? (
+        // Offline Home View (Exact match to uploaded screenshot)
+        <CaptainHomeOfflineScreen
+          todayEarnings={todayEarnings}
+          todayDeliveries={todayDeliveries}
+          captainName={captainName}
+          onGoOnline={handleToggleDuty}
+          onOpenWorkZoneInfo={() =>
+            toast.info("Kasganj Work Zone active with ₹20 bonus per trip!")
+          }
+        />
+      ) : (
+        // Online Idle Map View with Leaflet & Radar Search
+        <CaptainOnlineMapView
+          currentCoords={currentCoords}
+          onRecenter={() => {
+            if (currentCoords) {
+              toast.info("Map recentered at live location");
+            }
+          }}
+          onOpenWorkZoneInfo={() =>
+            toast.info("Kasganj Work Zone active with ₹20 bonus per trip!")
+          }
+        />
+      )}
+
+      {/* Active Trip Floating Pill (if order is active) */}
+      {savedActiveOrder && (
+        <div className="absolute bottom-20 left-4 right-4 z-40 animate-in slide-in-from-bottom-2 duration-200">
+          <button
+            type="button"
+            onClick={() => navigate({ to: "/orders" })}
+            className="w-full flex items-center justify-between p-3.5 bg-neutral-950 text-white rounded-2xl shadow-2xl border border-neutral-700 active:scale-98 transition-all"
+          >
+            <div className="flex items-center gap-2.5 text-left">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#00C853] text-white">
+                🛵
+              </div>
+              <div>
+                <p className="text-xs font-black text-white">Active Trip: {savedActiveOrder.customerName || "Customer"}</p>
+                <p className="text-[10px] text-neutral-400 truncate max-w-[200px]">{savedActiveOrder.pickupTitle || savedActiveOrder.pickupAddress}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-xs font-black text-[#00C853] bg-neutral-800 px-3 py-1.5 rounded-xl border border-neutral-700">
+              <span>Resume HUD</span>
+              <span>➔</span>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* 4. Captain Real-Time Notification Center Modal */}
+      <CaptainNotificationsModal
+        isOpen={isNotifModalOpen}
+        onClose={() => setIsNotifModalOpen(false)}
+        onNotificationChange={() => {
+          fetchUnreadCount().then(setUnreadNotifCount).catch(() => {});
+        }}
+      />
+
+      {/* 5. Strictly 2-Tab Bottom Navigation with live badge count on Orders */}
+      <RiderBottomNav active="dashboard" ordersBadgeCount={pendingOrdersCount} />
+    </div>
   );
 }

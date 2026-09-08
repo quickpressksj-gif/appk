@@ -418,10 +418,12 @@ class SettlementEngine:
                 }
             )
 
-        # 8. Update rider profile wallet & balance
+        # 8. Update rider profile wallet & balance + rider_wallets collection & transaction ledger
         for rp in ride_payouts:
             rid = rp.get("riderId")
-            fare = rp.get("fare", 0.0)
+            fare = float(rp.get("fare", 0.0))
+            if not rid:
+                continue
             r_prof = await database.find_one("rider_profiles", {"_id": rid}) or await database.find_one("rider_profiles", {"riderId": rid})
             if r_prof:
                 r_wallet = r_prof.get("wallet") or {}
@@ -438,6 +440,44 @@ class SettlementEngine:
                         }
                     }
                 )
+            
+            # Direct credit to rider_wallets collection
+            w_doc = await database.find_one("rider_wallets", {"$or": [{"_id": rid}, {"riderId": rid}, {"rider_id": rid}]})
+            if w_doc:
+                curr_w_bal = float(w_doc.get("balance", 0.0))
+                curr_w_life = float(w_doc.get("lifetimeEarnings", 0.0))
+                curr_w_today = float(w_doc.get("todayEarned", 0.0))
+                await database.update(
+                    "rider_wallets",
+                    {"_id": w_doc["_id"]},
+                    {
+                        "balance": round(curr_w_bal + fare, 2),
+                        "lifetimeEarnings": round(curr_w_life + fare, 2),
+                        "todayEarned": round(curr_w_today + fare, 2),
+                        "lastSettledAt": now_iso,
+                        "updatedAt": now_iso,
+                    }
+                )
+            
+            # Record Trip Credit Transaction in rider_wallet_transactions
+            order_code = order.get("code") or canonical_id[:8].upper()
+            await database.insert(
+                "rider_wallet_transactions",
+                {
+                    "_id": f"rwtx-{rid}-{canonical_id}-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+                    "rider_id": rid,
+                    "riderId": rid,
+                    "title": f"Trip Fare Payout · Order #{order_code}",
+                    "date": now_iso,
+                    "amount": fare,
+                    "direction": "credit",
+                    "status": "success",
+                    "kind": "trip",
+                    "orderId": canonical_id,
+                    "orderCode": order_code,
+                    "customerName": order.get("customerName") or "Customer",
+                }
+            )
 
         # 9. Also record in unified SETTLEMENTS collection for partner and rider
         await database.collection("settlements").insert_one({
