@@ -102,11 +102,17 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
   if (currentSession && currentSession.account) {
     const updatedSession = {
       ...currentSession,
+      status: "pending_approval",
+      kycStatus: "pending",
+      isVerified: false,
+      isOnboarded: true,
       account: {
         ...currentSession.account,
         name: res.fullName,
         isOnboarded: true,
-        isVerified: res.isVerified,
+        isVerified: false,
+        status: "pending_approval",
+        kycStatus: "pending",
       },
     };
     writeSession(updatedSession, ROLE);
@@ -121,8 +127,10 @@ export async function submitRiderRegistration(payload: unknown): Promise<RiderSe
       phone: res.phone,
       name: res.fullName,
       role: ROLE,
-      isVerified: res.isVerified,
+      isVerified: false,
       isOnboarded: true,
+      status: "pending_approval",
+      kycStatus: "pending",
       linkedId: res.riderId,
     },
   });

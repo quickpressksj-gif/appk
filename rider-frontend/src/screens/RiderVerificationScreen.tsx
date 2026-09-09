@@ -50,32 +50,46 @@ export function RiderVerificationScreen() {
       const res = await fetchRiderVerificationStatus();
       setData(res);
 
-      // If approved, update local session store as well
+      // If not registered at all, redirect to registration
+      if (!res.isOnboarded && res.status === "not_registered") {
+        toast.info("Please submit your Captain registration first.");
+        navigate({ to: "/registration" });
+        return;
+      }
+
+      // If approved, update local session store and navigate to dashboard
       if (res.isApproved) {
         const current = readSession("rider") || readSession();
         if (current) {
           writeSession({
             ...current,
             isVerified: true,
+            isApproved: true,
             status: "active",
             kycStatus: "verified",
             account: {
               ...(current.account || {}),
               is_verified: true,
+              isVerified: true,
               status: "active",
+              kycStatus: "verified",
             },
           }, "rider");
         }
+        triggerHaptic();
+        toast.success("🎉 Congratulations! Your Captain account has been approved by Admin!");
+        setTimeout(() => {
+          navigate({ to: "/dashboard" });
+        }, 1000);
+        return;
       }
 
       if (isRefresh) {
         triggerHaptic();
-        if (res.isApproved) {
-          toast.success("🎉 Congratulations! Your Captain account is approved!");
-        } else if (res.kycStatus === "rejected") {
+        if (res.kycStatus === "rejected") {
           toast.error("Application rejected. Please see rejection reason below.");
         } else {
-          toast.info("Status checked: Still under admin verification ⏳");
+          toast.info("Status checked: Under admin verification ⏳");
         }
       }
     } catch {
@@ -84,14 +98,14 @@ export function RiderVerificationScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     loadStatus();
-    // Auto-poll status every 15 seconds
+    // Fast auto-poll status every 4 seconds for instant real-time unlock when Admin approves
     const interval = setInterval(() => {
       loadStatus(false);
-    }, 15000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [loadStatus]);
 

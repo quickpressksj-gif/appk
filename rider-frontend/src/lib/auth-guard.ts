@@ -7,7 +7,24 @@ import { readSession } from "../api/core/session-store";
 export function isRiderApproved(sess: any): boolean {
   if (!sess) return false;
 
-  if (sess.status === "suspended" || sess.isSuspended) {
+  const status = String(sess.status || sess.account?.status || "").toLowerCase();
+  const kycStatus = String(
+    sess.kycStatus || sess.account?.kycStatus || sess.kyc_status || sess.account?.kyc_status || ""
+  ).toLowerCase();
+
+  // Explicit rejection or suspension
+  if (status === "suspended" || sess.isSuspended || status === "rejected" || kycStatus === "rejected") {
+    return false;
+  }
+
+  // Pending / under review states are strictly NOT approved
+  if (
+    status === "pending" ||
+    status === "pending_approval" ||
+    status === "under_verification" ||
+    status === "not_registered" ||
+    kycStatus === "pending"
+  ) {
     return false;
   }
 
@@ -15,29 +32,15 @@ export function isRiderApproved(sess: any): boolean {
   if (
     sess.isVerified === true ||
     sess.is_verified === true ||
+    sess.isApproved === true ||
     sess.account?.isVerified === true ||
     sess.account?.is_verified === true
   ) {
     return true;
   }
 
-  // 2. KYC status
-  if (
-    sess.kycStatus === "verified" ||
-    sess.kyc_status === "verified" ||
-    sess.account?.kycStatus === "verified" ||
-    sess.account?.kyc_status === "verified"
-  ) {
-    return true;
-  }
-
-  // 3. User account status
-  if (
-    sess.status === "active" ||
-    sess.status === "approved" ||
-    sess.account?.status === "active" ||
-    sess.account?.status === "approved"
-  ) {
+  // 2. Explicit approved status or active with verified KYC
+  if (status === "approved" || (status === "active" && kycStatus === "verified")) {
     return true;
   }
 
@@ -53,6 +56,16 @@ export function isRiderOnboarded(sess: any): boolean {
   // If already approved, they are definitely onboarded!
   if (isRiderApproved(sess)) return true;
 
+  // If explicitly flagged as not onboarded
+  if (
+    sess.isOnboarded === false ||
+    sess.is_onboarded === false ||
+    sess.account?.isOnboarded === false ||
+    sess.account?.is_onboarded === false
+  ) {
+    return false;
+  }
+
   // Direct boolean flags
   if (
     sess.isOnboarded === true ||
@@ -60,17 +73,6 @@ export function isRiderOnboarded(sess: any): boolean {
     sess.account?.isOnboarded === true ||
     sess.account?.is_onboarded === true
   ) {
-    return true;
-  }
-
-  // If rider has a recognized name (other than default generic placeholders) or riderId, they have onboarded!
-  const name = sess.account?.name || sess.fullName || sess.name || "";
-  if (name && name !== "Captain" && name !== "Delivery Partner" && name.trim().length > 0) {
-    return true;
-  }
-
-  const riderId = sess.riderId || sess.account?.linkedId || sess.account?.id;
-  if (riderId && (riderId.startsWith("RDR-") || riderId.startsWith("rdr_"))) {
     return true;
   }
 

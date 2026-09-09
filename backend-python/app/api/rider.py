@@ -1330,17 +1330,68 @@ async def get_rider_verification_status(user: Optional[User] = Depends(optional_
         )
 
     if not profile:
-        profile = {}
+        return {
+            "riderId": rider_id,
+            "name": getattr(user, "display_name", "") or getattr(user, "name", "") or "New Captain",
+            "phone": user.phone or "",
+            "city": getattr(user, "city", "") or "Kasganj",
+            "vehicleType": "Bike",
+            "vehicleNumber": "",
+            "status": "not_registered",
+            "kycStatus": "pending",
+            "isVerified": False,
+            "isApproved": False,
+            "isOnboarded": False,
+            "submittedAt": "",
+            "estimatedTime": "Please complete Captain registration to submit documents",
+            "rejectionReason": None,
+            "steps": [
+                {
+                    "id": "step_1",
+                    "title": "Mobile OTP & Security Authentication",
+                    "status": "completed",
+                    "desc": f"Phone {user.phone or ''} authenticated via OTP",
+                },
+                {
+                    "id": "step_2",
+                    "title": "KYC Documents & Vehicle Registration",
+                    "status": "pending",
+                    "desc": "Registration pending submission",
+                },
+                {
+                    "id": "step_3",
+                    "title": "Admin Document Review & Background Check",
+                    "status": "pending",
+                    "desc": "Awaiting registration submission",
+                },
+                {
+                    "id": "step_4",
+                    "title": "Captain Account Activation & Dispatch Ready",
+                    "status": "pending",
+                    "desc": "Awaiting Admin approval",
+                },
+            ],
+            "documents": [],
+            "support": {
+                "helpline": "1800-123-QPAY",
+                "whatsapp": "+91 80060 00000",
+                "hub": "Kasganj Regional Office, Soron Gate",
+            },
+        }
 
-    status = profile.get("status") or (user.status.value if hasattr(user, "status") and hasattr(user.status, "value") else "pending")
-    kyc_status = profile.get("kycStatus") or ("verified" if profile.get("isVerified") else "pending")
-    is_verified = bool(profile.get("isVerified", False) or kyc_status == "verified" or status in ("active", "approved"))
+    profile_status = str(profile.get("status") or "").lower()
+    kyc_status = str(profile.get("kycStatus") or "pending").lower()
+    is_verified = bool(
+        profile.get("isVerified", False)
+        or profile_status == "approved"
+        or (profile_status == "active" and kyc_status == "verified")
+    )
     rejection_reason = profile.get("kycReason") or profile.get("rejectionReason") or None
 
     raw_user_name = getattr(user, "name", "") or getattr(user, "display_name", "") or ""
     if raw_user_name in ("Delivery Partner", "Delivery Captain"):
         raw_user_name = ""
-    candidate_name = profile.get("fullName") or profile.get("name") or profile.get("accountHolder") or raw_user_name or ""
+    candidate_name = profile.get("fullName") or profile.get("name") or profile.get("accountHolder") or raw_user_name or "Captain"
 
     phone = profile.get("phone") or user.phone or ""
     city = profile.get("city") or profile.get("preferredCity") or "Kasganj"
@@ -1358,7 +1409,7 @@ async def get_rider_verification_status(user: Optional[User] = Depends(optional_
         {
             "id": "step_2",
             "title": "KYC Documents & Vehicle Registration",
-            "status": "completed" if profile else "pending",
+            "status": "completed",
             "desc": "Aadhaar, Driving License, RC & Bank details submitted",
         },
         {
@@ -1390,11 +1441,11 @@ async def get_rider_verification_status(user: Optional[User] = Depends(optional_
         "city": city,
         "vehicleType": vehicle_type,
         "vehicleNumber": vehicle_number,
-        "status": "active" if is_verified else status,
+        "status": "active" if is_verified else ("rejected" if kyc_status == "rejected" else "pending"),
         "kycStatus": "verified" if is_verified else kyc_status,
         "isVerified": is_verified,
         "isApproved": is_verified,
-        "isOnboarded": bool(profile.get("isOnboarded", True)),
+        "isOnboarded": True,
         "submittedAt": created_at,
         "estimatedTime": "Usually within 24 – 48 Hours",
         "rejectionReason": rejection_reason,
@@ -1667,11 +1718,22 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
                 "expiresAt": exp_iso,
             })
 
-    # Only scan active unassigned customer orders where Partner has ALREADY accepted or order is ready for delivery
+    # Scan active unassigned customer orders for auto-dispatch to online Captains
     pending_customer_orders = await database.find_many(
         "customer_orders",
         {
-            "status": {"$in": ["partner_accepted", "pickup_rider_assigned", "rider_searching", "ready", "ready_for_delivery", "delivery_rider_assigned"]},
+            "status": {
+                "$in": [
+                    "placed",
+                    "pending_partner_acceptance",
+                    "partner_accepted",
+                    "pickup_rider_assigned",
+                    "rider_searching",
+                    "ready",
+                    "ready_for_delivery",
+                    "delivery_rider_assigned",
+                ]
+            },
             "$or": [{"riderId": None}, {"riderId": ""}, {"rider": None}],
         },
     )
@@ -1690,24 +1752,27 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
 
         p_info = cord.get("partner") or {}
         partner_name = p_info.get("name") or p_info.get("storeName") or cord.get("partnerName") or "QuickPress Partner Store"
-        pickup_addr = c_addr.get("line") or c_addr.get("address") or "Customer Pickup Location"
+        is_delivery_leg = str(cord.get("status") or "") in ("ready", "ready_for_delivery", "delivery_rider_assigned")
+        ride_type = "delivery" if is_delivery_leg else "pickup"
+        pickup_addr = (p_info.get("address") or f"{partner_name}, {norm_ord_city.title()}") if is_delivery_leg else (c_addr.get("line") or c_addr.get("address") or "Customer Pickup Location")
+        drop_addr = (c_addr.get("line") or c_addr.get("address") or "Customer Delivery Location") if is_delivery_leg else (p_info.get("address") or f"{partner_name}, {norm_ord_city.title()}")
         dist_km = float((cord.get("delivery") or {}).get("distanceKm") or 2.5)
         est_earning = max(45, int((cord.get("pricing") or {}).get("deliveryFee") or 45))
 
         all_raw.append({
             "_id": f"off-{c_id}-{rider_id}",
             "offerId": f"off-{c_id}-{rider_id}",
-            "rideId": cord.get("ride1Id") or f"ride-pk-{c_id}",
+            "rideId": cord.get("ride1Id") or (f"ride-del-{c_id}" if is_delivery_leg else f"ride-pk-{c_id}"),
             "orderId": c_id,
             "orderCode": cord.get("code") or cord.get("orderCode") or c_id,
-            "rideType": "pickup",
+            "rideType": ride_type,
             "riderId": rider_id,
             "status": "pending",
             "city": norm_ord_city.title(),
             "distanceKm": dist_km,
             "estimatedEarning": est_earning,
             "pickupAddress": pickup_addr,
-            "dropAddress": p_info.get("address") or f"{partner_name}, {norm_ord_city.title()}",
+            "dropAddress": drop_addr,
             "customerName": (cord.get("customer") or {}).get("name") or c_addr.get("name") or "Customer",
             "customerPhone": (cord.get("customer") or {}).get("phone") or c_addr.get("phone") or "",
             "partnerName": partner_name,
@@ -1739,11 +1804,8 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
             continue
 
         order_status = str(real_order.get("status") or "").lower()
-        # Strictly ignore orders that are not yet accepted by partner, or already in processing/complete
+        # Strictly ignore orders that are terminal or already collected
         if order_status in (
-            "placed",
-            "pending",
-            "pending_partner_acceptance",
             "delivered",
             "completed",
             "cancelled",
@@ -1754,7 +1816,6 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
             "washing",
             "ironing",
             "dry_cleaning",
-            "out_for_delivery",
         ):
             continue
 
@@ -1772,7 +1833,7 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
         # Check expiration - if order is still actively waiting for a rider, extend validity
         exp = off.get("expiresAt")
         if exp and exp <= now_iso:
-            if order_status in ("partner_accepted", "pickup_rider_assigned", "rider_searching", "ready", "ready_for_delivery") and not real_order.get("riderId"):
+            if order_status in ("placed", "pending_partner_acceptance", "partner_accepted", "pickup_rider_assigned", "rider_searching", "ready", "ready_for_delivery") and not real_order.get("riderId"):
                 off["expiresAt"] = (now_dt + timedelta(seconds=60)).isoformat()
             else:
                 continue

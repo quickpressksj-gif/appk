@@ -72,7 +72,13 @@ class UserRepository:
             })
             if profile:
                 rider_id = profile.get("riderId") or profile.get("_id")
-                is_verified = bool(profile.get("isVerified", False) or profile.get("status") == "active")
+                profile_status = str(profile.get("status") or "").lower()
+                kyc_status = str(profile.get("kycStatus") or "").lower()
+                is_verified = bool(
+                    profile.get("isVerified", False)
+                    or profile_status == "approved"
+                    or (profile_status == "active" and kyc_status == "verified")
+                )
                 full_name = profile.get("fullName") or profile.get("name") or user.display_name
                 city = profile.get("city") or user.city or "Kasganj"
 
@@ -82,21 +88,36 @@ class UserRepository:
                 )
                 await database.collection("riders").update_one(
                     {"user_id": user.id},
-                    {"$set": {"rider_id": str(rider_id), "user_id": user.id}},
+                    {"$set": {"rider_id": str(rider_id), "user_id": user.id, "status": "active" if is_verified else "pending", "is_verified": is_verified}},
                     upsert=True
                 )
                 await self.update(user.id, {
                     "linked_id": str(rider_id),
                     "is_onboarded": True,
                     "is_verified": is_verified,
+                    "status": "active" if is_verified else "pending",
                     "display_name": full_name,
                     "city": city,
                 })
                 user.linked_id = str(rider_id)
                 user.is_onboarded = True
                 user.is_verified = is_verified
+                user.status = UserStatus.active if is_verified else UserStatus.pending
                 user.display_name = full_name
                 user.city = city
+                return
+            else:
+                # NO rider profile found in rider_profiles (not registered in admin system)
+                await self.update(user.id, {
+                    "linked_id": None,
+                    "is_onboarded": False,
+                    "is_verified": False,
+                    "status": "pending",
+                })
+                user.linked_id = None
+                user.is_onboarded = False
+                user.is_verified = False
+                user.status = UserStatus.pending
                 return
 
         elif user.role == Role.partner:
@@ -201,11 +222,12 @@ class UserRepository:
             email=email,
             display_name=display_name,
             photo_url=photo_url,
-            status=UserStatus.active,
+            status=UserStatus.active if role in (Role.customer, Role.admin) else UserStatus.pending,
             is_verified=role in (Role.customer, Role.admin),
             is_onboarded=role in (Role.customer, Role.admin),
         )
         created = await self.create(user)
+        await self._ensure_role_profile(created)
         refreshed = await self.by_id(created.id)
         return refreshed or created
 
@@ -220,11 +242,12 @@ class UserRepository:
             firebase_uid=f"phone-{phone}",
             role=role,
             phone=phone,
-            status=UserStatus.active,
+            status=UserStatus.active if role in (Role.customer, Role.admin) else UserStatus.pending,
             is_verified=role in (Role.customer, Role.admin),
             is_onboarded=role in (Role.customer, Role.admin),
         )
         created = await self.create(user)
+        await self._ensure_role_profile(created)
         refreshed = await self.by_id(created.id)
         return refreshed or created
 

@@ -56,6 +56,7 @@ class AccountResponse(BaseModel):
     avatarInitials: str
     isOnboarded: bool
     isVerified: bool
+    status: Optional[str] = "active"
     linkedId: Optional[str] = None
     permissions: Optional[List[str]] = None
     departmentRole: Optional[str] = None
@@ -65,6 +66,7 @@ class AccountResponse(BaseModel):
     def from_user(cls, user: User) -> "AccountResponse":
         name = user.display_name or user.phone or user.email or "QuickPress User"
         initials = "".join(part[0] for part in name.split()[:2]).upper() or "QP"
+        user_status = user.status.value if hasattr(user.status, "value") else str(user.status)
         return cls(
             id=user.id,
             role=user.role,
@@ -75,6 +77,7 @@ class AccountResponse(BaseModel):
             avatarInitials=initials,
             isOnboarded=user.is_onboarded,
             isVerified=user.is_verified,
+            status=user_status,
             linkedId=user.linked_id,
             permissions=None,
             departmentRole=None,
