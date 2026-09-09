@@ -504,21 +504,31 @@ class CatalogRepository:
         doc = await self.partner_document(partner_id)
         actual_pid = str(doc.get("_id") or partner_id) if doc else partner_id
         docs = await database.find_many("partner_reviews", {"partnerId": actual_pid})
-        return [
-            PartnerReviewResponse(
-                id=d["_id"],
-                partnerId=actual_pid,
-                name=d.get("name", "Customer"),
-                initials=d.get("initials", "C"),
-                avatar=d.get("avatar"),
-                rating=float(d.get("rating", 5.0)),
-                date=d.get("date", "Recently"),
-                comment=d.get("comment", ""),
-                verified=bool(d.get("verified", True)),
-                service=d.get("service", "Laundry"),
+        res: List[PartnerReviewResponse] = []
+        for d in docs:
+            c_name = d.get("name") or d.get("authorName") or d.get("customerName") or "Customer"
+            c_init = d.get("initials") or (c_name[0].upper() if c_name else "C")
+            c_text = d.get("text") or d.get("comment") or "Great laundry service!"
+            c_photo = d.get("photo") or d.get("avatar") or ""
+            c_date = str(d.get("date") or d.get("createdAt") or "Recently")[:10]
+            res.append(
+                PartnerReviewResponse(
+                    id=str(d.get("_id") or d.get("id")),
+                    partnerId=actual_pid,
+                    name=c_name,
+                    initials=c_init,
+                    photo=c_photo,
+                    avatar=c_photo,
+                    rating=float(d.get("rating", 5.0)),
+                    date=c_date,
+                    text=c_text,
+                    comment=c_text,
+                    verified=bool(d.get("verified", True)),
+                    service=d.get("service", "Laundry"),
+                    images=d.get("images") or [],
+                )
             )
-            for d in docs
-        ]
+        return res
 
     async def partner_detail(self, partner_id: str) -> Optional[PartnerDetailResponse]:
         doc = await self.partner_document(partner_id)

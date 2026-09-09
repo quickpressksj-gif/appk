@@ -210,12 +210,16 @@ class PartnerServiceResponse(BaseModel):
 class PartnerReviewResponse(BaseModel):
     id: str
     partnerId: str
-    name: str
-    initials: str
-    photo: str
-    rating: float
-    text: str
-    date: str
+    name: str = "Customer"
+    initials: str = "C"
+    photo: Optional[str] = ""
+    avatar: Optional[str] = ""
+    rating: float = 5.0
+    text: Optional[str] = ""
+    comment: Optional[str] = ""
+    date: str = "Recently"
+    verified: bool = True
+    service: Optional[str] = "Laundry"
     images: List[str] = []
 
 
