@@ -252,9 +252,25 @@ async def get_order(order_id: str, user: User = Depends(current_user)):
     from app.db.review_repositories import review_repository
     reviews_360 = await review_repository.get_360_reviews_by_order(canonical_id)
 
+    from app.services import order_lifecycle as lifecycle
+    _ADMIN_STAGES = [
+        ("placed", "Order Placed", (lifecycle.PLACED, lifecycle.PENDING, "new", "ORDER_CREATED")),
+        ("partner_accepted", "Partner Store Accepted", (lifecycle.PARTNER_ACCEPTED,)),
+        ("rider_assigned", "Delivery Captain Dispatched", (lifecycle.PICKUP_RIDER_ASSIGNED, lifecycle.RIDER_ASSIGNED, lifecycle.RIDER_SEARCHING)),
+        ("rider_accepted", "Captain Accepted Ride", (lifecycle.PICKUP_RIDER_ACCEPTED, lifecycle.RIDER_ACCEPTED, lifecycle.PICKUP_OTP_PENDING)),
+        ("picked_up", "Picked Up from Customer", (lifecycle.PICKED_UP,)),
+        ("at_partner", "Delivered to Partner Store", (lifecycle.AT_PARTNER,)),
+        ("processing", "Laundry Processing / Ironing", (lifecycle.PROCESSING, lifecycle.IRONING)),
+        ("ready", "Processed & Ready for Delivery", (lifecycle.READY_FOR_DELIVERY, lifecycle.READY, lifecycle.COMPLETED)),
+        ("out_for_delivery", "Out for Doorstep Delivery", (lifecycle.OUT_FOR_DELIVERY, lifecycle.DELIVERY_OTP_PENDING)),
+        ("delivered", "Delivered to Customer", (lifecycle.DELIVERED,)),
+    ]
+    admin_timeline = lifecycle._timeline(order, _ADMIN_STAGES)
+
     return {
         **{k: v for k, v in order.items() if k != "_id"},
         "id": canonical_id,
+        "timeline": admin_timeline,
         "auditTrail": audit_trail,
         "rides": sanitized_rides,
         "settlement": sanitized_settlement,

@@ -30,7 +30,7 @@ export function OrderSlaCountdown({
     }
     if (isSearchingRider) {
       const baseTime = acceptedAt ? new Date(acceptedAt).getTime() : now;
-      const targetTime = deadline ? new Date(deadline).getTime() : baseTime + 3 * 60 * 1000;
+      const targetTime = deadline ? new Date(deadline).getTime() : baseTime + 2 * 60 * 1000;
       return Math.max(0, Math.floor((targetTime - now) / 1000));
     }
     return 0;
@@ -48,7 +48,7 @@ export function OrderSlaCountdown({
         setRemainingSec(diff);
       } else if (isSearchingRider) {
         const baseTime = acceptedAt ? new Date(acceptedAt).getTime() : now;
-        const targetTime = deadline ? new Date(deadline).getTime() : baseTime + 3 * 60 * 1000;
+        const targetTime = deadline ? new Date(deadline).getTime() : baseTime + 2 * 60 * 1000;
         const diff = Math.max(0, Math.floor((targetTime - now) / 1000));
         setRemainingSec(diff);
       }
@@ -101,7 +101,7 @@ export function OrderSlaCountdown({
           ? "bg-rose-50 text-rose-700 border border-rose-300 animate-pulse"
           : "bg-sky-50 text-sky-800 border border-sky-300"
       }`}
-      title="Rider assignment 3-minute SLA window"
+      title="Rider assignment 2-minute SLA window"
     >
       <Clock className="size-3 text-sky-600" />
       <span>

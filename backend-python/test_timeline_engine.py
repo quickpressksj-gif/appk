@@ -59,7 +59,7 @@ async def run_tests():
 
     print(f"Created expired partner acceptance order {order1_id}, deadline was {deadline_1.isoformat()}")
 
-    print("\n--- TEST 2: Rider Search SLA Timeout (3 min breached) ---")
+    print("\n--- TEST 2: Rider Search SLA Timeout (2 min breached) ---")
     order2_id = "test_sla_rider_timeout_002"
     customer2_id = "test_cust_sla_002"
     partner_accepted_at_2 = now - timedelta(seconds=RIDER_ACCEPT_SLA_SECONDS + 20)
@@ -140,13 +140,13 @@ async def run_tests():
     print(f"\nOrder 2 Status: {doc2.get('status')}, Reason: {doc2.get('cancellationReason')}")
     assert doc2.get("status") == "cancelled", f"Expected cancelled, got {doc2.get('status')}"
     assert bool(doc2.get("slaBreached")) is True
-    assert "3 minutes SLA" in doc2.get("cancellationReason", "")
+    assert "2 minutes SLA" in doc2.get("cancellationReason", "")
     assert doc2.get("payment", {}).get("refundStatus") == "refunded"
 
     ride2 = await database.find_one("rides", {"orderId": order2_id})
     print(f"Ride 2 Status: {ride2.get('status')}")
     assert ride2.get("status") == "cancelled", f"Expected ride cancelled, got {ride2.get('status')}"
-    print("✅ TEST 2 PASSED: 3-Minute Rider Search SLA Auto-Cancellation & Online Refund Successful!")
+    print("✅ TEST 2 PASSED: 2-Minute Rider Search SLA Auto-Cancellation & Online Refund Successful!")
 
     # VERIFY TEST 3
     doc3 = await database.find_one("customer_orders", {"_id": order3_id})

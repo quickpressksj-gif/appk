@@ -105,7 +105,7 @@ export function RiderOrdersScreen() {
           fare: Number(r.estimatedEarning || r.fare || 45),
           customerName: r.customerName || "Customer",
           customerPhone: r.customerPhone || "",
-          expiresInSeconds: 15,
+          expiresInSeconds: 120, // 2 minutes SLA
         }));
         setOffers((prev) => {
           if (prev.length === 0 && formatted.length > 0) {
@@ -138,15 +138,16 @@ export function RiderOrdersScreen() {
     return () => clearInterval(timer);
   }, [activeOrder]);
 
-  // 10s Timer for the top order (cycles smoothly so orders stay active for the user)
+  // 2-minute SLA Timer (120s) for the top incoming offer
   useEffect(() => {
     if (offers.length === 0 || activeOrder) return;
-    setCountdown(10);
+    setCountdown(120);
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          return 10;
+          loadOffers(true);
+          return 120;
         }
         return prev - 1;
       });
@@ -358,7 +359,7 @@ export function RiderOrdersScreen() {
                               ? "text-blue-600"
                               : "text-[#00C853]"
                           } transition-all duration-1000 ease-linear`}
-                          strokeDasharray={`${(countdown / 10) * 100}, 100`}
+                          strokeDasharray={`${(countdown / 120) * 100}, 100`}
                           strokeWidth="3.5"
                           strokeLinecap="round"
                           stroke="currentColor"
@@ -405,6 +406,19 @@ export function RiderOrdersScreen() {
                         : "bg-neutral-50/80 border-neutral-200/60 opacity-80"
                     }`}
                   >
+                    {/* 2-Minute SLA Banner */}
+                    {isTop && (
+                      <div className="mb-3 flex items-center justify-between rounded-xl bg-amber-50 px-3 py-1.5 text-[11px] font-black text-amber-900 border border-amber-300">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="size-3.5 text-amber-600 animate-pulse" />
+                          <span>2-Minute Captain SLA</span>
+                        </span>
+                        <span className="font-mono text-xs font-black text-amber-800">
+                          ⏱️ {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")} remaining
+                        </span>
+                      </div>
+                    )}
+
                     {/* Header: Service Type + Cash / Fare Badge */}
                     <div
                       className={`flex items-center justify-between pb-3 border-b ${

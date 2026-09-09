@@ -34,6 +34,7 @@ import { OrderActionBar } from "../components/orders/OrderActionBar";
 import { OrderStatusBadge } from "../components/orders/OrderCard";
 import { OrderDetailSkeleton } from "../components/orders/OrderSkeletons";
 import { OrderTimeline } from "../components/orders/OrderTimeline";
+import { OrderSlaCountdown } from "../components/orders/OrderSlaCountdown";
 import { usePartnerOrders } from "../context/PartnerOrdersContext";
 import { useOrderActionHandler } from "../hooks/use-order-action-handler";
 import { partnerRoutes } from "../navigation/partner-routes";
@@ -402,9 +403,19 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                     <Sparkles className="size-5" />
                   </span>
                   <div>
-                    <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 border border-emerald-200/50">
-                      {stageLabel}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 border border-emerald-200/50">
+                        {stageLabel}
+                      </span>
+                      <OrderSlaCountdown
+                        placedAt={(order as any).placedAt || (order as any).placedAtRaw}
+                        deadline={(order as any).partnerAcceptDeadline || (order as any).riderAcceptDeadline}
+                        acceptedAt={(order as any).partnerAcceptedAt}
+                        stage={order.stage}
+                        autoCancelled={(order as any).autoCancelled}
+                        cancellationReason={(order as any).cancellationReason || (order as any).cancelledReason}
+                      />
+                    </div>
                     <p className="mt-1 text-[11px] font-medium text-zinc-500">
                       Booked: <span className="font-bold text-zinc-700">{formatOrderTime(order.placedAt)}</span>
                     </p>
@@ -1029,7 +1040,17 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
 
               {/* Live Timeline */}
               <section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
-                <SectionHeading title="Order Timeline" />
+                <div className="flex items-center justify-between">
+                  <SectionHeading title="Order Timeline" />
+                  <OrderSlaCountdown
+                    placedAt={(order as any).placedAt || (order as any).placedAtRaw}
+                    deadline={(order as any).partnerAcceptDeadline || (order as any).riderAcceptDeadline}
+                    acceptedAt={(order as any).partnerAcceptedAt}
+                    stage={order.stage}
+                    autoCancelled={(order as any).autoCancelled}
+                    cancellationReason={(order as any).cancellationReason || (order as any).cancelledReason}
+                  />
+                </div>
                 <div className="mt-4">
                   <OrderTimeline timeline={timeline} stage={order.stage} />
                 </div>

@@ -551,7 +551,7 @@ export function PartnerDevicePermissionsCard({
       <div className="flex items-start gap-2 text-[10.5px] text-zinc-600">
         <Info className="size-3.5 text-amber-600 shrink-0 mt-0.5" />
         <span>
-          <strong>Merchant SLA Guarantee:</strong> High-priority siren ensures your store accepts customer laundry orders within the 3-minute SLA window.
+          <strong>Merchant SLA Guarantee:</strong> High-priority siren ensures your store accepts customer laundry orders within the 5-minute SLA window.
         </span>
       </div>
     </div>

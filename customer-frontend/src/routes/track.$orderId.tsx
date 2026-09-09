@@ -94,7 +94,7 @@ function LiveOrderSlaTracker({ detail }: { detail: any }) {
           detail?.partnerAcceptedAt || detail?.riderDispatchStartedAt || detail?.updatedAt
             ? new Date(detail.partnerAcceptedAt || detail.riderDispatchStartedAt || detail.updatedAt).getTime()
             : now;
-        const target = detail?.riderAcceptDeadline ? new Date(detail.riderAcceptDeadline).getTime() : base + 3 * 60 * 1000;
+        const target = detail?.riderAcceptDeadline ? new Date(detail.riderAcceptDeadline).getTime() : base + 2 * 60 * 1000;
         return Math.max(0, Math.floor((target - now) / 1000));
       }
       return 0;
@@ -204,7 +204,7 @@ function LiveOrderSlaTracker({ detail }: { detail: any }) {
           </span>
         </div>
         <p className="mt-2 text-[11.5px] font-medium text-sky-900/85 dark:text-sky-200/85 leading-relaxed">
-          Store accepted! Finding the nearest available delivery captain. If not confirmed within 3 minutes, order is automatically cancelled & refunded.
+          Store accepted! Finding the nearest available delivery captain. If not confirmed within 2 minutes, order is automatically cancelled & refunded.
         </p>
       </div>
     );
@@ -789,6 +789,26 @@ function TrackOrderScreen() {
                     </div>
                   );
                 })}
+                {cancelled && (
+                  <div className="mt-4 flex gap-3 rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 p-3.5">
+                    <div className="flex flex-col items-center">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white font-bold text-xs">
+                        ✕
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black text-rose-950 dark:text-rose-200">
+                        Order Cancelled
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-rose-800 dark:text-rose-300">
+                        {detail?.cancellationReason || detail?.cancelledReason || "Order was cancelled per platform SLA response guarantee."}
+                      </p>
+                      <p className="mt-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        💳 Refund status: Complete / Credited to QuickPress Wallet
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

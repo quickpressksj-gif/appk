@@ -6,11 +6,11 @@ Enforces strict platform SLA guarantees:
    - If 5 minutes elapse without acceptance, the order is automatically cancelled,
      refunded, and real-time alerts are broadcasted to all parties.
 
-2. Rider Acceptance SLA (3 minutes / 180s):
+2. Rider Acceptance SLA (2 minutes / 120s):
    - Once the partner accepts, a nearby delivery captain must accept the pickup ride
-     within 3 minutes.
-   - If 3 minutes elapse without rider acceptance, the ride search terminates, the order
-     is automatically cancelled and refunded, with instant notifications sent.
+     within 2 minutes.
+   - If 2 minutes elapse without rider acceptance, the ride search terminates, the rider
+     assignment is cancelled, the order is automatically cancelled and refunded, with instant notifications sent.
 """
 
 from __future__ import annotations
@@ -255,7 +255,7 @@ class OrderTimelineEngine:
                         logger.error("Failed to auto-cancel order %s on partner SLA: %s", order_id, exc)
 
             # =========================================================================
-            # SLA RULE 2: Rider Acceptance Timeout (3 Minutes / 180 Seconds)
+            # SLA RULE 2: Rider Acceptance Timeout (2 Minutes / 120 Seconds)
             # =========================================================================
             pending_rider_orders = await database.find_many(
                 lifecycle.ORDERS,
@@ -297,13 +297,13 @@ class OrderTimelineEngine:
                 age_seconds = (now - accepted_dt).total_seconds()
                 if age_seconds >= lifecycle.RIDER_ACCEPT_SLA_SECONDS:
                     logger.warning(
-                        "⏰ Rider SLA BREACHED for Order %s (age=%.1fs >= %ds). Executing ride cancellation and auto-refund.",
+                        "⏰ Rider SLA BREACHED for Order %s (age=%.1fs >= %ds). Executing rider cancellation, order cancellation, and auto-refund.",
                         order_id,
                         age_seconds,
                         lifecycle.RIDER_ACCEPT_SLA_SECONDS,
                     )
                     try:
-                        reason = "Auto-cancelled: No delivery partner accepted within 3 minutes SLA"
+                        reason = "Auto-cancelled: Delivery partner did not accept within 2 minutes SLA"
 
                         # 1. Terminate pending rides in rides collection
                         await database.collection("rides").update_many(
@@ -337,7 +337,7 @@ class OrderTimelineEngine:
                             {"$set": {"status": "expired", "updatedAt": lifecycle.now_iso()}},
                         )
 
-                        # 3. Transition order to CANCELLED
+                        # 3. Transition order to CANCELLED and unassign rider
                         updated = await lifecycle.transition(
                             order_id,
                             lifecycle.CANCELLED,
@@ -356,10 +356,12 @@ class OrderTimelineEngine:
                                 "autoCancelled": True,
                                 "slaBreached": "rider_acceptance",
                                 "refundInitiated": True,
+                                "rider": None,
+                                "assignedRiderId": None,
                             },
                         )
 
-                        await self._process_auto_refund(updated, "No delivery partner in 3 min")
+                        await self._process_auto_refund(updated, "No delivery partner in 2 min")
                         expired_rider_orders.append(order_id)
 
                         # Broadcast cancellation event via Socket.IO
@@ -376,7 +378,7 @@ class OrderTimelineEngine:
                         # Notify riders channel that ride is cancelled
                         await sio.emit(
                             "rider.ride_cancelled",
-                            {"orderId": order_id, "reason": "3-Minute Rider SLA Expired"},
+                            {"orderId": order_id, "reason": "2-Minute Rider SLA Expired"},
                             room="riders",
                         )
                     except Exception as exc:

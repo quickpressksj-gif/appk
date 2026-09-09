@@ -40,67 +40,83 @@ export function OrderTimeline({
   const activeIndex = STAGE_TIMELINE_INDEX[currentStage] ?? 0;
   const cancelled = currentStage === "cancelled";
   const timelineList = order?.timeline || propTimeline || [];
+  const cancelReason = (order as any)?.cancellationReason || (order as any)?.cancelledReason || (order as any)?.rejectReason || "";
+  const isSlaBreached = cancelReason.toLowerCase().includes("sla") || (order as any)?.autoCancelled || (order as any)?.slaBreached;
 
   return (
-    <ol className="relative">
-      {TIMELINE_STEPS.map((step, index) => {
-        const done = !cancelled && index <= activeIndex;
-        const current = !cancelled && index === activeIndex;
-        const isLast = index === TIMELINE_STEPS.length - 1;
-        const entry = timelineList[index];
+    <div className="space-y-4">
+      {cancelled && (
+        <div className="rounded-2xl border-2 border-destructive/40 bg-destructive/10 p-3.5 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="flex size-6 items-center justify-center rounded-full bg-destructive text-white font-black text-xs">
+              ✕
+            </span>
+            <p className="text-xs font-black text-destructive">
+              {isSlaBreached ? "Order Auto-Cancelled (Platform SLA Breach)" : "Order Cancelled"}
+            </p>
+          </div>
+          <p className="mt-1.5 text-[11px] font-semibold text-destructive/90 leading-relaxed">
+            {cancelReason || "This order was cancelled and closed."}
+          </p>
+          <p className="mt-2 rounded-xl bg-white/90 p-2 text-[10.5px] font-bold text-emerald-800 border border-emerald-200">
+            💳 100% Refund credited back to Customer Wallet
+          </p>
+        </div>
+      )}
 
-        return (
-          <li key={step.key} className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <span
-                className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
-                  cancelled && index === 0
-                    ? "bg-destructive/10 text-destructive"
-                    : done
+      <ol className="relative">
+        {TIMELINE_STEPS.map((step, index) => {
+          const entry = timelineList[index];
+          const hasTime = Boolean(entry?.time && entry.time !== "Pending" && entry.time !== "");
+          const done = !cancelled ? index <= activeIndex : Boolean(entry?.done || hasTime);
+          const current = !cancelled && index === activeIndex;
+          const isLast = index === TIMELINE_STEPS.length - 1;
+
+          return (
+            <li key={step.key} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
+                    done
                       ? "bg-secondary/15 text-brand-green-dark"
                       : "bg-muted text-muted-foreground"
-                } ${current ? "ring-2 ring-primary/40" : ""}`}
-              >
-                {cancelled && index === 0 ? (
-                  <XCircle className="size-4" />
-                ) : done ? (
-                  <Check className="size-4" strokeWidth={3} />
-                ) : (
-                  <CircleDashed className="size-4" />
-                )}
-              </span>
-              {!isLast ? (
-                <span
-                  className={`my-1 w-px flex-1 transition-colors duration-500 ${
-                    done && !cancelled ? "bg-brand-green/50" : "bg-border"
-                  }`}
-                />
-              ) : null}
-            </div>
-            <div className={isLast ? "pb-0" : "pb-5"}>
-              <p
-                className={`text-sm font-bold tracking-tight ${
-                  done ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {step.label}
-              </p>
-              <p className="text-[0.68rem] font-semibold text-muted-foreground">
-                {cancelled && index > 0
-                  ? "Not applicable"
-                  : done
-                    ? formatTimelineTime(entry?.time)
-                    : "Pending"}
-              </p>
-              {current ? (
-                <span className="mt-1 inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-brand-dark">
-                  Current
+                  } ${current ? "ring-2 ring-primary/40" : ""}`}
+                >
+                  {done ? (
+                    <Check className="size-4" strokeWidth={3} />
+                  ) : (
+                    <CircleDashed className="size-4" />
+                  )}
                 </span>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+                {!isLast ? (
+                  <span
+                    className={`my-1 w-px flex-1 transition-colors duration-500 ${
+                      done ? "bg-brand-green/50" : "bg-border"
+                    }`}
+                  />
+                ) : null}
+              </div>
+              <div className={isLast ? "pb-0" : "pb-5"}>
+                <p
+                  className={`text-sm font-bold tracking-tight ${
+                    done ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {step.label}
+                </p>
+                <p className="text-[0.68rem] font-semibold text-muted-foreground">
+                  {done ? formatTimelineTime(entry?.time) : cancelled ? "Cancelled before stage" : "Pending"}
+                </p>
+                {current ? (
+                  <span className="mt-1 inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-brand-dark">
+                    Current
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

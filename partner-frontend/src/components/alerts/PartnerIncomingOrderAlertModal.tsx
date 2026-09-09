@@ -41,13 +41,32 @@ interface PartnerIncomingOrderAlertModalProps {
   onClose?: () => void;
 }
 
+const PARTNER_SLA_SECONDS = 300; // 5 minutes SLA
+
 export function PartnerIncomingOrderAlertModal({
   order,
   onAccept,
   onReject,
   onClose,
 }: PartnerIncomingOrderAlertModalProps) {
-  const [countdown, setCountdown] = useState(60);
+  const computeInitialCountdown = () => {
+    if (!order) return PARTNER_SLA_SECONDS;
+    const now = Date.now();
+    const rawDeadline = (order as any).partnerAcceptDeadline;
+    if (rawDeadline) {
+      const diff = Math.floor((new Date(rawDeadline).getTime() - now) / 1000);
+      return Math.max(0, diff > 0 ? diff : PARTNER_SLA_SECONDS);
+    }
+    const rawPlaced = (order as any).placedAt || (order as any).placedAtRaw;
+    if (rawPlaced) {
+      const placed = new Date(rawPlaced).getTime();
+      const diff = Math.floor((placed + PARTNER_SLA_SECONDS * 1000 - now) / 1000);
+      return Math.max(0, diff > 0 ? diff : PARTNER_SLA_SECONDS);
+    }
+    return PARTNER_SLA_SECONDS;
+  };
+
+  const [countdown, setCountdown] = useState<number>(computeInitialCountdown);
   const [isMuted, setIsMuted] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -60,7 +79,7 @@ export function PartnerIncomingOrderAlertModal({
       return;
     }
 
-    setCountdown(60);
+    setCountdown(computeInitialCountdown());
     setIsAccepting(false);
     setIsRejecting(false);
     setShowRejectBox(false);
@@ -74,6 +93,7 @@ export function PartnerIncomingOrderAlertModal({
         if (prev <= 1) {
           clearInterval(timer);
           stopPartnerOrderAlertRing();
+          void onReject(order.id, "Auto-rejected: Store acceptance window expired (5 min SLA)");
           return 0;
         }
         return prev - 1;
@@ -125,7 +145,10 @@ export function PartnerIncomingOrderAlertModal({
     if (onClose) onClose();
   };
 
-  const progressPercent = (countdown / 60) * 100;
+  const mins = Math.floor(countdown / 60);
+  const secs = countdown % 60;
+  const formattedCountdown = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const progressPercent = Math.min(100, Math.max(0, (countdown / PARTNER_SLA_SECONDS) * 100));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -169,13 +192,13 @@ export function PartnerIncomingOrderAlertModal({
           {/* Countdown Progress Bar */}
           <div className="mt-3">
             <div className="flex justify-between text-[11px] font-bold text-zinc-400 mb-1">
-              <span>Auto-expires in:</span>
-              <span className="text-amber-400 font-mono font-black">{countdown}s remaining</span>
+              <span>5-Minute SLA Guarantee:</span>
+              <span className="text-amber-400 font-mono font-black">{formattedCountdown} remaining</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
               <div
                 className={`h-full transition-all duration-1000 rounded-full ${
-                  countdown < 15 ? "bg-rose-500" : countdown < 30 ? "bg-amber-500" : "bg-emerald-500"
+                  countdown < 60 ? "bg-rose-500" : countdown < 120 ? "bg-amber-500" : "bg-emerald-500"
                 }`}
                 style={{ width: `${progressPercent}%` }}
               />

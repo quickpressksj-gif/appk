@@ -18,29 +18,48 @@ const REJECT_REASONS = [
   "Other issue",
 ];
 
+const PARTNER_SLA_SECONDS = 300; // 5 minutes SLA
+
 export function IncomingOrderModal({
   order,
   onAccept,
   onReject,
   onDismiss,
 }: IncomingOrderModalProps) {
-  const [countdown, setCountdown] = useState(60);
+  const computeInitialCountdown = () => {
+    if (!order) return PARTNER_SLA_SECONDS;
+    const now = Date.now();
+    const rawDeadline = (order as any).partnerAcceptDeadline;
+    if (rawDeadline) {
+      const diff = Math.floor((new Date(rawDeadline).getTime() - now) / 1000);
+      return Math.max(0, diff > 0 ? diff : PARTNER_SLA_SECONDS);
+    }
+    const rawPlaced = (order as any).placedAt || (order as any).placedAtRaw;
+    if (rawPlaced) {
+      const placed = new Date(rawPlaced).getTime();
+      const diff = Math.floor((placed + PARTNER_SLA_SECONDS * 1000 - now) / 1000);
+      return Math.max(0, diff > 0 ? diff : PARTNER_SLA_SECONDS);
+    }
+    return PARTNER_SLA_SECONDS;
+  };
+
+  const [countdown, setCountdown] = useState<number>(computeInitialCountdown);
   const [rejecting, setRejecting] = useState(false);
   const [selectedReason, setSelectedReason] = useState(REJECT_REASONS[0]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (!order) return;
-    setCountdown(60);
+    setCountdown(computeInitialCountdown());
     setRejecting(false);
 
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          // Auto-reject on 60-second window expiry
+          // Auto-reject on 5-minute window expiry
           stopOrderAlarm();
-          void onReject(order.id, "Auto-rejected: Acceptance window expired (60s)");
+          void onReject(order.id, "Auto-rejected: Store acceptance window expired (5 min SLA)");
           onDismiss();
           return 0;
         }
@@ -73,7 +92,10 @@ export function IncomingOrderModal({
     }
   };
 
-  const progressPercent = (countdown / 60) * 100;
+  const mins = Math.floor(countdown / 60);
+  const secs = countdown % 60;
+  const formattedCountdown = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const progressPercent = Math.min(100, Math.max(0, (countdown / PARTNER_SLA_SECONDS) * 100));
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
@@ -101,11 +123,11 @@ export function IncomingOrderModal({
             {/* Countdown Badge & Back Button */}
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-end">
-                <span className="flex items-center gap-1 rounded-full bg-black/30 px-3 py-1 text-xs font-black text-white">
-                  <Clock className="size-3.5" /> {countdown}s left
+                <span className="flex items-center gap-1 rounded-full bg-black/30 px-3 py-1 text-xs font-black text-white font-mono">
+                  <Clock className="size-3.5" /> {formattedCountdown} left
                 </span>
                 <span className="text-[10px] font-semibold text-primary-foreground/80 mt-0.5">
-                  Auto-alert active
+                  5 Min Store SLA
                 </span>
               </div>
 
@@ -128,7 +150,7 @@ export function IncomingOrderModal({
           <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/20">
             <div
               className={`h-full transition-all duration-1000 ${
-                countdown < 15 ? "bg-red-500" : countdown < 30 ? "bg-amber-400" : "bg-emerald-400"
+                countdown < 60 ? "bg-red-500" : countdown < 120 ? "bg-amber-400" : "bg-emerald-400"
               }`}
               style={{ width: `${progressPercent}%` }}
             />

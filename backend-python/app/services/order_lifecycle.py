@@ -74,7 +74,7 @@ TERMINAL = (DELIVERED, CANCELLED)
 
 # Platform SLA Guarantees (in seconds)
 PARTNER_ACCEPT_SLA_SECONDS = 300  # 5 minutes for Partner Store to accept
-RIDER_ACCEPT_SLA_SECONDS = 180    # 3 minutes for Delivery Partner to accept after partner acceptance
+RIDER_ACCEPT_SLA_SECONDS = 120    # 2 minutes for Delivery Partner to accept after partner acceptance
 
 #: Documents created before the canonical lifecycle used aliases.
 LEGACY_STATUS_ALIASES = {
@@ -602,7 +602,25 @@ def _timeline(order: Dict[str, Any], stages) -> List[Dict[str, Any]]:
     rows = []
     for stage_id, label, statuses in stages:
         hit = next((times[s] for s in statuses if s in times), "")
-        rows.append({"id": stage_id, "label": label, "time": hit or "", "done": bool(hit)})
+        rows.append({
+            "id": stage_id,
+            "label": label,
+            "time": hit or "",
+            "at": hit or "",
+            "done": bool(hit),
+        })
+    if order_status(order) == CANCELLED:
+        cancel_time = times.get(CANCELLED) or order.get("cancelledAt") or order.get("updatedAt") or ""
+        reason = order.get("cancellationReason") or order.get("cancelledReason") or "Order cancelled"
+        rows.append({
+            "id": "cancelled",
+            "label": f"Cancelled — {reason}",
+            "time": cancel_time,
+            "at": cancel_time,
+            "done": True,
+            "cancelled": True,
+            "reason": reason,
+        })
     return rows
 
 
