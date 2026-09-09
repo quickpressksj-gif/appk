@@ -359,10 +359,10 @@ async def dispatch_order_transition_notifications(
                 order_id=order_id,
                 order_code=code,
             )
-            # Instantly dispatch order offer to nearby riders in the same city
+            # Instantly dispatch order offer to nearby riders in the same city upon partner acceptance
             try:
-                from app.services.rider_dispatch import rider_dispatch_engine
-                await rider_dispatch_engine.search_and_offer_riders(order_id)
+                from app.services.smart_2ride_engine import smart_2ride_engine
+                await smart_2ride_engine.create_ride_1_pickup(order_id)
             except Exception as dispatch_err:
                 print(f"[RiderDispatch] Auto dispatch on partner_accepted error: {dispatch_err}")
 
