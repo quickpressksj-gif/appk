@@ -534,18 +534,9 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                     </button>
                   </div>
 
-                  {dispatchOtpCode ? (
-                    <div className="flex items-center justify-between border-t border-emerald-500/20 pt-2 text-[10px]">
-                      <span className="font-semibold text-zinc-600">Store Reference Code:</span>
-                      <span className="font-mono font-black text-emerald-800 tracking-wider bg-white px-2 py-0.5 rounded border border-emerald-200">
-                        {dispatchOtpCode}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <p className="text-center text-[10px] font-medium text-zinc-500">
-                    Captain reads out the 4-digit code shown in their app upon arrival to collect clean laundry.
-                  </p>
+                    <p className="text-center text-[10px] font-medium text-zinc-500 pt-1 border-t border-emerald-500/10">
+                      🔒 Captain reads out the 4-digit Dispatch OTP shown on their screen upon arriving at the store.
+                    </p>
                 </div>
               </div>
             ) : null}
@@ -944,14 +935,9 @@ export function OrderDetailsScreen({ orderId: propOrderId }: { orderId?: string 
                       </div>
                     </div>
 
-                    {dispatchOtpCode ? (
-                      <div className="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-zinc-600">Store Reference Handover Code:</span>
-                        <span className="font-mono font-black text-emerald-800 tracking-wider bg-white px-3 py-1 rounded-lg border border-emerald-200 shadow-xs">
-                          {dispatchOtpCode}
-                        </span>
-                      </div>
-                    ) : null}
+                    <p className="mt-3 text-center text-xs font-medium text-zinc-500 pt-2 border-t border-emerald-200/50">
+                      🔒 Handover is secured: Ask arriving Delivery Captain for the 4-digit code displayed in their app.
+                    </p>
                   </div>
                 </section>
               ) : null}

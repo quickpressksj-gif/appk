@@ -47,6 +47,8 @@ class PartnerOrderResponse(BaseModel):
     paymentStatus: Optional[str] = "pending"
     serviceLabel: str = "Laundry"
     dispatchOtp: Optional[str] = ""
+    dispatchOtpVerified: bool = False
+    dispatchOtpRequired: bool = False
     items: List[PartnerOrderItem] = []
     timeline: List[PartnerOrderTimelineStage] = []
 

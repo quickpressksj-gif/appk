@@ -971,10 +971,7 @@ class Smart2RideEngine:
         if isinstance(otp_record, str):
             otp_record = {"code": otp_record, "verified": False, "attempts": 0, "maxAttempts": 5}
         if not isinstance(otp_record, dict):
-            if not otp_record:
-                otp_record = {"code": code.strip(), "verified": False, "attempts": 0, "maxAttempts": 5}
-            else:
-                raise PermissionError(f"{label} has not been generated for this order yet.")
+            raise PermissionError(f"{label} has not been generated for this order yet.")
         if otp_record.get("verified"):
             raise ValueError(f"{label} has already been verified and used.")
 
@@ -1003,7 +1000,10 @@ class Smart2RideEngine:
         otp_dict = order.get("otp") or {}
         pickup_record = otp_dict.get("pickup")
         if not pickup_record:
-            pickup_record = {"code": order.get("pickupOtp") or otp, "attempts": 0, "verified": False}
+            pickup_code = order.get("pickupOtp")
+            if not pickup_code:
+                raise PermissionError("Pickup OTP has not been generated for this order yet.")
+            pickup_record = {"code": str(pickup_code), "attempts": 0, "verified": False}
         self._verify_otp_record(pickup_record, otp, "Customer Pickup OTP")
 
         now = lifecycle.now_iso()
@@ -1046,7 +1046,10 @@ class Smart2RideEngine:
         otp_dict = order.get("otp") or {}
         handover_record = otp_dict.get("handover")
         if not handover_record:
-            handover_record = {"code": order.get("handoverOtp") or otp, "attempts": 0, "verified": False}
+            handover_code = order.get("handoverOtp")
+            if not handover_code:
+                raise PermissionError("Store Handover OTP has not been generated for this order yet.")
+            handover_record = {"code": str(handover_code), "attempts": 0, "verified": False}
         self._verify_otp_record(handover_record, otp, "Store Handover OTP")
 
         now = lifecycle.now_iso()
@@ -1065,7 +1068,7 @@ class Smart2RideEngine:
             {"orderId": canonical_id, "rideType": "pickup"},
             {
                 "$set": {
-                    "status": "STORE_PROCESSING",
+                    "status": "DELIVERED",
                     "otp.handover": handover_record,
                     "droppedAtStoreAt": now,
                     "updatedAt": now,
@@ -1087,7 +1090,11 @@ class Smart2RideEngine:
         return {"ok": True, "status": "AT_PARTNER", "orderId": canonical_id}
 
     async def verify_dispatch_otp(self, order_id: str, otp: str, rider_id: str) -> Dict[str, Any]:
-        """Phase 2.5 OTP: Partner hands clean laundry parcel to Delivery Rider."""
+        """Phase 2.5 OTP: Delivery Rider verifies Dispatch OTP communicated by Partner Store."""
+        clean_otp = str(otp or "").strip()
+        if len(clean_otp) != 4 or not clean_otp.isdigit():
+            raise ValueError("Please enter a valid 4-digit numeric Dispatch OTP.")
+
         order = await lifecycle.find_order(order_id)
         if not order:
             raise LookupError(f"Order {order_id} not found")
@@ -1096,9 +1103,28 @@ class Smart2RideEngine:
         otp_dict = order.get("otp") or {}
         dispatch_record = otp_dict.get("dispatch")
         if not dispatch_record:
-            dispatch_code = order.get("dispatchOtp") or otp
+            dispatch_code = (
+                order.get("dispatchOtp")
+                or (order.get("reassignment") or {}).get("dispatchOtp")
+                or (order.get("reassignment") or {}).get("handoverOtp")
+            )
+            if not dispatch_code:
+                ride_doc = await database.find_one(
+                    RIDES_COLLECTION,
+                    {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
+                )
+                if ride_doc:
+                    disp_val = (ride_doc.get("otp") or {}).get("dispatch")
+                    if isinstance(disp_val, dict):
+                        dispatch_code = disp_val.get("code")
+                    elif isinstance(disp_val, str) and disp_val.strip():
+                        dispatch_code = disp_val.strip()
+            if not dispatch_code:
+                raise ValueError("Dispatch OTP has not been generated for this order yet. Ensure order is packed & ready for delivery.")
             dispatch_record = {"code": str(dispatch_code), "attempts": 0, "verified": False}
-        self._verify_otp_record(dispatch_record, otp, "Partner Dispatch OTP")
+
+        self._verify_otp_record(dispatch_record, clean_otp, "Partner Dispatch OTP")
+        dispatch_record["verified"] = True
 
         now = lifecycle.now_iso()
         await database.collection(ORDERS_COLLECTION).update_one(
@@ -1107,13 +1133,15 @@ class Smart2RideEngine:
                 "$set": {
                     "status": lifecycle.OUT_FOR_DELIVERY,
                     "otp.dispatch": dispatch_record,
+                    "dispatchOtpVerified": True,
                     "dispatchedAt": now,
+                    "custody": "rider",
                     "updatedAt": now,
                 }
             },
         )
         await database.collection(RIDES_COLLECTION).update_one(
-            {"orderId": canonical_id, "rideType": "delivery"},
+            {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
             {"$set": {"status": "OUT_FOR_DELIVERY", "otp.dispatch": dispatch_record, "updatedAt": now}},
         )
 
@@ -1131,9 +1159,14 @@ class Smart2RideEngine:
         return {"ok": True, "status": "OUT_FOR_DELIVERY", "orderId": canonical_id}
 
     async def verify_partner_dispatch_otp(self, order_id: str, otp: str, partner_id: str) -> Dict[str, Any]:
-        """Partner verifies the 4-digit Dispatch OTP told by Rider 2.
-        Custody transfers from Partner Store to Rider 2, advancing order to OUT_FOR_DELIVERY.
+        """Partner verifies the 4-digit Dispatch OTP told by Delivery Captain (Rider 2).
+        Custody transfers from Partner Store to Captain, advancing order to OUT_FOR_DELIVERY.
+        Without this verification, Partner CANNOT handover clean laundry to Captain.
         """
+        clean_otp = str(otp or "").strip()
+        if len(clean_otp) != 4 or not clean_otp.isdigit():
+            raise ValueError("Please enter a valid 4-digit numeric Dispatch OTP.")
+
         order = await lifecycle.find_order(order_id)
         if not order:
             raise LookupError(f"Order {order_id} not found")
@@ -1146,17 +1179,29 @@ class Smart2RideEngine:
                 order.get("dispatchOtp")
                 or (order.get("reassignment") or {}).get("dispatchOtp")
                 or (order.get("reassignment") or {}).get("handoverOtp")
-                or otp
             )
+            if not dispatch_code:
+                ride_doc = await database.find_one(
+                    RIDES_COLLECTION,
+                    {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
+                )
+                if ride_doc:
+                    disp_val = (ride_doc.get("otp") or {}).get("dispatch")
+                    if isinstance(disp_val, dict):
+                        dispatch_code = disp_val.get("code")
+                    elif isinstance(disp_val, str) and disp_val.strip():
+                        dispatch_code = disp_val.strip()
+            if not dispatch_code:
+                raise ValueError("Dispatch OTP has not been generated for this order yet. Ensure order is packed & ready for delivery.")
             dispatch_record = {"code": str(dispatch_code), "attempts": 0, "verified": False}
 
-        self._verify_otp_record(dispatch_record, otp, "Partner Dispatch OTP")
+        self._verify_otp_record(dispatch_record, clean_otp, "Partner Dispatch OTP")
         dispatch_record["verified"] = True
 
         now = lifecycle.now_iso()
         assigned_rider_id = order.get("assignedRiderId") or order.get("riderId") or order.get("deliveryRiderId")
 
-        # Update order status to OUT_FOR_DELIVERY
+        # Update order status to OUT_FOR_DELIVERY and set custody to rider
         await database.collection(ORDERS_COLLECTION).update_one(
             {"_id": canonical_id},
             {
@@ -1187,6 +1232,22 @@ class Smart2RideEngine:
             )
             await broadcast_order_event(EVENT_ORDER_OUT_FOR_DELIVERY, updated)
 
+            from app.services.partner_activity_logger import log_partner_activity
+            import asyncio
+            asyncio.create_task(
+                log_partner_activity(
+                    partner_id=partner_id,
+                    category="orders",
+                    event="OUT_FOR_DELIVERY",
+                    title=f"Handover Complete #{order.get('code', canonical_id[:8])}",
+                    description=f"Dispatch OTP verified. Laundry successfully handed over to Delivery Captain ({assigned_rider_id or 'Captain'}).",
+                    actor="Partner",
+                    order_id=canonical_id,
+                    order_code=order.get("code"),
+                    tone="success",
+                )
+            )
+
         return {
             "ok": True,
             "status": lifecycle.OUT_FOR_DELIVERY,
@@ -1197,14 +1258,29 @@ class Smart2RideEngine:
 
     async def verify_delivery_otp(self, order_id: str, otp: str, rider_id: str) -> Dict[str, Any]:
         """Phase 3 OTP: Customer provides final Delivery OTP to Rider at doorstep."""
+        clean_otp = str(otp or "").strip()
+        if len(clean_otp) != 4 or not clean_otp.isdigit():
+            raise ValueError("Please enter a valid 4-digit numeric Customer Delivery OTP.")
+
         order = await lifecycle.find_order(order_id)
         if not order:
             raise LookupError(f"Order {order_id} not found")
 
+        # Security Gate: Order must have been handed over from Partner Store first
+        current_status = lifecycle.order_status(order)
+        if current_status in (lifecycle.READY_FOR_DELIVERY, lifecycle.READY, "dispatch_otp_pending") and not order.get("dispatchOtpVerified"):
+            raise PermissionError("Cannot complete delivery: Order has not been handed over from partner store with Dispatch OTP.")
+
         canonical_id = lifecycle.order_id_of(order)
         otp_dict = order.get("otp") or {}
         delivery_record = otp_dict.get("delivery")
-        self._verify_otp_record(delivery_record, otp, "Customer Delivery OTP")
+        if not delivery_record:
+            delivery_code = order.get("deliveryOtp")
+            if not delivery_code:
+                raise PermissionError("Customer Delivery OTP has not been generated for this order yet.")
+            delivery_record = {"code": str(delivery_code), "attempts": 0, "verified": False}
+
+        self._verify_otp_record(delivery_record, clean_otp, "Customer Delivery OTP")
 
         now = lifecycle.now_iso()
         await database.collection(ORDERS_COLLECTION).update_one(

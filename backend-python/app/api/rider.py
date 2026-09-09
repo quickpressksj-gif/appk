@@ -2302,6 +2302,7 @@ async def get_dispatch_otp(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
+    canonical_id = lifecycle.order_id_of(order)
     otp_dict = order.get("otp") or {}
     dispatch_code = (
         (otp_dict.get("dispatch") or {}).get("code")
@@ -2309,12 +2310,41 @@ async def get_dispatch_otp(
         or (order.get("reassignment") or {}).get("dispatchOtp")
         or (order.get("reassignment") or {}).get("handoverOtp")
     )
+
+    if not dispatch_code:
+        from app.services.smart_2ride_engine import RIDES_COLLECTION
+        ride = await database.find_one(
+            RIDES_COLLECTION,
+            {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
+        )
+        if ride:
+            disp_val = (ride.get("otp") or {}).get("dispatch")
+            if isinstance(disp_val, dict):
+                dispatch_code = disp_val.get("code")
+            elif isinstance(disp_val, str) and disp_val.strip():
+                dispatch_code = disp_val.strip()
+
+    # If still not found and order is ready for delivery, safely generate and persist
+    if not dispatch_code:
+        from app.services.smart_2ride_engine import create_otp_record, RIDES_COLLECTION, ORDERS_COLLECTION
+        new_record = create_otp_record()
+        dispatch_code = new_record["code"]
+        await database.collection(ORDERS_COLLECTION).update_one(
+            {"_id": canonical_id},
+            {"$set": {"otp.dispatch": new_record, "dispatchOtp": dispatch_code}},
+        )
+        await database.collection(RIDES_COLLECTION).update_one(
+            {"orderId": canonical_id, "rideType": {"$in": ["delivery", "handover_delivery"]}},
+            {"$set": {"otp.dispatch": new_record}},
+        )
+        otp_dict["dispatch"] = new_record
+
     partner_doc = order.get("partner") or {}
     return {
         "ok": True,
-        "orderId": lifecycle.order_id_of(order),
+        "orderId": canonical_id,
         "dispatchOtp": str(dispatch_code) if dispatch_code else None,
-        "isVerified": bool((otp_dict.get("dispatch") or {}).get("verified")),
+        "isVerified": bool((otp_dict.get("dispatch") or {}).get("verified") or order.get("dispatchOtpVerified")),
         "partnerName": partner_doc.get("name") or order.get("partnerName") or "QuickPress Partner Store",
         "partnerAddress": partner_doc.get("address") or order.get("partnerAddress") or "Partner Store Address",
         "partnerPhone": partner_doc.get("phone") or order.get("partnerPhone") or "",

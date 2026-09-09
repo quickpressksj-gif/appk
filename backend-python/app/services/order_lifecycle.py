@@ -705,6 +705,8 @@ def to_partner_order(order: Dict[str, Any]) -> Dict[str, Any]:
         "assignedRider": rider_obj,
         "rider": rider_obj,
         "dispatchOtp": dispatch_code if status in (READY, READY_FOR_DELIVERY, COMPLETED, DISPATCH_OTP_PENDING) else "",
+        "dispatchOtpVerified": bool((order.get("otp") or {}).get("dispatch", {}).get("verified") or order.get("dispatchOtpVerified")),
+        "dispatchOtpRequired": status in (READY, READY_FOR_DELIVERY, COMPLETED, DISPATCH_OTP_PENDING) and not bool((order.get("otp") or {}).get("dispatch", {}).get("verified") or order.get("dispatchOtpVerified")),
         "cancelledReason": order.get("cancelledReason"),
         "cancellationReason": order.get("cancellationReason") or order.get("cancelledReason"),
         "partnerAcceptDeadline": order.get("partnerAcceptDeadline"),

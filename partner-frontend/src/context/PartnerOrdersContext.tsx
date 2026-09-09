@@ -8,6 +8,7 @@ import {
   fetchPartnerOrders,
   rejectPartnerOrder,
   startProcessingOrder,
+  verifyPartnerDispatchOtp,
 } from "@/api/partner/partner-orders-api";
 
 import { HIGH_VALUE_THRESHOLD, type ManagedOrder, type OrderStage } from "../data/partner-orders-mock";
@@ -192,6 +193,7 @@ type OrdersStore = {
   rejectOrder: (orderId: string, reason: string) => Promise<void>;
   startProcessing: (orderId: string) => Promise<void>;
   completeOrder: (orderId: string) => Promise<void>;
+  verifyDispatchOtp: (orderId: string, otp: string) => Promise<void>;
   counts: Record<OrderStage, number>;
   testIncomingOrderAlarm: () => void;
 };
@@ -473,6 +475,22 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
     [load],
   );
 
+  const verifyDispatchOtp = useCallback(
+    async (orderId: string, otp: string) => {
+      const cleanOtp = otp.trim();
+      await verifyPartnerDispatchOtp(orderId, cleanOtp);
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, stage: "out_for_delivery" as any, canonicalStatus: "out_for_delivery" }
+            : o
+        )
+      );
+      void load({ refreshing: true });
+    },
+    [load],
+  );
+
   const testIncomingOrderAlarm = useCallback(() => {
     // Disabled in production/live integration: order alarm only triggers on real API orders
   }, []);
@@ -510,6 +528,7 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       rejectOrder,
       startProcessing,
       completeOrder,
+      verifyDispatchOtp,
       counts,
       testIncomingOrderAlarm,
     }),
@@ -525,6 +544,7 @@ export function PartnerOrdersProvider({ children }: { children: ReactNode }) {
       rejectOrder,
       startProcessing,
       completeOrder,
+      verifyDispatchOtp,
       counts,
       testIncomingOrderAlarm,
     ],

@@ -133,7 +133,8 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
   const isHandoverRide = order.rideType === "handover_delivery" || order.isHandoverTransfer;
   const isDeliveryRide = currentLeg === "store_to_customer" || order.rideType === "delivery" || order.rideType === "handover_delivery" || order.isHandoverTransfer;
-  const isPickupRide = currentLeg === "pickup_to_store";
+  const isStorePickupForDelivery = isDeliveryRide || order.rideType === "delivery" || isHandoverRide || currentLeg === "store_to_customer";
+  const isPickupRide = currentLeg === "pickup_to_store" && !isStorePickupForDelivery;
 
   const [isInAppNavActive, setIsInAppNavActive] = useState<boolean>(() => {
     const s = String(order.status || "").toLowerCase();
@@ -227,7 +228,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
   // Periodic poll while at partner store for partner verification
   useEffect(() => {
-    if (stage !== "arrived_pickup" || !isHandoverRide) return;
+    if (stage !== "arrived_pickup" || (!isHandoverRide && !isStorePickupForDelivery)) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetchDispatchOtp(order.orderId);
@@ -242,7 +243,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       } catch {}
     }, 3500);
     return () => clearInterval(interval);
-  }, [stage, isHandoverRide, order.orderId]);
+  }, [stage, isHandoverRide, isStorePickupForDelivery, order.orderId]);
 
   // Periodic poll while in "store_processing" waiting for partner to finish cleaning
   useEffect(() => {
@@ -1068,7 +1069,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
         {/* STAGE 2: Arrived at Pickup / Handover Point */}
         {stage === "arrived_pickup" && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            {isHandoverRide ? (
+            {isStorePickupForDelivery || isHandoverRide ? (
               <div className="p-4 bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1078,7 +1079,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                         Partner Store Dispatch OTP
                       </span>
                       <span className="text-[10px] font-bold text-emerald-700">
-                        Tell this 4-digit code to Partner
+                        Tell this 4-digit code to Partner (पार्टनर को यह 4-अंकीय कोड बताएं)
                       </span>
                     </div>
                   </div>
@@ -1111,18 +1112,27 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                 <div className="space-y-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      unlockAudioContext();
-                      playSuccessChime();
-                      speakText("डिलीवरी शुरू करें।");
-                      toast.success("Custody collected! Navigating to customer.");
-                      setStage("in_trip");
-                      setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+                    onClick={async () => {
+                      try {
+                        const res = await fetchDispatchOtp(order.orderId);
+                        if (res?.isVerified || res?.status === "out_for_delivery" || res?.status === "OUT_FOR_DELIVERY") {
+                          unlockAudioContext();
+                          playSuccessChime();
+                          speakText("डिलीवरी शुरू करें।");
+                          toast.success("✓ Custody verified! Navigating to customer.");
+                          setStage("in_trip");
+                          setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+                        } else {
+                          toast.error("Partner has not verified your Dispatch OTP yet! Please ask store partner to enter the 4-digit code in their Partner Panel.");
+                        }
+                      } catch {
+                        toast.error("Could not verify partner status. Please ask partner to enter OTP.");
+                      }
                     }}
                     className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-4 h-4 stroke-[3]" />
-                    <span>Partner Verified · Start Customer Trip</span>
+                    <span>Check Partner Verification & Start Trip</span>
                   </button>
 
                   <button

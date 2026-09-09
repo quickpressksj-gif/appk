@@ -24,6 +24,7 @@ import {
   Play,
   RotateCcw,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Star,
@@ -84,7 +85,7 @@ export function ZomatoHubView() {
   const cachedProfile = useMemo(getCachedPartnerProfile, []);
   const cachedSummary = useMemo(getCachedDashboardSummary, []);
 
-  const { orders, counts, refresh: refreshOrders } = usePartnerOrders();
+  const { orders, counts, refresh: refreshOrders, verifyDispatchOtp } = usePartnerOrders();
   const { handleAction, sheetNode, overlay, busy } = useOrderActionHandler();
   const { openLanguageModal, language, t } = useLanguage();
 
@@ -102,6 +103,28 @@ export function ZomatoHubView() {
   const [earningsData, setEarningsData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(() => !session && !cachedProfile && !cachedSummary);
   const [selectedManageOrder, setSelectedManageOrder] = useState<ManagedOrder | null>(null);
+  const [hubDispatchOtp, setHubDispatchOtp] = useState("");
+  const [isVerifyingHubDispatch, setIsVerifyingHubDispatch] = useState(false);
+
+  const handleHubVerifyDispatch = async () => {
+    if (!selectedManageOrder) return;
+    const cleanOtp = hubDispatchOtp.trim();
+    if (cleanOtp.length !== 4) {
+      toast.error("Please enter the complete 4-digit Dispatch OTP communicated by the Captain.");
+      return;
+    }
+    setIsVerifyingHubDispatch(true);
+    try {
+      await verifyDispatchOtp(selectedManageOrder.id, cleanOtp);
+      toast.success("✓ Dispatch OTP Verified! Package handed over to Delivery Captain.");
+      setHubDispatchOtp("");
+      setSelectedManageOrder(null);
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid Dispatch OTP! Please ask the Captain for their 4-digit code.");
+    } finally {
+      setIsVerifyingHubDispatch(false);
+    }
+  };
 
   useEffect(() => {
     if (session?.businessName) {
@@ -506,9 +529,18 @@ export function ZomatoHubView() {
                               <ArrowRight className="size-3" />
                             </button>
                           ) : order.stage === "ready" ? (
-                            <span className="rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-[10px] font-black text-emerald-700 flex items-center gap-1">
-                              <span>🛵 Ready for Pickup</span>
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedManageOrder(order);
+                                setHubDispatchOtp("");
+                              }}
+                              className="rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-black text-white shadow-xs active:scale-95 flex items-center gap-1.5"
+                            >
+                              <ShieldCheck className="size-3.5" />
+                              <span>Handover (OTP)</span>
+                              <ArrowRight className="size-3" />
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -584,29 +616,61 @@ export function ZomatoHubView() {
               </div>
             </div>
 
-            {/* Dispatch OTP Card for Ready Order */}
-            {(selectedManageOrder.stage === "ready" || (selectedManageOrder as any).dispatchOtp) && (
-              <div className="mt-4 rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-4">
+            {/* Dispatch OTP Verification Card for Handover to Captain */}
+            {(selectedManageOrder.stage === "ready" || selectedManageOrder.stage === "dispatch_otp_pending" || selectedManageOrder.status === "ready_for_delivery") && (
+              <div className="mt-4 rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/10 via-emerald-50 to-white p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
-                    🚚 Dispatch OTP for Handover
-                  </span>
-                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white">
-                    Share with Rider
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-7 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                      <ShieldCheck className="size-4" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-emerald-950 block">
+                        Captain Handover Verification
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        कैप्टन को कपड़े सौंपने हेतु ओटीपी दर्ज करें
+                      </span>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-600/15 px-2.5 py-0.5 text-[9px] font-black text-emerald-800">
+                    Mandatory OTP
                   </span>
                 </div>
-                <div className="my-2.5 flex items-center justify-center gap-2">
-                  {((selectedManageOrder as any).dispatchOtp || "").split("").map((digit: string, i: number) => (
-                    <span
-                      key={i}
-                      className="flex size-10 items-center justify-center rounded-xl border border-emerald-300 bg-white font-mono text-xl font-black text-emerald-950 shadow-xs"
-                    >
-                      {digit}
-                    </span>
-                  ))}
+
+                <p className="mt-2 text-xs font-semibold text-zinc-700 leading-relaxed">
+                  Ask the arriving Delivery Captain for their <strong className="text-emerald-900 font-black">4-digit Dispatch OTP</strong> shown in their app to handover clean laundry:
+                </p>
+
+                {/* 4-Digit Numeric OTP Input + Handover Button */}
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="e.g. 5387"
+                    value={hubDispatchOtp}
+                    onChange={(e) => setHubDispatchOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    className="w-32 rounded-xl border-2 border-emerald-400 bg-white px-3 py-2 text-center font-mono text-lg font-black tracking-widest text-emerald-950 placeholder:text-zinc-300 placeholder:text-xs placeholder:font-sans focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={hubDispatchOtp.trim().length !== 4 || isVerifyingHubDispatch}
+                    onClick={handleHubVerifyDispatch}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-200 disabled:text-zinc-400 px-3.5 py-2.5 text-xs font-black text-white shadow-xs transition-all active:scale-95"
+                  >
+                    {isVerifyingHubDispatch ? (
+                      <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <CheckCircle2 className="size-4 stroke-[2.5]" />
+                    )}
+                    <span>Verify & Handover ✓</span>
+                  </button>
                 </div>
-                <p className="text-center text-[10px] font-bold text-zinc-600">
-                  Provide this 4-digit code to the delivery rider when handing over clean laundry bags.
+
+                <p className="mt-2 text-center text-[10px] font-medium text-zinc-500">
+                  🔒 Handover is locked. Order cannot be released without entering the Captain's Dispatch OTP.
                 </p>
               </div>
             )}
