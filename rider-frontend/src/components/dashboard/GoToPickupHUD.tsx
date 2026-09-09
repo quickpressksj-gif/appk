@@ -43,6 +43,7 @@ import { InAppVoiceNavigationModal } from "../navigation/InAppVoiceNavigationMod
 import { RiderUnableToDeliverModal } from "../orders/RiderUnableToDeliverModal";
 import { RiderHandoverWaitingCard } from "../orders/RiderHandoverWaitingCard";
 import { CaptainReviewModal } from "./CaptainReviewModal";
+import { pushRiderLocation } from "../../api/rider/rider-dashboard-api";
 
 import {
   verifyHandoverOtp,
@@ -84,6 +85,10 @@ export interface ActiveOrderData {
   partnerAddress?: string;
   partnerPhone?: string;
   custody?: string;
+  paymentMode?: string;
+  amount?: number;
+  placedAt?: string;
+  items?: any[];
 }
 
 interface GoToPickupHUDProps {
@@ -319,8 +324,49 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     }
   };
 
-  // Default coordinate (Kasganj Hub or order coordinates)
-  const captainCoords = { lat: 27.8083, lng: 78.6477 };
+  // Live Device GPS Coordinates for Captain
+  const [captainCoords, setCaptainCoords] = useState<{ lat: number; lng: number }>(() => {
+    return (
+      order.customerCoords ||
+      order.partnerCoords ||
+      order.pickupCoords ||
+      { lat: 27.8118, lng: 78.6477 }
+    );
+  });
+
+  // Track Captain's real-time device GPS coordinates and sync with backend
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
+
+    let isMounted = true;
+    const handlePos = (pos: GeolocationPosition) => {
+      if (!isMounted) return;
+      const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setCaptainCoords(next);
+      pushRiderLocation(next.lat, next.lng).catch(() => {});
+    };
+
+    const handleErr = (err: any) => {
+      console.warn("GPS tracking note:", err?.message || err);
+    };
+
+    navigator.geolocation.getCurrentPosition(handlePos, handleErr, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    });
+
+    const watchId = navigator.geolocation.watchPosition(handlePos, handleErr, {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 15000,
+    });
+
+    return () => {
+      isMounted = false;
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
   const customerCoords = order.customerCoords || order.pickupCoords || { lat: 27.8095, lng: 78.6490 };
   const storeCoords = order.partnerCoords || (order.rideType === "pickup" ? (order.dropCoords || { lat: 27.8118, lng: 78.6477 }) : (order.pickupCoords || { lat: 27.8118, lng: 78.6477 }));
 
@@ -511,7 +557,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     }
   };
 
-  // Trigger layer update on stage or currentLeg change
+  // Trigger layer update on stage, currentLeg, or GPS coordinate change
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     void (async () => {
@@ -519,7 +565,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       const L = leafletModule.default || leafletModule;
       updateMapLayers(L, mapInstanceRef.current, stage, currentLeg);
     })();
-  }, [stage, currentLeg]);
+  }, [stage, currentLeg, captainCoords]);
 
   // Recenter GPS
   const handleRecenter = () => {
@@ -558,8 +604,27 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
 
   const handleStartTrip = async () => {
     const enteredOtp = otpDigits.join("");
-    const requiredOtp = order.startOtp || "4829";
-    const otpToVerify = enteredOtp || requiredOtp;
+    const otpToVerify = enteredOtp || order.startOtp;
+
+    if (!otpToVerify || otpToVerify.length < 4) {
+      toast.error("Please enter the 4-digit pickup code told by customer");
+      return;
+    }
+
+    // Call Real Backend verification first
+    if (order.orderId) {
+      try {
+        await confirmPickup(order.orderId, otpToVerify);
+      } catch (err: any) {
+        try {
+          await startDelivery(order.orderId, otpToVerify);
+        } catch {
+          const msg = err?.message || "Invalid Pickup OTP. Please ask customer for correct 4-digit code.";
+          toast.error(msg);
+          return;
+        }
+      }
+    }
 
     unlockAudioContext();
     triggerHaptic();
@@ -570,17 +635,6 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
     setIsInAppNavActive(true);
     setStartTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     toast.success("Pickup Done! 🛵 In-App Navigation active to Partner Store...");
-
-    // Real backend verification & status transition
-    if (order.orderId) {
-      try {
-        await confirmPickup(order.orderId, otpToVerify);
-      } catch {
-        try {
-          await startDelivery(order.orderId, otpToVerify);
-        } catch {}
-      }
-    }
   };
 
   const handleCompleteTrip = async () => {
@@ -626,6 +680,21 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       }
     } else {
       // --- LEG 2 COMPLETE: Customer Doorstep Delivery ---
+      const enteredOtp = customerDeliveryOtpDigits.join("") || otpDigits.join("") || order.deliveryOtp;
+      if (!enteredOtp || enteredOtp.length < 4) {
+        toast.error("Please enter the 4-digit delivery code from the customer");
+        return;
+      }
+
+      if (order.orderId) {
+        try {
+          await confirmDelivery(order.orderId, enteredOtp);
+        } catch (e: any) {
+          toast.error(e?.message || "Invalid Delivery OTP. Please verify with customer.");
+          return;
+        }
+      }
+
       speakTripComplete(order.fare);
       setStage("completed");
       setIsInAppNavActive(false);
@@ -635,15 +704,6 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
       try {
         localStorage.removeItem("qp_active_rider_order");
       } catch {}
-
-      if (order.orderId) {
-        try {
-          const enteredOtp = customerDeliveryOtpDigits.join("") || otpDigits.join("") || "0000";
-          await confirmDelivery(order.orderId, enteredOtp);
-        } catch (e) {
-          console.warn("confirmDelivery error:", e);
-        }
-      }
     }
   };
 
@@ -763,7 +823,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
             <ChevronDown className="w-3 h-3 text-neutral-400" />
           </button>
           <span className="text-[10px] font-bold text-neutral-500 bg-white px-2 py-0.5 rounded-full border border-neutral-200">
-            Trip #{order.orderId || "101"} · ₹{order.fare.toFixed(2)}
+            Trip #{order.orderCode || (order.orderId ? order.orderId.slice(-6).toUpperCase() : "LIVE")} · ₹{order.fare.toFixed(2)}
           </span>
         </div>
 
@@ -1131,8 +1191,8 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                     <label className="text-xs font-black text-neutral-800">
                       Enter Customer Start OTP
                     </label>
-                    <span className="text-[10px] font-bold text-neutral-400">
-                      Demo OTP: {order.startOtp || "4829"}
+                    <span className="text-[10px] font-semibold text-neutral-500">
+                      Ask 4-digit code from customer
                     </span>
                   </div>
 
@@ -1668,7 +1728,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                     Live Order Timeline
                   </h3>
                   <p className="text-[11px] font-semibold text-neutral-500">
-                    Trip #{order.orderId || "101"} · QuickPress Bike
+                    Trip #{order.orderCode || (order.orderId ? order.orderId.slice(-6).toUpperCase() : "LIVE")} · QuickPress Bike
                   </p>
                 </div>
               </div>
@@ -1685,11 +1745,11 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
             <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-50 border-b border-neutral-100 text-xs">
               <div className="flex items-center gap-1.5 font-black text-neutral-900">
                 <span className="text-sm font-black text-emerald-600">₹{order.fare.toFixed(2)}</span>
-                <span className="text-[10px] text-neutral-500 font-semibold">(Cash on Delivery)</span>
+                <span className="text-[10px] text-neutral-500 font-semibold">{order.paymentMode === "cod" ? "(Cash on Delivery)" : "(Paid Online)"}</span>
               </div>
               <div className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full font-black text-[11px]">
                 <KeyRound className="w-3 h-3 text-amber-600" />
-                <span>Start OTP: {order.startOtp || "4829"}</span>
+                <span>Start OTP: {order.startOtp || "Pending verification"}</span>
               </div>
             </div>
 
@@ -1706,7 +1766,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                 <div className="flex-1 -mt-0.5">
                   <div className="flex items-baseline justify-between">
                     <h4 className="text-xs font-black text-neutral-900">Order Placed</h4>
-                    <span className="text-[10px] font-bold text-neutral-400">09:40 PM</span>
+                    <span className="text-[10px] font-bold text-neutral-400">{order.placedAt ? new Date(order.placedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}</span>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
                     Order initiated by {order.customerName || "Customer"}
@@ -1819,7 +1879,7 @@ export const GoToPickupHUD: React.FC<GoToPickupHUDProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Customer OTP: <span className="font-mono font-bold text-neutral-900">{order.startOtp || "4829"}</span>
+                    Customer OTP: <span className="font-mono font-bold text-neutral-900">{order.startOtp || "Verified at pickup"}</span>
                   </p>
                 </div>
               </div>

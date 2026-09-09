@@ -38,6 +38,7 @@ import { CaptainSidebarDrawer } from "../components/layout/CaptainSidebarDrawer"
 export interface OrderOfferItem {
   id: string;
   orderId?: string;
+  orderCode?: string;
   type?: string;
   rideType?: string;
   isTransfer?: boolean;
@@ -52,8 +53,22 @@ export interface OrderOfferItem {
   pickupDistanceKm?: number;
   dropDistanceKm?: number;
   fare?: number;
+  amount?: number;
   customerName?: string;
   customerPhone?: string;
+  partnerName?: string;
+  partnerPhone?: string;
+  partnerAddress?: string;
+  pickupOtp?: string;
+  deliveryOtp?: string;
+  dispatchOtp?: string;
+  pickupCoords?: { lat: number; lng: number };
+  dropCoords?: { lat: number; lng: number };
+  customerCoords?: { lat: number; lng: number };
+  partnerCoords?: { lat: number; lng: number };
+  paymentMode?: string;
+  items?: any[];
+  placedAt?: string;
   expiresInSeconds?: number;
 }
 
@@ -86,27 +101,56 @@ export function RiderOrdersScreen() {
     try {
       const rawOffers = await fetchRiderOffers();
       if (Array.isArray(rawOffers) && rawOffers.length > 0) {
-        const formatted: OrderOfferItem[] = rawOffers.map((r: any) => ({
-          id: r.offerId || r.id || r._id,
-          orderId: r.orderId || r.rideId || r.id,
-          type: r.type || r.rideType || "bike",
-          rideType: r.rideType || (r.type === "delivery" || r.type === "handover_delivery" ? "delivery" : "pickup"),
-          isTransfer: Boolean(r.isTransfer),
-          isReassigned: Boolean(r.isReassigned),
-          isReassignedBonus: Boolean(r.isReassignedBonus),
-          extraBonusPercent: Number(r.extraBonusPercent || 0),
-          extraBonusAmount: Number(r.extraBonusAmount || 0),
-          pickupTitle: r.pickupTitle || r.pickupName || "Pickup Location",
-          pickupAddress: r.pickupAddress || r.pickupLocation?.address || "Pickup Address",
-          dropTitle: r.dropTitle || r.dropName || "Drop Location",
-          dropAddress: r.dropAddress || r.dropLocation?.address || "Delivery Address",
-          pickupDistanceKm: r.distanceKm ? Number((r.distanceKm * 0.3).toFixed(1)) : 0.5,
-          dropDistanceKm: r.distanceKm ? Number(r.distanceKm) : 2.5,
-          fare: Number(r.estimatedEarning || r.fare || 45),
-          customerName: r.customerName || "Customer",
-          customerPhone: r.customerPhone || "",
-          expiresInSeconds: 120, // 2 minutes SLA
-        }));
+        const formatted: OrderOfferItem[] = rawOffers.map((r: any) => {
+          const c_lat = r.customerCoords?.lat ?? r.pickupCoords?.lat ?? r.pickupLocation?.latitude ?? r.pickupLocation?.lat ?? r.customerLocation?.lat;
+          const c_lng = r.customerCoords?.lng ?? r.pickupCoords?.lng ?? r.pickupLocation?.longitude ?? r.pickupLocation?.lng ?? r.customerLocation?.lng;
+          const p_lat = r.partnerCoords?.lat ?? r.dropCoords?.lat ?? r.partnerLocation?.latitude ?? r.partnerLocation?.lat ?? r.dropLocation?.lat;
+          const p_lng = r.partnerCoords?.lng ?? r.dropCoords?.lng ?? r.partnerLocation?.longitude ?? r.partnerLocation?.lng ?? r.dropLocation?.lng;
+
+          const custCoords = c_lat != null && c_lng != null ? { lat: Number(c_lat), lng: Number(c_lng) } : undefined;
+          const partCoords = p_lat != null && p_lng != null ? { lat: Number(p_lat), lng: Number(p_lng) } : undefined;
+
+          const pOtp = r.pickupOtp || (typeof r.otp?.pickup === "object" ? r.otp?.pickup?.code : r.otp?.pickup);
+          const dOtp = r.deliveryOtp || (typeof r.otp?.delivery === "object" ? r.otp?.delivery?.code : r.otp?.delivery);
+          const dispOtp = r.dispatchOtp || (typeof r.otp?.dispatch === "object" ? r.otp?.dispatch?.code : r.otp?.dispatch);
+
+          return {
+            id: r.offerId || r.id || r._id,
+            orderId: r.orderId || r.rideId || r.id,
+            orderCode: r.orderCode || r.code || (r.orderId ? String(r.orderId).slice(-6).toUpperCase() : undefined),
+            type: r.type || r.rideType || "bike",
+            rideType: r.rideType || (r.type === "delivery" || r.type === "handover_delivery" ? "delivery" : "pickup"),
+            isTransfer: Boolean(r.isTransfer),
+            isReassigned: Boolean(r.isReassigned),
+            isReassignedBonus: Boolean(r.isReassignedBonus),
+            extraBonusPercent: Number(r.extraBonusPercent || 0),
+            extraBonusAmount: Number(r.extraBonusAmount || 0),
+            pickupTitle: r.pickupTitle || r.pickupName || (r.rideType === "delivery" ? (r.partnerName || "Partner Store") : "Customer Pickup"),
+            pickupAddress: r.pickupAddress || r.pickupLocation?.address || "Pickup Address",
+            dropTitle: r.dropTitle || r.dropName || (r.rideType === "delivery" ? (r.customerName || "Customer Delivery") : (r.partnerName || "Partner Store")),
+            dropAddress: r.dropAddress || r.dropLocation?.address || "Delivery Address",
+            pickupDistanceKm: r.distanceKm ? Number((r.distanceKm * 0.3).toFixed(1)) : 0.5,
+            dropDistanceKm: r.distanceKm ? Number(r.distanceKm) : 2.5,
+            fare: Number(r.estimatedEarning || r.fare || 45),
+            amount: Number(r.amount || r.total_amount || 0),
+            paymentMode: r.paymentMode || r.payment_method || "cod",
+            customerName: r.customerName || "Customer",
+            customerPhone: r.customerPhone || "",
+            partnerName: r.partnerName || "QuickPress Partner Store",
+            partnerPhone: r.partnerPhone || "",
+            partnerAddress: r.partnerAddress || "",
+            pickupOtp: pOtp ? String(pOtp) : undefined,
+            deliveryOtp: dOtp ? String(dOtp) : undefined,
+            dispatchOtp: dispOtp ? String(dispOtp) : undefined,
+            customerCoords: custCoords,
+            partnerCoords: partCoords,
+            pickupCoords: r.rideType === "delivery" ? partCoords : custCoords,
+            dropCoords: r.rideType === "delivery" ? custCoords : partCoords,
+            items: r.items || [],
+            placedAt: r.placedAt || r.createdAt,
+            expiresInSeconds: 120, // 2 minutes SLA
+          };
+        });
         setOffers((prev) => {
           if (prev.length === 0 && formatted.length > 0) {
             try {
@@ -159,20 +203,44 @@ export function RiderOrdersScreen() {
   // Subscribe to live WebSocket offers
   useEffect(() => {
     const unsubscribe = subscribeRiderOffers((rawOffer: any) => {
+      const c_lat = rawOffer.customerCoords?.lat ?? rawOffer.pickupCoords?.lat ?? rawOffer.pickupLocation?.latitude ?? rawOffer.pickupLocation?.lat;
+      const c_lng = rawOffer.customerCoords?.lng ?? rawOffer.pickupCoords?.lng ?? rawOffer.pickupLocation?.longitude ?? rawOffer.pickupLocation?.lng;
+      const p_lat = rawOffer.partnerCoords?.lat ?? rawOffer.dropCoords?.lat ?? rawOffer.partnerLocation?.latitude ?? rawOffer.partnerLocation?.lat;
+      const p_lng = rawOffer.partnerCoords?.lng ?? rawOffer.dropCoords?.lng ?? rawOffer.partnerLocation?.longitude ?? rawOffer.partnerLocation?.lng;
+
+      const custCoords = c_lat != null && c_lng != null ? { lat: Number(c_lat), lng: Number(c_lng) } : undefined;
+      const partCoords = p_lat != null && p_lng != null ? { lat: Number(p_lat), lng: Number(p_lng) } : undefined;
+
       const newOffer: OrderOfferItem = {
         id: rawOffer.id || rawOffer._id || `off-${Date.now()}`,
         orderId: rawOffer.orderId || rawOffer.id,
+        orderCode: rawOffer.orderCode || rawOffer.code || (rawOffer.orderId ? String(rawOffer.orderId).slice(-6).toUpperCase() : undefined),
         type: rawOffer.type || "bike",
-        pickupTitle: rawOffer.pickupTitle || "Pickup Hub",
+        rideType: rawOffer.rideType || (rawOffer.type === "delivery" || rawOffer.type === "handover_delivery" ? "delivery" : "pickup"),
+        pickupTitle: rawOffer.pickupTitle || (rawOffer.rideType === "delivery" ? (rawOffer.partnerName || "Partner Store") : "Customer Pickup"),
         pickupAddress: rawOffer.pickupAddress || "",
-        dropTitle: rawOffer.dropTitle || "Drop Location",
+        dropTitle: rawOffer.dropTitle || (rawOffer.rideType === "delivery" ? (rawOffer.customerName || "Customer Delivery") : (rawOffer.partnerName || "Partner Store")),
         dropAddress: rawOffer.dropAddress || "",
         pickupDistanceKm: rawOffer.pickupDistanceKm || 0.5,
         dropDistanceKm: rawOffer.dropDistanceKm || 2.5,
-        fare: rawOffer.fare || 45.0,
+        fare: Number(rawOffer.fare || rawOffer.estimatedEarning || 45.0),
+        amount: Number(rawOffer.amount || rawOffer.total_amount || 0),
+        paymentMode: rawOffer.paymentMode || rawOffer.payment_method || "cod",
         customerName: rawOffer.customerName || "Customer",
         customerPhone: rawOffer.customerPhone || "",
-        expiresInSeconds: 15,
+        partnerName: rawOffer.partnerName || "QuickPress Partner Store",
+        partnerPhone: rawOffer.partnerPhone || "",
+        partnerAddress: rawOffer.partnerAddress || "",
+        pickupOtp: rawOffer.pickupOtp ? String(rawOffer.pickupOtp) : undefined,
+        deliveryOtp: rawOffer.deliveryOtp ? String(rawOffer.deliveryOtp) : undefined,
+        dispatchOtp: rawOffer.dispatchOtp ? String(rawOffer.dispatchOtp) : undefined,
+        customerCoords: custCoords,
+        partnerCoords: partCoords,
+        pickupCoords: rawOffer.rideType === "delivery" ? partCoords : custCoords,
+        dropCoords: rawOffer.rideType === "delivery" ? custCoords : partCoords,
+        items: rawOffer.items || [],
+        placedAt: rawOffer.placedAt || rawOffer.createdAt,
+        expiresInSeconds: 120,
       };
 
       unlockAudioContext();
@@ -206,17 +274,31 @@ export function RiderOrdersScreen() {
 
     const newActiveOrder: ActiveOrderData = {
       orderId: targetId,
+      orderCode: offer.orderCode || targetId.slice(-6).toUpperCase(),
       customerName: offer.customerName || "Customer",
       customerPhone: offer.customerPhone || "",
-      pickupAddress: offer.pickupAddress || offer.pickupTitle || "Kasganj Pickup Location",
+      partnerName: offer.partnerName || "QuickPress Partner Store",
+      partnerPhone: offer.partnerPhone || "",
+      partnerAddress: offer.partnerAddress || offer.dropAddress,
+      pickupAddress: offer.pickupAddress || offer.pickupTitle || "Customer Pickup Location",
       pickupTitle: offer.pickupTitle || "Pickup Location",
-      dropAddress: offer.dropAddress || offer.dropTitle || "QuickPress Partner Hub, Kasganj",
+      dropAddress: offer.dropAddress || offer.dropTitle || "QuickPress Partner Hub",
       dropTitle: offer.dropTitle || "Partner Hub",
       distanceMeters: Math.round((offer.pickupDistanceKm || 1.2) * 1000),
       pickupDistanceKm: offer.pickupDistanceKm || 1.2,
       dropDistanceKm: offer.dropDistanceKm || 2.5,
       fare: offer.fare || 45.0,
-      startOtp: "4829",
+      amount: offer.amount || offer.fare || 45.0,
+      paymentMode: offer.paymentMode || "cod",
+      items: offer.items || [],
+      placedAt: offer.placedAt || new Date().toISOString(),
+      startOtp: offer.pickupOtp || "",
+      deliveryOtp: offer.deliveryOtp || "",
+      dispatchOtp: offer.dispatchOtp || "",
+      customerCoords: offer.customerCoords,
+      partnerCoords: offer.partnerCoords,
+      pickupCoords: offer.pickupCoords,
+      dropCoords: offer.dropCoords,
       rideType: offer.rideType || (offer.type === "delivery" || offer.type === "handover_delivery" ? "delivery" : "pickup"),
     };
 
@@ -234,11 +316,45 @@ export function RiderOrdersScreen() {
         const pickupOtp =
           (typeof ord.otp?.pickup === "object" ? ord.otp?.pickup?.code : ord.otp?.pickup) ||
           ord.pickupOtp ||
-          "4829";
+          newActiveOrder.startOtp;
+        const deliveryOtp =
+          (typeof ord.otp?.delivery === "object" ? ord.otp?.delivery?.code : ord.otp?.delivery) ||
+          ord.deliveryOtp ||
+          newActiveOrder.deliveryOtp;
+        const dispatchOtp =
+          (typeof ord.otp?.dispatch === "object" ? ord.otp?.dispatch?.code : ord.otp?.dispatch) ||
+          ord.dispatchOtp ||
+          newActiveOrder.dispatchOtp;
+
+        const c_loc = ord.pickupLocation || ord.customerLocation || ord.deliveryLocation;
+        const p_loc = ord.partnerLocation || ord.storeLocation;
+        const c_lat = ord.customerCoords?.lat ?? c_loc?.latitude ?? c_loc?.lat;
+        const c_lng = ord.customerCoords?.lng ?? c_loc?.longitude ?? c_loc?.lng;
+        const p_lat = ord.partnerCoords?.lat ?? p_loc?.latitude ?? p_loc?.lat;
+        const p_lng = ord.partnerCoords?.lng ?? p_loc?.longitude ?? p_loc?.lng;
+
+        const custCoords = c_lat != null && c_lng != null ? { lat: Number(c_lat), lng: Number(c_lng) } : newActiveOrder.customerCoords;
+        const partCoords = p_lat != null && p_lng != null ? { lat: Number(p_lat), lng: Number(p_lng) } : newActiveOrder.partnerCoords;
+
         const updatedActiveOrder: ActiveOrderData = {
           ...newActiveOrder,
           orderCode: ord.code || ord.orderCode || targetId.slice(-6).toUpperCase(),
-          startOtp: String(pickupOtp || "4829"),
+          startOtp: pickupOtp ? String(pickupOtp) : newActiveOrder.startOtp,
+          deliveryOtp: deliveryOtp ? String(deliveryOtp) : newActiveOrder.deliveryOtp,
+          dispatchOtp: dispatchOtp ? String(dispatchOtp) : newActiveOrder.dispatchOtp,
+          customerCoords: custCoords,
+          partnerCoords: partCoords,
+          pickupCoords: ord.rideType === "delivery" ? partCoords : custCoords,
+          dropCoords: ord.rideType === "delivery" ? custCoords : partCoords,
+          customerName: ord.customerName || newActiveOrder.customerName,
+          customerPhone: ord.customerPhone || newActiveOrder.customerPhone,
+          partnerName: ord.partnerName || newActiveOrder.partnerName,
+          partnerPhone: ord.partnerPhone || newActiveOrder.partnerPhone,
+          partnerAddress: ord.partnerAddress || newActiveOrder.partnerAddress,
+          pickupAddress: ord.pickupAddress || newActiveOrder.pickupAddress,
+          dropAddress: ord.deliveryAddress || ord.dropAddress || newActiveOrder.dropAddress,
+          paymentMode: ord.paymentMode || ord.payment?.mode || newActiveOrder.paymentMode,
+          amount: Number(ord.amount ?? ord.totalAmount ?? newActiveOrder.amount),
           fare: Number(ord.estimatedEarning ?? ord.fare ?? newActiveOrder.fare),
         };
         setActiveOrder(updatedActiveOrder);

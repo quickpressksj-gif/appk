@@ -1917,6 +1917,55 @@ async def get_active_offers(user: Optional[User] = Depends(optional_user)) -> li
         off["paymentMode"] = real_pay_mode
         off["serviceLabel"] = real_service
 
+        # Real coordinates extraction
+        c_lat = None
+        c_lng = None
+        if isinstance(cust_addr, dict):
+            c_lat = cust_addr.get("latitude") if cust_addr.get("latitude") is not None else cust_addr.get("lat")
+            c_lng = cust_addr.get("longitude") if cust_addr.get("longitude") is not None else cust_addr.get("lng")
+        if c_lat is None or c_lng is None:
+            c_loc = real_order.get("pickupLocation") or real_order.get("customerLocation") or real_order.get("deliveryLocation") or {}
+            c_lat = c_loc.get("latitude") if c_loc.get("latitude") is not None else c_loc.get("lat")
+            c_lng = c_loc.get("longitude") if c_loc.get("longitude") is not None else c_loc.get("lng")
+
+        p_lat = None
+        p_lng = None
+        if isinstance(partner_info, dict):
+            p_lat = partner_info.get("latitude") if partner_info.get("latitude") is not None else partner_info.get("lat")
+            p_lng = partner_info.get("longitude") if partner_info.get("longitude") is not None else partner_info.get("lng")
+            if (p_lat is None or p_lng is None) and isinstance(partner_info.get("location"), dict):
+                p_lat = partner_info["location"].get("latitude") if partner_info["location"].get("latitude") is not None else partner_info["location"].get("lat")
+                p_lng = partner_info["location"].get("longitude") if partner_info["location"].get("longitude") is not None else partner_info["location"].get("lng")
+        if p_lat is None or p_lng is None:
+            p_loc = real_order.get("partnerLocation") or real_order.get("storeLocation") or {}
+            p_lat = p_loc.get("latitude") if p_loc.get("latitude") is not None else p_loc.get("lat")
+            p_lng = p_loc.get("longitude") if p_loc.get("longitude") is not None else p_loc.get("lng")
+
+        p_otp = real_order.get("pickupOtp") or ((real_order.get("otp") or {}).get("pickup") or {}).get("code")
+        d_otp = real_order.get("deliveryOtp") or ((real_order.get("otp") or {}).get("delivery") or {}).get("code")
+        disp_otp = real_order.get("dispatchOtp") or ((real_order.get("otp") or {}).get("dispatch") or {}).get("code")
+
+        if c_lat is not None and c_lng is not None:
+            off["customerCoords"] = {"lat": float(c_lat), "lng": float(c_lng)}
+            off["pickupCoords"] = {"lat": float(c_lat), "lng": float(c_lng)}
+            off["pickupLocation"] = {"latitude": float(c_lat), "longitude": float(c_lng)}
+        if p_lat is not None and p_lng is not None:
+            off["partnerCoords"] = {"lat": float(p_lat), "lng": float(p_lng)}
+            off["dropCoords"] = {"lat": float(p_lat), "lng": float(p_lng)}
+            off["partnerLocation"] = {"latitude": float(p_lat), "longitude": float(p_lng)}
+            off["dropLocation"] = {"latitude": float(p_lat), "longitude": float(p_lng)}
+
+        if p_otp:
+            off["pickupOtp"] = str(p_otp)
+        if d_otp:
+            off["deliveryOtp"] = str(d_otp)
+        if disp_otp:
+            off["dispatchOtp"] = str(disp_otp)
+        if real_order.get("items"):
+            off["items"] = real_order.get("items")
+        if real_order.get("placedAt"):
+            off["placedAt"] = real_order.get("placedAt")
+
         valid_offers.append(off)
 
     return valid_offers

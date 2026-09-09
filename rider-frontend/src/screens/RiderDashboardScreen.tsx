@@ -132,13 +132,16 @@ export function RiderDashboardScreen() {
   useEffect(() => {
     if (!isOnline) return;
 
-    const unsubscribe = subscribeRiderOffers(() => {
+    const unsubscribe = subscribeRiderOffers((rawOffer: any) => {
       unlockAudioContext();
       triggerHaptic([200, 100, 200, 100, 400]);
       playOrderAlertSound();
-      speakOrderAlert(55, "कासगंज हब", "कस्टमर लोकेशन");
+      const fare = Number(rawOffer?.fare || rawOffer?.estimatedEarning || 45);
+      const pickupTitle = rawOffer?.pickupTitle || rawOffer?.partnerName || "पिकअप हब";
+      const dropTitle = rawOffer?.dropTitle || rawOffer?.customerName || "कस्टमर लोकेशन";
+      speakOrderAlert(fare, pickupTitle, dropTitle);
       setPendingOrdersCount((prev) => prev + 1);
-      toast.info("🚨 New Order Dispatched! Switching to Orders...");
+      toast.info(`🚨 New Order (₹${fare})! Switching to Orders...`);
       // Auto-switch to the Orders tab as requested by user
       navigate({ to: "/orders" });
     });

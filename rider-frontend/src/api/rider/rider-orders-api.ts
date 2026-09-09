@@ -125,15 +125,15 @@ export async function fetchRiderHistory(): Promise<RiderHistoryEntry[]> {
   }
 }
 
-export async function updateOrderStatus(orderId: string, status: string) {
-  if (status === "delivered") {
+export async function updateOrderStatus(orderId: string, status: string, otp?: string) {
+  if (status === "delivered" && otp) {
     try {
-      return await confirmDelivery(orderId, "0000");
+      return await confirmDelivery(orderId, otp);
     } catch {
       return { ok: true, orderId, status };
     }
   }
-  return apiPostJson(`/api/rider/orders/${orderId}/status`, { status }).catch(() => ({ ok: true }));
+  return apiPostJson(`/api/rider/orders/${orderId}/status`, { status, otp }).catch(() => ({ ok: true }));
 }
 
 /** POST /api/rider/orders/{id}/arrived — rider reached pickup location */
