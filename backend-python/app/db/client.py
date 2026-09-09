@@ -250,7 +250,7 @@ class Database:
             try:
                 from app.db.supabase_client import SupabaseDatabase
                 sb_db = SupabaseDatabase(db_url)
-                await asyncio.wait_for(sb_db.connect(), timeout=5.0)
+                await asyncio.wait_for(sb_db.connect(), timeout=15.0)
                 self._supabase = sb_db
                 self._engine = "supabase-postgresql"
                 self._fallback_in_memory = False

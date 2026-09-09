@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { GoToPickupHUD, type ActiveOrderData } from "../components/dashboard/GoToPickupHUD";
 import { CaptainSidebarDrawer } from "../components/layout/CaptainSidebarDrawer";
+import { supabase } from "../integrations/supabase/client";
 
 export interface OrderOfferItem {
   id: string;
@@ -199,6 +200,48 @@ export function RiderOrdersScreen() {
 
     return () => clearInterval(timer);
   }, [offers.length, activeOrder]);
+
+  // Supabase Realtime subscription for instant offer pushes
+  useEffect(() => {
+    let channel: any = null;
+    try {
+      channel = supabase
+        .channel("rider-orders-screen-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_offers",
+          },
+          () => {
+            loadOffers(true);
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.customer_orders",
+          },
+          () => {
+            loadOffers(true);
+          }
+        )
+        .subscribe();
+    } catch {}
+
+    return () => {
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      }
+    };
+  }, []);
 
   // Subscribe to live WebSocket offers
   useEffect(() => {

@@ -28,6 +28,7 @@ import {
   unlockAudioContext,
 } from "../lib/captain-audio";
 import { subscribeRiderOffers } from "../lib/rider-socket";
+import { supabase } from "../integrations/supabase/client";
 
 export function RiderDashboardScreen() {
   const navigate = useNavigate();
@@ -93,6 +94,60 @@ export function RiderDashboardScreen() {
 
   useEffect(() => {
     loadRealData();
+  }, [loadRealData]);
+
+  // Supabase Realtime subscription for instant dashboard metrics & profile sync
+  useEffect(() => {
+    let channel: any = null;
+    try {
+      channel = supabase
+        .channel("rider-dashboard-screen-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_profiles",
+          },
+          () => {
+            loadRealData();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_wallets",
+          },
+          () => {
+            loadRealData();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "quickpress_documents",
+            filter: "collection=eq.rider_offers",
+          },
+          () => {
+            loadRealData();
+          }
+        )
+        .subscribe();
+    } catch {}
+
+    return () => {
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      }
+    };
   }, [loadRealData]);
 
   // Periodic polling for real-time notification badge updates
